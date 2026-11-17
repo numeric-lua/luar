@@ -28,13 +28,15 @@ for case = 1, 100 do
   end
   local immediate = (case % 2 == 0)
   local init = (case % 3 == 0) and "0.0" or "0"
+  local exprs = {"s + i", "s - i", "s * i", "s + i * i"}
+  local expr = exprs[1 + (case % #exprs)]
   local cond = "i " .. op .. " " ..
                (immediate and tostring(limit) or "limit")
   local decl = immediate and "" or (" local limit = " .. limit)
   local src = ("return function()%s local i, s = 0, %s " ..
-               "repeat i = i + %d; s = s + i until %s " ..
+               "repeat i = i + %d; s = %s until %s " ..
                "return s, i end")
-              :format(decl, init, step, cond)
+              :format(decl, init, step, expr, cond)
   jit.flush()
   jit.off()
   local want, wi = run(src)
