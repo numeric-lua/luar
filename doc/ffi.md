@@ -367,7 +367,7 @@ variadic types.  Use `ffi.new`/`ffi.cast` to force an exact integer width.
 The variadic part is not type-checked against the callee's `va_arg` or
 `printf` expectations, so a mismatch is undefined behavior, as in C.
 
-Deliberately unsupported call features:
+Call features:
 
 * C function pointers (including pointers returned by other C functions)
   can be passed and called normally.

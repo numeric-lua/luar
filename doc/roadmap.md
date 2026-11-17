@@ -31,18 +31,20 @@ cdata allocation and access (`new`, `cast`, field/array access, pointer
 arithmetic, int64/uint64), `string`/`copy`/`fill`/`gc`/`metatype`, `ffi.C`
 and `ffi.load` with fixed and variadic calls through libffi, `ffi.errno`.
 
-Status: this scope is implemented and covered by `tests/ffi/` (including a
-`qsort` call with a C comparator, struct-by-value arguments/returns and
-variadic calls) behind `WITH_FFI=1`.  What remains before the milestone
-closes: cdata bitwise/shift operators, automated ASan/UBSan coverage, the
-callback/bitfield decisions, and testing on non-x86-64 hosts.
+Status: implemented behind `WITH_FFI=1`: cdata bitwise/shift, variadic
+calls, callbacks (struct/scalar-union returns), structs with array members
+and small scalar unions by value, bitfields, TLS globals, ASan/UBSan/fuzz
+coverage and a real `libluatorch.so` consumer.  What remains: large or
+aggregate unions by value, mixed-base bitfield runs, the preprocessor, and
+non-x86-64 hosts.
 
 Exit criteria:
 
 * A pure-FFI program that allocates structs, passes pointers to libc and
   calls `qsort`-style APIs runs correctly under `make WITH_FFI=1`.
 * No crashes under the ffi test suite with ASan/UBSan (`make test-asan`).
-* Documented limitations: no bitfields, preprocessor, callbacks.
+* Documented limitations: no preprocessor, large/aggregate unions by value,
+  mixed-base bitfield runs, non-x86-64 hosts.
 * `make WITH_FFI=0` remains green.
 
 Estimated: 2–4 weeks.
