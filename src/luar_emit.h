@@ -64,6 +64,10 @@ typedef struct LuaR_LoopDesc {
   int table_asize_off;
   int table_metatable_off;
   int tag_table;
+  int fast_float;		/* acc += idx * constant fast path */
+  int ff_acc;
+  int ff_idx;
+  double ff_const;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;

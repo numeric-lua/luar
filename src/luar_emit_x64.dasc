@@ -572,8 +572,56 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static void emit_fast_float (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  int64_t bits;
+  memcpy(&bits, &d->ff_const, sizeof(bits));
+  | push rbx
+  | mov rbx, rdi
+  | push r12
+  | push r13
+  | push r14
+  emit_guards(Dst, d);
+  | mov r12, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+  | mov r13, qword [rbx + ((int)LUAR_SLOT(d->ff_idx))]
+  | mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+  | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->ff_acc))]
+  | mov64 rax, bits
+  | movq xmm1, rax
+  |1:
+  | cvtsi2sd xmm2, r13
+  | mulsd xmm2, xmm1
+  | addsd xmm0, xmm2
+  | test r12, r12
+  | jz >2
+  | dec r12
+  | add r13, r14
+  | jmp <1
+  |2:
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
+  | movsd qword [rbx + ((int)LUAR_SLOT(d->ff_acc))], xmm0
+  | mov eax, 1
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+  |3:
+  | xor eax, eax
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+}
+
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
+  if (d->fast_float) {
+    emit_fast_float(Dst, d);
+    return;
+  }
   if (d->has_branch) {
     emit_branch_code(Dst, d);
     return;

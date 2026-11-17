@@ -116,6 +116,24 @@ same("float + int const", function ()
   return x
 end)
 
+same("fast float step", function ()
+  local x = 0.0
+  for i = 1, 5000, 2 do x = x + i * 0.5 end
+  return x
+end)
+
+same("fast float down", function ()
+  local x = 0.0
+  for i = 5000, 1, -1 do x = x + i * 0.25 end
+  return x
+end)
+
+same("fast float int const", function ()
+  local x = 0.0
+  for i = 1, 5000 do x = x + i * 2 end
+  return x
+end)
+
 same("float sub in place", function ()
   local x = 1000.0
   for i = 1, 5000 do x = x - i * 0.5 end

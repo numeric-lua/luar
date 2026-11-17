@@ -6,7 +6,8 @@
 > int and double operands with guards.  In the same harness,
 > `numeric/int_sum` dropped from ~35 ms to **5.9 ms** (0.17x stock Lua,
 > matching LuaJIT's 5.9 ms / 0.17x), and `numeric/float_loop` from ~27 ms
-> to **11.1 ms** (0.40x vs LuaJIT's 3.0 ms).  `fib` and `mandel` are unchanged (calls and
+> to **6.8 ms** (0.25x stock; LuaJIT is 3.0 ms) after a register-cached
+> `acc + i * const` fast path.  `fib` and `mandel` are unchanged (calls and
 > branches); the tables below are the pre-J2 baseline and remain valid for
 > everything the JIT does not compile.  The experimental table JIT is
 > opt-in and does not yet beat the interpreter on this corpus.  Re-run
