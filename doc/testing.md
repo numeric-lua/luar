@@ -12,6 +12,8 @@ make test-semantics    # tests/semantics/*.lua
 make test-compat       # tests/compat/*.lua
 make test-diff         # same scripts under stock lua 5.5 and luar
 make test-ffi          # tests/ffi/*.lua (requires WITH_FFI=1)
+make test-asan         # clean ASan+UBSan build, suites and cdef fuzz
+make test-fuzz         # deterministic ffi.cdef fuzzer (builds WITH_FFI=1)
 tools/upstream-check.sh
 tests/upstream/run.sh  # official Lua test suite (downloads once)
 make bench             # performance harness, no pass/fail gates
@@ -48,7 +50,8 @@ H.raises(function () ... end, "pattern")
 `src/luar`, then compares stdout and exit status. The scripts must be
 deterministic: no addresses, no `pairs` order, no wall-clock output. This is
 the cheapest and strongest anti-fork test; new language-visible changes
-belong here as well as in `tests/semantics/`.
+belong here as well as in `tests/semantics/`. If no stock `lua` is on
+`PATH`, the runner prints a skip and exits successfully.
 
 The semantics files are also expected to pass under stock Lua. CI runs them
 that way to catch tests that accidentally encode LuaR behaviour.
@@ -91,17 +94,88 @@ the suite changes with Lua releases and is not part of LuaR.
 The FFI suite is built and run only with `WITH_FFI=1`. It must be
 deterministic and depend only on libc. Prefer computing sizes/offsets from a
 tiny C helper built at test time over hard-coding them, so the suite is
-portable across x86-64 and ARM64. Run with sanitizers when touching the cdata
-runtime:
+portable across x86-64 and ARM64. Run `tests/asan.sh` (or `make test-asan`)
+when touching the cdata runtime; it builds with ASan+UBSan and includes the
+FFI suite. See [Sanitizers](#sanitizers-asan--ubsan).
+
+## Sanitizers (ASan + UBSan)
+
+`tests/asan.sh` is the supported sanitizer entry point:
 
 ```sh
-make clean
-make WITH_FFI=1 CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
-ASAN_OPTIONS=detect_leaks=0 ./src/luar tests/run.lua ffi
+make test-asan                 # clean ASan+UBSan run, FFI build (default)
+make WITH_FFI=0 test-asan      # stub build: semantics/compat/differential only
+tests/asan.sh                  # same as the first form
+WITH_FFI=0 tests/asan.sh       # same as the second form
+CC=clang tests/asan.sh         # optional compiler override
 ```
 
-(Leak checking is disabled because the Lua state owns allocations that are
-released at `lua_close`, which is fine; crashes and OOB accesses are not.)
+The script runs `make clean`, then rebuilds with:
+
+```sh
+CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra"
+LDFLAGS="-fsanitize=address,undefined"
+ASAN_OPTIONS=detect_leaks=0:abort_on_error=1
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+```
+
+and runs the semantic and compat suites, the FFI suite when `WITH_FFI=1`,
+the differential guard, and (for FFI builds) the cdef fuzzer. Any sanitizer
+diagnostic aborts the run.
+
+The script restores nothing: the tree is left with an ASan+UBSan build. Run
+`make clean` before the next normal build; this also clears the
+sanitizer flags, which make cannot detect by itself.
+
+Leak detection is disabled because a Lua state owns its allocations until
+`lua_close()`; treating unreachable-at-shutdown blocks as leaks adds noise
+without covering the runtime. Address errors, use-after-free, out-of-bounds
+accesses and undefined behaviour are still fatal.
+
+`tests/asan.sh` intentionally does not run `tests/cli.sh`: the embedding
+check compiles `tests/embed/embed.c` against `src/libluar.a` without the
+sanitizer runtime, so that link would not exercise the instrumented build.
+Run the CLI/ABI checks with a normal build.
+
+## cdef fuzzing
+
+`tools/fuzz-cdef.lua` is a deterministic grammar- and mutation-based fuzzer
+for the `ffi.cdef` declaration parser:
+
+```sh
+make test-fuzz                  # builds WITH_FFI=1, runs 5000 cases
+./src/luar tools/fuzz-cdef.lua  # same, against an existing FFI build
+./src/luar tools/fuzz-cdef.lua --cases 20000 --seed 0x1234 --max-seconds 10
+```
+
+A fixed seed feeds a splitmix64 stream, so a run with the same arguments is
+byte-for-byte identical. Cases come from a corpus of known-tricky
+declarations (nested arrays, anonymous structs/unions, unterminated comments
+and strings, huge integer constants, long pointer chains), random
+truncations and byte/token mutations of that corpus, random token soup, and
+bounded structured aggregate declarations. Each case is passed to
+`ffi.cdef` under `pcall`: a Lua error is the expected result for invalid
+input; a crash, abort, hang, or non-string error fails the run.
+
+`make test-fuzz` forces an FFI build (the FFI is opt-in) and wraps the
+fuzzer in `timeout(1)` when available. The script also checks a CPU-time
+budget between cases; the external wrapper is what catches a hang inside the
+C parser. `tests/asan.sh` runs the same fuzzer under ASan+UBSan.
+
+The fuzzer has no dependency beyond the FFI build and takes about a quarter
+of a second for the default 5000 cases in a normal build (about a second
+under ASan); it is not coverage-guided and does not exercise cdata
+allocation or calls.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` gates the Linux matrix (`WITH_FFI=0` and
+`WITH_FFI=1`, each running `make test`), a clean ASan/UBSan job
+(`tests/asan.sh`), a deterministic fuzz job (`make test-fuzz`), and the
+offline `tools/upstream-check.sh` drift check. shellcheck runs when
+available. The macOS job is optional (`continue-on-error`). The official Lua
+suite is not in CI because it downloads its inputs; run
+`tests/upstream/run.sh` locally.
 
 ## JIT testing (from milestone 0.4)
 
