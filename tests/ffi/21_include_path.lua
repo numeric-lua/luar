@@ -21,5 +21,11 @@ local out = pipe:read("a")
 local ok = pipe:close()
 H.check(ok, "include-path subprocess failed: " .. tostring(out))
 H.eq(out:match("%d+"), "4")
+local pipe2 = assert(io.popen(
+  "CPATH=" .. dir .. " ./src/luar " .. dir .. "/check.lua 2>&1"))
+local out2 = pipe2:read("a")
+local ok2 = pipe2:close()
+H.check(ok2, "CPATH include subprocess failed: " .. tostring(out2))
+H.eq(out2:match("%d+"), "4")
 
 print("ffi/21_include_path ok")

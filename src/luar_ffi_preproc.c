@@ -835,28 +835,35 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
             f = fopen(fname, "rb");
           }
           if (f == NULL && path[0] != '/') {
-            const char *dirs = getenv("LUAR_FFI_INCLUDE");
-            while (dirs != NULL && *dirs != '\0') {
-              const char *colon = strchr(dirs, ':');
-              size_t dl = (colon != NULL) ? (size_t)(colon - dirs)
-                                          : strlen(dirs);
-              if (dl > 0) {
-                char *cand = (char *)malloc(dl + 1 + plen + 1);
-                if (cand != NULL) {
-                  memcpy(cand, dirs, dl);
-                  cand[dl] = '/';
-                  memcpy(cand + dl + 1, path, plen);
-                  cand[dl + 1 + plen] = '\0';
-                  f = fopen(cand, "rb");
-                  if (f != NULL) {
-                    free(fname);
-                    fname = cand;
-                    break;
+            static const char *const envs[] = {
+              "LUAR_FFI_INCLUDE", "CPATH", "C_INCLUDE_PATH"
+            };
+            size_t ei;
+            for (ei = 0; ei < sizeof(envs) / sizeof(envs[0]) && f == NULL;
+                 ei++) {
+              const char *dirs = getenv(envs[ei]);
+              while (dirs != NULL && *dirs != '\0') {
+                const char *colon = strchr(dirs, ':');
+                size_t dl = (colon != NULL) ? (size_t)(colon - dirs)
+                                            : strlen(dirs);
+                if (dl > 0) {
+                  char *cand = (char *)malloc(dl + 1 + plen + 1);
+                  if (cand != NULL) {
+                    memcpy(cand, dirs, dl);
+                    cand[dl] = '/';
+                    memcpy(cand + dl + 1, path, plen);
+                    cand[dl + 1 + plen] = '\0';
+                    f = fopen(cand, "rb");
+                    if (f != NULL) {
+                      free(fname);
+                      fname = cand;
+                      break;
+                    }
+                    free(cand);
                   }
-                  free(cand);
                 }
+                dirs = (colon != NULL) ? colon + 1 : NULL;
               }
-              dirs = (colon != NULL) ? colon + 1 : NULL;
             }
           }
           if (f == NULL)

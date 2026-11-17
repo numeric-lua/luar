@@ -123,7 +123,7 @@ Deliberate deviations, all documented:
   zero C return plus a stored message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
-Not supported: default system include search (`LUAR_FFI_INCLUDE` can add
+Not supported: default system include search (`LUAR_FFI_INCLUDE`, `CPATH`, `C_INCLUDE_PATH` can add
 directories),
 non-pack `#pragma`,
 oversized unions, `long double`/complex/vector
