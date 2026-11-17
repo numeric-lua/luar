@@ -48,7 +48,7 @@ ALL_FFI_O= luar_ffi_stub.o luar_ffi.o luar_ffi_type.o luar_ffi_parse.o \
 ifeq ($(WITH_FFI),1)
 # The FFI is split into a type system, a C declaration parser, the cdata
 # runtime/library and the libffi call/C-library layer.  libffi itself is
-# loaded with dlopen()/dlsym() when the module opens (so luasr binaries and
+# loaded with dlopen()/dlsym() when the module opens (so luar binaries and
 # embedders have no link-time dependency on it; the headers are still needed
 # to build).
 FFI_O= luar_ffi.o luar_ffi_type.o luar_ffi_parse.o luar_ffi_call.o
