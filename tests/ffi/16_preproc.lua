@@ -115,8 +115,8 @@ do
           "stringified error lacks quoted argument: " .. tostring(err))
 end
 H.raises(function ()
-  return ffi.cdef("#include <stdio.h>")
-end, "only quoted")
+  return ffi.cdef("#include <definitely_missing.h>")
+end, "cannot open")
 H.raises(function ()
   return ffi.cdef("#if 1 + 2\n#endif")
 end, "unsupported #if")

@@ -36,11 +36,12 @@ the runtime, while the Lua language surface follows upstream Lua.
   macros (`...`/`__VA_ARGS__`), `#undef`, nested argument substitution, and
   `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with macros expanded outside
   strings and comments and persisted across cdef calls.  Function-like
-  macros, angle includes, non-pack `#pragma` and complex `#if` expressions
-  fail clearly.  Token pasting (`##`) and parameter stringification (`#`)
+  macros, non-pack `#pragma` and complex `#if` expressions fail clearly;
+  `<...>` includes use local resolution.  Token pasting (`##`) and parameter stringification (`#`)
   work in function macros, and `#error` text is expanded; quoted
   `#include "path"` resolves relative to the including file (cwd fallback)
-  with include-guard/macro persistence and depth/size limits.  `#pragma pack(n/push/pop)` sets byte-granular layout.
+  with include-guard/macro persistence and depth/size limits.  `<...>`
+  paths use the same local resolution; there is no system include search.  `#pragma pack(n/push/pop)` sets byte-granular layout.
 - Fixed the cdef preprocessor dropping the last character of indented lines
   (leading whitespace was subtracted from the expansion length twice).  This
   affected multiline enums and any indented declaration followed by commas.

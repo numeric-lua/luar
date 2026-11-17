@@ -33,6 +33,7 @@ struct IncC { struct IncA a; int z; };
 c:close()
 
 ffi.cdef[[
+#include <tests/tmp/ffi-include/a.h>
 #include "tests/tmp/ffi-include/c.h"
 #include "tests/tmp/ffi-include/b.h"
 #include "tests/tmp/ffi-include/a.h"
@@ -40,13 +41,13 @@ ffi.cdef[[
 H.eq(ffi.sizeof("struct IncA"), 4)
 H.eq(ffi.sizeof("struct IncB"), 16)
 H.eq(ffi.sizeof("struct IncC"), 8)
+H.raises(function ()
+  ffi.cdef("#include <tests/tmp/ffi-include/nope.h>")
+end, "cannot open")
 
 H.raises(function ()
   ffi.cdef('#include "tests/tmp/ffi-include/missing.h"')
 end, "cannot open include")
-H.raises(function ()
-  ffi.cdef("#include <stdio.h>")
-end, "only quoted")
 ffi.cdef[[
 #if 0
 #include "tests/tmp/ffi-include/missing.h"

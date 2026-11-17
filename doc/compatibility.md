@@ -122,7 +122,7 @@ Deliberate deviations, all documented:
   zero C return plus a stored message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
-Not supported: angle-bracket `#include`,
+Not supported: system include search (`<...>` paths are local only),
 non-pack `#pragma`,
 oversized unions, `long double`/complex/vector
 types, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic

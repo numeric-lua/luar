@@ -785,17 +785,21 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         long fsz = 0;
         size_t got;
         trim(&pp, &pn);
-        if (pn < 2 || pp[0] != '"')
-          luaL_error(L, "ffi.cdef:%d: only quoted #include \"file\" is "
-                        "supported", line);
-        pp++;
-        pn--;
-        path = pp;
-        plen = 0;
-        while (plen < pn && pp[plen] != '"')
-          plen++;
-        if (plen == pn)
-          luaL_error(L, "ffi.cdef:%d: unterminated #include path", line);
+        {
+          char close;
+          if (pn < 2 || (pp[0] != '"' && pp[0] != '<'))
+            luaL_error(L, "ffi.cdef:%d: expected #include \"file\" or "
+                          "<file>", line);
+          close = (pp[0] == '<') ? '>' : '"';
+          pp++;
+          pn--;
+          path = pp;
+          plen = 0;
+          while (plen < pn && pp[plen] != close)
+            plen++;
+          if (plen == pn)
+            luaL_error(L, "ffi.cdef:%d: unterminated #include path", line);
+        }
         if (active) {
           char *fname;
           char *incout;
@@ -830,17 +834,14 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
             fname[plen] = '\0';
             f = fopen(fname, "rb");
           }
-          if (f == NULL) {
-            free(fname);
-            luaL_error(L, "ffi.cdef:%d: cannot open include '%.*s'", line,
-                       (int)plen, path);
-          }
+          if (f == NULL)
+            luaL_error(L, "ffi.cdef:%d: cannot open include '%s'", line,
+                       fname);
           if (fseek(f, 0, SEEK_END) != 0 || (fsz = ftell(f)) < 0 ||
               fsz > (1 << 20)) {
             fclose(f);
-            free(fname);
-            luaL_error(L, "ffi.cdef:%d: include '%.*s' is too large or "
-                          "unreadable", line, (int)plen, path);
+            luaL_error(L, "ffi.cdef:%d: include '%s' is too large or "
+                          "unreadable", line, fname);
           }
           rewind(f);
           filebuf = (char *)malloc((size_t)fsz + 1);
@@ -853,9 +854,8 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
           fclose(f);
           if (got != (size_t)fsz) {
             free(filebuf);
-            free(fname);
-            luaL_error(L, "ffi.cdef:%d: short read from include '%.*s'", line,
-                       (int)plen, path);
+            luaL_error(L, "ffi.cdef:%d: short read from include '%s'", line,
+                       fname);
           }
           filebuf[got] = '\0';
           {

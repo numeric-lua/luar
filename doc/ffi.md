@@ -124,8 +124,8 @@ preprocessor subset is available.
   line.  Quoted `#include "path"` resolves relative to the including file
   first (falling back to the working directory), with depth/size limits; token pasting (`##`) and
   parameter stringification (`#`) are supported, and `#error` text is
-  macro-expanded; angle includes, non-pack `#pragma` and complex `#if`
-  expressions are rejected;
+  macro-expanded; angle includes use the same local resolution, while
+  non-pack `#pragma` and complex `#if` expressions are rejected;
   `#pragma pack(n/push/pop)` drives layout.
 * `__attribute__((packed))` and `__attribute__((aligned(n)))` (alone or
   combined) on a struct/union are supported; other attributes,
@@ -491,7 +491,7 @@ probes, and variadic probes.  Coverage includes:
 * object- and function-like (including variadic) cdef macros,
   conditionals, persistence, `#undef`, nested argument lists, token
   pasting/stringification, quoted includes with include guards, expanded
-  `#error`, and rejection of angle/complex directives;
+  `#error`, local angle includes and rejection of complex directives;
 * sizes, alignments, and offsets compared against the C compiler's
   `sizeof`/`offsetof`;
 * `ffi.new` scalars, arrays (fixed and VLA), structs, unions, anonymous
