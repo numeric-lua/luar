@@ -38,6 +38,14 @@ unsigned padbit_b_ptr(const struct PadBit *p);
 local h = S.helper()
 H.eq(ffi.sizeof("struct BitPack"), h.size_BitPack())
 H.eq(ffi.offsetof("struct BitPack", "d"), h.off_BitPack_d())
+local bo, bp, bs = ffi.offsetof("struct BitPack", "b")
+H.eq(bo, 0)
+H.eq(bp, 3)
+H.eq(bs, 5)
+local co, cp, cs = ffi.offsetof("struct BitPack", "c")
+H.eq(co, 1)
+H.eq(cp, 0)
+H.eq(cs, 8)
 
 local b = ffi.new("struct BitPack")
 b.a = 7

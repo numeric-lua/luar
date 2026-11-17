@@ -1956,12 +1956,19 @@ static int ffi_offsetof (lua_State *L) {
   const char *name = luaL_checkstring(L, 2);
   size_t off = 0;
   CType *ft = NULL;
+  CField *field;
   if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
     luaL_error(L, "ffi: offsetof requires a struct or union type");
-  if (ffi_type_find_field(ct, name, &off, &ft) == NULL)
+  field = ffi_type_find_field(ct, name, &off, &ft);
+  if (field == NULL)
     luaL_error(L, "ffi: '%s' has no member named '%s'",
                ffi_type_repr(S, ct), name);
   lua_pushinteger(L, (lua_Integer)off);
+  if (field->bitwidth != 0) {
+    lua_pushinteger(L, (lua_Integer)field->bitoffset);
+    lua_pushinteger(L, (lua_Integer)field->bitwidth);
+    return 3;
+  }
   return 1;
 }
 

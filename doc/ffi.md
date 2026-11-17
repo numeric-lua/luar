@@ -48,7 +48,7 @@ ffi.typeof(ct)              -- CType object (also accepts a cdata value)
 ffi.istype(ct, obj)         -- exact C type check
 ffi.sizeof(ct [, nelem])    -- size in bytes
 ffi.alignof(ct)             -- alignment in bytes
-ffi.offsetof(ct, field)     -- byte offset of a struct/union member
+ffi.offsetof(ct, field)     -- byte offset, plus bit pos/size for bitfields
 ffi.new(ct [, ...])         -- allocate a cdata value
 ffi.cast(ct, value)         -- scalar/pointer/aggregate conversion
 ffi.string(ptr [, len])     -- Lua string from char pointer/array
@@ -74,6 +74,8 @@ state, so the same type always yields the same object (`rawequal` is true).
 variable-length array it needs the length, either as the second argument or
 from the cdata object.  `ffi.alignof` and `ffi.offsetof` accept the same
 kind of first argument (the latter only for struct/union types).
+`ffi.offsetof` returns the byte offset and, for a bitfield, its bit
+position within that byte and its width in bits.
 
 `ffi.abi` returns `true` for `"64bit"`, `"le"`, `"fpu"`, and `"hardfp"` on
 the tested x86-64 Linux target, and `false` for unknown predicates and for
