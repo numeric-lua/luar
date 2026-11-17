@@ -249,3 +249,5 @@ union FloatU fu_make (float f) { union FloatU u; u.f = f; return u; }
 union MixedU { float f; int i; };
 int mu_get (union MixedU u) { return u.i; }
 union MixedU mu_make (int i) { union MixedU u; u.i = i; return u; }
+/* Callback returning a small union by value. */
+int call_val_cb (union Val (*cb)(void)) { union Val v = cb(); return v.i; }

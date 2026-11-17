@@ -987,15 +987,16 @@ static void callback_ret (lua_State *L, FFIState *S, CType *rt, int idx,
       memcpy(ret, &p, sizeof(p));
       break;
     }
-    case CT_STRUCT: {
+    case CT_STRUCT:
+    case CT_UNION: {
       CData *cd = ffi_tocdata(L, idx);
       if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
-          cd->ct->kind == CT_STRUCT && cd->ct->size == rt->size) {
+          cd->ct->kind == rt->kind && cd->ct->size == rt->size) {
         memcpy(ret, cd->v.p, rt->size);
       }
       else {
         memset(ret, 0, rt->size);
-        callback_set_error(L, "callback returned an incompatible struct");
+        callback_set_error(L, "callback returned an incompatible aggregate");
       }
       break;
     }
@@ -1048,7 +1049,7 @@ int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
     return luaL_error(L, "ffi.callback: function type expected");
   if (ft->vararg)
     return luaL_error(L, "ffi.callback: variadic callbacks are not supported");
-  if (ft->ret->kind == CT_UNION || ft->ret->kind == CT_ARRAY)
+  if (ft->ret->kind == CT_ARRAY)
     return luaL_error(L, "ffi.callback: return type '%s' is not supported",
                       ffi_type_repr(S, ft->ret));
   nargs = ft->nargs;

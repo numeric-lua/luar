@@ -16,6 +16,8 @@ union FloatU15 fu_make(float f);
 union MixedU15 { float f; int i; };
 int mu_get(union MixedU15 u);
 union MixedU15 mu_make(int i);
+typedef union CbVal { int i; double d; } CbVal;
+int call_val_cb(CbVal (*cb)(void));
 ]]
 
 local h = S.helper()
@@ -38,5 +40,10 @@ local m = ffi.new("union MixedU15")
 m.i = 42
 H.eq(h.mu_get(m), 42)
 H.eq(h.mu_make(17).i, 17)
+
+local cb = ffi.callback("union CbVal(void)", function ()
+  return ffi.new("union CbVal", {i = 6})
+end)
+H.eq(h.call_val_cb(cb), 6)
 
 print("ffi/15_union_value ok")
