@@ -24,8 +24,8 @@ INSTALL_CMOD= $(DESTDIR)$(PREFIX)/lib/luar/$(LUAVER)
 MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI)
 PREFIX_STAMP= src/.prefix
 
-.PHONY: all build prefix-check shared test test-semantics test-compat test-ffi test-diff bench \
-	install uninstall clean distclean upstream-check sync-diff docs help
+.PHONY: all build prefix-check shared test test-semantics test-compat test-ffi test-diff \
+	test-upstream bench install uninstall clean distclean upstream-check sync-diff docs help
 
 all: build
 
@@ -67,6 +67,13 @@ test-ffi: build
 test-diff: build
 	./tests/diff/run.sh
 
+test-upstream: build
+	tests/upstream/run.sh
+
+# Official Lua test suite under src/luar (downloads into tests/tmp/).
+test-upstream: build
+	tests/upstream/run.sh
+
 test-all: test-semantics test-compat
 	@echo "all test suites passed"
 
@@ -95,7 +102,7 @@ clean:
 	$(RM) -r build $(PREFIX_STAMP)
 
 # FAIL if src/ has drifted from the vendored upstream snapshot in ways
-# that were not recorded in src/luar.patch.  See doc/upstream.md.
+# that were not recorded in tools/upstream-baseline.txt.  See doc/upstream.md.
 upstream-check:
 	tools/upstream-check.sh
 
