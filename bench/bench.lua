@@ -568,6 +568,16 @@ def {
 }
 
 def {
+  name = "numeric/repeat_sum", group = "numeric",
+  run = function ()
+    local n = N(8000000)
+    local i, s = 0, 0
+    repeat i = i + 1; s = s + i until i >= n
+    return s
+  end,
+}
+
+def {
   name = "numeric/while_sum", group = "numeric",
   run = function ()
     local n = N(8000000)

@@ -57,7 +57,8 @@ typedef struct LuaR_LoopDesc {
   int nguards;
   int npc;			/* instruction labels for branch loops */
   int has_branch;
-  int is_while;			/* loop ends in a backward JMP, no FORLOOP */
+  int is_while;
+  int repeat;			/* loop ends in a backward JMP, no FORLOOP */
   int has_table;		/* one raw array lookup at the body start */
   int table_reg;
   int table_array_off;

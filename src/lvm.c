@@ -1167,7 +1167,15 @@ void luaV_finishOp (lua_State *L) {
 
 
 /* for test instructions, execute the jump instruction that follows it */
-#define donextjump(ci)	{ Instruction ni = *pc; dojump(ci, ni, 1); }
+#define donextjump(ci)	{ Instruction ni = *pc; \
+  const Instruction *luarjb = pc; \
+  dojump(ci, ni, 1); \
+  if (GETARG_sJ(ni) < 0) { \
+    LUAR_JIT_HOT(L, cl->p, luarjb, (void *)base); \
+    if (LUAR_JIT_RUN(L, cl->p, (int)(luarjb - cl->p->code), \
+                     (void *)base, -1)) \
+      pc = luarjb + 1; \
+  } }
 
 /*
 ** do a conditional jump: skip next instruction if 'cond' is not what

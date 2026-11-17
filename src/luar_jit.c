@@ -148,17 +148,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 0;   /* float/non-integer loop control: not supported */
   }
   else if (GET_OPCODE(last) == OP_JMP && GETARG_sJ(last) < 0) {
-    Instruction prev;
-    /* A conditional backedge means the trace covers only the taken path
-    ** (e.g. a break/conditional continue falls outside it); reject. */
     if (backedge <= 0)
-      return 0;
-    prev = p->code[backedge - 1];
-    if (GET_OPCODE(prev) == OP_EQ || GET_OPCODE(prev) == OP_LT ||
-        GET_OPCODE(prev) == OP_LE || GET_OPCODE(prev) == OP_EQK ||
-        GET_OPCODE(prev) == OP_EQI || GET_OPCODE(prev) == OP_LTI ||
-        GET_OPCODE(prev) == OP_LEI || GET_OPCODE(prev) == OP_GTI ||
-        GET_OPCODE(prev) == OP_GEI)
       return 0;
     is_while = 1;
     for_a = -1;
@@ -205,7 +195,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       double cnum = 0.0;
       int at, bt = LUAR_T_INT;
       LuaR_OpKind ck;
-      if (j >= n - 1) return 0;
+      if (j >= n - 1 &&
+          !(is_while && j == n - 1 &&
+            GET_OPCODE(p->code[start + j]) == OP_JMP)) {
+        return 0;
+      }
       jins = p->code[start + j];
       if (GET_OPCODE(jins) != OP_JMP) return 0;
       switch (opc) {
@@ -884,6 +878,13 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     d.npc = (int)n;
     d.has_branch = 1;
   }
+  if (is_while && d.nops >= 1 && paired[n - 1] &&
+      (ops[d.nops - 1].kind == LUAR_OP_LT ||
+       ops[d.nops - 1].kind == LUAR_OP_LE ||
+       ops[d.nops - 1].kind == LUAR_OP_GT ||
+       ops[d.nops - 1].kind == LUAR_OP_GE ||
+       ops[d.nops - 1].kind == LUAR_OP_EQ))
+    d.repeat = 1;
   fn = luari_emit_build(&d, &size);
   if (fn == NULL)
     return 0;

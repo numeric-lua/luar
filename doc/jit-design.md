@@ -15,8 +15,8 @@ is provably observationally equivalent to that interpreter.
   continuation rather than a general trace: when an integer-controlled
   `for` loop becomes hot, the whitelisted body (numeric MOVE/LOADI/LOADF/
   LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, `MMBIN`, numeric comparisons
-  and forward `JMP` branches) is emitted with DynASM for `for` and simple
-  `while` loops.  Entry tag guards check every register read initially; the native
+  and forward `JMP` branches) is emitted with DynASM for `for`, simple
+  `while` and `repeat ... until` loops.  Entry tag guards check every register read initially; the native
   code runs the remaining iterations on the Lua stack slots and returns to
   the VM after the loop.  Mixed int/double operands are handled with the
   conversions Lua performs; the default 16-byte TValue, 64-bit integer and
@@ -28,7 +28,8 @@ is provably observationally equivalent to that interpreter.
   operands; an early J3 experiment (opt-in `jit.opt.start("table=1")`)
   compiles a leading integer array lookup/store, the accumulating ADD and
   register-cached fill/sum loops.
-  Backward inner loops still fall back.  A `Proto` keeps the first compiled
+  Conditional backedges from `repeat ... until` are recorded and compiled;
+  other backward inner loops still fall back.  A `Proto` keeps the first compiled
   loop and the most recently compiled one (two slots); a 64-bit bloom of
   hot backedges prevents retrying rejected loops.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.
