@@ -74,8 +74,9 @@ state, so the same type always yields the same object (`rawequal` is true).
 variable-length array it needs the length, either as the second argument or
 from the cdata object.  `ffi.alignof` and `ffi.offsetof` accept the same
 kind of first argument (the latter only for struct/union types).
-`ffi.offsetof` returns the byte offset and, for a bitfield, its bit
-position within that byte and its width in bits.
+`ffi.offsetof` returns the byte offset and, for a bitfield, the storage-unit
+offset, the bit position within that unit and the width in bits (LuaJIT's
+three-result form).
 
 `ffi.abi` returns `true` for `"64bit"`, `"le"`, `"fpu"`, and `"hardfp"` on
 the tested x86-64 Linux target, and `false` for unknown predicates and for

@@ -49,8 +49,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   array bounds/enums.
 - `ffi.istype` follows LuaJIT pointer compatibility: a struct/union accepts
   a pointer to it and same pointer types match; `void *` has no special case.
-- `ffi.offsetof` reports the bit position and width for bitfields, matching
-  LuaJIT's three-result form.
+- `ffi.offsetof` reports LuaJIT's bitfield form: storage-unit byte offset,
+  bit position within the unit and width.
 - Callback cdata supports LuaJIT's `cb:set(function)` and `cb:free()`
   methods; freeing invalidates the pointer and later use is a clear error.
 - `__attribute__((packed))`/`aligned(n)` structs/unions get byte-granular or
