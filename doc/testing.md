@@ -175,9 +175,10 @@ and `WITH_FFI=1`, clang with `WITH_FFI=1`, a `JIT=0` build, a staged
 job, a clean
 ASan/UBSan job (`tests/asan.sh`), a deterministic fuzz job
 (`make test-fuzz`), and the offline `tools/upstream-check.sh` drift check.
-shellcheck runs when available. The macOS job is optional
-(`continue-on-error`). The official Lua suite is not in CI because it
-downloads its inputs; run `tests/upstream/run.sh` locally.
+shellcheck runs when available. The macOS and official-Lua-suite jobs are
+optional (`continue-on-error`); the latter downloads its inputs from
+lua.org. Run `tests/upstream/run.sh --offline` locally for the vendored/cached
+path.
 
 ## JIT testing (from milestone 0.4)
 

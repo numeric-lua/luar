@@ -150,6 +150,22 @@ jobs:
             echo "shellcheck not installed; skipping"
           fi
 
+  official-lua-suite:
+    name: official Lua 5.5 suite (optional download)
+    runs-on: ubuntu-latest
+    # Downloads the upstream suite from lua.org; keep it advisory so a
+    # transient network failure does not mask the deterministic gates.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Official Lua suite
+        run: tests/upstream/run.sh --jobs 2
+
   macos:
     name: macos (clang, optional)
     runs-on: macos-latest
