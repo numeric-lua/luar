@@ -1070,7 +1070,9 @@ static void packed_emit_store_rsp (unsigned char *code, size_t *n,
 static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
                               CType *ft, CType *rt, int argstart,
                               const int *pidx, int pn) {
-  uint64_t chunks[3] = {0, 0, 0};
+  uint64_t chunks[6] = {0, 0, 0, 0, 0, 0};
+  size_t arg_off[3], arg_chunks[3], chunk_n = 0, off = 16;
+  int pc = 0;
   unsigned char code[128];
   size_t n = 0, i;
   void *mem;
@@ -1079,61 +1081,78 @@ static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
   ffi_cif cif;
   unsigned char *retbuf = (unsigned char *)calloc(1, rt->size > 0 ? rt->size : 1);
   ArgSlot slots[5];
+  ffi_type *stype[5];
+  void *sval[5];
   void *values[6];
   int nscalars = 0, nints = 0, nargs = (int)ft->nargs;
-  int ci = 0;
   CData *out;
   ffi_status st;
   int saved_errno;
   if (retbuf == NULL)
     luaL_error(L, "ffi: out of memory for packed return");
   for (i = 0; i < (size_t)nargs; i++) {
-    if (ci < pn && (int)i == pidx[ci]) {
+    if (pc < pn && (int)i == pidx[pc]) {
       CType *at = ft->args[i];
       CData *cd = ffi_tocdata(L, argstart + (int)i);
+      size_t ac = (at->size + 7) / 8, k;
       void *src;
-      unsigned char buf[8] = {0};
       if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct != at)
         luaL_error(L, "ffi: argument %d: cannot convert %s to '%s'",
                    argstart + (int)i, luaL_typename(L, argstart + (int)i),
                    ffi_type_repr(S, at));
+      if (chunk_n + ac > 6)
+        luaL_error(L, "ffi: packed call uses too many argument chunks");
       src = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
                 ? cd->v.p : (void *)&cd->v;
-      memcpy(buf, src, at->size);
-      memcpy(&chunks[ci], buf, at->size);
-      atypes[ci] = &ffi_type_uint64;
-      values[ci] = &chunks[ci];
-      ci++;
+      memcpy(&chunks[chunk_n], src, at->size);
+      arg_off[pc] = off;
+      arg_chunks[pc] = ac;
+      for (k = 0; k < ac; k++) {
+        atypes[chunk_n + k] = &ffi_type_uint64;
+        values[chunk_n + k] = &chunks[chunk_n + k];
+      }
+      chunk_n += ac;
+      off += ac * 8;
+      pc++;
     }
     else {
       ffi_type *aoverride = NULL;
       memset(&slots[nscalars], 0, sizeof(slots[nscalars]));
       convert_call_arg(L, S, ft->args[i], argstart + (int)i,
-                       &slots[nscalars], &values[pn + nscalars], &aoverride);
-      atypes[pn + nscalars] = (aoverride != NULL)
-                                  ? aoverride
-                                  : build_ffi_type(L, S, ft->args[i], NULL);
+                       &slots[nscalars], &sval[nscalars], &aoverride);
+      stype[nscalars] = (aoverride != NULL)
+                            ? aoverride
+                            : build_ffi_type(L, S, ft->args[i], NULL);
       if (ft->args[i]->kind != CT_FLOAT)
         nints++;
       nscalars++;
     }
   }
-  if (ci != pn || pn + nscalars > 6)
+  for (i = 0; i < (size_t)nscalars; i++) {
+    atypes[chunk_n + i] = stype[i];
+    values[chunk_n + i] = sval[i];
+  }
+  if (pc != pn || chunk_n + nscalars > 6)
     luaL_error(L, "ffi: unsupported mixed packed call");
   /* sub rsp,72; store packed chunks; shift scalar integer registers past
      the sret pointer; mov rdi,retbuf; add rsp,16; mov rax,target;
      call rax; sub rsp,16; add rsp,72; ret */
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x48;
   {
-    static const int regs[3] = {7, 6, 2}; /* rdi,rsi,rdx */
-    for (i = 0; i < (size_t)pn; i++)
-      packed_emit_store_rsp(code, &n, regs[i], (int)(16 + 8 * i));
+    static const int regs[6] = {7, 6, 2, 1, 8, 9};
+    size_t ci = 0;
+    for (i = 0; i < (size_t)pn; i++) {
+      size_t k;
+      for (k = 0; k < arg_chunks[i]; k++)
+        packed_emit_store_rsp(code, &n, regs[ci++],
+                              (int)(arg_off[i] + 8 * k));
+    }
   }
   {
     static const int wrapper[6] = {7, 6, 2, 1, 8, 9};
     static const int target[5] = {6, 2, 1, 8, 9};
     for (i = 0; i < (size_t)nints; i++)
-      packed_emit_mov_reg(code, &n, target[i], wrapper[pn + i]);
+      packed_emit_mov_reg(code, &n, target[i], wrapper[chunk_n + i]);
   }
   code[n++] = 0x48; code[n++] = 0xbf;
   {
@@ -1151,8 +1170,8 @@ static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x10;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x48;
   code[n++] = 0xc3;
-  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)(pn + nscalars),
-                    &ffi_type_void, atypes);
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI,
+                    (unsigned)(chunk_n + nscalars), &ffi_type_void, atypes);
   if (st != FFI_OK)
     luaL_error(L, "ffi: libffi cannot prepare a mixed packed call");
   mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
@@ -1494,14 +1513,15 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
       packed_int_type(ft->ret)) {
-    int pidx[3], pc = 0, ms = 0, mint = 0, mok = 1, j;
+    int pidx[3], pc = 0, ms = 0, mint = 0, mchunks = 0, mok = 1, j;
     for (j = 0; j < nargs; j++) {
       CType *at = ft->args[j];
       if (at->kind == CT_STRUCT && at->pack == 1 &&
-          at->align_override == 0 && at->size > 0 && at->size <= 8 &&
+          at->align_override == 0 && at->size > 0 && at->size <= 16 &&
           packed_int_type(at)) {
         if (pc >= 3) { mok = 0; break; }
         pidx[pc++] = j;
+        mchunks += (int)((at->size + 7) / 8);
       }
       else if (packed_scalar_arg(at)) {
         ms++;
@@ -1511,7 +1531,8 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
       else
         mok = 0;
     }
-    if (mok && pc >= 1 && ms <= 5 && pc + mint <= 6)
+    if (mok && pc >= 1 && ms <= 5 && mchunks <= 6 &&
+        mchunks + mint <= 6)
       return packed_mixed_call(L, S, fn, ft, ft->ret, argstart, pidx, pc);
   }
   if (!ft->vararg && nargs >= 1 && nargs <= 3 &&

@@ -117,7 +117,7 @@ Deliberate deviations, all documented:
   control layout.  On x86-64, packed integer structs with one by-value
   argument and a scalar return use a MEMORY-ABI thunk, as do packed returns
   from functions with up to five scalar arguments, and up to three packed
-  arguments can combine with a packed return, and up to three ≤8-byte
+  arguments can combine with a packed return, and up to three ≤16-byte
   packed arguments can be mixed with up to five scalar arguments.  Other
   packed shapes fail clearly by value.
 * Struct and union bitfields with integer/enum/bool bases are supported,
