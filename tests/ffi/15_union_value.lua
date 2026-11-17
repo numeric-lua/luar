@@ -55,6 +55,8 @@ struct Odd12Box { int tag; union Odd12 u; };
 float odd12_box_sum(struct Odd12Box b);
 union BigCharU { char c[8192]; };
 int bigchar_sum(union BigCharU u);
+union Big600 { char c[600000]; };
+int big600_sum(union Big600 u);
 ]]
 
 local h = S.helper()
@@ -122,6 +124,11 @@ H.eq(ffi.sizeof("union BigCharU"), 8192)
 bigu.c[0] = 2
 bigu.c[8191] = 3
 H.eq(h.bigchar_sum(bigu), 5)
+local big600 = ffi.new("union Big600")
+H.eq(ffi.sizeof("union Big600"), 600000)
+big600.c[0] = 1
+big600.c[599999] = 2
+H.eq(h.big600_sum(big600), 3)
 
 -- odd sizes 9..15 use alignment-sized fields
 local o9 = ffi.new("union Odd9")

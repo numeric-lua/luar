@@ -111,7 +111,8 @@ Deliberate deviations, all documented:
   `tostring` for `%s`/`%q`; float cdata is rejected by numeric conversions.
 * Structs with fixed array members and unions of any size up to 16 bytes
   (per-eightbyte SSE/INTEGER classification, alignment-sized fields for odd
-  sizes) or larger memory-class unions can be passed and returned by value.
+  sizes) or larger memory-class unions (up to 1M alignment-sized fields) can be passed
+  and returned by value.
 * `__attribute__((packed))`/`aligned(n)` structs/unions and `#pragma pack`
   control layout; packed aggregates fail clearly by value.
 * Struct and union bitfields with integer/enum/bool bases are supported,

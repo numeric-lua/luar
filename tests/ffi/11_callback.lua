@@ -87,7 +87,7 @@ H.eq(finalized, true)
 -- unsupported callback shapes fail clearly
 -- small scalar unions are supported; large aggregate returns are not
 H.raises(function ()
-  return ffi.callback("union { double a[70000]; }(void)", function () end)
+  return ffi.callback("union { double a[1100000]; }(void)", function () end)
 end, "too large")
 H.raises(function ()
   return ffi.callback("int(int, ...)", function () return 0 end)

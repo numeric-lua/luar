@@ -355,3 +355,9 @@ int bigchar_sum (union BigCharU u) {
   for (i = 0; i < 8192; i++) s += (unsigned char)u.c[i];
   return s;
 }
+union Big600 { char c[600000]; };
+int big600_sum (union Big600 u) {
+  int i, s = 0;
+  for (i = 0; i < 600000; i++) s += (unsigned char)u.c[i];
+  return s;
+}
