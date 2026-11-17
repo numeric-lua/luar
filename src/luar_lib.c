@@ -132,8 +132,6 @@ LUALIB_API int luaopen_luar (lua_State *L) {
   lua_pushboolean(L, luar_has_ffi());
   lua_setfield(L, -2, "ffi");
   lua_pushboolean(L, 1);
-  lua_setfield(L, -2, "bit");
-  lua_pushboolean(L, 1);
   lua_setfield(L, -2, "table");
   lua_pushboolean(L, 0);        /* native JIT engine not enabled in 0.1 */
   lua_setfield(L, -2, "jit");
@@ -164,7 +162,6 @@ static void open_extension (lua_State *L, const char *name,
 LUALIB_API void luar_openlibs (lua_State *L) {
   luaL_openselectedlibs(L, ~0, 0);   /* all standard libraries */
   open_extension(L, LUAR_JITLIBNAME, luaopen_jit);
-  open_extension(L, LUAR_BITLIBNAME, luaopen_bit);
   if (luar_has_ffi())
     open_extension(L, LUAR_FFILIBNAME, luaopen_ffi);
   open_extension(L, LUAR_LIBNAME, luaopen_luar);

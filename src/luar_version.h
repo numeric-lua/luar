@@ -3,7 +3,7 @@
 **
 ** LuaR is a Lua 5.5-forward runtime: the language and C API track the
 ** official PUC-Rio Lua releases, while the runtime adds LuaJIT-style
-** extensions (jit, ffi, table.new/clear, bit) and a tiered JIT.
+** extensions (jit, ffi, table.new/clear) and a tiered JIT.
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.
 */

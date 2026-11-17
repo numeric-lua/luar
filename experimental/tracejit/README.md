@@ -37,7 +37,7 @@ or, equivalently:
 The DynASM translation step is exactly:
 
 ```sh
-lua ../../vendor/luajit/dynasm/dynasm.lua -D X64 demo.dasc > demo_trace.c
+lua ../../dynasm/dynasm.lua -D X64 demo.dasc > demo_trace.c
 ```
 
 `demo.dasc` is a C translation unit with inline DynASM actions.  The
@@ -47,19 +47,12 @@ is missing.
 
 ### Host-Lua note
 
-Stock Lua 5.5 has no `bit` module, and this vendored DynASM's x86 backend
-does `local bit = bit or require("bit")`.  The tiny `bit.lua` in this
-directory supplies the four functions DynASM uses (`band`, `bxor`,
-`lshift`, `rshift`); it is picked up by the default `./?.lua` search path.
-As a sanity check, generating with LuaR's native `bit` library:
-
-```sh
-make clean
-make LUA=../../src/luar
-```
-
-produces byte-identical `demo_trace.c`.  The default `make` uses plain
-`lua`, as required.
+DynASM was written for LuaJIT and originally depended on the Lua 5.1-era
+`bit` library.  LuaR ships no such compatibility module: the vendored
+`dynasm/dasm_ops.lua` implements the 32-bit operations with native Lua 5.5
+operators, and the backends require that instead.  The generated
+`demo_trace.c` is byte-identical to the pre-port DynASM output, so any stock
+`lua` 5.5 (or `../../src/luar`) can run the generator.
 
 ## What the demo does
 
@@ -230,7 +223,6 @@ The emitted size is 44 bytes for the register-add shape; the optional
 | `trace.h` | decoded `TraceDesc` contract shared by both sides |
 | `Makefile` | builds `libluar.a` on demand, runs DynASM, compiles and links |
 | `run.sh` | builds and runs; exits nonzero on mismatch |
-| `bit.lua` | minimal `bit` shim for stock Lua 5.5 hosts |
 
 This proof only adds files under `experimental/tracejit/`; it does not
 touch `src/`, `vendor/`, the top-level `Makefile`, or other directories,
@@ -285,10 +277,6 @@ This is a toolchain proof, not a JIT.
 * **x86-64 Linux SysV only.**  The register assignment, argument register,
   `mmap` flags, and DynASM arch selection are specific to this platform.
   Windows x64, ARM, and macOS are not supported.
-* **Host `bit` shim.**  Stock Lua 5.5 lacks `bit`; the local shim covers
-  only the four functions DynASM's x86 backend calls.  It is not a general
-  LuaJIT bit-library replacement.
-
 ## What a real trace JIT still needs
 
 A production trace JIT for this chunk would additionally need:

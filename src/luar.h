@@ -18,7 +18,6 @@
 #define LUAR_LIBNAME		"luar"
 #define LUAR_JITLIBNAME		"jit"
 #define LUAR_FFILIBNAME		"ffi"
-#define LUAR_BITLIBNAME		"bit"
 
 /*
 ** Open the standard libraries plus the LuaR extensions.  This is what
@@ -29,7 +28,6 @@ LUALIB_API void luar_openlibs (lua_State *L);
 /* Library openers, also usable through require(). */
 LUALIB_API int luaopen_luar (lua_State *L);
 LUALIB_API int luaopen_jit (lua_State *L);
-LUALIB_API int luaopen_bit (lua_State *L);
 LUALIB_API int luaopen_ffi (lua_State *L);
 
 /* Runtime identity. */

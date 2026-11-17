@@ -27,10 +27,10 @@ t.a, t[1] = 1, 2
 table.clear(t)
 check(next(t) == nil, "table.clear left entries")
 
--- bit compatibility
-check(bit.band(0xff, 0x0f) == 15, "bit.band")
-check(bit.tohex(-1) == "ffffffff", "bit.tohex")
-check(bit.bxor(0xff, 0x0f) == 0xf0, "bit.bxor")
+-- 5.5 native bitwise operators, and no legacy bit library
+check(0xff & 0x0f == 15, "native bitwise and")
+check(~0 == -1, "native bitwise not")
+check(rawget(_G, "bit") == nil, "legacy 'bit' library must not exist")
 
 -- 5.5 language bits
 check(table.create ~= nil, "table.create missing (Lua 5.5)")

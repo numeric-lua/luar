@@ -21,13 +21,8 @@ cache["k"] = 1
 table.clear(cache)
 H.eq(next(cache), nil)
 
--- LuaJIT-style int32 normalisation with bit
-local function i32(x) return bit.tobit(x) end
-H.eq(i32(0x7fffffff), 0x7fffffff)
-H.eq(i32(0x80000000), -0x80000000)
-H.eq(i32(0x100000000), 0)
-
--- 5.5 native bitwise operators replace most bit.* uses
+-- 5.5 native bitwise operators; there is no 5.1-era bit library
+H.eq(rawget(_G, "bit"), nil)
 H.eq(0xff & 0x0f, 15)
 H.eq(0x80000000 | 0, 0x80000000)
 H.eq(-1 >> 63, 1 << 0)

@@ -40,8 +40,18 @@ int main (void) {
   if (lua_toboolean(L, -1)) return fail("jit.status must be false in 0.1");
   lua_pop(L, 2);
 
+  /* 5.5-only: no legacy bit library, no deprecated math functions. */
   lua_getglobal(L, "bit");
-  if (!lua_istable(L, -1)) return fail("bit table missing");
+  if (!lua_isnil(L, -1)) return fail("legacy bit library must not exist");
+  lua_pop(L, 1);
+  lua_getglobal(L, "math");
+  lua_getfield(L, -1, "pow");
+  if (!lua_isnil(L, -1)) return fail("deprecated math.pow must not exist");
+  lua_pop(L, 2);
+
+  /* 'global' is always a reserved word. */
+  if (luaL_loadstring(L, "local global = 1") != LUA_ERRSYNTAX)
+    return fail("'global' must be a reserved word");
   lua_pop(L, 1);
 
   /* run a chunk to prove the VM is live */

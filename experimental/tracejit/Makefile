@@ -9,7 +9,7 @@
 
 ROOT     := ../..
 SRC      := $(ROOT)/src
-DASMDIR  := $(ROOT)/vendor/luajit/dynasm
+DASMDIR  := $(ROOT)/dynasm
 DYNASM   := $(DASMDIR)/dynasm.lua
 
 LUA      ?= lua
@@ -24,8 +24,8 @@ LDLIBS   := $(SRC)/libluar.a -lm -ldl
 all: demo
 
 # The generator is invoked exactly as required (just path-adjusted):
-#   lua ../../vendor/luajit/dynasm/dynasm.lua -D X64 demo.dasc > demo_trace.c
-demo_trace.c: demo.dasc bit.lua $(DYNASM)
+#   lua ../../dynasm/dynasm.lua -D X64 demo.dasc > demo_trace.c
+demo_trace.c: demo.dasc $(DYNASM) $(DASMDIR)/dasm_ops.lua
 	$(LUA) $(DYNASM) -D X64 demo.dasc > $@
 
 demo_trace.o: demo_trace.c trace.h
