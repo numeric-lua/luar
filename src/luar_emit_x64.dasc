@@ -882,8 +882,16 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
   }
   if (d->fw_float) {
     | cvtsi2sd xmm1, r13
-    | mulsd xmm1, xmm2
-    | addsd xmm0, xmm1
+    if (d->fw_prod) {
+      | mulsd xmm0, xmm1
+    }
+    else {
+      | mulsd xmm1, xmm2
+      | addsd xmm0, xmm1
+    }
+  }
+  else if (d->fw_prod) {
+    | imul r12, r13
   }
   else if (d->fw_square) {
     | mov rcx, r13
