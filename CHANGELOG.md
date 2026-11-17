@@ -106,6 +106,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J4 peephole: `acc = acc + i` integer loops keep the accumulator and loop
   counters in GPRs; `numeric/int_sum` drops from ~5.9 ms to ~3.9 ms (0.11x
   stock Lua, faster than LuaJIT).
+- J4 peephole: `acc = acc + i * const` now covers integer and float
+  accumulators; integer constants beyond 32 bits are loaded once.
 - J4 peephole: `acc = acc + i * const` float loops keep the accumulator in
   an XMM register and the loop counters in GPRs; `numeric/float_loop` drops
   from ~11 ms to ~6.8 ms (0.25x stock Lua).

@@ -677,24 +677,28 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   if (!has_branch && !is_while && n >= 3) {
     int temp = -1, acc = -1, idx = -1;
     double konst = 0.0;
-    int seen_mul = 0, seen_add = 0, ok = 1;
+    int is_float = 0, seen_mul = 0, seen_add = 0, ok = 1;
+    int64_t iconst = 0;
     for (i = 0; i < n - 1 && ok; i++) {
       LuaR_Op *op = &ops[i];
       switch (op->kind) {
         case LUAR_OP_MMBIN:
           break;
         case LUAR_OP_MULK:
-          if (!seen_mul) {
+          if (!seen_mul && (op->ta == LUAR_T_FLOAT ||
+                            op->ta == LUAR_T_INT)) {
             temp = op->a;
             idx = op->b;
             konst = op->num;
+            iconst = op->imm;
+            is_float = (op->ta == LUAR_T_FLOAT);
             seen_mul = 1;
           }
           else ok = 0;
           break;
         case LUAR_OP_ADD:
           if (!seen_add && op->a == op->b && op->c == temp &&
-              op->ta == LUAR_T_FLOAT) {
+              op->ta == (is_float ? LUAR_T_FLOAT : LUAR_T_INT)) {
             acc = op->a;
             seen_add = 1;
           }
@@ -709,7 +713,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         !is_control_reg(acc, for_a) && temp != acc) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
-      add_guard(&d, seen, acc, LUAR_T_FLOAT);
+      add_guard(&d, seen, acc, is_float ? LUAR_T_FLOAT : LUAR_T_INT);
       add_guard(&d, seen, idx, LUAR_T_INT);
       add_guard(&d, seen, for_a, LUAR_T_INT);
       add_guard(&d, seen, for_a + 1, LUAR_T_INT);
@@ -717,6 +721,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       d.ff_acc = acc;
       d.ff_idx = idx;
       d.ff_const = konst;
+      d.ff_is_float = is_float;
+      d.ff_iconst = iconst;
     }
   }
 

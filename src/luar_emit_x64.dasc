@@ -581,17 +581,32 @@ static void emit_fast_float (dasm_State **Dst, const LuaR_LoopDesc *d)
   | push r12
   | push r13
   | push r14
+  if (!d->ff_is_float)
+    | push r15
   emit_guards(Dst, d);
   | mov r12, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
   | mov r13, qword [rbx + ((int)LUAR_SLOT(d->ff_idx))]
   | mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
-  | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->ff_acc))]
-  | mov64 rax, bits
-  | movq xmm1, rax
+  if (d->ff_is_float) {
+    | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->ff_acc))]
+    | mov64 rax, bits
+    | movq xmm1, rax
+  }
+  else {
+    | mov r15, qword [rbx + ((int)LUAR_SLOT(d->ff_acc))]
+    | mov64 r11, d->ff_iconst
+  }
   |1:
-  | cvtsi2sd xmm2, r13
-  | mulsd xmm2, xmm1
-  | addsd xmm0, xmm2
+  if (d->ff_is_float) {
+    | cvtsi2sd xmm2, r13
+    | mulsd xmm2, xmm1
+    | addsd xmm0, xmm2
+  }
+  else {
+    | mov rcx, r13
+    | imul rcx, r11
+    | add r15, rcx
+  }
   | test r12, r12
   | jz >2
   | dec r12
@@ -600,7 +615,13 @@ static void emit_fast_float (dasm_State **Dst, const LuaR_LoopDesc *d)
   |2:
   | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
   | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
-  | movsd qword [rbx + ((int)LUAR_SLOT(d->ff_acc))], xmm0
+  if (d->ff_is_float) {
+    | movsd qword [rbx + ((int)LUAR_SLOT(d->ff_acc))], xmm0
+  }
+  else {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->ff_acc))], r15
+    | pop r15
+  }
   | mov eax, 1
   | pop r14
   | pop r13
@@ -608,6 +629,8 @@ static void emit_fast_float (dasm_State **Dst, const LuaR_LoopDesc *d)
   | pop rbx
   | ret
   |3:
+  if (!d->ff_is_float)
+    | pop r15
   | xor eax, eax
   | pop r14
   | pop r13
