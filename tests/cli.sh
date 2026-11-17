@@ -40,6 +40,13 @@ set -e
 [ "$rc" -eq 3 ] || fail "os.exit(3) exit code was $rc"
 ok "-e / exit codes"
 
+# -- -j control ------------------------------------------------------------
+out=$("$LUAR" -jv)
+case "$out" in "LuaR "*) ;; *) fail "-jv output: $out" ;; esac
+"$LUAR" -joff -e 'assert(jit.status() == false)' || fail "-joff"
+"$LUAR" -j opt=hotloop=10 -e 'assert(jit.status() == false)' || fail "-j opt="
+ok "-j control options"
+
 # -- script arguments ------------------------------------------------------
 cat > "$TMP/args.lua" <<'EOF'
 print(table.concat(arg, ","))
@@ -65,6 +72,13 @@ out=$(LUAR_INIT='print("luar-init")' LUA_INIT='print("lua-init")' "$LUAR" -e '')
 out=$(LUA_INIT='print("lua-init")' "$LUAR" -e '')
 [ "$out" = "lua-init" ] || fail "LUA_INIT fallback broken: $out"
 ok "LUAR_INIT"
+
+# -- embedding through the public headers ---------------------------------
+cc -O2 -I "$ROOT/src" -o "$TMP/embed" "$ROOT/tests/embed/embed.c" \
+   "$ROOT/src/libluar.a" -lm -ldl || fail "could not build the embed test"
+out=$("$TMP/embed") || fail "embed test failed"
+[ "$out" = "embed ok" ] || fail "embed output: $out"
+ok "C embedding"
 
 # -- C module ABI (needs pkg-config lua5.5) --------------------------------
 if pkg-config --exists lua5.5 2>/dev/null; then

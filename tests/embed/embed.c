@@ -1,0 +1,54 @@
+/*
+** embed.c -- a minimal C host embedding LuaR through the public headers.
+**
+** Proves that luar.h/libluar.a work for embedders and that luaL_openlibs
+** brings up the LuaR extensions (luar, jit, bit, and ffi when built).
+*/
+
+#include <stdio.h>
+#include <string.h>
+
+#include "lua.h"
+#include "lauxlib.h"
+#include "lualib.h"
+#include "luar.h"
+
+static int fail (const char *msg) {
+  fprintf(stderr, "embed: FAIL: %s\n", msg);
+  return 1;
+}
+
+int main (void) {
+  lua_State *L = luaL_newstate();
+  if (L == NULL) return fail("luaL_newstate");
+
+  if (strcmp(luar_version(), "0.1.0") != 0) return fail("luar_version");
+  if (strcmp(luar_lua_version(), "Lua 5.5.1") != 0) return fail("luar_lua_version");
+
+  luaL_openlibs(L);
+
+  if (lua_getglobal(L, "luar") != LUA_TTABLE)
+    return fail("luar table missing after luaL_openlibs");
+  lua_getfield(L, -1, "version");
+  if (strcmp(lua_tostring(L, -1), "0.1.0") != 0) return fail("luar.version");
+  lua_pop(L, 2);   /* version, luar */
+
+  lua_getglobal(L, "jit");
+  if (!lua_istable(L, -1)) return fail("jit table missing");
+  lua_getfield(L, -1, "status");
+  if (lua_pcall(L, 0, 1, 0) != LUA_OK) return fail("jit.status");
+  if (lua_toboolean(L, -1)) return fail("jit.status must be false in 0.1");
+  lua_pop(L, 2);
+
+  lua_getglobal(L, "bit");
+  if (!lua_istable(L, -1)) return fail("bit table missing");
+  lua_pop(L, 1);
+
+  /* run a chunk to prove the VM is live */
+  if (luaL_dostring(L, "return 6*7") != LUA_OK) return fail("dostring");
+  if (lua_tointeger(L, -1) != 42) return fail("arithmetic");
+
+  lua_close(L);
+  printf("embed ok\n");
+  return 0;
+}
