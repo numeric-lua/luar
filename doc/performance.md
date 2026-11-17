@@ -21,13 +21,15 @@
 >
 > | benchmark | lua | luar | luar x | luajit | luajit x |
 > | --- | ---: | ---: | ---: | ---: | ---: |
-> | numeric/int_sum | 35.25 | **3.91** | 0.11 | 5.87 | 0.17 |
-> | numeric/float_loop | 27.38 | **6.84** | 0.25 | 2.94 | 0.11 |
-> | numeric/square_sum | 56.75 | **3.92** | 0.07 | 5.87 | 0.10 |
-> | numeric/while_sum | 58.92 | **1.95** | 0.03 | 7.82 | 0.13 |
+> | numeric/int_sum | 35.26 | **3.92** | 0.11 | 5.87 | 0.17 |
+> | numeric/float_loop | 27.40 | **6.85** | 0.25 | 3.14 | 0.11 |
+> | numeric/product | 17.62 | **2.94** | 0.17 | 2.93 | 0.17 |
+> | numeric/lin_sum | 52.91 | **3.92** | 0.07 | 5.91 | 0.11 |
+> | numeric/square_sum | 56.78 | **3.91** | 0.07 | 5.87 | 0.10 |
+> | numeric/while_sum | 58.93 | **1.96** | 0.03 | 7.82 | 0.13 |
 > | numeric/fib | 13.17 | 13.52 | 1.03 | 1.39 | 0.11 |
-> | numeric/mandel | 20.93 | 21.07 | 1.01 | 1.41 | 0.07 |
-> | table/array | 24.71 | 27.44 | 1.11 | 8.65 | 0.35 |
+> | numeric/mandel | 21.06 | 21.19 | 1.01 | 1.42 | 0.07 |
+> | table/array | 25.01 | 27.23 | 1.09 | 8.62 | 0.34 |
 >
 > The register-cached fast paths are the source of the integer, float,
 > square-sum and while gains.  `fib` is unchanged because calls are not

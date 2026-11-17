@@ -538,6 +538,26 @@ def {
 }
 
 def {
+  name = "numeric/product", group = "numeric",
+  run = function ()
+    local n = N(4000000)
+    local s = 1
+    for i = 1, n do s = s * i end
+    return s
+  end,
+}
+
+def {
+  name = "numeric/lin_sum", group = "numeric",
+  run = function ()
+    local n = N(8000000)
+    local s = 0
+    for i = 1, n do s = s + i * 3 end
+    return s
+  end,
+}
+
+def {
   name = "numeric/square_sum", group = "numeric",
   run = function ()
     local n = N(8000000)
