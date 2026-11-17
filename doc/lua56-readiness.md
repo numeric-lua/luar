@@ -4,6 +4,14 @@ LuaR targets **one Lua line at a time**.  Today that line is 5.5.1; when PUC
 publishes 5.6, adopting it is a deliberate, tested migration rather than a
 compatibility mode.  This page is the checklist for that migration.
 
+## Status (2026-10-07)
+
+PUC's [version history](https://www.lua.org/versions.html) lists Lua 5.5.1
+(released 03 Aug 2026) as the current release; there is no Lua 5.6 tarball
+yet.  LuaR therefore stays on 5.5.1 and keeps this checklist ready rather
+than speculating about APIs.  Re-check the download area before starting
+the sequence below.
+
 ## Assumptions
 
 * LuaR has no 5.1–5.4 compatibility layer and will not gain one for 5.6:
