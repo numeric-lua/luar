@@ -28,11 +28,15 @@ local all = jit.traces()
 H.eq(#all, st.traces, "jit.traces() disagrees with stats")
 H.eq(type(all[1]), "string")
 
--- a backward JMP loop is recorded too
+-- a backward JMP loop is recorded too (fresh Proto: jit.flush() does not
+-- reset Protos that are already hot in J1)
+local function while_loop ()
+  local n = 0
+  while n < 2000 do n = n + 1 end
+  return n
+end
 jit.flush()
-local n = 0
-while n < 2000 do n = n + 1 end
-H.eq(n, 2000)
+H.eq(while_loop(), 2000)
 st = jit.stats()
 H.check(st.traces >= 1, "while-loop trace missing")
 local found = false

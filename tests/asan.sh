@@ -68,7 +68,7 @@ fi
 make "$@"
 
 echo "== semantics / compat =="
-./src/luar tests/run.lua semantics compat
+./src/luar tests/run.lua semantics compat jit
 
 if [ "$WITH_FFI" = 1 ]; then
   echo "== ffi =="

@@ -134,6 +134,12 @@ local seeds = {
   "struct Fwd; struct Use { struct Fwd *p; }; struct Fwd { int x; };",
   "int f(void); int g(int, ...); int (*cb)(const char *, void *);",
   "enum { A = 1 << 62, B = A / 2, C = A % 7, D = 1 / 0 };",
+  "enum { OVF = 1 << 62, OVF2 = OVF + OVF, OVF3 = OVF * 3 };",
+  "enum { MIN = ~9223372036854775807 / -1, MINR = ~9223372036854775807 % -1 };",
+  "struct " .. string.rep("L", 60) .. " { int a; }; struct " ..
+    string.rep("L", 60) .. " lf(void); struct " .. string.rep("L", 60) ..
+    " lg(int);",
+  "int " .. string.rep("(", 300) .. "x" .. string.rep(")", 300) .. ";",
   "struct Bits { int x : 3; };",
   "long double d;",
   "#define X 1\nint x;",
