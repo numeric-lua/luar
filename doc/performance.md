@@ -7,11 +7,34 @@
 > `numeric/int_sum` dropped from ~35 ms to **3.9 ms** (0.11x stock Lua,
 > faster than LuaJIT's 5.9 ms), and `numeric/float_loop` from ~27 ms to
 > **6.8 ms** (0.25x stock; LuaJIT is 3.0 ms) after register-cached
-> `acc + i` and `acc + i * const` fast paths.  `fib` and `mandel` are unchanged (calls and
+> `acc + i`, `acc + i * const`, `acc + i * i` and simple `while` fast
+> paths.  `fib` and `mandel` are not compiled profitably (calls and
 > branches); the tables below are the pre-J2 baseline and remain valid for
-> everything the JIT does not compile.  The experimental table JIT is
+> everything the JIT does not compile.  See the J4 snapshot below for the
+> current numbers, including the `mandel` regression.  The experimental table JIT is
 > opt-in and does not yet beat the interpreter on this corpus.  Re-run
 > `make bench-compare` for current numbers.
+
+> **J4 snapshot (2026-11-17, HEAD `aa8ba109`, `make bench-compare`).**
+> Best CPU milliseconds; `x` is relative to stock Lua (lower is faster).
+>
+> | benchmark | lua | luar | luar x | luajit | luajit x |
+> | --- | ---: | ---: | ---: | ---: | ---: |
+> | numeric/int_sum | 35.27 | **3.91** | 0.11 | 5.87 | 0.17 |
+> | numeric/float_loop | 27.41 | **6.85** | 0.25 | 2.94 | 0.11 |
+> | numeric/square_sum | 56.83 | **3.92** | 0.07 | 5.88 | 0.10 |
+> | numeric/while_sum | 59.09 | **1.96** | 0.03 | 7.83 | 0.13 |
+> | numeric/fib | 13.24 | 13.50 | 1.02 | 1.36 | 0.10 |
+> | numeric/mandel | 20.82 | 24.63 | 1.18 | 1.42 | 0.07 |
+> | table/array | 24.55 | 25.64 | 1.04 | 8.57 | 0.35 |
+>
+> The register-cached fast paths are the source of the integer, float,
+> square-sum and while gains.  `fib` is unchanged because calls are not
+> compiled; `mandel` and `table/array` are honest regressions/no-gain:
+> their loops are not profitable under the current loop-level JIT, and the
+> table tier remains opt-in.  The official suite, ASan and the whole test
+> matrix pass at this revision.  `make JIT=0` now genuinely rebuilds the
+> interpreter-only binary (previously the `JIT` alias was ignored).
 
 Measured on 2026-11-17 (America/Sao_Paulo) against stock Lua 5.5.1 and
 LuaJIT 2.1, on the machine described below.  These are the pre-J2 baseline
