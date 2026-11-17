@@ -67,6 +67,11 @@ out=$("$LUAR" -e "print(dofile('$TMP/prog.luac'))")
 ok "luarc bytecode"
 
 # -- luar -b (LuaJIT CLI compatibility) -----------------------------------
+cat > "$TMP/cross.lua" <<'LUAEOF'
+local t = {}
+for i = 1, 5 do t[i] = i * i end
+print(table.concat(t, ","))
+LUAEOF
 "$LUAR" -b "$TMP/cross.lua" "$TMP/cross-b.luac" || fail "luar -b"
 out=$("$LUAR" "$TMP/cross-b.luac")
 [ "$out" = "1,4,9,16,25" ] || fail "luar -b output: $out"
@@ -76,11 +81,6 @@ out=$("$LUAR" "$TMP/cross-bs.luac")
 ok "luar -b"
 
 # -- cross-interpreter bytecode compatibility ------------------------------
-cat > "$TMP/cross.lua" <<'LUAEOF'
-local t = {}
-for i = 1, 5 do t[i] = i * i end
-print(table.concat(t, ","))
-LUAEOF
 "$LUARC" -o "$TMP/cross-luar.luac" "$TMP/cross.lua"
 if command -v lua >/dev/null 2>&1; then
   out=$(lua "$TMP/cross-luar.luac")

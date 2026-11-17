@@ -11,17 +11,71 @@ permissions:
 
 jobs:
   linux:
-    name: linux (gcc)
+    name: linux (gcc, WITH_FFI=${{ matrix.with_ffi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        with_ffi: ["0", "1"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Runners normally ship libffi-dev.  Install it only when the headers
+      # are really missing, so the gate does not depend on apt/network in the
+      # normal case.  WITH_FFI=0 does not need libffi at all.
+      - name: Ensure libffi headers
+        if: matrix.with_ffi == '1'
+        run: |
+          if ! printf '#include <ffi.h>\n' | cc -E - >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+          fi
+
+      - name: Build and test
+        run: make WITH_FFI=${{ matrix.with_ffi }} test
+
+  sanitizers:
+    name: linux (ASan+UBSan, WITH_FFI=1)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build
-        run: make -j"$(nproc)"
+      - name: Ensure libffi headers
+        run: |
+          if ! printf '#include <ffi.h>\n' | cc -E - >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+          fi
 
-      - name: Test
-        run: make test
+      - name: Clean ASan/UBSan build, suites and fuzz
+        run: tests/asan.sh
+
+  fuzz:
+    name: linux (deterministic cdef fuzz)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure libffi headers
+        run: |
+          if ! printf '#include <ffi.h>\n' | cc -E - >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+          fi
+
+      # test-fuzz forces WITH_FFI=1 and wraps the fuzzer in timeout(1).
+      - name: Fuzz ffi.cdef
+        run: make test-fuzz
+
+  upstream:
+    name: upstream drift and shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Upstream drift check (offline)
         run: tools/upstream-check.sh
@@ -29,22 +83,9 @@ jobs:
       - name: Shell scripts
         run: |
           if command -v shellcheck >/dev/null 2>&1; then
-            shellcheck tools/*.sh tests/upstream/*.sh
+            shellcheck tools/*.sh tests/*.sh tests/upstream/*.sh
           else
             echo "shellcheck not installed; skipping"
-          fi
-
-      # FFI is milestone 0.2.  Keep this best-effort until src/luar_ffi.c
-      # lands so a partially implemented FFI never blocks the core matrix.
-      - name: Build with FFI (best effort)
-        continue-on-error: true
-        run: |
-          if [ -f src/luar_ffi.c ]; then
-            sudo apt-get update
-            sudo apt-get install -y libffi-dev
-            make WITH_FFI=1
-          else
-            echo "src/luar_ffi.c not present yet; skipping WITH_FFI=1"
           fi
 
   macos:
@@ -62,6 +103,3 @@ jobs:
 
       - name: Test
         run: make test
-
-      - name: Upstream drift check (offline)
-        run: tools/upstream-check.sh

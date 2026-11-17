@@ -26,7 +26,8 @@ PREFIX_STAMP= src/.prefix
 FFI_STAMP= src/.ffi
 
 .PHONY: all build config-check shared test test-semantics test-compat test-ffi test-diff \
-	test-upstream bench install uninstall clean distclean upstream-check sync-diff docs help
+	test-asan test-fuzz test-upstream bench install uninstall clean distclean \
+	upstream-check sync-diff docs help
 
 all: build
 
@@ -69,6 +70,29 @@ test-ffi: build
 
 test-diff: build
 	./tests/diff/run.sh
+
+# Sanitizer pass: tests/asan.sh does its own clean build, so this target
+# deliberately has no build prerequisite.  The script defaults to WITH_FFI=1;
+# an explicit WITH_FFI=0/1 on the make command line (or in the environment)
+# is forwarded so "make WITH_FFI=0 test-asan" tests the stub build too.
+ASAN_FFI= $(if $(filter command line environment,$(origin WITH_FFI)),$(WITH_FFI),1)
+
+test-asan:
+	WITH_FFI=$(ASAN_FFI) tests/asan.sh
+
+# Deterministic ffi.cdef fuzzer.  The FFI is opt-in, so this target forces an
+# FFI build even when the caller did not pass WITH_FFI=1.  Override FUZZ_ARGS
+# to change the number of cases or the seed; see tools/fuzz-cdef.lua.
+FUZZ_ARGS?= --cases 5000 --max-seconds 4
+
+test-fuzz: WITH_FFI=1
+test-fuzz: build
+	@set -eu; \
+	if command -v timeout >/dev/null 2>&1; then \
+	  timeout 120 ./src/luar tools/fuzz-cdef.lua $(FUZZ_ARGS); \
+	else \
+	  ./src/luar tools/fuzz-cdef.lua $(FUZZ_ARGS); \
+	fi
 
 # Official Lua test suite under src/luar (downloads into tests/tmp/).
 test-upstream: build
