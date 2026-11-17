@@ -527,10 +527,10 @@ static void init_array_to (lua_State *L, FFIState *S, CType *ct,
 
 static uint64_t bitfield_load (const CField *f, const void *p) {
   uint64_t raw = 0;
-  size_t sz = ffi_type_size(f->type);
+  size_t n = ((size_t)f->bitoffset + f->bitwidth + 7) / 8;
   uint64_t mask = (f->bitwidth == 64) ? ~(uint64_t)0 :
                   (((uint64_t)1 << f->bitwidth) - 1);
-  memcpy(&raw, p, sz);
+  memcpy(&raw, p, n);
   raw = (raw >> f->bitoffset) & mask;
   if (f->bitwidth < 64 && !f->type->is_unsigned &&
       f->type->kind != CT_BOOL && (raw & ((uint64_t)1 << (f->bitwidth - 1))))
@@ -541,7 +541,7 @@ static uint64_t bitfield_load (const CField *f, const void *p) {
 
 static void bitfield_store (lua_State *L, FFIState *S, const CField *f,
                             void *p, int idx, const char *what) {
-  size_t sz = ffi_type_size(f->type);
+  size_t n = ((size_t)f->bitoffset + f->bitwidth + 7) / 8;
   uint64_t mask = (f->bitwidth == 64) ? ~(uint64_t)0 :
                   (((uint64_t)1 << f->bitwidth) - 1);
   uint64_t raw = 0, v;
@@ -555,10 +555,10 @@ static void bitfield_store (lua_State *L, FFIState *S, const CField *f,
   if (!ok)
     luaL_error(L, "ffi: %s needs an integer for bitfield '%s'", what,
                f->name != NULL ? f->name : "<anonymous>");
-  memcpy(&raw, p, sz);
+  memcpy(&raw, p, n);
   raw &= ~(mask << f->bitoffset);
   raw |= (v & mask) << f->bitoffset;
-  memcpy(p, &raw, sz);
+  memcpy(p, &raw, n);
 }
 
 

@@ -394,8 +394,7 @@ static size_t round_up (size_t n, size_t align) {
 
 void ffi_type_finish_struct (FFIState *S, CType *ct) {
   size_t off = 0, maxsize = 0, align = 1;
-  size_t unit_start = 0, unit_size = 0, bit_used = 0;
-  int in_unit = 0;
+  size_t bitpos = 0;
   uint16_t i;
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
@@ -416,48 +415,31 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       continue;
     }
     if (f->bitwidth != 0) {
-      size_t bits = fsz * 8;
-      if (in_unit && fsz != unit_size)
-        luaL_error(S->L, "ffi: bitfields with different base types in one "
-                         "struct are not supported");
-      if (!in_unit || bit_used + f->bitwidth > bits) {
-        if (in_unit)
-          off = unit_start + unit_size;
-        off = round_up(off, fal);
-        unit_start = off;
-        unit_size = fsz;
-        bit_used = 0;
-        in_unit = 1;
+      size_t ustart = (bitpos / 8) & ~(fal - 1);
+      if ((bitpos - ustart * 8) + f->bitwidth > fsz * 8) {
+        size_t nb = (bitpos + 7) / 8;
+        nb = (nb + fal - 1) & ~(fal - 1);
+        bitpos = nb * 8;
       }
-      f->offset = unit_start;
-      f->bitoffset = (uint8_t)bit_used;
-      bit_used += f->bitwidth;
-      if (bit_used == bits) {
-        off = unit_start + unit_size;
-        in_unit = 0;
-      }
+      f->offset = bitpos / 8;
+      f->bitoffset = (uint8_t)(bitpos & 7);
+      bitpos += f->bitwidth;
     }
     else {
-      if (in_unit) {
-        off = unit_start + unit_size;
-        in_unit = 0;
-      }
-      off = round_up(off, fal);
+      size_t nb = (bitpos + 7) / 8;
+      off = (nb + fal - 1) & ~(fal - 1);
       f->offset = off;
       if (fsz > FFI_SIZE_UNKNOWN - off)
         luaL_error(S->L, "ffi: struct layout overflow");
       off += fsz;
+      bitpos = off * 8;
     }
-  }
-  if (in_unit) {
-    off = unit_start + unit_size;
-    in_unit = 0;
   }
   ct->align = align;
   if (ct->kind == CT_UNION)
     ct->size = round_up(maxsize, align);
   else
-    ct->size = round_up(off, align);
+    ct->size = round_up((bitpos + 7) / 8, align);
   ct->incomplete = 0;
 }
 

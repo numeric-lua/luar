@@ -26,8 +26,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 - FFI structs with fixed array members (including arrays of structs) can be
   passed and returned by value; VLA/empty arrays and bitfield structs are
   rejected.
-- FFI bitfields for integer/enum/`_Bool` struct fields: GCC-style same-base
-  packing, signed extraction, masking on set, positional/named
+- FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
+  bit-granular packing including mixed base types and byte-crossing
+  fields, signed extraction, masking on set, positional/named
   initializers; mixed-size/union bitfields and by-value bitfield structs
   fail clearly.
 - `__thread`/`_Thread_local` globals are supported through the existing

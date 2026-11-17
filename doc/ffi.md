@@ -428,10 +428,10 @@ Call features:
 * `__thread`/`_Thread_local` globals resolve through `dlsym` for the
   calling thread; LuaR does not create or migrate threads, and another C
   thread sees its own instance.
-* Bitfields are supported for integer, enum and `_Bool` fields in structs,
-  with GCC-style packing when a run uses one base type.  Mixed-size
-  bitfield runs, union bitfields and by-value bitfield structs are
-  rejected rather than laid out incorrectly.  `long double`, complex
+* Bitfields are supported for integer, enum and `_Bool` fields in structs
+  with GCC/x86-64 bit-granular packing, including mixed base types and
+  fields crossing byte boundaries.  Union bitfields and by-value bitfield
+  structs are rejected rather than laid out incorrectly.  `long double`, complex
   numbers, vectors and packing attributes are not implemented, and
   preprocessor macros are not parsed.  `ffi.callback`
   supports non-variadic types, including struct and scalar-union by-value
@@ -468,7 +468,8 @@ probes, and variadic probes.  Coverage includes:
   comparisons, `tonumber`, and `tostring` formats;
 * `ffi.string`, `ffi.copy` (including the 2-argument string form),
   `ffi.fill`, and their bounds errors;
-* bitfield layout (mixed same-size bases, signed extraction, masking),
+* bitfield layout (mixed bases, byte-crossing fields, signed extraction,
+  masking),
   get/set, positional/named initializers and by-value rejection;
 * `ffi.callback` (qsort via a real C comparator, struct-by-value arguments,
   direct calls, errors, GC lifetime) and `ffi.callback_error`;

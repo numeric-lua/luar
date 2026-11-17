@@ -251,3 +251,10 @@ int mu_get (union MixedU u) { return u.i; }
 union MixedU mu_make (int i) { union MixedU u; u.i = i; return u; }
 /* Callback returning a small union by value. */
 int call_val_cb (union Val (*cb)(void)) { union Val v = cb(); return v.i; }
+struct BitAfter { char x; int a : 3; };
+int size_BitAfter (void) { return (int)sizeof(struct BitAfter); }
+int bafter_a_ptr (const struct BitAfter *p) { return p->a; }
+struct BitLong { char a : 4; long b : 40; char c; };
+int size_BitLong (void) { return (int)sizeof(struct BitLong); }
+int off_BitLong_c (void) { return (int)offsetof(struct BitLong, c); }
+long blong_b_ptr (const struct BitLong *p) { return p->b; }
