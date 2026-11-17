@@ -408,20 +408,29 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
         break;
     }
   }
-  |=>((int)d->nops):
-  | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
-  | test rax, rax
-  | jz >2
-  | dec rax
-  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
-  | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
-  | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
-  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
-  | jmp =>0
-  |2:
-  | mov eax, 1
-  | pop rbx
-  | ret
+  if (d->is_while) {
+    | jmp =>0
+    |=>((int)d->nops):
+    | mov eax, 1
+    | pop rbx
+    | ret
+  }
+  else {
+    |=>((int)d->nops):
+    | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+    | test rax, rax
+    | jz >2
+    | dec rax
+    | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
+    | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
+    | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+    | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
+    | jmp =>0
+    |2:
+    | mov eax, 1
+    | pop rbx
+    | ret
+  }
   |3:
   | xor eax, eax
   | pop rbx
@@ -468,7 +477,7 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
   void *mem;
   int status;
   if (d == NULL || code_size == NULL || d->ops == NULL || d->nops <= 0 ||
-      d->for_a < 0 || d->for_a + 2 > 254)
+      (!d->is_while && d->for_a < 0) || d->for_a + 2 > 254)
     return NULL;
   dasm_init(&Dst, DASM_MAXSECTION);
   dasm_setupglobal(&Dst, NULL, 0);

@@ -56,6 +56,7 @@ typedef struct LuaR_LoopDesc {
   int nguards;
   int npc;			/* instruction labels for branch loops */
   int has_branch;
+  int is_while;			/* loop ends in a backward JMP, no FORLOOP */
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;

@@ -81,6 +81,8 @@ void luari_jit_shutdown (lua_State *L) {
 /* ---------------------------------------------------------------- */
 
 static int is_control_reg (int r, int for_a) {
+  if (for_a < 0)
+    return 0;   /* while loops have no control triplet */
   return r == for_a || r == for_a + 1 || r == for_a + 2;
 }
 
@@ -121,7 +123,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   Instruction last;
   TValue *b = (TValue *)base;
   uint8_t cur[256], def[256], seen[256], paired[256];
-  int for_a, has_branch = 0;
+  int for_a, has_branch = 0, is_while = 0;
   if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
     return 0;
   /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
@@ -130,14 +132,20 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       sizeof(lua_Integer) != 8 || sizeof(lua_Number) != sizeof(double))
     return 0;
   last = p->code[backedge];
-  if (GET_OPCODE(last) != OP_FORLOOP)
+  if (GET_OPCODE(last) == OP_FORLOOP) {
+    for_a = GETARG_A(last);
+    if (for_a < 0 || for_a + 2 > 255)
+      return 0;
+    if (!ttisinteger(&b[for_a]) || !ttisinteger(&b[for_a + 1]) ||
+        !ttisinteger(&b[for_a + 2]))
+      return 0;   /* float/non-integer loop control: not supported */
+  }
+  else if (GET_OPCODE(last) == OP_JMP && GETARG_sJ(last) < 0) {
+    is_while = 1;
+    for_a = -1;
+  }
+  else
     return 0;
-  for_a = GETARG_A(last);
-  if (for_a < 0 || for_a + 2 > 255)
-    return 0;
-  if (!ttisinteger(&b[for_a]) || !ttisinteger(&b[for_a + 1]) ||
-      !ttisinteger(&b[for_a + 2]))
-    return 0;   /* float/non-integer loop control: not supported */
 
   memset(&d, 0, sizeof(d));
   memset(cur, 0, sizeof(cur));
@@ -147,12 +155,15 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   d.ops = ops;
   d.nops = (int)n - 1;
   d.for_a = for_a;
+  d.is_while = is_while;
   d.tag_int = LUA_VNUMINT;
   d.tag_flt = LUA_VNUMFLT;
-  for (i = 0; i < 3; i++) {
-    cur[for_a + i] = LUAR_T_INT;
-    def[for_a + i] = 1;
-    add_guard(&d, seen, for_a + i, LUAR_T_INT);
+  if (!is_while) {
+    for (i = 0; i < 3; i++) {
+      cur[for_a + i] = LUAR_T_INT;
+      def[for_a + i] = 1;
+      add_guard(&d, seen, for_a + i, LUAR_T_INT);
+    }
   }
 
   for (i = 0; i < n - 1; i++) {
@@ -196,8 +207,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (slot_type(b, cur, def, aa) != LUAR_T_INT) return 0;
       if (bb >= 0 && slot_type(b, cur, def, bb) != LUAR_T_INT) return 0;
       tgt = (start + j) + 1 + GETARG_sJ(jins);
-      if (tgt <= start + i || tgt > backedge || tgt == start + j)
+      if (tgt <= start + i || tgt == start + j)
         return 0;
+      if (tgt > backedge) {
+        if (!is_while || tgt != backedge + 1) return 0;
+        tgt = backedge;   /* leave the loop */
+      }
       op->kind = ck;
       op->a = (uint8_t)aa;
       op->b = (uint8_t)bb;
@@ -378,8 +393,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     for (i = 0; i < n - 1; i++) {
       LuaR_Op *op = &ops[i];
       if (op->kind == LUAR_OP_LOADF || op->kind == LUAR_OP_DIV ||
-          op->kind == LUAR_OP_DIVK)
+          op->kind == LUAR_OP_DIVK) {
         return 0;
+      }
       if (op->ta == LUAR_T_FLOAT || op->tb == LUAR_T_FLOAT ||
           op->tc == LUAR_T_FLOAT)
         return 0;
@@ -408,12 +424,15 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (op->kind == LUAR_OP_JMP || op->kind == LUAR_OP_LT ||
           op->kind == LUAR_OP_LE || op->kind == LUAR_OP_GT ||
           op->kind == LUAR_OP_GE || op->kind == LUAR_OP_EQ) {
-        if (op->target < 0 || op->target >= n || paired[op->target])
+        if (op->target < 0 || op->target >= n || paired[op->target]) {
           return 0;
+        }
       }
     }
-    for (i = 0; i < 3; i++)
-      add_guard(&d, seen, for_a + i, LUAR_T_INT);
+    if (!is_while) {
+      for (i = 0; i < 3; i++)
+        add_guard(&d, seen, for_a + i, LUAR_T_INT);
+    }
     d.npc = (int)n;
     d.has_branch = 1;
   }

@@ -150,8 +150,12 @@ shared: $(LUA_SO)
 	ln -sfn $(LUA_SONAME) $(LUA_SOLINK)
 
 
+# DynASM's action buffer performs deliberately unaligned uint stores; keep
+# that vendored code out of the alignment sanitizer so UBSan can gate the
+# rest of the runtime.
 luar_emit.o: luar_emit.c luar_emit_x64.h luar_emit.h
-	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) -I../dynasm -c luar_emit.c
+	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) -I../dynasm \
+	  -fno-sanitize=alignment -c luar_emit.c
 
 %.o: %.c
 	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) -c $<
@@ -159,7 +163,8 @@ luar_emit.o: luar_emit.c luar_emit_x64.h luar_emit.h
 # PIC variants, used only by the shared library.  The static build keeps
 # using the plain .o files above.
 luar_emit.pic.o: luar_emit.c luar_emit_x64.h luar_emit.h
-	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) $(PICFLAGS) -I../dynasm -c -o $@ luar_emit.c
+	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) $(PICFLAGS) -I../dynasm \
+	  -fno-sanitize=alignment -c -o $@ luar_emit.c
 
 %.pic.o: %.c
 	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) $(PICFLAGS) -c -o $@ $<

@@ -14,7 +14,8 @@ is provably observationally equivalent to that interpreter.
   continuation rather than a general trace: when an integer-controlled
   `for` loop becomes hot, the whitelisted body (numeric MOVE/LOADI/LOADF/
   LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, `MMBIN`, integer comparisons
-  and forward `JMP` branches) is emitted with DynASM.  Entry tag guards check every register read initially; the native
+  and forward `JMP` branches) is emitted with DynASM for `for` and simple
+  `while` loops.  Entry tag guards check every register read initially; the native
   code runs the remaining iterations on the Lua stack slots and returns to
   the VM after the loop.  Mixed int/double operands are handled with the
   conversions Lua performs; the default 16-byte TValue, 64-bit integer and

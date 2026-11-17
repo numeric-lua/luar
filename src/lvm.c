@@ -1685,8 +1685,14 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       vmcase(OP_JMP) {
         const Instruction *luarback = pc - 1;  /* LUAR: J1 backedge */
         dojump(ci, i, 0);
-        if (GETARG_sJ(i) < 0)  /* LUAR: backward jump */
+        if (GETARG_sJ(i) < 0) {  /* LUAR: backward jump */
           LUAR_JIT_HOT(L, cl->p, luarback, (void *)base);
+          if (cl->p->luar_code != NULL &&
+              cl->p->luar_code_pc == (int)(luarback - cl->p->code) &&
+              cl->p->luar_code_base == -1 &&
+              luari_jit_run(L, cl->p, (void *)base))
+            pc = luarback + 1;  /* LUAR: native while loop finished */
+        }
         vmbreak;
       }
       vmcase(OP_EQ) {

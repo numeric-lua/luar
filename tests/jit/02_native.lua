@@ -66,6 +66,26 @@ local q = 0
 for i = 1, 5000 do if i == 5000 then q = q + 10000 end end
 H.eq(q, 10000)
 
+-- while loops with integer conditions
+local wi, ws = 0, 0
+while wi < 100000 do ws = ws + wi; wi = wi + 1 end
+H.eq(ws, 4999950000)
+local wj, wv = 0, 0
+while wj < 5000 do
+  if wj == 2500 then wv = wv + 10000 end
+  wj = wj + 1
+end
+H.eq(wv, 10000)
+
+-- break keeps the loop on the interpreter but stays correct
+local wb, wbs = 0, 0
+while wb < 5000 do
+  wbs = wbs + wb
+  wb = wb + 1
+  if wb == 100 then break end
+end
+H.eq(wbs, 4950)
+
 -- the compiled code must be abandoned when jit.off() is set
 jit.off()
 H.check(jit.status() == false, "status must be false after jit.off")

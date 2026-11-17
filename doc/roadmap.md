@@ -89,8 +89,8 @@ Estimated: 3–5 weeks.
 ## 0.5 — x86-64 trace JIT MVP
 
 Status: partial J2.  DynASM emission, entry tag guards, exact FORLOOP
-semantics and the VM hand-off exist for `for` loops whose body is numeric
-register arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K
+semantics and the VM hand-off exist for `for` loops and simple `while`
+loops whose body is numeric register arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K
 variants and MMBIN), with int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
 `numeric/int_sum` is ~6x faster than the interpreter (LuaJIT parity) and
