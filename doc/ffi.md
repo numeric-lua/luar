@@ -108,15 +108,16 @@ by C APIs.  It supports:
   ^`.
 
 `ffi.cdef` may be called with several strings.  Declarations must be
-complete: function definitions and C preprocessor input are not accepted.
+complete: function definitions are not accepted, and only the documented
+preprocessor subset is available.
 
 ### Parser limitations (clear errors, never silent misparses)
 
-* The C preprocessor is not run.  `#define`, `#include`, etc. produce an
-  error telling the caller to pass declarations.
+* The C preprocessor is only partially implemented: object-like
+  `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`; function-like
+  macros, `#include`, `#pragma` and complex `#if` expressions are rejected.
 * `__attribute__`, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline
   asm, and `_Static_assert` are rejected.
-* Bitfields (`int x : 3`) are rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
   supported.
 * Packing/alignment attributes and `#pragma pack` are unsupported; layout
@@ -434,9 +435,8 @@ Call features:
   zero-width alignment fields are supported (the zero-width type affects
   the next offset but not the struct alignment, as in GCC).  Union
   bitfields and by-value bitfield structs are rejected rather than laid
-  out incorrectly.  `long double`, complex
-  numbers, vectors and packing attributes are not implemented, and
-  preprocessor macros are not parsed.  `ffi.callback`
+  out incorrectly.  `long double`, complex numbers, vectors and packing
+  attributes are not implemented.  `ffi.callback`
   supports non-variadic types, including struct and scalar-union by-value
   returns when the callback returns a matching cdata; array/large aggregate
   returns fail clearly.  None are silently emulated.

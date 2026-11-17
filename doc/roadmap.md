@@ -43,8 +43,8 @@ Exit criteria:
 * A pure-FFI program that allocates structs, passes pointers to libc and
   calls `qsort`-style APIs runs correctly under `make WITH_FFI=1`.
 * No crashes under the ffi test suite with ASan/UBSan (`make test-asan`).
-* Documented limitations: no preprocessor, large/aggregate unions by value,
-  mixed-base bitfield runs, non-x86-64 hosts.
+* Documented limitations: function-like/include preprocessing,
+  large/aggregate unions by value, non-x86-64 hosts.
 * `make WITH_FFI=0` remains green.
 
 Estimated: 2–4 weeks.
