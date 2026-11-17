@@ -66,18 +66,20 @@ if [ -n "$VENDOR_ARG" ]; then
     *) VENDOR=$ROOT/$VENDOR_ARG ;;
   esac
 else
-  # Pick the newest vendored upstream snapshot.  Lua versions have at most
-  # three numeric components, so a plain lexical sort is sufficient here.
-  VENDOR_NAME=$(for d in "$VENDOR_ROOT"/lua-*; do
+  # Pick the newest vendored upstream snapshot by numeric version, not by
+  # lexical order (5.10 must sort after 5.9).
+  VENDOR_VER=$(for d in "$VENDOR_ROOT"/lua-*; do
     [ -d "$d" ] || continue
-    printf '%s\n' "${d##*/}"
-  done | sort | tail -n 1)
-  [ -n "$VENDOR_NAME" ] || die "no vendor/lua-* directory found"
-  VENDOR=$VENDOR_ROOT/$VENDOR_NAME
+    printf '%s\n' "${d##*/lua-}"
+  done | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
+  [ -n "$VENDOR_VER" ] || die "no vendor/lua-* directory found"
+  VENDOR=$VENDOR_ROOT/lua-$VENDOR_VER
 fi
 
+VENDOR=${VENDOR%/}
 [ -d "$VENDOR/src" ] || die "no upstream source at $VENDOR/src"
 VENDOR_NAME=${VENDOR##*/}
+[ -n "$VENDOR_NAME" ] || die "cannot determine the upstream directory name"
 
 # sha256 differs between GNU coreutils, BSD/macOS userland and OpenSSL.
 if command -v sha256sum >/dev/null 2>&1; then
@@ -108,7 +110,7 @@ is_luar_added() {
 is_ignored_artifact() {
   case $1 in
     *.o|*.a|*.so|*.so.*|*.dylib|*.dll|*.obj|*.lib|*.exp|*.pdb|*.dSYM) return 0 ;;
-    *.gcda|*.gcno|*.profraw|*.out|luar|luarc|.prefix|.DS_Store) return 0 ;;
+    *.gcda|*.gcno|*.profraw|*.out|luar|luarc|.prefix|.ffi|.DS_Store) return 0 ;;
   esac
   return 1
 }
@@ -125,6 +127,7 @@ ADDED=$TMP/added.list
 IGNORED=$TMP/ignored.list
 PROBLEMS=$TMP/problems.list
 CURRENT=$TMP/current-modified.list
+UPSTREAM_MOVED=0
 
 : > "$MODIFIED"
 : > "$MISSING"
@@ -205,6 +208,7 @@ while IFS= read -r name; do
     buphash=$(printf '%s\n' "$line" | awk '{print $2}')
     if [ "$buphash" != "$vhash" ]; then
       state=upstream-mismatch
+      UPSTREAM_MOVED=$((UPSTREAM_MOVED + 1))
       add_problem "baseline upstream hash is stale for src/$name: vendored file changed since the baseline was made (review upstream, then run --update)"
     elif [ "$bhash" != "$shash" ]; then
       state=source-changed
@@ -305,6 +309,13 @@ if [ "$UPDATE" -eq 1 ]; then
   } > "$BASELINE_NEW"
   mv "$BASELINE_NEW" "$BASELINE"
 
+  if [ -n "$BASELINE_UPSTREAM" ] && [ "$BASELINE_UPSTREAM" != "$VENDOR_NAME" ]; then
+    echo "upstream-check: warning: baseline was for $BASELINE_UPSTREAM, now recording $VENDOR_NAME" >&2
+    echo "upstream-check: warning: review the upstream diff before committing the baseline" >&2
+  elif [ "$UPSTREAM_MOVED" -gt 0 ]; then
+    echo "upstream-check: warning: $UPSTREAM_MOVED tracked file(s) had changed upstream;" >&2
+    echo "upstream-check: warning: review the upstream diff before committing the baseline" >&2
+  fi
   printf 'Updated %s (%s tracked modification(s)).\n' "$BASELINE" "$MODIFIED_COUNT"
   echo "upstream-check: OK (baseline refreshed)"
   exit 0

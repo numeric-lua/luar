@@ -238,7 +238,7 @@ minor, not the LuaR minor: a Lua 5.5 ABI module keeps loading on LuaR 0.2.
 
 ## 7. Official test suite
 
-`tests/upstream/run.sh` downloads
+`tests/upstream/run.sh` (also wired as `make test-upstream`) downloads
 
 ```
 https://www.lua.org/tests/lua-<version>-tests.tar.gz
@@ -278,15 +278,22 @@ suite sha256: da07b543872dc0bb2ff12aabd0c248578d78df3eb6b67efdc537a46d455c7f31
   every subsystem was exercised.
 * The **complete** suite is not automated. It needs the C helpers in
   `libs/` built against LuaR's headers, and it contains environment-specific
-  checks. On Linux/glibc with LuaR 0.1.0 it gets to the end except for:
+  checks. On Linux/glibc with LuaR 0.1.0:
   * `main.lua` asserts that `-v` prints `PUC-Rio` in the copyright line;
     LuaR intentionally prints its own banner (`LuaR ... Copyright (C) 2026
     LuaR contributors`) while still naming `Lua 5.5.1`. This is a deliberate
-    branding deviation, not a semantic one.
+    branding deviation, not a semantic one, but it stops the unmodified
+    complete run at `main.lua`.
   * `files.lua` expects seeking on stdin to fail; that depends on what stdin
-    is. Feeding the suite from a pipe (`: | ./src/luar all.lua`) makes this
-    check pass.
-  The complete mode is useful for manual deep dives; it is not a release gate.
+    is. Feeding the suite from a pipe (`: | ./src/luar all.lua`) makes that
+    check pass, but the same file later asserts `io.popen`/`os.execute`
+    signal-vs-exit statuses that vary by shell and OS (`files.lua:814` on the
+    Linux/dash environment used here). With a branding-tolerant scratch
+    copy and pipe stdin, the run reaches the last top-level test file and
+    stops at that assertion.
+  The complete suite is explicitly system-dependent upstream ("expect to get
+  your hands dirty"); it is useful for manual deep dives and is not a release
+  gate. The basic mode above is the repeatable one.
 * Internal `ltests` tests require recompiling Lua with `ltests.c`/`ltests.h`
   and `-DLUA_USER_H`, exactly as upstream documents. LuaR does not ship that
   build; those tests are outside this runner.
@@ -321,9 +328,9 @@ API. Consequences:
   without recompilation (`tests/cli.sh` checks a stock `lua5.5` module);
 * upstream bug fixes and semantic changes arrive by merging core files, not
   by translating between two runtimes;
-* the delta stays small enough to audit: at 0.1.0 it is five tracked files
-  (`lua.c`, `luac.c`, `luaconf.h`, `lualib.h`, `Makefile`) and seven new
-  source/header files;
+* the delta stays small enough to audit: five tracked core/build files
+  (`lua.c`, `luac.c`, `luaconf.h`, `lualib.h`, `Makefile`) plus a small set
+  of additive `luar_*` source/header files;
 * when Lua 5.6 changes internals, the rebase is visible in one three-way
   report, and anything the JIT hooks is forced through the same review.
 

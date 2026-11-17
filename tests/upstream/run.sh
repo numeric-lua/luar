@@ -73,8 +73,10 @@ fi
 
 [ -d "$ROOT/src" ] || die "cannot find src/ under $ROOT"
 
-if [ ! -x "$LUAR" ]; then
-  echo "upstream-tests: $LUAR not built; running make..."
+# Keep the interpreter in step with src/; make is a fast no-op when it is
+# already current.  A LUAR override is respected and not rebuilt.
+if [ "$LUAR" = "$ROOT/src/luar" ]; then
+  echo "upstream-tests: ensuring src/luar is built"
   ( cd "$ROOT" && make )
 fi
 [ -x "$LUAR" ] || die "no runnable interpreter at $LUAR"

@@ -91,6 +91,13 @@ esac
 printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
   die "invalid version '$VERSION' (expected X.Y.Z)"
 
+if [ -n "$EXPECT_SHA" ]; then
+  case $EXPECT_SHA in
+    *[!0-9A-Fa-f]*) die "--sha256 is not a hex digest" ;;
+  esac
+  EXPECT_SHA=$(printf '%s\n' "$EXPECT_SHA" | tr 'A-F' 'a-f')
+fi
+
 URL="https://www.lua.org/ftp/lua-$VERSION.tar.gz"
 TARBALL=$CACHE/lua-$VERSION.tar.gz
 UNPACK_ROOT=$CACHE/unpacked
@@ -121,13 +128,21 @@ hash_file() {
 
 check_url() {
   if command -v curl >/dev/null 2>&1; then
-    code=$(curl -sSIL -o /dev/null -w '%{http_code}' --max-time 30 "$URL") ||
+    code=$(curl -fsSIL -o /dev/null -w '%{http_code}' --max-time 30 "$URL") ||
       die "could not reach $URL"
     echo "url:    $URL"
     echo "status: HTTP $code"
   elif command -v wget >/dev/null 2>&1; then
-    wget --spider -S "$URL" 2>&1 | sed -n '1,12p' ||
+    CHECK_TMP=$(mktemp "${TMPDIR:-/tmp}/luar-check-url.XXXXXX") || die "mktemp failed"
+    if wget --spider -S "$URL" > "$CHECK_TMP" 2>&1; then
+      sed -n '1,12p' "$CHECK_TMP"
+      rm -f "$CHECK_TMP"
+      echo "url:    $URL"
+    else
+      cat "$CHECK_TMP"
+      rm -f "$CHECK_TMP"
       die "could not reach $URL"
+    fi
   else
     die "need curl or wget for --check-url"
   fi
@@ -150,7 +165,7 @@ download() {
 is_ignored_artifact() {
   case $1 in
     *.o|*.a|*.so|*.so.*|*.dylib|*.dll|*.obj|*.lib|*.exp|*.pdb|*.dSYM) return 0 ;;
-    *.gcda|*.gcno|*.profraw|*.out|luar|luarc|.prefix|.DS_Store) return 0 ;;
+    *.gcda|*.gcno|*.profraw|*.out|luar|luarc|.prefix|.ffi|.DS_Store) return 0 ;;
   esac
   return 1
 }
@@ -202,15 +217,9 @@ else
     die "downloaded file is not a valid gzip tar archive"
   fi
   GOT_SHA=$(hash_file "$PART")
-  if [ -n "$EXPECT_SHA" ]; then
-    case $EXPECT_SHA in
-      *[!0-9A-Fa-f]*) die "--sha256 is not a hex digest" ;;
-    esac
-    EXPECT_LOWER=$(printf '%s\n' "$EXPECT_SHA" | tr 'A-F' 'a-f')
-    [ "$GOT_SHA" = "$EXPECT_LOWER" ] || {
-      rm -f "$PART"
-      die "sha256 mismatch: expected $EXPECT_LOWER, got $GOT_SHA"
-    }
+  if [ -n "$EXPECT_SHA" ] && [ "$GOT_SHA" != "$EXPECT_SHA" ]; then
+    rm -f "$PART"
+    die "sha256 mismatch: expected $EXPECT_SHA, got $GOT_SHA"
   fi
   mv "$PART" "$TARBALL"
 fi
@@ -218,6 +227,9 @@ fi
 [ -f "$TARBALL" ] || die "missing tarball $TARBALL"
 tar -tzf "$TARBALL" >/dev/null 2>&1 || die "cached tarball is corrupt: $TARBALL"
 SHA=$(hash_file "$TARBALL")
+if [ -n "$EXPECT_SHA" ] && [ "$SHA" != "$EXPECT_SHA" ]; then
+  die "sha256 mismatch for $TARBALL: expected $EXPECT_SHA, got $SHA"
+fi
 
 echo "version: $VERSION"
 echo "url:     $URL"
@@ -246,12 +258,12 @@ if [ -n "$FROM" ]; then
 elif [ -d "$TARGET" ]; then
   OLD=$TARGET
 else
-  OLD_NAME=$(for d in "$VENDOR_ROOT"/lua-*; do
+  OLD_VER=$(for d in "$VENDOR_ROOT"/lua-*; do
     [ -d "$d" ] || continue
-    printf '%s\n' "${d##*/}"
-  done | sort | tail -n 1)
-  if [ -n "$OLD_NAME" ]; then
-    OLD=$VENDOR_ROOT/$OLD_NAME
+    printf '%s\n' "${d##*/lua-}"
+  done | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
+  if [ -n "$OLD_VER" ]; then
+    OLD=$VENDOR_ROOT/lua-$OLD_VER
   fi
 fi
 
