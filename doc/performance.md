@@ -8,31 +8,33 @@
 > faster than LuaJIT's 5.9 ms), and `numeric/float_loop` from ~27 ms to
 > **6.8 ms** (0.25x stock; LuaJIT is 3.0 ms) after register-cached
 > `acc + i`, `acc + i * const`, `acc + i * i` and simple `while` fast
-> paths.  `fib` and `mandel` are not compiled profitably (calls and
-> branches); the tables below are the pre-J2 baseline and remain valid for
-> everything the JIT does not compile.  See the J4 snapshot below for the
-> current numbers, including the `mandel` regression.  The experimental table JIT is
+> paths.  `fib` is not compiled (calls); `mandel` remains interpreter-bound
+> and is near parity after the `-O3` default.  The tables below are the
+> pre-J2 baseline and remain valid for everything the JIT does not compile.
+> See the J4 snapshot below for current numbers.  The experimental table JIT is
 > opt-in and does not yet beat the interpreter on this corpus.  Re-run
 > `make bench-compare` for current numbers.
 
-> **J4 snapshot (2026-11-17, HEAD `aa8ba109`, `make bench-compare`).**
+> **J4 snapshot (2026-11-17, after making `-O3` the default build level;
+> `make bench-compare`).**
 > Best CPU milliseconds; `x` is relative to stock Lua (lower is faster).
 >
 > | benchmark | lua | luar | luar x | luajit | luajit x |
 > | --- | ---: | ---: | ---: | ---: | ---: |
-> | numeric/int_sum | 35.27 | **3.91** | 0.11 | 5.87 | 0.17 |
-> | numeric/float_loop | 27.41 | **6.85** | 0.25 | 2.94 | 0.11 |
-> | numeric/square_sum | 56.83 | **3.92** | 0.07 | 5.88 | 0.10 |
-> | numeric/while_sum | 59.09 | **1.96** | 0.03 | 7.83 | 0.13 |
-> | numeric/fib | 13.24 | 13.50 | 1.02 | 1.36 | 0.10 |
-> | numeric/mandel | 20.82 | 24.63 | 1.18 | 1.42 | 0.07 |
-> | table/array | 24.55 | 25.64 | 1.04 | 8.57 | 0.35 |
+> | numeric/int_sum | 35.25 | **3.91** | 0.11 | 5.87 | 0.17 |
+> | numeric/float_loop | 27.38 | **6.84** | 0.25 | 2.94 | 0.11 |
+> | numeric/square_sum | 56.75 | **3.92** | 0.07 | 5.87 | 0.10 |
+> | numeric/while_sum | 58.92 | **1.95** | 0.03 | 7.82 | 0.13 |
+> | numeric/fib | 13.17 | 13.52 | 1.03 | 1.39 | 0.11 |
+> | numeric/mandel | 20.93 | 21.07 | 1.01 | 1.41 | 0.07 |
+> | table/array | 24.71 | 27.44 | 1.11 | 8.65 | 0.35 |
 >
 > The register-cached fast paths are the source of the integer, float,
 > square-sum and while gains.  `fib` is unchanged because calls are not
-> compiled; `mandel` and `table/array` are honest regressions/no-gain:
-> their loops are not profitable under the current loop-level JIT, and the
-> table tier remains opt-in.  The official suite, ASan and the whole test
+> compiled; `mandel` is now at parity, `table/array` is still a modest
+> regression because its loops are not profitable under the loop-level JIT,
+> and the table tier remains opt-in.  `-O3` (the default from this build)
+> improved the interpreter path without changing semantics.  The official suite, ASan and the whole test
 > matrix pass at this revision.  `make JIT=0` now genuinely rebuilds the
 > interpreter-only binary (previously the `JIT` alias was ignored).
 
@@ -49,7 +51,7 @@ are now compiled.
 | Host | `Linux machinedr 7.3.0-rc6-1-MANJARO #1 SMP PREEMPT_DYNAMIC Mon, 05 Oct 2026 00:15:36 +0000 x86_64 GNU/Linux` |
 | CPU | AMD Ryzen 3 7320U with Radeon Graphics, 8 logical CPUs (4 cores) |
 | Compiler | gcc (GCC) 16.2.1 20260810 |
-| LuaR build | `make` (`make -C src`), `CC=gcc`, `CFLAGS=-O2 -g -Wall -Wextra -DLUA_USE_LINUX`, `LIBS=-lm -Wl,-E -ldl`, `WITH_FFI=0` |
+| LuaR build | `make` (`make -C src`), `CC=gcc`, `CFLAGS=-O2 -g -Wall -Wextra -DLUA_USE_LINUX` in this pre-J2 baseline; the default is now `-O3`, `LIBS=-lm -Wl,-E -ldl`, `WITH_FFI=0` |
 | LuaR binary | `LuaR 0.1.0 (Lua 5.5.1)`, sha256 `508f45817e158d3c6a04e939d209e2e50ced9cfe15f71a25ef821f0f23162588` |
 | Stock Lua | `/usr/bin/lua`, package `lua 5.5.1-1`, `Lua 5.5.1`, sha256 `3eab886a2dcd0f09362ed8fbd8f843b51bf0946270a87e48c46f9edb2e0d8dcb`; `.comment` says GCC 16.1.1 |
 | LuaJIT | `/usr/bin/luajit`, package `luajit 2.1.1788856981+c6ffc14-1`, `LuaJIT 2.1.1788856981`, sha256 `573d15af0b8e3c040cb42b2dcba8d77c29d5097e200e27cf3fddbda0def89230` |

@@ -6,7 +6,7 @@
 
 CC= gcc
 STD= -std=gnu99
-CFLAGS?= -O2 -g -Wall -Wextra
+CFLAGS?= -O3 -g -Wall -Wextra
 CFLAGS+= -MMD
 LDFLAGS?=
 LIBS= -lm $(MYLIBS) $(SYSLIBS)

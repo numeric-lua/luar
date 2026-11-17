@@ -33,8 +33,8 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for
 `liblua`: same bytecode format, C API and module ABI. Outside the J2
 whitelist it runs the stock Lua 5.5 VM (within ~1% of stock in `bench/`).
-Compiled numeric for-loops are already ~6x (`int_sum`, matching LuaJIT)
-and ~2.5x (`float_loop`) faster; closing the rest of the gap is the job of the later
+Compiled numeric for-loops are already ~9x (`int_sum`, ahead of LuaJIT)
+and ~4x (`float_loop`) faster; closing the rest of the gap is the job of the later
 JIT milestones, not a claim of 0.1.
 
 ## Following Lua

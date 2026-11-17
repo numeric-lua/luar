@@ -8,6 +8,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ### Added
 
+- The default build level is now `-O3` (overridable with `CFLAGS`); it brings
+  the interpreter `mandel` path to stock-Lua parity without changing
+  semantics.
 - FFI cdata bitwise/shift operators (`& | ~ << >>`, `__band`..`__bnot`),
   `//` and `^` with LuaJIT-compatible 64-bit promotion and masked shifts.
 - FFI parser hardening: constant-expression arithmetic wraps in 64 bits,
