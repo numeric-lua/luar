@@ -558,7 +558,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         add_i = (int)i;
       }
       else if (op->kind == LUAR_OP_ADDI) {
-        if (op->a != idx || op->b != idx || op->imm != 1 ||
+        if (op->a != idx || op->b != idx || op->imm == 0 ||
             op->ta != LUAR_T_INT) { ok = 0; break; }
         inc_i = (int)i;
       }
@@ -580,6 +580,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       d.fw_kind = kind;
       d.fw_k = ops[0].k;
       d.fw_imm = imm;
+      d.fw_step = ops[inc_i].imm;
     }
   }
 

@@ -777,7 +777,7 @@ static void emit_fast_tsum (dasm_State **Dst, const LuaR_LoopDesc *d)
   | test r12, r12
   | jz >2
   | dec r12
-  | inc r13
+  | add r13, d->fw_step
   | jmp <1
   |2:
   | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
@@ -856,7 +856,7 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
   else {
     | add r12, r13
   }
-  | inc r13
+  | add r13, d->fw_step
   | jmp <1
   |2:
   | mov qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], r12

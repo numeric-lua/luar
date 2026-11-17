@@ -28,6 +28,11 @@ local function wsq (n)
   while i < n do s = s + i * i; i = i + 1 end
   return s, i
 end
+local function wstep (n)
+  local i, s = 0, 0
+  while i < n do s = s + i; i = i + 2 end
+  return s, i
+end
 local function rev (n)
   local i, s = 0, 0
   while i < n do i = i + 1; s = s + i end
@@ -46,6 +51,9 @@ H.eq(ci, 100000)
 local ws, wsi = wsq(100000)
 H.eq(ws, 333328333350000)
 H.eq(wsi, 100000)
+local wst, wsti = wstep(100000)
+H.eq(wst, 2499950000)
+H.eq(wsti, 100000)
 local d = rev(100000)
 H.eq(d, 5000050000)
 
@@ -53,6 +61,7 @@ jit.off()
 H.eq(w(1000), 499500)
 H.eq(wle(1000), 500500)
 H.eq(rev(1000), 500500)
+H.eq(wstep(1000), 249500)
 H.eq(wsq(1000), 332833500)
 jit.on()
 

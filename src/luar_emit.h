@@ -85,6 +85,7 @@ typedef struct LuaR_LoopDesc {
   int fw_square;
   int fw_kind;			/* LUAR_OP_LT or LUAR_OP_LE */
   int fw_k;
+  int64_t fw_step;
   int64_t fw_imm;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
