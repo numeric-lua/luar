@@ -196,10 +196,10 @@ CType *ffi_type_intern (lua_State *L, FFIState *S, CType *ct);
 void ffi_push_ctype (lua_State *L, FFIState *S, CType *ct);
 
 void ffi_type_init_builtins (lua_State *L, FFIState *S);
-CType *ffi_type_pointer (lua_State *L, FFIState *S, CType *child);
-CType *ffi_type_array (lua_State *L, FFIState *S, CType *child,
+CType *ffi_type_ptr (lua_State *L, FFIState *S, CType *child);
+CType *ffi_type_arr (lua_State *L, FFIState *S, CType *child,
                        size_t len, int vla);
-CType *ffi_type_function (lua_State *L, FFIState *S, CType *ret,
+CType *ffi_type_func (lua_State *L, FFIState *S, CType *ret,
                           CType **args, int nargs, int vararg);
 CType *ffi_type_new_struct (lua_State *L, FFIState *S, int is_union,
                             const char *tag);
@@ -214,21 +214,14 @@ const char *ffi_type_repr (FFIState *S, CType *ct);
 size_t ffi_type_size (CType *ct);
 size_t ffi_type_align (CType *ct);
 
-static int ffi_is_integer (const CType *ct);
-static int ffi_is_numeric (const CType *ct);
-static int ffi_is_aggregate (const CType *ct);
-static int ffi_is_pointer (const CType *ct);
-static int ffi_is_func (const CType *ct);
-static int ffi_is_ptr_or_array (const CType *ct);
-
 /* Scalar memory access (little-endian native loads; see doc/ffi.md). */
-static uint64_t ffi_load_uint (const void *p, size_t sz) {
+static inline uint64_t ffi_load_uint (const void *p, size_t sz) {
   uint64_t v = 0;
   memcpy(&v, p, sz);
   return v;
 }
 
-static int64_t ffi_load_int (const void *p, size_t sz) {
+static inline int64_t ffi_load_int (const void *p, size_t sz) {
   uint64_t u = ffi_load_uint(p, sz);
   switch (sz) {
     case 1: return (int64_t)(int8_t)u;
@@ -238,15 +231,15 @@ static int64_t ffi_load_int (const void *p, size_t sz) {
   }
 }
 
-static void ffi_store_uint (void *p, size_t sz, uint64_t v) {
+static inline void ffi_store_uint (void *p, size_t sz, uint64_t v) {
   memcpy(p, &v, sz);
 }
 
-static void ffi_store_int (void *p, size_t sz, int64_t v) {
+static inline void ffi_store_int (void *p, size_t sz, int64_t v) {
   ffi_store_uint(p, sz, (uint64_t)v);
 }
 
-static size_t ffi_cdata_size (CData *cd) {
+static inline size_t ffi_cdata_size (CData *cd) {
   if (cd->ct->kind == CT_ARRAY && cd->ct->vla) {
     size_t esz = ffi_type_size(cd->ct->child);
     if (esz == FFI_SIZE_UNKNOWN || cd->len > FFI_SIZE_UNKNOWN / esz)
@@ -287,6 +280,11 @@ void *ffi_to_ptr (lua_State *L, FFIState *S, int idx, int *ok);
 int ffi_do_new (lua_State *L, FFIState *S, CType *ct, int argstart);
 int ffi_load (lua_State *L);
 
+void ffi_libffi_init (lua_State *L);
+void ffi_clib_initmt (lua_State *L);
+void ffi_push_clib (lua_State *L, FFIState *S, void *handle, int is_default);
+void ffi_push_default_clib (lua_State *L, FFIState *S);
+
 int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart);
 
 
@@ -303,32 +301,23 @@ CType *ffi_parse_type (lua_State *L, FFIState *S, const char *src,
 /* Predicates                                                         */
 /* ------------------------------------------------------------------ */
 
-static int ffi_is_integer (const CType *ct) {
-  return ct->kind == CT_INT || ct->kind == CT_BOOL ||
-         ct->kind == CT_ENUM;
-}
+#define ffi_is_integer(ct) \
+  ((ct)->kind == CT_INT || (ct)->kind == CT_BOOL || (ct)->kind == CT_ENUM)
 
-static int ffi_is_numeric (const CType *ct) {
-  return ct->kind == CT_INT || ct->kind == CT_BOOL ||
-         ct->kind == CT_FLOAT || ct->kind == CT_ENUM;
-}
+#define ffi_is_numeric(ct) \
+  ((ct)->kind == CT_INT || (ct)->kind == CT_BOOL || \
+   (ct)->kind == CT_FLOAT || (ct)->kind == CT_ENUM)
 
-static int ffi_is_aggregate (const CType *ct) {
-  return ct->kind == CT_STRUCT || ct->kind == CT_UNION ||
-         ct->kind == CT_ARRAY;
-}
+#define ffi_is_aggregate(ct) \
+  ((ct)->kind == CT_STRUCT || (ct)->kind == CT_UNION || \
+   (ct)->kind == CT_ARRAY)
 
-static int ffi_is_pointer (const CType *ct) {
-  return ct->kind == CT_POINTER;
-}
+#define ffi_is_pointer(ct)	((ct)->kind == CT_POINTER)
 
-static int ffi_is_func (const CType *ct) {
-  return ct->kind == CT_FUNC;
-}
+#define ffi_is_func(ct)		((ct)->kind == CT_FUNC)
 
-static int ffi_is_ptr_or_array (const CType *ct) {
-  return ct->kind == CT_POINTER || ct->kind == CT_ARRAY;
-}
+#define ffi_is_ptr_or_array(ct) \
+  ((ct)->kind == CT_POINTER || (ct)->kind == CT_ARRAY)
 
 
 #endif

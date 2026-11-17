@@ -1,0 +1,409 @@
+# LuaR FFI
+
+The LuaR FFI is a compact, opt-in implementation of the LuaJIT `ffi`
+library for the Lua 5.5 runtime.  It is built on [libffi](https://libffi.org/)
+and `dlopen`/`dlsym`, and follows LuaJIT where practical.  This document
+describes what is implemented, the exact semantics, and the intentional
+differences.
+
+## Building and loading
+
+```sh
+make WITH_FFI=1            # builds src/luar with the FFI
+./src/luar -e 'local ffi = require "ffi"; print(ffi.sizeof("int"))'
+make WITH_FFI=0            # stub: no FFI, luar.features.ffi == false
+```
+
+Requirements: libffi 3.8 or newer headers (`#include <ffi.h>`) at build
+time, POSIX `dlopen`, a C99 compiler, and the libffi shared library at run
+time.  LuaR does **not** link against libffi: the entry points are resolved
+with `dlopen`/`dlsym` when the FFI module is opened.  Consequently
+`libluar.a` has no unresolved libffi symbols and a host embedding LuaR does
+not need to add `-lffi` to its own link line.  The
+implementation is Linux/x86-64 tested; it uses the platform C ABI (System V
+on the tested target).
+
+`luar_openlibs()` installs the `ffi` library automatically when the build
+has FFI support, and registers it in `package.preload`; both the global
+`ffi` and `require("ffi")` work.  A `WITH_FFI=0` build leaves the global
+`type()`/`tonumber()` functions untouched and calling `luaopen_ffi()`
+directly reports that the feature is absent.
+
+Implementation files:
+
+| File | Contents |
+| --- | --- |
+| `src/luar_ffi_type.c` | C type objects, interning, layout, representations |
+| `src/luar_ffi_parse.c` | lexer and recursive-descent declaration parser |
+| `src/luar_ffi.c` | cdata, metamethods, `ffi.*`, finalizers |
+| `src/luar_ffi_call.c` | `ffi.C`, `ffi.load`, libffi calls |
+
+## Module surface
+
+```lua
+local ffi = require "ffi"
+
+ffi.cdef(s)                 -- parse C declarations
+ffi.typeof(ct)              -- CType object (also accepts a cdata value)
+ffi.istype(ct, obj)         -- exact C type check
+ffi.sizeof(ct [, nelem])    -- size in bytes
+ffi.alignof(ct)             -- alignment in bytes
+ffi.offsetof(ct, field)     -- byte offset of a struct/union member
+ffi.new(ct [, ...])         -- allocate a cdata value
+ffi.cast(ct, value)         -- scalar/pointer/aggregate conversion
+ffi.string(ptr [, len])     -- Lua string from char pointer/array
+ffi.copy(dst, src [, len])  -- memcpy-like copy
+ffi.fill(dst, len [, c])    -- memset-like fill
+ffi.gc(cdata, finalizer)    -- attach a Lua or C finalizer
+ffi.metatype(ct, metatable) -- attach a per-struct metatable
+ffi.load(name [, global])   -- open a shared library namespace
+ffi.errno([new])            -- read/set C errno, returns the old value
+ffi.abi(name)               -- ABI predicate
+ffi.os, ffi.arch            -- "Linux", "x64" on the tested target
+ffi.NULL                    -- nil (LuaJIT-compatible)
+ffi.C                       -- the default C namespace
+```
+
+`ffi.typeof` accepts a C type declaration (an abstract type expression such
+as `"int *"`, `"int[4]"`, `"struct Foo"`, or `"int (*)(const char *, int)"`),
+a CType object, or a cdata value.  CType objects are ordinary cdata objects
+whose textual representation is `ctype<...>`; they are interned per Lua
+state, so the same type always yields the same object (`rawequal` is true).
+
+`ffi.sizeof` accepts a CType object, a type string, or a cdata value.  For a
+variable-length array it needs the length, either as the second argument or
+from the cdata object.  `ffi.alignof` and `ffi.offsetof` accept the same
+kind of first argument (the latter only for struct/union types).
+
+`ffi.abi` returns `true` for `"64bit"`, `"le"`, `"fpu"`, and `"hardfp"` on
+the tested x86-64 Linux target, and `false` for unknown predicates and for
+`"32bit"`, `"be"`, `"softfp"`, `"eabi"`, `"win"`, `"gc64"`, `"dualnum"`,
+`"pauth"`, and `"uwp"`.
+
+## Accepted C declarations (`ffi.cdef`)
+
+The parser is a recursive-descent parser over the declaration subset used
+by C APIs.  It supports:
+
+* primitive types: `void`, `_Bool`/`bool`, `char`, `short`, `int`, `long`,
+  `long long`, the `signed`/`unsigned` variants, `float`, `double`;
+* fixed-width/common names: `int8_t` … `uint64_t`, `intptr_t`, `uintptr_t`,
+  `size_t`, `ssize_t`, `ptrdiff_t`, `intmax_t`, `uintmax_t`, `time_t`;
+* `typedef`, including typedefs of anonymous structs/unions and arrays;
+* `struct` and `union`: named, anonymous, nested definitions, multiple
+  declarators, arrays as members, anonymous struct/union members (their
+  fields are found directly by `ffi.offsetof`/field access);
+* `enum`: named and anonymous, explicit and implicit values, values used
+  later as integer constant expressions, and enum constants in `ffi.C`;
+* pointers to any supported type, fixed arrays `T[N]`, variable-length
+  arrays `T[?]` (and `T[]` as an abstract type), multidimensional arrays,
+  function types/prototypes with named or abstract parameters, and
+  function pointers, e.g. `int (*cb)(const char *, void *)`;
+* qualifiers `const`, `volatile`, `restrict`, `__restrict`, GNU spellings
+  such as `__const`, and storage specifiers (`typedef`, `extern`, `static`,
+  `register`, `auto`, `inline`); qualifiers are accepted and ignored;
+* `/* ... */` and `//` comments and semicolon-separated declarations;
+* array sizes and enum values built from integer literals, other enum
+  constants, parentheses, unary `+ - ~ !`, and binary `+ - * / % << >> & |
+  ^`.
+
+`ffi.cdef` may be called with several strings.  Declarations must be
+complete: function definitions and C preprocessor input are not accepted.
+
+### Parser limitations (clear errors, never silent misparses)
+
+* The C preprocessor is not run.  `#define`, `#include`, etc. produce an
+  error telling the caller to pass declarations.
+* `__attribute__`, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline
+  asm, and `_Static_assert` are rejected.
+* Bitfields (`int x : 3`) are rejected.
+* `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
+  supported.
+* Packing/alignment attributes and `#pragma pack` are unsupported; layout
+  always follows the natural C ABI of the target.
+* Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
+  type and pass the length to `ffi.new`/`ffi.sizeof`.
+* A bare declaration of a named struct/union inside another struct only
+  declares the tag; it does not create an anonymous member.  Tagless
+  `struct { ... };` members do create anonymous members.
+* Typedefs are resolved to their underlying type for identity and
+  representation.  For example, `int64_t` prints as the underlying
+  `long`/`long long` on the platform (`ctype<long>`), and
+  `ffi.istype("size_t", ffi.new("unsigned long"))` is true.  This is a
+  representation deviation from LuaJIT, not an ABI deviation.
+
+Error messages carry the source name, line number, the reason, and the
+offending token (for example
+`ffi.cdef:1: expected ';' near 'foo'`).
+
+## C type model and layout
+
+Sizes and alignments are those of the host C compiler.  On x86-64 Linux:
+
+| Type | Size | Align |
+| --- | --- | --- |
+| `char`, `_Bool` | 1 | 1 |
+| `short` | 2 | 2 |
+| `int`, `float`, enum | 4 | 4 |
+| `long`, `long long`, `double`, pointer | 8 | 8 |
+
+Struct layout uses natural C rules: each member is aligned to its own
+alignment, the struct alignment is the maximum member alignment, and the
+total size is rounded up to that alignment.  Unions overlay all members at
+offset 0 and use the largest member size/alignment.  Anonymous members do
+not change offsets; their members are found by recursive lookup.
+
+Incomplete types (`struct Foo;`) are allowed, can be used behind pointers,
+and are completed by a later `struct Foo { ... };` definition.  Sizes and
+offsets of an incomplete type are errors until it is completed.
+Struct/union definitions cannot be redefined in the same Lua state.
+
+## cdata values
+
+`ffi.new(ct, ...)` creates a cdata value:
+
+* Scalars store their value in the cdata object; a missing initializer is
+  zero.  `ffi.new("int")` is a `cdata<int>` zero.
+* Arrays allocate their storage inline in the cdata object.  Fixed arrays
+  use their declared length; `T[?]` requires the length as the first
+  argument after the type.  Arrays can be initialized with a Lua table
+  (0-based or 1-based numeric keys), with positional constructor arguments
+  (`ffi.new("int[3]", 1, 2, 3)`), or with a string for 1-byte element
+  types.  A single initializer is replicated across the whole array, as in
+  LuaJIT.  All remaining bytes are zero.
+* Structs and unions are zero-initialized and can be initialized from a
+  table with named and/or positional fields, or from positional arguments
+  (`ffi.new("struct P", 1, 2)` fills the first two named fields; omitted
+  fields are zero).  Nested aggregate members can be initialized with
+  nested tables.  Unions initialize their first member.  Anonymous members
+  participate in positional initialization; named table fields work for
+  the anonymous member's own fields.
+* `ffi.new` of an incomplete type, `void`, or a function type is an error.
+* The same type is accepted in place of the type string (`ffi.new(Pos, 1,
+  2)`), and a cdata of an identical aggregate type can be copied as the
+  initializer.
+
+Storage is allocated in Lua full userdata with at least `max_align_t`
+alignment and an extra 16-byte-aligned cdata header.  The cdata metatable
+has a `__gc` metamethod, so `ffi.gc` works on every cdata.  References to
+struct/union/array fields and array elements are non-owning cdata objects
+that keep their owner alive through a user value; they remain valid as long
+as the owner is reachable.
+
+### Field and array access
+
+`cdata.field` retrieves a struct/union field (including through a pointer
+to a struct, like C's `->`).  Scalar fields are converted to Lua values
+(numbers, booleans, or 64-bit cdata); aggregate fields yield a reference
+cdata.  `cdata.field = value` writes a field, converting with the C rules.
+`ptr[i]` indexes a pointer or array; aggregate elements yield a reference,
+scalars a value.  Owned arrays and variable-length arrays check bounds and
+raise `ffi: array index N out of bounds`; pointer indexing cannot be
+bounds-checked and is the caller's responsibility.
+
+Out-of-bounds writes on owned arrays, `ffi.string`, `ffi.copy`, and
+`ffi.fill` are rejected, including for fixed-size character arrays.  This
+is intentionally stricter (safer) than LuaJIT for array-backed objects.
+
+### scalars, pointers, int64 and comparison semantics
+
+C conversions follow C truncation/width rules: `ffi.new("uint8_t", 300)`
+stores 44, `ffi.new("int", 3.9)` stores 3, and `ffi.cast("uint8_t", -1)`
+is 255.  Integer cdata objects returned by `ffi.new`/`ffi.cast` are cdata,
+not Lua numbers.
+
+Integer arithmetic on cdata follows LuaJIT's 64-bit promotion: the result
+is `int64_t` cdata unless one operand is an unsigned 64-bit cdata, in which
+case it is `uint64_t` cdata.  `+ - * / %` and unary `-` wrap in 64 bits;
+division/modulo by zero and `INT64_MIN / -1` follow LuaJIT's sentinel
+behavior.  Comparisons use the same promotion rules.
+
+`tonumber(cdata)` is supported for numeric cdata through a wrapper around
+the global `tonumber` (the original function is saved and used for all
+non-cdata values).  `tostring` produces LuaJIT-style output: `ctype<int>`
+for CType objects, `cdata<int *>: 0x...`/`NULL` for pointers,
+`cdata<struct Foo>: 0x...` for aggregates, `42LL`/`42ULL` for 64-bit
+integers, and `cdata<enum E>: 42` for enums.  A metatype `__tostring` is
+used for its struct type.
+
+`ffi.NULL` is `nil`, matching LuaJIT.  In addition, any NULL pointer or
+function-pointer cdata compares equal to `nil`:
+`ffi.cast("int *", 0) == nil` is true.  Zero scalars, zero floats, and
+arrays do not compare equal to `nil`.  Ordering comparisons with `nil`
+remain errors, as in LuaJIT.  cdata numbers can also be compared directly
+with Lua numbers (`ffi.new("int64_t", 5) == 5`, `< 6`, etc.); the Lua
+number is converted with the same 64-bit rules, including LuaJIT's
+truncation of a fractional value in this context.
+
+### strings and memory helpers
+
+`ffi.string(ptr [, len])` accepts a `char *`/`void *` pointer or a 1-byte
+element array.  Without `len` it reads up to a NUL, bounded by the known
+array size when the object is an owned array.  For pointers the caller is
+responsible for NUL termination.  With `len`, the length is checked
+against known array bounds.
+
+`ffi.copy(dst, src [, len])` accepts pointer/array cdata for both sides,
+and a Lua string as `src`.  Omitting `len` when `src` is a Lua string
+copies `#src + 1` bytes (including the NUL), matching LuaJIT; an explicit
+length of `#src + 1` is also accepted.  Copies use `memmove` semantics.
+`ffi.fill(dst, len [, c])` fills `len` bytes with the low 8 bits of `c`.
+
+Converted Lua strings are not anchored by the cdata.  When a string is
+cast/assigned to a `char *`, keep the Lua string alive for as long as the
+pointer is used.
+
+### finalizers and metatypes
+
+`ffi.gc(cdata, finalizer)` attaches a finalizer and returns the cdata.
+The finalizer may be a Lua function or a C function cdata (for example
+`ffi.gc(ffi.C.malloc(n), ffi.C.free)`); it is called with the cdata as its
+only argument and errors from Lua finalizers are ignored.  Passing `nil`
+removes the finalizer.  A C finalizer is invoked through the normal FFI
+call path; it must be a fixed-argument function cdata.
+
+`ffi.metatype(ct, metatable)` applies a metatable to one struct/union type
+and returns the type object.  A type can only have one metatype; trying to
+replace it raises "cannot change a protected metatable".  The supported
+metatype metamethods are:
+
+* `__index` (table or function): fallback for missing fields;
+* `__newindex` (table or function): fallback for missing-field writes;
+* `__tostring`: used by `tostring`;
+* `__call`: makes a struct cdata callable.
+
+Real struct fields always take priority over `__index`/`__newindex`.
+Other metatype metamethods (`__eq`, `__lt`, `__len`, arithmetic, `__gc`,
+etc.) are not dispatched.  Use `ffi.gc` for finalization.
+
+## Calling C
+
+`ffi.C` is the default namespace (`dlsym` with `RTLD_DEFAULT`).
+`ffi.load(name [, global])` opens a shared library; `ffi.load()` returns
+the default namespace.  On Linux, names without a slash are tried as given
+for dotted names and as `lib<name>.so` otherwise, including GNU ld script
+resolution (so `ffi.load("c")` resolves libc correctly).  Loaded namespaces
+keep their `dlopen` handle open until the namespace and all cdata symbols
+derived from it are collected; the default namespace is never closed.
+
+**Declarations are required.**  A symbol must first be declared with
+`ffi.cdef`; otherwise `ffi.C.foo` raises "missing declaration for symbol
+'foo'".  This matches LuaJIT's declared-symbol model.  Enum constants
+declared in `ffi.cdef` are accessible as `ffi.C.NAME` (Lua integers).
+Function symbols return function cdata; data symbols return a value or a
+reference to the symbol's storage.
+
+Calls support:
+
+* any fixed number of arguments with integer types (including
+  `int64_t`/`uint64_t`), `_Bool`/`bool`, `float`, `double`, pointers,
+  enums, function pointers, and arrays (decayed to a pointer);
+* Lua strings for `char *`/`void *` parameters and struct fields;
+* structs and unions passed by pointer, including the LuaJIT convenience of
+  passing an aggregate cdata where a pointer to the exact same aggregate
+  type is expected;
+* struct return/argument by value when the layout is representable by
+  libffi and verified byte-for-byte against libffi's computed offsets.
+  Structs containing arrays or unions are rejected by value, as are unions
+  and arrays themselves;
+* cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
+  function-pointer fields/returns) are callable with the normal argument
+  conversion rules.
+
+Integer results up to 32 bits and enums are returned as Lua integers;
+`int64_t`/`uint64_t` results are cdata; `float`/`double` are Lua numbers;
+pointers and aggregates are cdata; `_Bool` returns a Lua boolean; `void`
+returns no values.  `ffi.errno` is preserved across the libffi call
+machinery, so the callee's errno can be read afterwards.
+
+Deliberately unsupported call features:
+
+* **Variadic calls.**  A function declared with `...` can be looked up,
+  but calling it raises a clear error.  Prototypes with `...` are parsed.
+* **Callbacks from C into Lua.**  Passing a Lua function where a function
+  pointer is expected is rejected.  A C function pointer (including one
+  provided by another C function) can be passed normally.  The test suite
+  demonstrates `qsort` through a C comparator helper.
+* **Unions/arrays by value**, and structs whose by-value layout would
+  involve those members.
+* **C global variables** are only best-effort: non-TLS data symbols can be
+  read/written through `ffi.C`, but thread-local symbols and complex
+  relocation cases are not supported.
+
+## Intentional deviations from LuaJIT
+
+* Lua 5.5 has no native cdata type.  cdata is implemented as full userdata;
+  when the FFI module loads, the global `type()` is wrapped (the original
+  is saved) so that `type(cdata) == "cdata"` and `type(ctype) == "cdata"`.
+  `tonumber()` is wrapped similarly.  Other userdata and all non-FFI values
+  keep stock Lua 5.5 behavior.  If an application replaces `type` or
+  `tonumber` *after* loading the FFI, that replacement wins.
+* The Lua VM has two small `/* LUAR */` patches in `src/lvm.c` to implement
+  LuaJIT's cdata↔number/NULL equality and the compiler's `EQI`/`EQK`
+  equality fast paths.  They are enabled by the `LUAR_FFI_HOOKS` build
+  flag, which `src/Makefile` defines in both FFI and non-FFI builds, and
+  are gated by a reserved integer marker in the cdata metatable.  With no
+  FFI module loaded the marker never exists, so the hooks are inert and
+  ordinary userdata semantics are unchanged.  Without these patches Lua
+  5.5 would never call `__eq` for `userdata == number`/`nil`, making the
+  required LuaJIT behavior impossible.  Comparison ordering is handled by
+  the normal `__lt`/`__le` metamethods.
+* String formatting of cdata is not hooked:
+  `string.format("%d", cdata)` is not supported (use `tonumber(cdata)`).
+  `tostring(cdata)` is supported.
+* Typedef names are not preserved in type representations; see above.
+* `ffi.string`, `ffi.copy`, and `ffi.fill` perform stricter bounds checks
+  for owned arrays than LuaJIT.
+* Only the metatype metamethods listed above are dispatched.
+* `long double`, bitfields, complex numbers, vectors, packing attributes,
+  preprocessor macros, variadic calls, and C→Lua callbacks are not
+  implemented.  They fail with errors or are documented as unsupported;
+  none are silently emulated.
+* The implementation is little-endian-load based and has only been tested
+  on Linux/x86-64.  It reports ABI facts (`ffi.os`/`ffi.arch`/`ffi.abi`)
+  for the host it is built on; other targets need their own testing.
+
+## Tests
+
+The suite lives in `tests/ffi/` and is run by the normal test runner:
+
+```sh
+make clean && make WITH_FFI=1
+./src/luar -e 'local ffi=require"ffi"; print(ffi.sizeof("int"))'
+./src/luar tests/run.lua ffi
+make WITH_FFI=0 && make test
+```
+
+The tests are deterministic and use only libc plus a tiny C helper
+(`tests/ffi/helper.c`) that is compiled at test time into the gitignored
+`tests/tmp/` directory.  The helper supplies layout probes, struct-by-value
+entry points, a qsort wrapper with a C comparator, and enum/bool/64-bit
+call probes.  Coverage includes:
+
+* `ffi.cdef` success and error cases, including offending-token messages;
+* sizes, alignments, and offsets compared against the C compiler's
+  `sizeof`/`offsetof`;
+* `ffi.new` scalars, arrays (fixed and VLA), structs, unions, anonymous
+  members, tables/strings/positional initializers, and zeroing;
+* field/array access, aggregate references and bounds checks;
+* pointer casts/arithmetic/comparisons, int64/uint64 wrapping and
+  comparisons, `tonumber`, and `tostring` formats;
+* `ffi.string`, `ffi.copy` (including the 2-argument string form),
+  `ffi.fill`, and their bounds errors;
+* `ffi.metatype` constructors, `__index`/`__newindex`/`__tostring`/`__call`,
+  protected metatables, and `ffi.gc` with Lua and C finalizers;
+* libc calls (`strlen`, `strcmp`, `memset`, `memcpy`, `abs`, `labs`,
+  `malloc`/`free`, `strerror`, `getpid`, `chdir`, `div`) and `errno`;
+* `ffi.load` (including `"c"`), `ffi.C`, missing declarations, wrong
+  arity, variadic and callback rejection;
+* struct-by-value arguments and returns, nested structs, pointer fields,
+  qsort via a C comparator, and enum/bool/64-bit call paths.
+
+## Known crash/edge cases
+
+Like every FFI, arbitrary pointer arithmetic, integer-to-pointer casts,
+and passing NULL to a C function that does not accept it are unchecked and
+can crash the process.  Such operations are the caller's responsibility.
+Examples to avoid: indexing `ffi.cast("int *", 0)`, calling a C function
+that dereferences a NULL pointer, and freeing memory through `ffi.C.free`
+while another cdata still points into it.

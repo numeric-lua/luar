@@ -101,8 +101,10 @@ out=$(LUA_INIT='print("lua-init")' "$LUAR" -e '')
 ok "LUAR_INIT"
 
 # -- embedding through the public headers ---------------------------------
+# libffi is dlopen()ed by the FFI module, so a static link needs no -lffi.
 cc -O2 -I "$ROOT/src" -o "$TMP/embed" "$ROOT/tests/embed/embed.c" \
-   "$ROOT/src/libluar.a" -lm -ldl || fail "could not build the embed test"
+   "$ROOT/src/libluar.a" -lm -ldl ||
+  fail "could not build the embed test"
 out=$("$TMP/embed") || fail "embed test failed"
 [ "$out" = "embed ok" ] || fail "embed output: $out"
 ok "C embedding"

@@ -24,8 +24,8 @@ SYSCFLAGS= -DLUA_USE_LINUX
 SYSLIBS= -Wl,-E -ldl
 endif
 ifeq ($(UNAME_S),Darwin)
-SYSCFLAGS= -DLUA_USE_MACOSX
-SYSLIBS= -Wl,-E
+SYSCFLAGS= -DLUA_USE_MACOSX -DLUA_USE_DLOPEN
+SYSLIBS=
 endif
 ifeq ($(UNAME_S),FreeBSD)
 SYSCFLAGS= -DLUA_USE_POSIX -DLUA_USE_DLOPEN
@@ -41,11 +41,22 @@ MYLDFLAGS=
 MYLIBS=
 
 FFI_O= luar_ffi_stub.o
+# Objects of both FFI variants, so 'make clean' also removes a previous
+# WITH_FFI=1 build.
+ALL_FFI_O= luar_ffi_stub.o luar_ffi.o luar_ffi_type.o luar_ffi_parse.o \
+	luar_ffi_call.o
 ifeq ($(WITH_FFI),1)
-FFI_O= luar_ffi.o
-LIBS+= -lffi
-SYSCFLAGS+= -DLUAR_HAS_FFI
+# The FFI is split into a type system, a C declaration parser, the cdata
+# runtime/library and the libffi call/C-library layer.  libffi itself is
+# loaded with dlopen()/dlsym() when the module opens (so luasr binaries and
+# embedders have no link-time dependency on it; the headers are still needed
+# to build).
+FFI_O= luar_ffi.o luar_ffi_type.o luar_ffi_parse.o luar_ffi_call.o
 endif
+# The VM has two small inert hook points for FFI cdata equality (see
+# doc/ffi.md).  Compile them in both variants so switching WITH_FFI does
+# not require a clean rebuild of the whole core.
+SYSCFLAGS+= -DLUAR_FFI_HOOKS
 
 # == END OF USER SETTINGS -- NO NEED TO CHANGE ANYTHING BELOW THIS LINE =======
 
@@ -77,6 +88,7 @@ o:	$(ALL_O)
 a:	$(LUA_A)
 
 $(LUA_A): $(BASE_O)
+	$(RM) $@
 	$(AR) $(ARFLAGS) $@ $(BASE_O)
 	$(RANLIB) $@
 
@@ -94,7 +106,7 @@ test:
 	./$(LUA_T) -v
 
 clean:
-	$(RM) $(ALL_T) $(ALL_O)
+	$(RM) $(ALL_T) $(ALL_O) $(ALL_FFI_O)
 
 echo:
 	@echo "CC= $(CC)"

@@ -49,6 +49,11 @@
 /* limit for table tag-method chains (to avoid infinite loops) */
 #define MAXTAGLOOP	2000
 
+#if defined(LUAR_FFI_HOOKS)
+/* LUAR: reserved metatable key marking the FFI cdata metatable. */
+#define LUAR_FFI_CDATA_MARK	0x4C554652
+#endif
+
 
 /*
 ** 'l_intfitsf' checks whether a given integer is in the range that
@@ -587,8 +592,35 @@ int luaV_lessequal (lua_State *L, const TValue *l, const TValue *r) {
 */
 int luaV_equalobj (lua_State *L, const TValue *t1, const TValue *t2) {
   const TValue *tm;
-  if (ttype(t1) != ttype(t2))  /* not the same type? */
+  if (ttype(t1) != ttype(t2)) {  /* not the same type? */
+#if defined(LUAR_FFI_HOOKS)	/* LUAR: compare FFI cdata with numbers/nil */
+    /*
+    ** LuaJIT allows comparing a cdata number with a Lua number.  Stock
+    ** Lua only tries '__eq' for two tables or two userdata, so FFI cdata
+    ** marks its metatable with a reserved integer key and the VM calls
+    ** its '__eq' here.  The marker keeps ordinary userdata semantics
+    ** untouched.  See doc/ffi.md (LuaJIT compatibility note).
+    */
+    if (L != NULL && (ttisnumber(t1) != ttisnumber(t2) ||
+                      ttisnil(t1) != ttisnil(t2))) {
+      const TValue *ud = ttisfulluserdata(t1) ? t1 :
+                         ttisfulluserdata(t2) ? t2 : NULL;
+      if (ud != NULL) {
+        Table *mt = uvalue(ud)->metatable;
+        TValue res;
+        if (mt != NULL &&
+            !tagisfalse(luaH_getint(mt, LUAR_FFI_CDATA_MARK, &res))) {
+          tm = fasttm(L, mt, TM_EQ);
+          if (tm != NULL) {
+            int tag = luaT_callTMres(L, tm, t1, t2, L->top.p);
+            return !tagisfalse(tag);
+          }
+        }
+      }
+    }
+#endif
     return 0;
+  }
   else if (ttypetag(t1) != ttypetag(t2)) {
     switch (ttypetag(t1)) {
       case LUA_VNUMINT: {  /* integer == float? */
@@ -1672,8 +1704,14 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       vmcase(OP_EQK) {
         StkId ra = RA(i);
         TValue *rb = KB(i);
+        int cond;
+#if defined(LUAR_FFI_HOOKS)	/* LUAR: cdata can equal a number constant */
+        if (ttisfulluserdata(s2v(ra)))
+          Protect(cond = luaV_equalobj(L, s2v(ra), rb));
+        else
+#endif
         /* basic types do not use '__eq'; we can use raw equality */
-        int cond = luaV_rawequalobj(s2v(ra), rb);
+        cond = luaV_rawequalobj(s2v(ra), rb);
         docondjump();
         vmbreak;
       }
@@ -1685,6 +1723,13 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           cond = (ivalue(s2v(ra)) == im);
         else if (ttisfloat(s2v(ra)))
           cond = luai_numeq(fltvalue(s2v(ra)), cast_num(im));
+#if defined(LUAR_FFI_HOOKS)	/* LUAR: cdata can equal a number */
+        else if (ttisfulluserdata(s2v(ra))) {
+          TValue n;
+          setivalue(&n, im);
+          Protect(cond = luaV_equalobj(L, s2v(ra), &n));
+        }
+#endif
         else
           cond = 0;  /* other types cannot be equal to a number */
         docondjump();
