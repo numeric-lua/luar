@@ -1,0 +1,10 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/luar
+
+Name: luar
+Description: LuaR, a Lua 5.5-forward runtime with LuaJIT-style extensions
+Version: 0.1.0
+Libs: -L${libdir} -lluar -lm
+Cflags: -I${includedir}

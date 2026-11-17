@@ -1,5 +1,8 @@
+# Build artifacts
 *.[oa]
 *.so
+*.so.*
+*.dylib
 *.obj
 *.lib
 *.exp
@@ -10,3 +13,13 @@
 *.dmp
 *.swp
 .tags
+
+# LuaR binaries (built into src/)
+/src/luar
+/src/luarc
+
+# Scratch
+/build/
+/tests/tmp/
+/experimental/**/build/
+*.out
