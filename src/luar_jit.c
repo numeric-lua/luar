@@ -130,7 +130,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   Instruction last;
   TValue *b = (TValue *)base;
   uint8_t cur[256], def[256], seen[256], paired[256];
-  int for_a, has_branch = 0, is_while = 0;
+  int for_a, has_branch = 0, is_while = 0, partial = 0;
+  int call_at = -1;
   if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
     return 0;
   /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
@@ -156,6 +157,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   else
     return 0;
 
+  for (i = 0; i < n - 1; i++) {
+    if (GET_OPCODE(p->code[start + i]) == OP_CALL) {
+      call_at = (int)i;
+      break;
+    }
+  }
   memset(&d, 0, sizeof(d));
   memset(cur, 0, sizeof(cur));
   memset(def, 0, sizeof(def));
@@ -278,7 +285,17 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_MOVE:
         if (is_control_reg(GETARG_A(ins), for_a)) return 0;
         tb = slot_type(b, cur, def, GETARG_B(ins));
-        if (tb == 0 || tb == LUAR_T_TABLE) return 0;
+        if (tb == 0 || tb == LUAR_T_TABLE ||
+            (tb != LUAR_T_INT && tb != LUAR_T_FLOAT)) {
+          if (call_at > (int)i && i > 0 && !has_branch) {
+            d.partial = 1;
+            d.exit_pc = (int)(start + i);
+            d.nops = (int)i;
+            partial = 1;
+            goto decode_done;
+          }
+          return 0;
+        }
         add_guard(&d, seen, GETARG_B(ins), tb);
         op->kind = LUAR_OP_MOVE;
         op->a = (uint8_t)GETARG_A(ins);
@@ -476,7 +493,26 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         ** upvalue close emitted for 'break' has nothing to close. */
         op->kind = LUAR_OP_NOP;
         break;
+      case OP_CALL:
+        /* A call-free numeric prefix can run natively and hand the CALL
+        ** itself back to the interpreter.  Branches or an empty prefix
+        ** are not supported. */
+        if (call_at == (int)i && i > 0 && !has_branch && !d.has_table) {
+          d.partial = 1;
+          d.exit_pc = (int)(start + i);
+          d.nops = (int)i;
+          partial = 1;
+          goto decode_done;
+        }
+        return 0;
       default:
+        if (call_at > (int)i && i > 0 && !has_branch) {
+          d.partial = 1;
+          d.exit_pc = (int)(start + i);
+          d.nops = (int)i;
+          partial = 1;
+          goto decode_done;
+        }
         return 0;
     }
     if (op->kind != LUAR_OP_MMBIN && is_control_reg(op->a, for_a))
@@ -493,6 +529,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
              op->kind == LUAR_OP_MULK || op->kind == LUAR_OP_DIVK) {
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
+  }
+decode_done:
+  if (partial) {
+    d.npc = (int)n;
+    d.has_branch = 0;
+    goto emit_ready;
   }
   /* Fast subtraction: acc = acc - idx. */
   if (!has_branch && !is_while && n == 3) {
@@ -947,6 +989,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       }
     }
   }
+emit_ready:
   fn = luari_emit_build(&d, &size);
   if (fn == NULL)
     return 0;

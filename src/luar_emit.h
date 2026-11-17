@@ -59,6 +59,8 @@ typedef struct LuaR_LoopDesc {
   int has_branch;
   int is_while;
   int repeat;
+  int partial;			/* numeric prefix ending at CALL */
+  int exit_pc;
   int fast_repeat;
   int fr_acc;
   int fr_idx;

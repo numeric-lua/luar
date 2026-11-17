@@ -1171,10 +1171,14 @@ void luaV_finishOp (lua_State *L) {
   const Instruction *luarjb = pc; \
   dojump(ci, ni, 1); \
   if (GETARG_sJ(ni) < 0) { \
+    int luarjr; \
     LUAR_JIT_HOT(L, cl->p, luarjb, (void *)base); \
-    if (LUAR_JIT_RUN(L, cl->p, (int)(luarjb - cl->p->code), \
-                     (void *)base, -1)) \
+    luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarjb - cl->p->code), \
+                          (void *)base, -1); \
+    if (luarjr > 0) \
       pc = luarjb + 1; \
+    else if (luarjr < -1) \
+      pc = cl->p->code + (-luarjr - 2); \
   } }
 
 /*
@@ -1697,10 +1701,14 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         dojump(ci, i, 0);
 #if !defined(LUAR_JIT_DISABLE)
         if (GETARG_sJ(i) < 0) {  /* LUAR: backward jump */
+          int luarjr;
           LUAR_JIT_HOT(L, cl->p, luarback, (void *)base);
-          if (LUAR_JIT_RUN(L, cl->p, (int)(luarback - cl->p->code),
-                           (void *)base, -1))
+          luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarback - cl->p->code),
+                                (void *)base, -1);
+          if (luarjr > 0)
             pc = luarback + 1;  /* LUAR: native while loop finished */
+          else if (luarjr < -1)
+            pc = cl->p->code + (-luarjr - 2);
         }
 #endif
         vmbreak;
@@ -1914,10 +1922,14 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             chgivalue(s2v(ra + 2), idx);  /* update control variable */
             pc -= GETARG_Bx(i);  /* jump back */
 #if !defined(LUAR_JIT_DISABLE)
+            int luarjr;
             LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
-            if (LUAR_JIT_RUN(L, cl->p, (int)(luarb - cl->p->code),
-                             (void *)base, GETARG_A(i)))
+            luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarb - cl->p->code),
+                                  (void *)base, GETARG_A(i));
+            if (luarjr > 0)
               pc = luarb + 1;  /* LUAR: the native loop finished it */
+            else if (luarjr < -1)
+              pc = cl->p->code + (-luarjr - 2);
 #endif
           }
         }

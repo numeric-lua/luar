@@ -1228,8 +1228,27 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static void emit_partial_code (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  | push rbx
+  | mov rbx, rdi
+  emit_guards(Dst, d);
+  emit_body(Dst, d);
+  | mov eax, -((int)d->exit_pc + 2)
+  | pop rbx
+  | ret
+  |3:
+  | xor eax, eax
+  | pop rbx
+  | ret
+}
+
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
+  if (d->partial) {
+    emit_partial_code(Dst, d);
+    return;
+  }
   if (d->fast_repeat) {
     emit_fast_repeat(Dst, d);
     return;
