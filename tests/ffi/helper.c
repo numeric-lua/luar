@@ -346,3 +346,6 @@ struct SzB { char c[sizeof(struct SzA)]; int tail; };
 enum { SZ_ENUM = (int)sizeof(struct SzA) };
 int size_SzB (void) { return (int)sizeof(struct SzB); }
 int size_SzArr (void) { return (int)sizeof(int[4]); }
+struct OffA { char c; int i; };
+int off_OffA_i (void) { return (int)offsetof(struct OffA, i); }
+int align_OffA (void) { return (int)_Alignof(struct OffA); }

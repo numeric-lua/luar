@@ -507,11 +507,12 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
     n = end - pos;
     if (!block_comment && !in_string) {
       const char *q = p;
-      while (n > 0 && is_space((unsigned char)*q)) {
+      size_t qn = n;
+      while (qn > 0 && is_space((unsigned char)*q)) {
         q++;
-        n--;
+        qn--;
       }
-      if (n > 0 && *q == '#')
+      if (qn > 0 && *q == '#')
         directive = 1;
     }
     if (directive) {

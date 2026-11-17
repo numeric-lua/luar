@@ -629,23 +629,54 @@ static DNode *parse_declarator (Parser *P) {
 /* ------------------------------------------------------------------ */
 
 static int64_t parse_primary (Parser *P) {
-  if (tok_is_ident(P, "sizeof")) {
+  if (tok_is_ident(P, "sizeof") || tok_is_ident(P, "_Alignof") ||
+      tok_is_ident(P, "__alignof__") || tok_is_ident(P, "alignof")) {
+    int is_align = !tok_is_ident(P, "sizeof");
     CType *ct;
     DNode *node;
     DeclSpec ds;
     char *name = NULL;
     size_t sz;
-    lex_next(P);		/* consume sizeof */
+    lex_next(P);
     expect_punct(P, '(', "(");
     ds = parse_declspec(P);
     node = parse_declarator(P);
     ct = apply_node(P, node, ds.base, &name);
     expect_punct(P, ')', ")");
     (void)name;
+    if (is_align)
+      return (int64_t)ffi_type_align(ct);
     sz = ffi_type_size(ct);
     if (sz == FFI_SIZE_UNKNOWN || ct->incomplete)
       parser_error(P, "sizeof of an incomplete C type");
     return (int64_t)sz;
+  }
+  if (tok_is_ident(P, "offsetof") || tok_is_ident(P, "__builtin_offsetof")) {
+    CType *ct;
+    DNode *node;
+    DeclSpec ds;
+    char *name = NULL;
+    char fname[256];
+    size_t off = 0;
+    CField *f;
+    lex_next(P);
+    expect_punct(P, '(', "(");
+    ds = parse_declspec(P);
+    node = parse_declarator(P);
+    ct = apply_node(P, node, ds.base, &name);
+    expect_punct(P, ',', ",");
+    if (P->tok.kind != TK_IDENT)
+      parser_error(P, "expected a field name in offsetof");
+    if (!tok_to_buf(P, fname, sizeof(fname)))
+      parser_error(P, "field name too long in offsetof");
+    lex_next(P);
+    expect_punct(P, ')', ")");
+    f = ffi_type_find_field(ct, fname, &off, NULL);
+    if (f == NULL)
+      parser_error(P, "offsetof: no field named '%s'", fname);
+    if (f->bitwidth != 0)
+      parser_error(P, "offsetof of a bitfield is not supported");
+    return (int64_t)off;
   }
   if (P->tok.kind == TK_INT) {
     int64_t v = P->tok.ival;

@@ -81,6 +81,17 @@ H.eq(ffi.sizeof("struct PpVa"), 16)
 H.eq(ffi.C.LUAR_PP_VSUM, 5)
 H.eq(ffi.C.LUAR_PP_VZERO, 1)
 
+-- leading whitespace must not truncate the line
+ffi.cdef[[
+  #define LUAR_PP_LEAD 7
+  enum {
+    LUAR_PP_L1 = LUAR_PP_LEAD,
+    LUAR_PP_L2 = LUAR_PP_LEAD
+  };
+]]
+H.eq(ffi.C.LUAR_PP_L1, 7)
+H.eq(ffi.C.LUAR_PP_L2, 7)
+
 -- unsupported forms fail clearly
 H.raises(function ()
   return ffi.cdef("#define LUAR_PP_STR(x) #x")
