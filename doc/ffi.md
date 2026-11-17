@@ -143,9 +143,10 @@ preprocessor subset is available.
   arguments through an sret thunk (integer registers shifted past the
   hidden return pointer).  Up to three packed integer arguments can be
   passed to a function returning a packed integer struct; the return uses
-  an embedded sret buffer, so its size is not limited to one chunk.  One
-  packed argument of at most eight bytes can also be combined with up to
-  five scalar arguments.  Other packed aggregate call shapes are rejected rather than
+  an embedded sret buffer, so its size is not limited to one chunk.  Up to
+  three packed arguments of at most eight bytes each can be combined with
+  up to five scalar arguments; integer registers are shifted past the
+  hidden sret pointer and packed values stay in stack slots.  Other packed aggregate call shapes are rejected rather than
   mislaid.  Layout always
   follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length

@@ -387,3 +387,9 @@ struct PackedWide packedwideid (struct PackedWide p) { return p; }
 struct PackedS packedmix (struct PackedS p, int k) { struct PackedS q; q.c=p.c; q.i=p.i+k; q.s=p.s; return q; }
 struct PackedS packedmixf (struct PackedS p, double d) { struct PackedS q; q.c=p.c; q.i=p.i+(int)d; q.s=p.s; return q; }
 struct PackedS packedmix2 (struct PackedS p, int a, double b) { struct PackedS q; q.c=p.c; q.i=p.i+a+(int)b; q.s=p.s; return q; }
+struct PackedS packedmixmulti (struct PackedS a, struct PackedS b, int k) {
+  struct PackedS q; q.c=(char)(a.c+b.c); q.i=a.i+b.i+k; q.s=(short)(a.s+b.s); return q;
+}
+struct PackedS packedmixmulti2 (struct PackedS a, double d, struct PackedS b, int k) {
+  struct PackedS q; q.c=(char)(a.c+b.c); q.i=a.i+b.i+k+(int)d; q.s=(short)(a.s+b.s); return q;
+}

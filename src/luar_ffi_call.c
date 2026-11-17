@@ -1046,14 +1046,32 @@ static int packed_return_signature (CType *ft) {
 
 
 #if defined(__x86_64__)
+static void packed_emit_mov_reg (unsigned char *code, size_t *n,
+                                 int dst, int src) {
+  unsigned char rex = (unsigned char)(0x48 |
+      (src >= 8 ? 4 : 0) | (dst >= 8 ? 1 : 0));
+  code[(*n)++] = rex;
+  code[(*n)++] = 0x89;
+  code[(*n)++] = (unsigned char)(0xc0 | ((src & 7) << 3) | (dst & 7));
+}
+
+
+static void packed_emit_store_rsp (unsigned char *code, size_t *n,
+                                   int src, int disp) {
+  unsigned char rex = (unsigned char)(0x48 | (src >= 8 ? 4 : 0));
+  code[(*n)++] = rex;
+  code[(*n)++] = 0x89;
+  code[(*n)++] = (unsigned char)(0x40 | ((src & 7) << 3) | 4);
+  code[(*n)++] = 0x24;
+  code[(*n)++] = (unsigned char)disp;
+}
+
+
 static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
                               CType *ft, CType *rt, int argstart,
-                              int packed_idx) {
-  CType *at = ft->args[packed_idx];
-  CData *cd = ffi_tocdata(L, argstart + packed_idx);
-  unsigned char chunkbuf[8] = {0};
-  uint64_t chunk = 0;
-  unsigned char code[96];
+                              const int *pidx, int pn) {
+  uint64_t chunks[3] = {0, 0, 0};
+  unsigned char code[128];
   size_t n = 0, i;
   void *mem;
   size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
@@ -1062,41 +1080,61 @@ static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
   unsigned char *retbuf = (unsigned char *)calloc(1, rt->size > 0 ? rt->size : 1);
   ArgSlot slots[5];
   void *values[6];
-  int nscalars = 0, nargs = (int)ft->nargs;
+  int nscalars = 0, nints = 0, nargs = (int)ft->nargs;
+  int ci = 0;
   CData *out;
   ffi_status st;
   int saved_errno;
-  if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct != at)
-    luaL_error(L, "ffi: argument %d: cannot convert %s to '%s'",
-               argstart + packed_idx, luaL_typename(L, argstart + packed_idx),
-               ffi_type_repr(S, at));
-  {
-    void *src = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
-                    ? cd->v.p : (void *)&cd->v;
-    memcpy(chunkbuf, src, at->size);
-  }
-  memcpy(&chunk, chunkbuf, at->size);
   if (retbuf == NULL)
     luaL_error(L, "ffi: out of memory for packed return");
-  atypes[0] = &ffi_type_uint64;
-  values[0] = &chunk;
   for (i = 0; i < (size_t)nargs; i++) {
-    ffi_type *aoverride = NULL;
-    if ((int)i == packed_idx)
-      continue;
-    memset(&slots[nscalars], 0, sizeof(slots[nscalars]));
-    convert_call_arg(L, S, ft->args[i], argstart + (int)i,
-                     &slots[nscalars], &values[nscalars + 1], &aoverride);
-    atypes[nscalars + 1] = (aoverride != NULL)
-                               ? aoverride
-                               : build_ffi_type(L, S, ft->args[i], NULL);
-    nscalars++;
+    if (ci < pn && (int)i == pidx[ci]) {
+      CType *at = ft->args[i];
+      CData *cd = ffi_tocdata(L, argstart + (int)i);
+      void *src;
+      unsigned char buf[8] = {0};
+      if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct != at)
+        luaL_error(L, "ffi: argument %d: cannot convert %s to '%s'",
+                   argstart + (int)i, luaL_typename(L, argstart + (int)i),
+                   ffi_type_repr(S, at));
+      src = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+                ? cd->v.p : (void *)&cd->v;
+      memcpy(buf, src, at->size);
+      memcpy(&chunks[ci], buf, at->size);
+      atypes[ci] = &ffi_type_uint64;
+      values[ci] = &chunks[ci];
+      ci++;
+    }
+    else {
+      ffi_type *aoverride = NULL;
+      memset(&slots[nscalars], 0, sizeof(slots[nscalars]));
+      convert_call_arg(L, S, ft->args[i], argstart + (int)i,
+                       &slots[nscalars], &values[pn + nscalars], &aoverride);
+      atypes[pn + nscalars] = (aoverride != NULL)
+                                  ? aoverride
+                                  : build_ffi_type(L, S, ft->args[i], NULL);
+      if (ft->args[i]->kind != CT_FLOAT)
+        nints++;
+      nscalars++;
+    }
   }
-  /* sub rsp,72; mov [rsp+16],rdi; mov rdi,retbuf; add rsp,16;
-     mov rax,target; call rax; sub rsp,16; add rsp,72; ret */
+  if (ci != pn || pn + nscalars > 6)
+    luaL_error(L, "ffi: unsupported mixed packed call");
+  /* sub rsp,72; store packed chunks; shift scalar integer registers past
+     the sret pointer; mov rdi,retbuf; add rsp,16; mov rax,target;
+     call rax; sub rsp,16; add rsp,72; ret */
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x48;
-  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x7c; code[n++] = 0x24;
-  code[n++] = 0x10;
+  {
+    static const int regs[3] = {7, 6, 2}; /* rdi,rsi,rdx */
+    for (i = 0; i < (size_t)pn; i++)
+      packed_emit_store_rsp(code, &n, regs[i], (int)(16 + 8 * i));
+  }
+  {
+    static const int wrapper[6] = {7, 6, 2, 1, 8, 9};
+    static const int target[5] = {6, 2, 1, 8, 9};
+    for (i = 0; i < (size_t)nints; i++)
+      packed_emit_mov_reg(code, &n, target[i], wrapper[pn + i]);
+  }
   code[n++] = 0x48; code[n++] = 0xbf;
   {
     uint64_t rb = (uint64_t)(uintptr_t)retbuf;
@@ -1105,14 +1143,15 @@ static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x10;
   code[n++] = 0x48; code[n++] = 0xb8;
   {
-    uint64_t target = (uint64_t)(uintptr_t)fn->v.p;
-    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(target >> (8 * i));
+    uint64_t targetfn = (uint64_t)(uintptr_t)fn->v.p;
+    for (i = 0; i < 8; i++)
+      code[n++] = (unsigned char)(targetfn >> (8 * i));
   }
   code[n++] = 0xff; code[n++] = 0xd0;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x10;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x48;
   code[n++] = 0xc3;
-  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)(nscalars + 1),
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)(pn + nscalars),
                     &ffi_type_void, atypes);
   if (st != FFI_OK)
     luaL_error(L, "ffi: libffi cannot prepare a mixed packed call");
@@ -1455,22 +1494,25 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
       packed_int_type(ft->ret)) {
-    int mi = -1, mc = 0, ms = 0, mok = 1, j;
+    int pidx[3], pc = 0, ms = 0, mint = 0, mok = 1, j;
     for (j = 0; j < nargs; j++) {
       CType *at = ft->args[j];
       if (at->kind == CT_STRUCT && at->pack == 1 &&
           at->align_override == 0 && at->size > 0 && at->size <= 8 &&
           packed_int_type(at)) {
-        mi = j;
-        mc++;
+        if (pc >= 3) { mok = 0; break; }
+        pidx[pc++] = j;
       }
-      else if (packed_scalar_arg(at))
+      else if (packed_scalar_arg(at)) {
         ms++;
+        if (at->kind != CT_FLOAT)
+          mint++;
+      }
       else
         mok = 0;
     }
-    if (mok && mc == 1 && ms <= 5)
-      return packed_mixed_call(L, S, fn, ft, ft->ret, argstart, mi);
+    if (mok && pc >= 1 && ms <= 5 && pc + mint <= 6)
+      return packed_mixed_call(L, S, fn, ft, ft->ret, argstart, pidx, pc);
   }
   if (!ft->vararg && nargs >= 1 && nargs <= 3 &&
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
