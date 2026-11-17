@@ -1020,24 +1020,50 @@ static int packed_int_type (CType *ct) {
 }
 
 
+static int packed_scalar_arg (CType *ct) {
+  switch (ct->kind) {
+    case CT_INT: case CT_BOOL: case CT_ENUM: case CT_FLOAT:
+    case CT_POINTER: case CT_FUNC:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+
 #if defined(__x86_64__)
 static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
-                               CType *rt) {
+                               CType *ft, CType *rt, int argstart) {
   unsigned char code[64];
   size_t n = 0, i;
   size_t chunks = (rt->size + 7) / 8;
   void *mem;
   size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
-  ffi_type ft;
+  ffi_type ftret;
   ffi_type *elems[3];
+  ffi_type *atypes[1];
   ffi_cif cif;
   unsigned char retbuf[16];
+  ArgSlot argslot;
+  void *avalue = NULL;
+  ffi_type *aoverride = NULL;
+  int has_arg = (ft->nargs == 1);
   CData *cd;
   ffi_status st;
   int saved_errno;
-  /* sub rsp,40; mov rdi,rsp; mov rax,target; call rax;
+  if (has_arg) {
+    memset(&argslot, 0, sizeof(argslot));
+    convert_call_arg(L, S, ft->args[0], argstart, &argslot, &avalue,
+                     &aoverride);
+    atypes[0] = (aoverride != NULL) ? aoverride
+                                   : build_ffi_type(L, S, ft->args[0], NULL);
+  }
+  /* sub rsp,40; [mov rsi,rdi]; mov rdi,rsp; mov rax,target; call rax;
      mov rax,[rsp]; mov rdx,[rsp+8]; add rsp,40; ret */
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x28;
+  if (has_arg && ft->args[0]->kind != CT_FLOAT) {
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xfe; /* mov rsi,rdi */
+  }
   code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe7;
   code[n++] = 0x48; code[n++] = 0xb8;
   {
@@ -1050,15 +1076,16 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
   code[n++] = 0x08;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x28;
   code[n++] = 0xc3;
-  memset(&ft, 0, sizeof(ft));
-  ft.type = FFI_TYPE_STRUCT;
+  memset(&ftret, 0, sizeof(ftret));
+  ftret.type = FFI_TYPE_STRUCT;
   for (i = 0; i < chunks; i++)
     elems[i] = &ffi_type_uint64;
   elems[chunks] = NULL;
-  ft.elements = elems;
-  ft.size = 0;
-  ft.alignment = 0;
-  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 0, &ft, NULL);
+  ftret.elements = elems;
+  ftret.size = 0;
+  ftret.alignment = 0;
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, has_arg ? 1 : 0, &ftret,
+                    has_arg ? atypes : NULL);
   if (st != FFI_OK)
     luaL_error(L, "ffi: libffi cannot prepare a packed return");
   mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
@@ -1071,7 +1098,7 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
     luaL_error(L, "ffi: cannot make the packed-return thunk executable");
   }
   memset(retbuf, 0, sizeof(retbuf));
-  ffi_call(&cif, FFI_FN(mem), retbuf, NULL);
+  ffi_call(&cif, FFI_FN(mem), retbuf, has_arg ? &avalue : NULL);
   saved_errno = errno;
   munmap(mem, pagesize);
   errno = saved_errno;
@@ -1194,11 +1221,12 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   ntotal = provided;
 
 #if defined(__x86_64__)
-  if (!ft->vararg && nargs == 0 && provided == 0 &&
+  if (!ft->vararg &&
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
-      ft->ret->size <= 16 && packed_int_type(ft->ret))
-    return packed_return_call(L, S, fn, ft->ret);
+      ft->ret->size <= 16 && packed_int_type(ft->ret) &&
+      (nargs == 0 || (nargs == 1 && packed_scalar_arg(ft->args[0]))))
+    return packed_return_call(L, S, fn, ft, ft->ret, argstart);
   if (!ft->vararg && nargs == 1 && provided == 1) {
     CType *at = ft->args[0];
     CType *rt0 = ft->ret;
