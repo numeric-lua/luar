@@ -168,9 +168,31 @@ So a module can ship a LuaR-specific build without breaking plain Lua, and
 plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
-`libluar.a` is the default artifact. A shared `libluar.so` that exports the
-`lua_*`/`luaL_*` symbols is a distribution task (milestone 0.3); it will keep
-the 5.5 soname contract documented rather than pretending to be `liblua`.
+`libluar.a` is the default artifact. `make shared` additionally builds
+`libluar.so.0.1.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so` symlinks. The shared objects are compiled separately as
+`.pic.o` files, so the static build's objects and archive are untouched and
+both configurations can coexist in `src/`.
+
+The shared library exports exactly the Lua 5.5 C API (`lua_*`, `luaL_*`,
+`luaopen_*`) and the `luar_*` additions. `etc/libluar.map` is an anonymous
+ELF version script that hides the ~200 internal `luaX_*` helpers which have
+external linkage in the core. An anonymous node filters the dynamic symbol
+table without adding symbol versions, so ordinary C modules resolve
+normally. The SONAME is `libluar.so.0`, deliberately distinct from
+`liblua.so.5.5`: the ABI is Lua 5.5's, but the library carries LuaR
+extensions and may grow more, and its name must not collide with a system
+`liblua` in the same process. A stock-`lua` module loaded by a LuaR host
+still binds its `lua_*` references to `libluar.so`, because the host's own
+dependency precedes the module's `liblua` dependency in the lookup scope.
+
+`luar.pc` describes both link modes: `Libs` is enough for a dynamic link,
+while `pkg-config --static` adds `Libs.private` (`-ldl`, needed by the
+`dlopen`-based module loader on older glibc). `make test-shared` links an
+embedding host and the CLI against `libluar.so` and loads a stock Lua 5.5 C
+module into it. The ELF/GNU-ld path is the tested one; the Makefile also has
+a minimal macOS `-dynamiclib` fallback, but it has no export list and no CI
+coverage yet.
 
 ## 9. Testing strategy
 
@@ -180,8 +202,9 @@ the 5.5 soname contract documented rather than pretending to be `liblua`.
    run against LuaR, with a report.
 3. **Extension tests** (`tests/compat/`, `tests/ffi/`): API shape,
    semantics, failure modes.
-4. **ABI/CLI tests** (`tests/cli.sh`): build/load a stock Lua 5.5 C module,
-   bytecode round-trips, environment, exit codes.
+4. **ABI/CLI tests** (`tests/cli.sh`, `tests/shared.sh`): build/load a stock
+   Lua 5.5 C module, link an embedding host against both `libluar.a` and
+   `libluar.so`, check bytecode round-trips, environment and exit codes.
 5. **Differential JIT tests** (from 0.5): every trace is compared against
    the interpreter on randomized inputs before it is allowed to run.
 6. **Benchmarks** (`bench/`): no hard gates, but every release records

@@ -51,6 +51,9 @@ Estimated: 2–4 weeks.
 
 * `libluar.so` exporting the Lua 5.5 C API, with a documented soname and
   `pkg-config` file; static and shared installs tested on Linux and macOS.
+  Shared build, `libluar.so.0` soname, export map and the `luar.pc` shared/
+  static recipes are in place and tested on Linux (`make test-shared`);
+  macOS verification remains.
 * CI matrix: gcc/clang, WITH_FFI on/off, ASan/UBSan job, official Lua suite.
 * Reproducible release tarballs, `make install`/`make uninstall` verified.
 

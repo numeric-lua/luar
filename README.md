@@ -22,7 +22,7 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | --- | --- |
 | Lua 5.5.1 language, stdlib, bytecode | complete; bytecode interoperates with `lua`/`luac` 5.5.1 |
 | C API and C module ABI | compatible; a stock `lua5.5` module loads unchanged |
-| `luar`, `luarc`, `libluar.a`, install | working (`make`, `make install`, `luar.pc`, man page) |
+| `luar`, `luarc`, `libluar.a`, `libluar.so`, install | working (`make`, `make shared`, `make install`, `luar.pc`, man page) |
 | `luar` identity, `LUAR_INIT`, `luar/5.5` module paths | working |
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working; `jit.status()` truthfully `false` (no native engine yet) |
@@ -52,8 +52,10 @@ not a claim of 0.1.
 
 ```sh
 make                    # src/luar, src/luarc, src/libluar.a
+make shared             # + src/libluar.so.0.1.0 (SONAME libluar.so.0)
 make WITH_FFI=1         # + FFI (needs the libffi headers)
 make test               # smoke, CLI/ABI, semantics, compat, differential
+make test-shared        # embedding + C module against libluar.so
 make WITH_FFI=1 test    # additionally runs tests/ffi
 make install            # PREFIX=/usr/local, DESTDIR supported
 ```
@@ -61,7 +63,33 @@ make install            # PREFIX=/usr/local, DESTDIR supported
 Requirements: a C99 compiler, `make`, POSIX. FFI builds additionally need
 the libffi headers (`pkg-config --cflags libffi`); libffi is loaded with
 `dlopen` at run time, so nothing links against it. `make` rebuilds
-automatically when `PREFIX` or `WITH_FFI` changes.
+automatically when `PREFIX` or `WITH_FFI` changes. The shared library is
+compiled from separate `.pic.o` objects, so `make` and `make shared` never
+rebuild or disturb each other's objects; `make clean` removes both sets.
+
+### Embedding and pkg-config
+
+`make install` installs `libluar.a`, `libluar.so.0.1.0` and the
+`libluar.so.0`/`libluar.so` symlinks in `$PREFIX/lib`, together with
+`luar.pc`. Both link modes use the same package name:
+
+```sh
+cc host.c $(pkg-config --cflags --libs luar) -o host            # shared
+cc host.c $(pkg-config --cflags --static --libs luar) -o host   # static
+```
+
+`libluar.so` carries the SONAME `libluar.so.0` and exports exactly the Lua
+5.5 C API (`lua_*`, `luaL_*`, `luaopen_*`) plus the `luar_*` additions; the
+~200 internal `luaX_*` helpers are hidden by `etc/libluar.map`. The SONAME is
+LuaR's own rather than `liblua.so`: the ABI is Lua 5.5's, but the library may
+grow extension symbols, and its name must not collide with a system `liblua`
+in the same process. Stock Lua 5.5 C modules load unchanged — when a host
+links `libluar.so`, a module built against stock `lua5.5` still binds its
+`lua_*` symbols to LuaR (`test-shared` checks this with `LD_DEBUG` on glibc).
+
+Static hosts that load C modules at run time must export their own symbols
+(`-Wl,-E` on ELF); the `luar`/`luarc` binaries already do. A host linked
+against `libluar.so` needs no extra linker flag.
 
 ## Try it
 

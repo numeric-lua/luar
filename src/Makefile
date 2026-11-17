@@ -9,6 +9,7 @@ STD= -std=gnu99
 CFLAGS?= -O2 -g -Wall -Wextra
 LDFLAGS?=
 LIBS= -lm $(MYLIBS) $(SYSLIBS)
+PICFLAGS= -fPIC
 AR= ar
 ARFLAGS= rcu
 RANLIB= ranlib
@@ -78,6 +79,35 @@ LUAC_O=	luac.o
 ALL_O= $(BASE_O) $(LUA_O) $(LUAC_O)
 ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T)
 
+# Shared library.  The three names follow the usual libtool convention:
+#   libluar.so.<version>   real file
+#   libluar.so.<major>     SONAME (what executables record)
+#   libluar.so             unversioned link-time name
+# VERSION is passed by the top-level Makefile; the default keeps 'make -C src'
+# usable on its own.  PIC objects are separate from the static ones.
+VERSION?= 0.1.0
+SOVERSION= $(firstword $(subst ., ,$(VERSION)))
+LUA_SO= libluar.so.$(VERSION)
+LUA_SONAME= libluar.so.$(SOVERSION)
+LUA_SOLINK= libluar.so
+# Export list for the ELF linker (see etc/libluar.map).  Kept outside src/
+# so tools/upstream-check.sh does not classify it as an upstream addition.
+LUA_MAP= ../etc/libluar.map
+PIC_O= $(BASE_O:.o=.pic.o)
+
+# Linking a shared library must not use -Wl,-E (that is for executables that
+# export their symbols to C modules), and on macOS the flag names differ.
+SHARED_LDFLAGS= -shared -Wl,-soname,$(LUA_SONAME)
+SHARED_MAP= -Wl,--version-script=$(LUA_MAP)
+SHARED_LIBS= -lm $(MYLIBS)
+ifeq ($(UNAME_S),Linux)
+SHARED_LIBS+= -ldl
+endif
+ifeq ($(UNAME_S),Darwin)
+SHARED_LDFLAGS= -dynamiclib -Wl,-install_name,$(LUA_SONAME)
+SHARED_MAP=
+endif
+
 # Targets start here.
 default: all
 
@@ -98,15 +128,36 @@ $(LUA_T): $(LUA_O) $(LUA_A)
 $(LUAC_T): $(LUAC_O) $(LUA_A)
 	$(CC) -o $@ $(LDFLAGS) $(MYLDFLAGS) $(LUAC_O) $(LUA_A) $(LIBS)
 
+# -- shared library ---------------------------------------------------------
+# The export map is optional in the sense that a failed/missing script is
+# reported by the linker rather than silently ignored; the target depends on
+# it so a change to the exported set relinks the library.
+$(LUA_SO): $(PIC_O) $(LUA_MAP)
+	$(CC) $(SHARED_LDFLAGS) -o $@ $(LDFLAGS) $(MYLDFLAGS) \
+		$(PIC_O) $(SHARED_MAP) $(SHARED_LIBS)
+
+# The symlinks are recreated on every 'make shared'; only the library itself
+# is rebuilt when its objects change.
+shared: $(LUA_SO)
+	ln -sfn $(LUA_SO) $(LUA_SONAME)
+	ln -sfn $(LUA_SONAME) $(LUA_SOLINK)
+
 
 %.o: %.c
 	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) -c $<
+
+# PIC variants, used only by the shared library.  The static build keeps
+# using the plain .o files above.
+%.pic.o: %.c
+	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) $(PICFLAGS) -c -o $@ $<
 
 test:
 	./$(LUA_T) -v
 
 clean:
 	$(RM) $(ALL_T) $(ALL_O) $(ALL_FFI_O)
+	$(RM) $(PIC_O) $(ALL_FFI_O:.o=.pic.o)
+	$(RM) $(LUA_SO) $(LUA_SONAME) $(LUA_SOLINK)
 
 echo:
 	@echo "CC= $(CC)"
@@ -114,5 +165,6 @@ echo:
 	@echo "LDFLAGS= $(LDFLAGS)"
 	@echo "LIBS= $(LIBS)"
 	@echo "WITH_FFI= $(WITH_FFI)"
+	@echo "SHARED_LIB= $(LUA_SO) (SONAME $(LUA_SONAME))"
 
-.PHONY: all default o a test clean echo
+.PHONY: all default o a shared test clean echo
