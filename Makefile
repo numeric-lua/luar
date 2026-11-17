@@ -79,6 +79,7 @@ test-semantics: build
 test-compat: build
 	./src/luar tests/run.lua compat
 
+test-ffi: WITH_FFI=1
 test-ffi: build
 	./src/luar tests/run.lua ffi
 

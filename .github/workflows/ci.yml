@@ -35,6 +35,16 @@ jobs:
       - name: Build and test
         run: make WITH_FFI=${{ matrix.with_ffi }} test
 
+  nojit:
+    name: linux (JIT=0)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and test without the JIT tier
+        run: make JIT=0 test
+
   sanitizers:
     name: linux (ASan+UBSan, WITH_FFI=1)
     runs-on: ubuntu-latest

@@ -24,6 +24,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 - A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the
   libtorch-backed `libluatorch.so` C ABI and runs tensor creation, `lt_add`,
   scalar reads and data transfer through `ffi.load`.
+- JIT differential/stress coverage (`tests/jit/03_guards.lua`): every
+  compiled-loop case is compared against an interpreter run, including
+  overflow, empty loops, division, negative zero, `break` and type-changing
+  call sites.  `make JIT=0 test` verifies the compiled-out configuration.
 - J2 native loops (x86-64): a hot `for` loop whose body is numeric register
   arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants
   and MMBIN, with int/double conversions) is compiled with DynASM and runs

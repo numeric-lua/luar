@@ -3,6 +3,10 @@ local H = dofile("tests/helpers.lua")
 
 jit.flush()
 jit.on()
+if jit.status() == false then
+  print("jit/01_hotloop: skipped (JIT recorder disabled)")
+  return
+end
 local s = 0
 for i = 1, 2000 do s = s + i end
 H.eq(s, 2001000, "interpreter result changed")
