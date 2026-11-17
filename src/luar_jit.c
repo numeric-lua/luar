@@ -86,6 +86,27 @@ static int is_control_reg (int r, int for_a) {
 /* Validate and compile the loop [start, backedge].  The trace must end in
 ** FORLOOP and contain only integer register arithmetic.  Returns 1 when a
 ** loop was compiled (or a previous one is already installed). */
+static int slot_type (TValue *b, uint8_t *cur, uint8_t *def, int r) {
+  if (def[r])
+    return cur[r];
+  if (ttisinteger(&b[r]))
+    return LUAR_T_INT;
+  if (ttisfloat(&b[r]))
+    return LUAR_T_FLOAT;
+  return 0;
+}
+
+
+static void add_guard (LuaR_LoopDesc *d, uint8_t *seen, int r, int type) {
+  if (!seen[r] && d->nguards < 256) {
+    seen[r] = 1;
+    d->guard_reg[d->nguards] = (uint8_t)r;
+    d->guard_type[d->nguards] = (uint8_t)type;
+    d->nguards++;
+  }
+}
+
+
 static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                         ptrdiff_t backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -96,62 +117,170 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   ptrdiff_t n = backedge - start + 1;
   ptrdiff_t i;
   Instruction last;
+  TValue *b = (TValue *)base;
+  uint8_t cur[256], def[256], seen[256];
   int for_a;
-  if (!luar_emit_available() || n < 2 || n > LUAR_JIT_MAXINS)
+  if (!luar_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
+    return 0;
+  /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
+  ** double floats; other configurations stay on the interpreter. */
+  if (sizeof(TValue) != 16 || sizeof(lua_Integer) != 8 ||
+      sizeof(lua_Number) != sizeof(double))
     return 0;
   last = p->code[backedge];
   if (GET_OPCODE(last) != OP_FORLOOP)
     return 0;
   for_a = GETARG_A(last);
-  if (base != NULL) {
-    TValue *b = (TValue *)base;
-    if (!ttisinteger(&b[for_a]) || !ttisinteger(&b[for_a + 1]) ||
-        !ttisinteger(&b[for_a + 2]))
-      return 0;   /* float or non-integer loop: no native code */
-  }
+  if (for_a < 0 || for_a + 2 > 255)
+    return 0;
+  if (!ttisinteger(&b[for_a]) || !ttisinteger(&b[for_a + 1]) ||
+      !ttisinteger(&b[for_a + 2]))
+    return 0;   /* float/non-integer loop control: not supported */
+
+  memset(&d, 0, sizeof(d));
+  memset(cur, 0, sizeof(cur));
+  memset(def, 0, sizeof(def));
+  memset(seen, 0, sizeof(seen));
   d.ops = ops;
   d.nops = (int)n - 1;
   d.for_a = for_a;
   d.tag_int = LUA_VNUMINT;
+  d.tag_flt = LUA_VNUMFLT;
+  for (i = 0; i < 3; i++) {
+    cur[for_a + i] = LUAR_T_INT;
+    def[for_a + i] = 1;
+    add_guard(&d, seen, for_a + i, LUAR_T_INT);
+  }
+
   for (i = 0; i < n - 1; i++) {
     Instruction ins = p->code[start + i];
     LuaR_Op *op = &ops[i];
+    int tb, tc;
     memset(op, 0, sizeof(*op));
     switch (GET_OPCODE(ins)) {
       case OP_MOVE:
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
+        tb = slot_type(b, cur, def, GETARG_B(ins));
+        if (tb == 0) return 0;
+        add_guard(&d, seen, GETARG_B(ins), tb);
         op->kind = LUAR_OP_MOVE;
         op->a = (uint8_t)GETARG_A(ins);
         op->b = (uint8_t)GETARG_B(ins);
+        op->tb = (uint8_t)tb;
+        cur[op->a] = (uint8_t)tb;
+        def[op->a] = 1;
         break;
       case OP_LOADI:
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
         op->kind = LUAR_OP_LOADI;
         op->a = (uint8_t)GETARG_A(ins);
-        op->imm = (int32_t)GETARG_sBx(ins);
+        op->imm = (int64_t)GETARG_sBx(ins);
+        op->ta = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
         break;
+      case OP_LOADF:
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
+        op->kind = LUAR_OP_LOADF;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->num = (double)GETARG_sBx(ins);
+        op->ta = LUAR_T_FLOAT;
+        cur[op->a] = LUAR_T_FLOAT;
+        def[op->a] = 1;
+        break;
+      case OP_LOADK: {
+        int idx = (int)GETARG_Bx(ins);
+        TValue *k;
+        if (idx < 0 || idx >= p->sizek) return 0;
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
+        k = &p->k[idx];
+        op->kind = LUAR_OP_LOADK;
+        op->a = (uint8_t)GETARG_A(ins);
+        if (ttisinteger(k)) {
+          op->ta = LUAR_T_INT;
+          op->imm = (int64_t)ivalue(k);
+        }
+        else if (ttisfloat(k)) {
+          op->ta = LUAR_T_FLOAT;
+          op->num = (double)fltvalue(k);
+        }
+        else
+          return 0;
+        cur[op->a] = op->ta;
+        def[op->a] = 1;
+        break;
+      }
       case OP_ADDI:
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
+        if (slot_type(b, cur, def, GETARG_B(ins)) != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
         op->kind = LUAR_OP_ADDI;
         op->a = (uint8_t)GETARG_A(ins);
         op->b = (uint8_t)GETARG_B(ins);
-        op->imm = (int32_t)GETARG_sC(ins);
+        op->imm = (int64_t)GETARG_sC(ins);
+        op->ta = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
         break;
       case OP_ADD:
-        op->kind = LUAR_OP_ADD;
-        op->a = (uint8_t)GETARG_A(ins);
-        op->b = (uint8_t)GETARG_B(ins);
-        op->c = (uint8_t)GETARG_C(ins);
-        break;
       case OP_SUB:
-        op->kind = LUAR_OP_SUB;
-        op->a = (uint8_t)GETARG_A(ins);
-        op->b = (uint8_t)GETARG_B(ins);
-        op->c = (uint8_t)GETARG_C(ins);
-        break;
       case OP_MUL:
-        op->kind = LUAR_OP_MUL;
-        op->a = (uint8_t)GETARG_A(ins);
+      case OP_DIV: {
+        int ka = GETARG_A(ins);
+        if (is_control_reg(ka, for_a)) return 0;
+        tb = slot_type(b, cur, def, GETARG_B(ins));
+        tc = slot_type(b, cur, def, GETARG_C(ins));
+        if (tb == 0 || tc == 0) return 0;
+        add_guard(&d, seen, GETARG_B(ins), tb);
+        add_guard(&d, seen, GETARG_C(ins), tc);
+        op->kind = GET_OPCODE(ins) == OP_ADD ? LUAR_OP_ADD :
+                   GET_OPCODE(ins) == OP_SUB ? LUAR_OP_SUB :
+                   GET_OPCODE(ins) == OP_MUL ? LUAR_OP_MUL : LUAR_OP_DIV;
+        op->a = (uint8_t)ka;
         op->b = (uint8_t)GETARG_B(ins);
         op->c = (uint8_t)GETARG_C(ins);
+        op->tb = (uint8_t)tb;
+        op->ta = (op->kind == LUAR_OP_DIV || tb == LUAR_T_FLOAT ||
+                  tc == LUAR_T_FLOAT) ? LUAR_T_FLOAT : LUAR_T_INT;
+        op->ta = (op->kind == LUAR_OP_DIV || tb == LUAR_T_FLOAT ||
+                  tc == LUAR_T_FLOAT) ? LUAR_T_FLOAT : LUAR_T_INT;
+        cur[op->a] = op->ta;
+        def[op->a] = 1;
         break;
+      }
+      case OP_ADDK:
+      case OP_SUBK:
+      case OP_MULK:
+      case OP_DIVK: {
+        int ka = GETARG_A(ins);
+        int idx = (int)GETARG_C(ins);
+        TValue *k;
+        int ct;
+        if (is_control_reg(ka, for_a)) return 0;
+        if (idx < 0 || idx >= p->sizek) return 0;
+        k = &p->k[idx];
+        ct = ttisinteger(k) ? LUAR_T_INT :
+             ttisfloat(k) ? LUAR_T_FLOAT : 0;
+        if (ct == 0) return 0;
+        tb = slot_type(b, cur, def, GETARG_B(ins));
+        if (tb == 0) return 0;
+        add_guard(&d, seen, GETARG_B(ins), tb);
+        op->kind = GET_OPCODE(ins) == OP_ADDK ? LUAR_OP_ADDK :
+                   GET_OPCODE(ins) == OP_SUBK ? LUAR_OP_SUBK :
+                   GET_OPCODE(ins) == OP_MULK ? LUAR_OP_MULK : LUAR_OP_DIVK;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)GETARG_B(ins);
+        op->tb = (uint8_t)tb;
+        op->ta = (op->kind == LUAR_OP_DIVK || tb == LUAR_T_FLOAT ||
+                  ct == LUAR_T_FLOAT) ? LUAR_T_FLOAT : LUAR_T_INT;
+        if (ct == LUAR_T_INT)
+          op->imm = (int64_t)ivalue(k);
+        else
+          op->num = (double)fltvalue(k);
+        cur[op->a] = op->ta;
+        def[op->a] = 1;
+        break;
+      }
       case OP_MMBIN:
       case OP_MMBINI:
       case OP_MMBINK:
@@ -161,7 +290,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         return 0;
     }
     if (op->kind != LUAR_OP_MMBIN && is_control_reg(op->a, for_a))
-      return 0;  /* never let the body rewrite the loop control slots */
+      return 0;
   }
   fn = luar_emit_build(&d, &size);
   if (fn == NULL)

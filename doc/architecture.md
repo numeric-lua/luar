@@ -80,9 +80,10 @@ make correct against an unmodified VM.
 * **T1 is the recorder**, not a compiler: it counts loop backedges, selects
   traces, and records the executed bytecode path plus type feedback.  J1 is
   implemented: hot counters, selection, bytecode snapshots, `jit.stats()`
-  and `jit.trace()`; **T2 exists for x86-64 integer for-loops** (J2): a
+  and `jit.trace()`; **T2 exists for x86-64 numeric for-loops** (J2): a
   whitelisted loop body is emitted with DynASM and runs the remaining
-  iterations on the stack slots, with tag guards and a fixed register ABI.
+  iterations on the stack slots, with int/double tag guards and a fixed
+  register ABI.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact
   bytecode PC; there is no deoptimisation of compiled frames, because
   trace state is always representable as interpreter stack + PC.

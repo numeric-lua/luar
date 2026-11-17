@@ -30,38 +30,30 @@
 
 static void emit_guards (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
-  unsigned char seen[256];
   int i;
-  memset(seen, 0, sizeof(seen));
-  for (i = 0; i < d->nops; i++) {
-    const LuaR_Op *op = &d->ops[i];
-    int regs[2];
-    int n = 0, j;
-    switch (op->kind) {
-      case LUAR_OP_MOVE: regs[n++] = op->b; break;
-      case LUAR_OP_ADDI: regs[n++] = op->b; break;
-      case LUAR_OP_ADD:
-      case LUAR_OP_SUB:
-      case LUAR_OP_MUL: regs[n++] = op->b; regs[n++] = op->c; break;
-      default: break;
-    }
-    for (j = 0; j < n; j++) {
-      int r = regs[j];
-      if (!seen[r]) {
-        seen[r] = 1;
-        | cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)d->tag_int)
-        | jne >3
-      }
-    }
+  for (i = 0; i < d->nguards; i++) {
+    int r = d->guard_reg[i];
+    int tag = (d->guard_type[i] == LUAR_T_FLOAT) ? d->tag_flt : d->tag_int;
+    | cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)tag)
+    | jne >3
   }
-  for (i = 0; i < 3; i++) {
-    int r = d->for_a + i;
-    if (!seen[r]) {
-      seen[r] = 1;
-      | cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)d->tag_int)
-      | jne >3
-    }
+}
+
+static void load_double (dasm_State **Dst, int reg, int type)
+{
+  if (type == LUAR_T_INT) {
+    | mov rax, qword [rbx + ((int)LUAR_SLOT(reg))]
+    | cvtsi2sd xmm0, rax
   }
+  else {
+    | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(reg))]
+  }
+}
+
+static void store_double (dasm_State **Dst, const LuaR_LoopDesc *d, int reg)
+{
+  | movsd qword [rbx + ((int)LUAR_SLOT(reg))], xmm0
+  | mov byte [rbx + ((int)LUAR_TAG(reg))], ((int)d->tag_flt)
 }
 
 static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -69,7 +61,7 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
   int i;
   for (i = 0; i < d->nops; i++) {
     const LuaR_Op *op = &d->ops[i];
-    int a = op->a, b = op->b, c = op->c;
+    int a = op->a, b = op->b;
     switch (op->kind) {
       case LUAR_OP_MOVE:
         | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
@@ -82,32 +74,117 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
         | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
         | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
         break;
+      case LUAR_OP_LOADF:
+      case LUAR_OP_LOADK: {
+        int64_t bits;
+        if (op->kind == LUAR_OP_LOADF || op->ta == LUAR_T_FLOAT) {
+          memcpy(&bits, &op->num, sizeof(bits));
+          | mov64 rax, bits
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_flt)
+        }
+        else {
+          | mov64 rax, op->imm
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        }
+        break;
+      }
       case LUAR_OP_ADDI:
         | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
         | add rax, ((int64_t)op->imm)
         | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
         | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
         break;
+      case LUAR_OP_ADDK:
+      case LUAR_OP_SUBK:
+      case LUAR_OP_MULK:
+      case LUAR_OP_DIVK: {
+        int64_t bits;
+        int isdiv = op->kind == LUAR_OP_DIVK;
+        memcpy(&bits, &op->num, sizeof(bits));
+        load_double(Dst, b, op->tb);
+        if (isdiv || op->ta == LUAR_T_FLOAT) {
+          | mov64 rax, bits
+          | movq xmm1, rax
+          if (op->kind == LUAR_OP_ADDK) {
+            | addsd xmm0, xmm1
+          }
+          if (op->kind == LUAR_OP_SUBK) {
+            | subsd xmm0, xmm1
+          }
+          if (op->kind == LUAR_OP_MULK) {
+            | mulsd xmm0, xmm1
+          }
+          if (isdiv) {
+            | divsd xmm0, xmm1
+          }
+          store_double(Dst, d, a);
+        }
+        else {
+          | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          /* integer constant: op->imm holds the value */
+          if (op->kind == LUAR_OP_ADDK) {
+            | add rax, ((int64_t)op->imm)
+          }
+          if (op->kind == LUAR_OP_SUBK) {
+            | sub rax, ((int64_t)op->imm)
+          }
+          if (op->kind == LUAR_OP_MULK) {
+            | imul rax, ((int64_t)op->imm)
+          }
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        }
+        break;
+      }
       case LUAR_OP_ADD:
-        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        | add rax, qword [rbx + ((int)LUAR_SLOT(c))]
-        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        break;
       case LUAR_OP_SUB:
-        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        | sub rax, qword [rbx + ((int)LUAR_SLOT(c))]
-        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        break;
       case LUAR_OP_MUL:
-        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        | imul rax, qword [rbx + ((int)LUAR_SLOT(c))]
-        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+      case LUAR_OP_DIV: {
+        int isdiv = op->kind == LUAR_OP_DIV;
+        int flt = isdiv || op->ta == LUAR_T_FLOAT || op->tb == LUAR_T_FLOAT;
+        if (flt) {
+          load_double(Dst, b, op->ta);
+          if (op->tb == LUAR_T_INT) {
+            | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            | cvtsi2sd xmm1, rax
+          }
+          else {
+            | movsd xmm1, qword [rbx + ((int)LUAR_SLOT(op->c))]
+          }
+          if (op->kind == LUAR_OP_ADD) {
+            | addsd xmm0, xmm1
+          }
+          if (op->kind == LUAR_OP_SUB) {
+            | subsd xmm0, xmm1
+          }
+          if (op->kind == LUAR_OP_MUL) {
+            | mulsd xmm0, xmm1
+          }
+          if (isdiv) {
+            | divsd xmm0, xmm1
+          }
+          store_double(Dst, d, a);
+        }
+        else {
+          | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          if (op->kind == LUAR_OP_ADD) {
+            | add rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+          }
+          if (op->kind == LUAR_OP_SUB) {
+            | sub rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+          }
+          if (op->kind == LUAR_OP_MUL) {
+            | imul rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+          }
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        }
         break;
+      }
       case LUAR_OP_MMBIN:
-        break;  /* integer fast path proved by the guards */
+        break;  /* numeric fast path proved by the guards */
       default:
         break;
     }

@@ -28,6 +28,26 @@ local q = 0
 for i = 1, 5000, 7 do q = q + i end
 H.eq(q, 1787500)
 
+-- float arithmetic: MULK, mixed integer/float operands, DIV
+local fx = 0.0
+for i = 1, 5000 do fx = fx + i * 0.25 end
+H.eq(fx, 3125625.0)
+local mix = 0
+for i = 1, 5000 do mix = mix + i * 0.5 end
+H.eq(mix, 6251250.0)
+local dv = 0.0
+for i = 1, 5000 do dv = dv + i / 4.0 end
+H.eq(dv, 3125625.0)
+
+-- a type change makes the guards bail out and the interpreter takes over
+local function scaled (a)
+  local t = 0
+  for i = 1, 5000 do t = t + a * i end
+  return t
+end
+H.eq(scaled(2), 25005000)
+H.eq(scaled(2.5), 31256250.0)
+
 -- multiplication (small values, no overflow ambiguity)
 local m = 1
 for i = 1, 10 do m = m * 3 end

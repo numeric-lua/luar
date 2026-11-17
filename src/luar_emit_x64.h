@@ -39,16 +39,19 @@
 #define DASM_MAXSECTION		1
 #line 26 "src/luar_emit_x64.dasc"
 //|.actionlist luar_emit_actions
-static const unsigned char luar_emit_actions[166] = {
-  128,187,233,235,15,133,244,249,255,72,139,131,233,72,137,131,233,138,131,
-  233,136,131,233,255,72,184,237,237,72,137,131,233,198,131,233,235,255,72,
-  139,131,233,72,129,192,239,72,137,131,233,198,131,233,235,255,72,139,131,
-  233,72,3,131,233,72,137,131,233,198,131,233,235,255,72,139,131,233,72,43,
-  131,233,72,137,131,233,198,131,233,235,255,72,139,131,233,72,15,175,131,233,
-  72,137,131,233,198,131,233,235,255,83,72,137,252,251,255,248,1,255,72,139,
-  131,233,72,133,192,15,132,244,248,72,252,255,200,72,137,131,233,72,139,139,
-  233,72,3,139,233,72,137,139,233,252,233,244,1,248,2,184,1,0,0,0,91,195,248,
-  3,49,192,91,195,255
+static const unsigned char luar_emit_actions[231] = {
+  128,187,233,235,15,133,244,249,255,72,139,131,233,252,242,72,15,42,192,255,
+  252,242,15,16,131,233,255,252,242,15,17,131,233,198,131,233,235,255,72,139,
+  131,233,72,137,131,233,138,131,233,136,131,233,255,72,184,237,237,72,137,
+  131,233,198,131,233,235,255,72,139,131,233,72,129,192,239,72,137,131,233,
+  198,131,233,235,255,72,184,237,237,102,72,15,110,200,255,252,242,15,88,193,
+  255,252,242,15,92,193,255,252,242,15,89,193,255,252,242,15,94,193,255,72,
+  139,131,233,255,72,129,192,239,255,72,129,232,239,255,72,105,192,239,255,
+  72,139,131,233,252,242,72,15,42,200,255,252,242,15,16,139,233,255,72,3,131,
+  233,255,72,43,131,233,255,72,15,175,131,233,255,83,72,137,252,251,255,248,
+  1,255,72,139,131,233,72,133,192,15,132,244,248,72,252,255,200,72,137,131,
+  233,72,139,139,233,72,3,139,233,72,137,139,233,252,233,244,1,248,2,184,1,
+  0,0,0,91,195,248,3,49,192,91,195,255
 };
 
 #line 27 "src/luar_emit_x64.dasc"
@@ -58,42 +61,38 @@ static const unsigned char luar_emit_actions[166] = {
 
 static void emit_guards (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
-  unsigned char seen[256];
   int i;
-  memset(seen, 0, sizeof(seen));
-  for (i = 0; i < d->nops; i++) {
-    const LuaR_Op *op = &d->ops[i];
-    int regs[2];
-    int n = 0, j;
-    switch (op->kind) {
-      case LUAR_OP_MOVE: regs[n++] = op->b; break;
-      case LUAR_OP_ADDI: regs[n++] = op->b; break;
-      case LUAR_OP_ADD:
-      case LUAR_OP_SUB:
-      case LUAR_OP_MUL: regs[n++] = op->b; regs[n++] = op->c; break;
-      default: break;
-    }
-    for (j = 0; j < n; j++) {
-      int r = regs[j];
-      if (!seen[r]) {
-        seen[r] = 1;
-        //| cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)d->tag_int)
-        //| jne >3
-        dasm_put(Dst, 0, ((int)LUAR_TAG(r)), ((int)d->tag_int));
-#line 54 "src/luar_emit_x64.dasc"
-      }
-    }
+  for (i = 0; i < d->nguards; i++) {
+    int r = d->guard_reg[i];
+    int tag = (d->guard_type[i] == LUAR_T_FLOAT) ? d->tag_flt : d->tag_int;
+    //| cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)tag)
+    //| jne >3
+    dasm_put(Dst, 0, ((int)LUAR_TAG(r)), ((int)tag));
+#line 39 "src/luar_emit_x64.dasc"
   }
-  for (i = 0; i < 3; i++) {
-    int r = d->for_a + i;
-    if (!seen[r]) {
-      seen[r] = 1;
-      //| cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)d->tag_int)
-      //| jne >3
-      dasm_put(Dst, 0, ((int)LUAR_TAG(r)), ((int)d->tag_int));
-#line 63 "src/luar_emit_x64.dasc"
-    }
+}
+
+static void load_double (dasm_State **Dst, int reg, int type)
+{
+  if (type == LUAR_T_INT) {
+    //| mov rax, qword [rbx + ((int)LUAR_SLOT(reg))]
+    //| cvtsi2sd xmm0, rax
+    dasm_put(Dst, 9, ((int)LUAR_SLOT(reg)));
+#line 47 "src/luar_emit_x64.dasc"
   }
+  else {
+    //| movsd xmm0, qword [rbx + ((int)LUAR_SLOT(reg))]
+    dasm_put(Dst, 20, ((int)LUAR_SLOT(reg)));
+#line 50 "src/luar_emit_x64.dasc"
+  }
+}
+
+static void store_double (dasm_State **Dst, const LuaR_LoopDesc *d, int reg)
+{
+  //| movsd qword [rbx + ((int)LUAR_SLOT(reg))], xmm0
+  //| mov byte [rbx + ((int)LUAR_TAG(reg))], ((int)d->tag_flt)
+  dasm_put(Dst, 27, ((int)LUAR_SLOT(reg)), ((int)LUAR_TAG(reg)), ((int)d->tag_flt));
+#line 57 "src/luar_emit_x64.dasc"
 }
 
 static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -101,57 +100,182 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
   int i;
   for (i = 0; i < d->nops; i++) {
     const LuaR_Op *op = &d->ops[i];
-    int a = op->a, b = op->b, c = op->c;
+    int a = op->a, b = op->b;
     switch (op->kind) {
       case LUAR_OP_MOVE:
         //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
         //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
         //| mov al, byte [rbx + ((int)LUAR_TAG(b))]
         //| mov byte [rbx + ((int)LUAR_TAG(a))], al
-        dasm_put(Dst, 9, ((int)LUAR_SLOT(b)), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(b)), ((int)LUAR_TAG(a)));
-#line 79 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 38, ((int)LUAR_SLOT(b)), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(b)), ((int)LUAR_TAG(a)));
+#line 71 "src/luar_emit_x64.dasc"
         break;
       case LUAR_OP_LOADI:
         //| mov64 rax, ((int64_t)op->imm)
         //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
         //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        dasm_put(Dst, 24, (unsigned int)(((int64_t)op->imm)), (unsigned int)((((int64_t)op->imm))>>32), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
-#line 84 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 53, (unsigned int)(((int64_t)op->imm)), (unsigned int)((((int64_t)op->imm))>>32), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
+#line 76 "src/luar_emit_x64.dasc"
         break;
+      case LUAR_OP_LOADF:
+      case LUAR_OP_LOADK: {
+        int64_t bits;
+        if (op->kind == LUAR_OP_LOADF || op->ta == LUAR_T_FLOAT) {
+          memcpy(&bits, &op->num, sizeof(bits));
+          //| mov64 rax, bits
+          //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_flt)
+          dasm_put(Dst, 53, (unsigned int)(bits), (unsigned int)((bits)>>32), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_flt));
+#line 85 "src/luar_emit_x64.dasc"
+        }
+        else {
+          //| mov64 rax, op->imm
+          //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+          dasm_put(Dst, 53, (unsigned int)(op->imm), (unsigned int)((op->imm)>>32), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
+#line 90 "src/luar_emit_x64.dasc"
+        }
+        break;
+      }
       case LUAR_OP_ADDI:
         //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
         //| add rax, ((int64_t)op->imm)
         //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
         //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        dasm_put(Dst, 37, ((int)LUAR_SLOT(b)), ((int64_t)op->imm), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
-#line 90 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 66, ((int)LUAR_SLOT(b)), ((int64_t)op->imm), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
+#line 98 "src/luar_emit_x64.dasc"
         break;
+      case LUAR_OP_ADDK:
+      case LUAR_OP_SUBK:
+      case LUAR_OP_MULK:
+      case LUAR_OP_DIVK: {
+        int64_t bits;
+        int isdiv = op->kind == LUAR_OP_DIVK;
+        memcpy(&bits, &op->num, sizeof(bits));
+        load_double(Dst, b, op->tb);
+        if (isdiv || op->ta == LUAR_T_FLOAT) {
+          //| mov64 rax, bits
+          //| movq xmm1, rax
+          dasm_put(Dst, 83, (unsigned int)(bits), (unsigned int)((bits)>>32));
+#line 110 "src/luar_emit_x64.dasc"
+          if (op->kind == LUAR_OP_ADDK) {
+            //| addsd xmm0, xmm1
+            dasm_put(Dst, 93);
+#line 112 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_SUBK) {
+            //| subsd xmm0, xmm1
+            dasm_put(Dst, 99);
+#line 115 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_MULK) {
+            //| mulsd xmm0, xmm1
+            dasm_put(Dst, 105);
+#line 118 "src/luar_emit_x64.dasc"
+          }
+          if (isdiv) {
+            //| divsd xmm0, xmm1
+            dasm_put(Dst, 111);
+#line 121 "src/luar_emit_x64.dasc"
+          }
+          store_double(Dst, d, a);
+        }
+        else {
+          //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          dasm_put(Dst, 117, ((int)LUAR_SLOT(b)));
+#line 126 "src/luar_emit_x64.dasc"
+          /* integer constant: op->imm holds the value */
+          if (op->kind == LUAR_OP_ADDK) {
+            //| add rax, ((int64_t)op->imm)
+            dasm_put(Dst, 122, ((int64_t)op->imm));
+#line 129 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_SUBK) {
+            //| sub rax, ((int64_t)op->imm)
+            dasm_put(Dst, 127, ((int64_t)op->imm));
+#line 132 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_MULK) {
+            //| imul rax, ((int64_t)op->imm)
+            dasm_put(Dst, 132, ((int64_t)op->imm));
+#line 135 "src/luar_emit_x64.dasc"
+          }
+          //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+          dasm_put(Dst, 57, ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
+#line 138 "src/luar_emit_x64.dasc"
+        }
+        break;
+      }
       case LUAR_OP_ADD:
-        //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        //| add rax, qword [rbx + ((int)LUAR_SLOT(c))]
-        //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        dasm_put(Dst, 54, ((int)LUAR_SLOT(b)), ((int)LUAR_SLOT(c)), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
-#line 96 "src/luar_emit_x64.dasc"
-        break;
       case LUAR_OP_SUB:
-        //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        //| sub rax, qword [rbx + ((int)LUAR_SLOT(c))]
-        //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        dasm_put(Dst, 71, ((int)LUAR_SLOT(b)), ((int)LUAR_SLOT(c)), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
-#line 102 "src/luar_emit_x64.dasc"
-        break;
       case LUAR_OP_MUL:
-        //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        //| imul rax, qword [rbx + ((int)LUAR_SLOT(c))]
-        //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
-        dasm_put(Dst, 88, ((int)LUAR_SLOT(b)), ((int)LUAR_SLOT(c)), ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
-#line 108 "src/luar_emit_x64.dasc"
+      case LUAR_OP_DIV: {
+        int isdiv = op->kind == LUAR_OP_DIV;
+        int flt = isdiv || op->ta == LUAR_T_FLOAT || op->tb == LUAR_T_FLOAT;
+        if (flt) {
+          load_double(Dst, b, op->ta);
+          if (op->tb == LUAR_T_INT) {
+            //| mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            //| cvtsi2sd xmm1, rax
+            dasm_put(Dst, 137, ((int)LUAR_SLOT(op->c)));
+#line 152 "src/luar_emit_x64.dasc"
+          }
+          else {
+            //| movsd xmm1, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            dasm_put(Dst, 148, ((int)LUAR_SLOT(op->c)));
+#line 155 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_ADD) {
+            //| addsd xmm0, xmm1
+            dasm_put(Dst, 93);
+#line 158 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_SUB) {
+            //| subsd xmm0, xmm1
+            dasm_put(Dst, 99);
+#line 161 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_MUL) {
+            //| mulsd xmm0, xmm1
+            dasm_put(Dst, 105);
+#line 164 "src/luar_emit_x64.dasc"
+          }
+          if (isdiv) {
+            //| divsd xmm0, xmm1
+            dasm_put(Dst, 111);
+#line 167 "src/luar_emit_x64.dasc"
+          }
+          store_double(Dst, d, a);
+        }
+        else {
+          //| mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          dasm_put(Dst, 117, ((int)LUAR_SLOT(b)));
+#line 172 "src/luar_emit_x64.dasc"
+          if (op->kind == LUAR_OP_ADD) {
+            //| add rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            dasm_put(Dst, 155, ((int)LUAR_SLOT(op->c)));
+#line 174 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_SUB) {
+            //| sub rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            dasm_put(Dst, 160, ((int)LUAR_SLOT(op->c)));
+#line 177 "src/luar_emit_x64.dasc"
+          }
+          if (op->kind == LUAR_OP_MUL) {
+            //| imul rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            dasm_put(Dst, 165, ((int)LUAR_SLOT(op->c)));
+#line 180 "src/luar_emit_x64.dasc"
+          }
+          //| mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          //| mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+          dasm_put(Dst, 57, ((int)LUAR_SLOT(a)), ((int)LUAR_TAG(a)), ((int)d->tag_int));
+#line 183 "src/luar_emit_x64.dasc"
+        }
         break;
+      }
       case LUAR_OP_MMBIN:
-        break;  /* integer fast path proved by the guards */
+        break;  /* numeric fast path proved by the guards */
       default:
         break;
     }
@@ -162,12 +286,12 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
   //| push rbx
   //| mov rbx, rdi
-  dasm_put(Dst, 106);
-#line 121 "src/luar_emit_x64.dasc"
+  dasm_put(Dst, 171);
+#line 198 "src/luar_emit_x64.dasc"
   emit_guards(Dst, d);
   //|1:
-  dasm_put(Dst, 112);
-#line 123 "src/luar_emit_x64.dasc"
+  dasm_put(Dst, 177);
+#line 200 "src/luar_emit_x64.dasc"
   emit_body(Dst, d);
   /* Exact FORLOOP semantics: while count > 0, decrement, advance the index
   ** and run the body again.  When count is already zero the body just ran
@@ -189,8 +313,8 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| xor eax, eax
   //| pop rbx
   //| ret
-  dasm_put(Dst, 115, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)), ((int)LUAR_SLOT(d->for_a + 1)), ((int)LUAR_SLOT(d->for_a + 2)));
-#line 144 "src/luar_emit_x64.dasc"
+  dasm_put(Dst, 180, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)), ((int)LUAR_SLOT(d->for_a + 1)), ((int)LUAR_SLOT(d->for_a + 2)));
+#line 221 "src/luar_emit_x64.dasc"
 }
 
 LuaR_LoopFn luar_emit_build (const LuaR_LoopDesc *d, size_t *code_size)

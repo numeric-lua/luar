@@ -17,17 +17,29 @@
 typedef enum {
   LUAR_OP_MOVE,
   LUAR_OP_LOADI,
+  LUAR_OP_LOADF,
+  LUAR_OP_LOADK,
   LUAR_OP_ADDI,
   LUAR_OP_ADD,
   LUAR_OP_SUB,
   LUAR_OP_MUL,
+  LUAR_OP_DIV,
+  LUAR_OP_ADDK,
+  LUAR_OP_SUBK,
+  LUAR_OP_MULK,
+  LUAR_OP_DIVK,
   LUAR_OP_MMBIN
 } LuaR_OpKind;
+
+/* Register flavours known to the compiled loop. */
+enum { LUAR_T_INT = 1, LUAR_T_FLOAT = 2 };
 
 typedef struct LuaR_Op {
   uint8_t kind;
   uint8_t a, b, c;
-  int32_t imm;
+  uint8_t ta, tb;	/* operand flavours (LUAR_T_*) */
+  int64_t imm;		/* LOADI/LOADK integer or constant value */
+  double num;		/* LOADF value or constant value */
 } LuaR_Op;
 
 typedef struct LuaR_LoopDesc {
@@ -35,6 +47,10 @@ typedef struct LuaR_LoopDesc {
   int nops;
   int for_a;		/* FORLOOP A: count, step and index slots */
   int tag_int;		/* LUA_VNUMINT value for the guards */
+  int tag_flt;		/* LUA_VNUMFLT value for the guards */
+  int nguards;
+  uint8_t guard_reg[256];
+  uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;
 
 /* x86-64 SysV: int f(void *base), base points at register R0. */
