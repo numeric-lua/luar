@@ -1015,10 +1015,25 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
         CType *ft = apply_node(P, node, ds.base, &name);
         if (name == NULL)
           parser_error(P, "expected a field name");
-        if (accept_punct(P, ':'))
-          parser_error(P, "bitfields are not supported");
-        reject_unsupported(P);
-        ffi_type_add_field(P->S, ct, name, ft);
+        if (accept_punct(P, ':')) {
+          int64_t width = parse_const_expr(P);
+          size_t bits;
+          if (ct->kind == CT_UNION)
+            parser_error(P, "bitfields in unions are not supported");
+          if (ft->kind != CT_INT && ft->kind != CT_ENUM &&
+              ft->kind != CT_BOOL)
+            parser_error(P, "bitfield '%s' must have an integer type", name);
+          bits = ffi_type_size(ft) * 8;
+          if (width <= 0 || (uint64_t)width > bits)
+            parser_error(P, "bitfield '%s' width %d is out of range",
+                         name, (int)width);
+          ffi_type_add_field(P->S, ct, name, ft);
+          ct->fields[ct->nfields - 1].bitwidth = (uint8_t)width;
+        }
+        else {
+          reject_unsupported(P);
+          ffi_type_add_field(P->S, ct, name, ft);
+        }
         if (accept_punct(P, ','))
           continue;
         expect_punct(P, ';', ";");

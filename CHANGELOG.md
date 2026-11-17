@@ -21,6 +21,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
   closure, and `string.format` skips its cdata rewrite when no argument is
   cdata.
+- FFI bitfields for integer/enum/`_Bool` struct fields: GCC-style same-base
+  packing, signed extraction, masking on set, positional/named
+  initializers; mixed-size/union bitfields and by-value bitfield structs
+  fail clearly.
 - `__thread`/`_Thread_local` globals are supported through the existing
   dlsym symbol path, with read/write access from Lua.
 - `ffi.callback` returns structs by value when the Lua callback returns a

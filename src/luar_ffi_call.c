@@ -449,6 +449,9 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
   ft->type = FFI_TYPE_STRUCT;
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
+    if (f->bitwidth != 0)
+      luaL_error(L, "ffi: struct '%s' has a bitfield and cannot be passed "
+                    "by value", ffi_type_repr(S, ct));
     if (f->type->kind == CT_UNION)
       luaL_error(L, "ffi: struct '%s' has a union member and cannot be "
                     "passed by value", ffi_type_repr(S, ct));

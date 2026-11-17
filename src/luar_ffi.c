@@ -525,6 +525,52 @@ static void init_array_to (lua_State *L, FFIState *S, CType *ct,
 }
 
 
+static uint64_t bitfield_load (const CField *f, const void *p) {
+  uint64_t raw = 0;
+  size_t sz = ffi_type_size(f->type);
+  uint64_t mask = (f->bitwidth == 64) ? ~(uint64_t)0 :
+                  (((uint64_t)1 << f->bitwidth) - 1);
+  memcpy(&raw, p, sz);
+  raw = (raw >> f->bitoffset) & mask;
+  if (f->bitwidth < 64 && !f->type->is_unsigned &&
+      f->type->kind != CT_BOOL && (raw & ((uint64_t)1 << (f->bitwidth - 1))))
+    raw |= ~mask;
+  return raw;
+}
+
+
+static void bitfield_store (lua_State *L, FFIState *S, const CField *f,
+                            void *p, int idx, const char *what) {
+  size_t sz = ffi_type_size(f->type);
+  uint64_t mask = (f->bitwidth == 64) ? ~(uint64_t)0 :
+                  (((uint64_t)1 << f->bitwidth) - 1);
+  uint64_t raw = 0, v;
+  int ok = 0;
+  if (f->type->kind == CT_BOOL && lua_isboolean(L, idx))
+    v = (uint64_t)lua_toboolean(L, idx);
+  else if (f->type->is_unsigned || f->type->kind == CT_BOOL)
+    v = ffi_to_uint(L, S, idx, &ok);
+  else
+    v = (uint64_t)ffi_to_int(L, S, idx, &ok);
+  if (!ok)
+    luaL_error(L, "ffi: %s needs an integer for bitfield '%s'", what,
+               f->name != NULL ? f->name : "<anonymous>");
+  memcpy(&raw, p, sz);
+  raw &= ~(mask << f->bitoffset);
+  raw |= (v & mask) << f->bitoffset;
+  memcpy(p, &raw, sz);
+}
+
+
+static void field_convert (lua_State *L, FFIState *S, CField *f, void *p,
+                           int idx, const char *what) {
+  if (f->bitwidth != 0)
+    bitfield_store(L, S, f, p, idx, what);
+  else
+    ffi_convert(L, S, f->type, p, idx, what);
+}
+
+
 static void init_struct_pos (lua_State *L, FFIState *S, CType *ct,
                              void *dst, int idx, int base, int *pos,
                              const char *what) {
@@ -541,14 +587,14 @@ static void init_struct_pos (lua_State *L, FFIState *S, CType *ct,
     lua_geti(L, idx, (lua_Integer)(base + *pos));
     if (!lua_isnil(L, -1)) {
       (*pos)++;
-      ffi_convert(L, S, f->type, (char *)dst + f->offset, -1, what);
+      field_convert(L, S, f, (char *)dst + f->offset, -1, what);
       lua_pop(L, 1);
     }
     else {
       lua_pop(L, 1);
       lua_getfield(L, idx, f->name);
       if (!lua_isnil(L, -1))
-        ffi_convert(L, S, f->type, (char *)dst + f->offset, -1, what);
+        field_convert(L, S, f, (char *)dst + f->offset, -1, what);
       lua_pop(L, 1);
     }
     if (ct->kind == CT_UNION)
@@ -625,7 +671,7 @@ static void init_struct_args (lua_State *L, FFIState *S, CType *ct,
     }
     if (*argi > top)
       break;
-    ffi_convert(L, S, f->type, (char *)dst + f->offset, *argi, what);
+    field_convert(L, S, f, (char *)dst + f->offset, *argi, what);
     (*argi)++;
     if (ct->kind == CT_UNION)
       break;
@@ -921,6 +967,10 @@ static int cdata_field (lua_State *L, FFIState *S, CData *cd,
     return 0;
   {
     void *p = (char *)base + off;
+    if (f->bitwidth != 0) {
+      lua_pushinteger(L, (lua_Integer)bitfield_load(f, p));
+      return 1;
+    }
     if (ft->kind == CT_STRUCT || ft->kind == CT_UNION ||
         ft->kind == CT_ARRAY) {
       size_t len = (ft->kind == CT_ARRAY && !ft->vla) ? ft->length : 0;
@@ -959,7 +1009,10 @@ static int cdata_field_set (lua_State *L, FFIState *S, CData *cd,
   f = ffi_type_find_field(st, name, &off, &ft);
   if (f == NULL)
     return 0;
-  ffi_convert(L, S, ft, (char *)base + off, 3, "field assignment");
+  if (f->bitwidth != 0)
+    bitfield_store(L, S, f, (char *)base + off, 3, "field assignment");
+  else
+    ffi_convert(L, S, ft, (char *)base + off, 3, "field assignment");
   return 1;
 }
 

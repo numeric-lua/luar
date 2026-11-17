@@ -80,6 +80,8 @@ struct CField {
   char *name;		/* NULL for an anonymous struct/union member */
   CType *type;
   size_t offset;
+  uint8_t bitwidth;	/* 0 for a normal field */
+  uint8_t bitoffset;	/* bit position inside the storage unit */
 };
 
 typedef struct FCallCache FCallCache;

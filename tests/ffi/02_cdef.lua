@@ -78,6 +78,8 @@ H.eq(ffi.sizeof("struct UsesFwd"), 8)
 H.eq(ffi.sizeof("struct Fwd"), 4)
 H.eq(ffi.sizeof("int[?]", 7), 28)
 H.eq(ffi.alignof("int[?]"), 4)
+ffi.cdef("struct BitOnly { int x : 3; };")
+H.eq(ffi.sizeof("struct BitOnly"), 4)
 
 -- Errors must be clear and name the offending token.
 local function bad (src, needle)
@@ -93,7 +95,8 @@ end
 bad("#define X 1", "preprocessor")
 bad("int f(int x) __attribute__((unused));", "unsupported C construct")
 bad("struct __attribute__((packed)) S { int x; };", "unsupported C construct")
-bad("struct B { int x : 3; };", "bitfield")
+bad("struct B { int x : 0; };", "width")
+bad("union U { int x : 3; };", "bitfields in unions")
 bad("long double d;", "long double")
 bad("int x", "expected ';'")
 bad("struct C { int; };", "does not declare")

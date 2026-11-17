@@ -422,8 +422,12 @@ Deliberately unsupported call features:
 * `__thread`/`_Thread_local` globals resolve through `dlsym` for the
   calling thread; LuaR does not create or migrate threads, and another C
   thread sees its own instance.
-* `long double`, bitfields, complex numbers, vectors and packing attributes
-  are not implemented, and preprocessor macros are not parsed.  `ffi.callback`
+* Bitfields are supported for integer, enum and `_Bool` fields in structs,
+  with GCC-style packing when a run uses one base type.  Mixed-size
+  bitfield runs, union bitfields and by-value bitfield structs are
+  rejected rather than laid out incorrectly.  `long double`, complex
+  numbers, vectors and packing attributes are not implemented, and
+  preprocessor macros are not parsed.  `ffi.callback`
   supports non-variadic types, including struct-by-value returns when the
   callback returns a matching cdata; union/array returns fail clearly.  None are silently emulated.
 * The implementation is little-endian-load based and has only been tested
@@ -457,6 +461,8 @@ probes, and variadic probes.  Coverage includes:
   comparisons, `tonumber`, and `tostring` formats;
 * `ffi.string`, `ffi.copy` (including the 2-argument string form),
   `ffi.fill`, and their bounds errors;
+* bitfield layout (mixed same-size bases, signed extraction, masking),
+  get/set, positional/named initializers and by-value rejection;
 * `ffi.callback` (qsort via a real C comparator, struct-by-value arguments,
   direct calls, errors, GC lifetime) and `ffi.callback_error`;
 * `ffi.metatype` constructors, `__index`/`__newindex`/`__tostring`/`__call`,

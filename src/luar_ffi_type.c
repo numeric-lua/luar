@@ -394,6 +394,8 @@ static size_t round_up (size_t n, size_t align) {
 
 void ffi_type_finish_struct (FFIState *S, CType *ct) {
   size_t off = 0, maxsize = 0, align = 1;
+  size_t unit_start = 0, unit_size = 0, bit_used = 0;
+  int in_unit = 0;
   uint16_t i;
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
@@ -406,17 +408,50 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
     if (fal > align)
       align = fal;
     if (ct->kind == CT_UNION) {
+      if (f->bitwidth != 0)
+        luaL_error(S->L, "ffi: bitfields in unions are not supported");
       f->offset = 0;
       if (fsz > maxsize)
         maxsize = fsz;
+      continue;
+    }
+    if (f->bitwidth != 0) {
+      size_t bits = fsz * 8;
+      if (in_unit && fsz != unit_size)
+        luaL_error(S->L, "ffi: bitfields with different base types in one "
+                         "struct are not supported");
+      if (!in_unit || bit_used + f->bitwidth > bits) {
+        if (in_unit)
+          off = unit_start + unit_size;
+        off = round_up(off, fal);
+        unit_start = off;
+        unit_size = fsz;
+        bit_used = 0;
+        in_unit = 1;
+      }
+      f->offset = unit_start;
+      f->bitoffset = (uint8_t)bit_used;
+      bit_used += f->bitwidth;
+      if (bit_used == bits) {
+        off = unit_start + unit_size;
+        in_unit = 0;
+      }
     }
     else {
+      if (in_unit) {
+        off = unit_start + unit_size;
+        in_unit = 0;
+      }
       off = round_up(off, fal);
       f->offset = off;
       if (fsz > FFI_SIZE_UNKNOWN - off)
         luaL_error(S->L, "ffi: struct layout overflow");
       off += fsz;
     }
+  }
+  if (in_unit) {
+    off = unit_start + unit_size;
+    in_unit = 0;
   }
   ct->align = align;
   if (ct->kind == CT_UNION)

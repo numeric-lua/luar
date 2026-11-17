@@ -206,3 +206,19 @@ struct Pair call_pair_ret_cb (struct Pair (*cb)(void)) {
 __thread int ffi_tls_counter = 11;
 int ffi_tls_get (void) { return ffi_tls_counter; }
 void ffi_tls_set (int v) { ffi_tls_counter = v; }
+/* Bitfield layout and access probes. */
+struct BitPack { unsigned int a : 3; int b : 5; unsigned int c : 8; int d; };
+int size_BitPack (void) { return (int)sizeof(struct BitPack); }
+int off_BitPack_d (void) { return (int)offsetof(struct BitPack, d); }
+int bitpack_a_ptr (const struct BitPack *p) { return (int)p->a; }
+int bitpack_b_ptr (const struct BitPack *p) { return (int)p->b; }
+int bitpack_c_ptr (const struct BitPack *p) { return (int)p->c; }
+int bitpack_d_ptr (const struct BitPack *p) { return p->d; }
+int bitpack_by_value (struct BitPack p) { return (int)p.a; }
+struct BitMix { unsigned char a : 4; unsigned int b : 12;
+                unsigned char c : 4; int d; };
+int size_BitMix (void) { return (int)sizeof(struct BitMix); }
+int off_BitMix_d (void) { return (int)offsetof(struct BitMix, d); }
+int bitmix_a_ptr (const struct BitMix *p) { return (int)p->a; }
+int bitmix_b_ptr (const struct BitMix *p) { return (int)p->b; }
+int bitmix_c_ptr (const struct BitMix *p) { return (int)p->c; }
