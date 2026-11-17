@@ -1613,6 +1613,126 @@ static int cdata_unm (lua_State *L) {
 }
 
 
+static uint64_t pow_u64 (uint64_t x, uint64_t y) {
+  uint64_t r = 1;
+  while (y != 0) {
+    if ((y & 1) != 0)
+      r *= x;
+    y >>= 1;
+    if (y != 0)
+      x *= x;
+  }
+  return r;
+}
+
+
+static int64_t pow_i64 (int64_t x, int64_t y) {
+  if (y < 0) {
+    if (x == 1) return 1;
+    if (x == -1) return ((y & 1) != 0) ? -1 : 1;
+    return 0;
+  }
+  return (int64_t)pow_u64((uint64_t)x, (uint64_t)y);
+}
+
+
+/* Bitwise and shift operators on cdata.  LuaJIT semantics: 64-bit
+** two's-complement results, int64/uint64 cdata output, shift counts use
+** the low six bits, right shifts are logical. */
+static int cdata_bitwise (lua_State *L, int op) {
+  FFIState *S = ffi_getstate(L);
+  CData *a = ffi_tocdata(L, 1);
+  int two = (op != '~');
+  CData *b = two ? ffi_tocdata(L, 2) : NULL;
+  int uns;
+  int ok1 = 1, ok2 = 1;
+  uint64_t x, y = 0, z = 0;
+  CData *r;
+
+  if (!numeric_operand(L, 1) || (two && !numeric_operand(L, 2)))
+    return luaL_error(L, "ffi: invalid operands for C bitwise operation");
+
+  /* '&', '|' and '^' are unsigned if either operand is unsigned 64-bit;
+  ** shifts follow the left operand, as in LuaJIT. */
+  uns = cdata_is_unsigned64(a);
+  if (two && (op == '&' || op == '|' || op == '^'))
+    uns = uns || cdata_is_unsigned64(b);
+
+  x = uns ? ffi_to_uint(L, S, 1, &ok1)
+          : (uint64_t)ffi_to_int(L, S, 1, &ok1);
+  if (!ok1)
+    return luaL_error(L, "ffi: cannot convert operand to an integer");
+  if (two) {
+    y = uns ? ffi_to_uint(L, S, 2, &ok2)
+            : (uint64_t)ffi_to_int(L, S, 2, &ok2);
+    if (!ok2)
+      return luaL_error(L, "ffi: cannot convert operand to an integer");
+  }
+
+  switch (op) {
+    case '&': z = x & y; break;
+    case '|': z = x | y; break;
+    case '^': z = x ^ y; break;
+    case '~': z = ~x; break;
+    case 'L': z = x << (y & 63); break;
+    case 'R': z = x >> (y & 63); break;
+    default: return luaL_error(L, "ffi: bad bitwise operation");
+  }
+
+  if (uns) {
+    r = ffi_push_scalar(L, S, uint64_type(S));
+    ffi_store_uint(&r->v, 8, z);
+  }
+  else {
+    r = ffi_push_scalar(L, S, int64_type(S));
+    ffi_store_int(&r->v, 8, (int64_t)z);
+  }
+  return 1;
+}
+
+
+static int cdata_band (lua_State *L) { return cdata_bitwise(L, '&'); }
+static int cdata_bor (lua_State *L) { return cdata_bitwise(L, '|'); }
+static int cdata_bxor (lua_State *L) { return cdata_bitwise(L, '^'); }
+static int cdata_bnot (lua_State *L) { return cdata_bitwise(L, '~'); }
+static int cdata_shl (lua_State *L) { return cdata_bitwise(L, 'L'); }
+static int cdata_shr (lua_State *L) { return cdata_bitwise(L, 'R'); }
+
+
+static int cdata_idiv (lua_State *L) { return cdata_arith(L, '/'); }
+
+
+static int cdata_pow (lua_State *L) {
+  FFIState *S = ffi_getstate(L);
+  CData *a = ffi_tocdata(L, 1);
+  CData *b = ffi_tocdata(L, 2);
+  int uns;
+  int ok1 = 1, ok2 = 1;
+  CData *r;
+
+  if (!numeric_operand(L, 1) || !numeric_operand(L, 2))
+    return luaL_error(L, "ffi: invalid operands for C arithmetic");
+  uns = cdata_is_unsigned64(a) || cdata_is_unsigned64(b);
+  if (uns) {
+    uint64_t x = ffi_to_uint(L, S, 1, &ok1);
+    uint64_t y = ffi_to_uint(L, S, 2, &ok2);
+    if (!ok1 || !ok2)
+      return luaL_error(L, "ffi: invalid integer arithmetic");
+    r = ffi_push_scalar(L, S, uint64_type(S));
+    ffi_store_uint(&r->v, 8, pow_u64(x, y));
+  }
+  else {
+    int64_t x = ffi_to_int(L, S, 1, &ok1);
+    int64_t y = ffi_to_int(L, S, 2, &ok2);
+    if (!ok1 || !ok2)
+      return luaL_error(L, "ffi: invalid integer arithmetic");
+    r = ffi_push_scalar(L, S, int64_type(S));
+    ffi_store_int(&r->v, 8, pow_i64(x, y));
+  }
+  return 1;
+}
+
+
 static int cdata_call (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *cd = ffi_checkcdata(L, 1, "__call");
@@ -2089,6 +2209,14 @@ static const luaL_Reg cdata_meta[] = {
   {"__mul", cdata_mul},
   {"__div", cdata_div},
   {"__mod", cdata_mod},
+  {"__idiv", cdata_idiv},
+  {"__pow", cdata_pow},
+  {"__band", cdata_band},
+  {"__bor", cdata_bor},
+  {"__bxor", cdata_bxor},
+  {"__bnot", cdata_bnot},
+  {"__shl", cdata_shl},
+  {"__shr", cdata_shr},
   {"__unm", cdata_unm},
   {"__gc", cdata_gc},
   {NULL, NULL}

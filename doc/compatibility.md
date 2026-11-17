@@ -107,7 +107,7 @@ Deliberate deviations, all documented:
 
 Not supported: C preprocessor, bitfields, `long double`/complex/vector
 types, packing attributes, variadic calls, C→Lua callbacks
-(`ffi.callback`), `ffi.typeinfo`, and cdata bitwise/shift operators.
+(`ffi.callback`), and `ffi.typeinfo`.
 
 ### 3.4 Other LuaJIT libraries
 

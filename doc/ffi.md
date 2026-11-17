@@ -218,6 +218,14 @@ case it is `uint64_t` cdata.  `+ - * / %` and unary `-` wrap in 64 bits;
 division/modulo by zero and `INT64_MIN / -1` follow LuaJIT's sentinel
 behavior.  Comparisons use the same promotion rules.
 
+Bitwise and shift operators (`&`, `|`, `~`, `<<`, `>>`, unary `~`) and
+`//`/`^` are supported with LuaJIT semantics: 64-bit two's-complement
+results, `int64_t` unless an unsigned 64-bit operand applies (`& | ~ ^`
+promote if either operand is unsigned; shifts follow the left operand),
+shift counts masked to six bits, logical right shifts, integer powers
+(with `x^-n` following LuaJIT's 0/±1 rules), and C-truncating `//`.
+Pointer operands are rejected rather than reinterpreted.
+
 `tonumber(cdata)` is supported for numeric cdata through a wrapper around
 the global `tonumber` (the original function is saved and used for all
 non-cdata values).  `tostring` produces LuaJIT-style output: `ctype<int>`
