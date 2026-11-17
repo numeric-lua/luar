@@ -13,7 +13,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 - FFI parser hardening: constant-expression arithmetic wraps in 64 bits,
   `INT64_MIN / -1` and `% -1` no longer trap, and deeply nested declarators
   or constant expressions raise a Lua error instead of overflowing the C
-  stack.  Found by the new deterministic cdef fuzzer.
+  stack, and function type ids are sized from their parts (no buffer
+  overflow for long type names).  Found by the new deterministic cdef
+  fuzzer.
 - `string.format` integration for cdata: integer conversions and
   `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
 - A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the

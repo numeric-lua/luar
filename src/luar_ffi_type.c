@@ -286,7 +286,8 @@ CType *ffi_type_func (lua_State *L, FFIState *S, CType *ret,
                           CType **args, int nargs, int vararg) {
   CType *ct = ffi_type_new(S, CT_FUNC);
   int i;
-  size_t cap = 64, used = 0;
+  size_t need = strlen(ret->id) + 8;   /* "f<" ret ">(" ... ")" NUL */
+  size_t used = 0;
   char *id;
   ct->ret = ret;
   ct->vararg = (uint8_t)(vararg != 0);
@@ -295,39 +296,35 @@ CType *ffi_type_func (lua_State *L, FFIState *S, CType *ret,
   ct->align = 1;
   if (nargs > 0) {
     ct->args = (CType **)ffi_alloc(S, sizeof(CType *) * (size_t)nargs);
-    for (i = 0; i < nargs; i++)
+    for (i = 0; i < nargs; i++) {
       ct->args[i] = args[i];
-  }
-  id = (char *)ffi_alloc(S, cap);
-  used = (size_t)snprintf(id, cap, "f<%s>(", ret->id);
-  for (i = 0; i < nargs; i++) {
-    size_t need = strlen(args[i]->id) + 2;
-    if (used + need + 8 > cap) {
-      char *nid;
-      while (used + need + 8 > cap) cap *= 2;
-      nid = (char *)ffi_alloc(S, cap);
-      memcpy(nid, id, used + 1);
-      id = nid;
+      need += strlen(args[i]->id) + 1;
     }
-    used += (size_t)snprintf(id + used, cap - used, "%s%s",
-                             i == 0 ? "" : ",", args[i]->id);
+  }
+  if (vararg)
+    need += 4;                         /* optional ',' + "..." */
+  id = (char *)ffi_alloc(S, need);
+  id[used++] = 'f';
+  id[used++] = '<';
+  memcpy(id + used, ret->id, strlen(ret->id));
+  used += strlen(ret->id);
+  id[used++] = '>';
+  id[used++] = '(';
+  for (i = 0; i < nargs; i++) {
+    size_t n = strlen(args[i]->id);
+    if (i > 0)
+      id[used++] = ',';
+    memcpy(id + used, args[i]->id, n);
+    used += n;
   }
   if (vararg) {
-    if (used + 5 > cap) {
-      char *nid = (char *)ffi_alloc(S, cap * 2);
-      memcpy(nid, id, used + 1);
-      id = nid;
-      cap *= 2;
-    }
-    used += (size_t)snprintf(id + used, cap - used, "%s...",
-                             (nargs == 0) ? "" : ",");
+    if (nargs > 0)
+      id[used++] = ',';
+    memcpy(id + used, "...", 3);
+    used += 3;
   }
-  if (used + 2 > cap) {
-    char *nid = (char *)ffi_alloc(S, cap * 2);
-    memcpy(nid, id, used + 1);
-    id = nid;
-  }
-  snprintf(id + used, cap - used, ")");
+  id[used++] = ')';
+  id[used] = '\0';
   ct->id = id;
   return ffi_type_intern(L, S, ct);
 }

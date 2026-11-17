@@ -6,6 +6,7 @@
 PREFIX?= /usr/local
 DESTDIR?=
 WITH_FFI?= 0
+WITH_JIT?= 1
 
 MAKE?= make
 RM= rm -f
@@ -21,9 +22,10 @@ INSTALL_MAN= $(DESTDIR)$(PREFIX)/share/man/man1
 INSTALL_LMOD= $(DESTDIR)$(PREFIX)/share/luar/$(LUAVER)
 INSTALL_CMOD= $(DESTDIR)$(PREFIX)/lib/luar/$(LUAVER)
 
-MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI)
+MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI) WITH_JIT=$(WITH_JIT)
 PREFIX_STAMP= src/.prefix
 FFI_STAMP= src/.ffi
+JIT_STAMP= src/.jit
 
 .PHONY: all build config-check shared test test-semantics test-compat test-ffi test-diff test-jit \
 	test-upstream bench install uninstall clean distclean upstream-check sync-diff docs help
@@ -38,6 +40,8 @@ config-check:
 	 else echo "$(PREFIX)" > $(PREFIX_STAMP); $(MAKE_SRC) clean; fi
 	@if [ -f $(FFI_STAMP) ] && [ "$$(cat $(FFI_STAMP))" = "$(WITH_FFI)" ]; then :; \
 	 else echo "$(WITH_FFI)" > $(FFI_STAMP); $(MAKE_SRC) clean; fi
+	@if [ -f $(JIT_STAMP) ] && [ "$$(cat $(JIT_STAMP))" = "$(WITH_JIT)" ]; then :; \
+	 else echo "$(WITH_JIT)" > $(JIT_STAMP); $(MAKE_SRC) clean; fi
 
 build: config-check
 	$(MAKE_SRC) all
@@ -109,7 +113,7 @@ uninstall:
 
 clean:
 	$(MAKE_SRC) clean
-	$(RM) -r build $(PREFIX_STAMP) $(FFI_STAMP)
+	$(RM) -r build $(PREFIX_STAMP) $(FFI_STAMP) $(JIT_STAMP)
 
 # FAIL if src/ has drifted from the vendored upstream snapshot in ways
 # that were not recorded in tools/upstream-baseline.txt.  See doc/upstream.md.

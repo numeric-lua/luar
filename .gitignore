@@ -19,6 +19,7 @@
 /src/luarc
 /src/.prefix
 /src/.ffi
+/src/.jit
 
 # Scratch
 /build/

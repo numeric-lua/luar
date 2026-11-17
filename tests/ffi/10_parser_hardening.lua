@@ -29,4 +29,10 @@ H.raises(function () ffi.cdef(deep) end, "nesting too deep")
 local deepc = "enum { H_N = " .. rep("(", 5000) .. "1" .. rep(")", 5000) .. " };"
 H.raises(function () ffi.cdef(deepc) end, "nested too deeply")
 
+-- long type identifiers in function type ids must not overflow the id buffer
+local tag = "HX" .. string.rep("x", 52)
+ffi.cdef("struct " .. tag .. " { int a; }; struct " .. tag .. " hf(void);")
+ffi.cdef("struct " .. tag .. " hg(int); struct " .. tag .. " hv;")
+H.eq(ffi.sizeof("struct " .. tag), 4)
+
 print("ffi/10_parser_hardening ok")
