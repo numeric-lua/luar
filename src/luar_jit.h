@@ -81,7 +81,9 @@ LUAI_FUNC int luari_jit_try_run (lua_State *L, Proto *p, int pc,
 */
 static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge, void *base) {
-  if (p->luar_hot >= LUAR_JIT_HOTCOUNT) {
+  if (p->luar_hot > LUAR_JIT_HOTCOUNT)
+    return 0;
+  if (p->luar_hot == LUAR_JIT_HOTCOUNT) {
     unsigned pc;
     unsigned long long bit;
     if (p->luar_code[0] == NULL)
@@ -101,8 +103,12 @@ static inline int luari_jit_hot (lua_State *L, Proto *p,
 
 #if defined(LUAR_JIT_DISABLE)
 #define LUAR_JIT_HOT(L, p, pc, base)	((void)(base), (void)0)
+#define LUAR_JIT_RUN(L, p, pc, base, exp)	0
 #else
 #define LUAR_JIT_HOT(L, p, pc, base)	luari_jit_hot((L), (p), (pc), (base))
+#define LUAR_JIT_RUN(L, p, pc, base, exp) \
+  ((((p)->luar_code[0] != NULL) || ((p)->luar_code[1] != NULL)) ? \
+   luari_jit_try_run((L), (p), (pc), (base), (exp)) : 0)
 #endif
 
 #endif

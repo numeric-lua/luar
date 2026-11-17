@@ -1683,15 +1683,18 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         vmbreak;
       }
       vmcase(OP_JMP) {
+#if !defined(LUAR_JIT_DISABLE)
         const Instruction *luarback = pc - 1;  /* LUAR: J1 backedge */
+#endif
         dojump(ci, i, 0);
+#if !defined(LUAR_JIT_DISABLE)
         if (GETARG_sJ(i) < 0) {  /* LUAR: backward jump */
           LUAR_JIT_HOT(L, cl->p, luarback, (void *)base);
-          if (luari_jit_try_run(L, cl->p,
-                                (int)(luarback - cl->p->code),
-                                (void *)base, -1))
+          if (LUAR_JIT_RUN(L, cl->p, (int)(luarback - cl->p->code),
+                           (void *)base, -1))
             pc = luarback + 1;  /* LUAR: native while loop finished */
         }
+#endif
         vmbreak;
       }
       vmcase(OP_EQ) {
@@ -1890,7 +1893,9 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       }
       vmcase(OP_FORLOOP) {
         StkId ra = RA(i);
+#if !defined(LUAR_JIT_DISABLE)
         const Instruction *luarb = pc - 1;  /* LUAR: J2 backedge */
+#endif
         if (ttisinteger(s2v(ra + 1))) {  /* integer loop? */
           lua_Unsigned count = l_castS2U(ivalue(s2v(ra)));
           if (count > 0) {  /* still more iterations? */
@@ -1900,16 +1905,19 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             idx = intop(+, idx, step);  /* add step to index */
             chgivalue(s2v(ra + 2), idx);  /* update control variable */
             pc -= GETARG_Bx(i);  /* jump back */
+#if !defined(LUAR_JIT_DISABLE)
             LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
-            if (luari_jit_try_run(L, cl->p,
-                                  (int)(luarb - cl->p->code),
-                                  (void *)base, GETARG_A(i)))
+            if (LUAR_JIT_RUN(L, cl->p, (int)(luarb - cl->p->code),
+                             (void *)base, GETARG_A(i)))
               pc = luarb + 1;  /* LUAR: the native loop finished it */
+#endif
           }
         }
         else if (floatforloop(L, ra)) {  /* float loop */
           pc -= GETARG_Bx(i);  /* jump back */
+#if !defined(LUAR_JIT_DISABLE)
           LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
+#endif
         }
         updatetrap(ci);  /* allows a signal to break the loop */
         vmbreak;

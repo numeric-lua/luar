@@ -913,8 +913,11 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     memcpy(t->code, p->code + target, (size_t)n * sizeof(Instruction));
     J->traces++;
   }
-  if (J->enabled)
-    try_compile(L, p, target, off, base);
+  if (J->enabled) {
+    int ok = try_compile(L, p, target, off, base);
+    if (!ok || (p->luar_code[0] != NULL && p->luar_code[1] != NULL))
+      p->luar_hot = LUAR_JIT_HOTCOUNT + 1;
+  }
   return 1;
 }
 
