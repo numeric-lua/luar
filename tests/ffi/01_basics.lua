@@ -17,6 +17,7 @@ H.eq(ffi.abi("hardfp"), true)
 H.eq(ffi.abi("softfp"), false)
 H.eq(ffi.abi("win"), false)
 H.eq(ffi.abi("eabi"), false)
+H.eq(ffi.abi("gc64"), true)
 H.eq(ffi.abi("no-such-abi"), false)
 
 -- Primitive sizes/alignments for the x86-64 System V ABI.

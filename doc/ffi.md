@@ -78,10 +78,10 @@ kind of first argument (the latter only for struct/union types).
 offset, the bit position within that unit and the width in bits (LuaJIT's
 three-result form).
 
-`ffi.abi` returns `true` for `"64bit"`, `"le"`, `"fpu"`, and `"hardfp"` on
-the tested x86-64 Linux target, and `false` for unknown predicates and for
-`"32bit"`, `"be"`, `"softfp"`, `"eabi"`, `"win"`, `"gc64"`, `"dualnum"`,
-`"pauth"`, and `"uwp"`.
+`ffi.abi` returns `true` for `"64bit"`, `"le"`, `"fpu"`, `"hardfp"` and
+`"gc64"` on the tested x86-64 Linux target, and `false` for unknown
+predicates and for `"32bit"`, `"be"`, `"softfp"`, `"eabi"`, `"win"`,
+`"dualnum"`, `"pauth"`, and `"uwp"`.
 
 ## Accepted C declarations (`ffi.cdef`)
 

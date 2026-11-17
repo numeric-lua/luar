@@ -2010,6 +2010,7 @@ static int ffi_lib_abi (lua_State *L) {
   else if (strcmp(s, "fpu") == 0) b = 1;
   else if (strcmp(s, "hardfp") == 0) b = 1;
   else if (strcmp(s, "softfp") == 0) b = 0;
+  else if (strcmp(s, "gc64") == 0) b = (sizeof(void *) == 8);
   else b = 0;
   lua_pushboolean(L, b);
   return 1;
