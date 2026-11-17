@@ -37,7 +37,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with macros expanded outside
   strings and comments and persisted across cdef calls.  Function-like
   macros, angle includes, non-pack `#pragma` and complex `#if` expressions
-  fail clearly.  Token pasting (`##`) works in function macros; quoted
+  fail clearly.  Token pasting (`##`) and parameter stringification (`#`)
+  work in function macros, and `#error` text is expanded; quoted
   `#include "path"` reads cwd-relative headers with include-guard/macro
   persistence and depth/size limits.  `#pragma pack(n/push/pop)` sets byte-granular layout.
 - Fixed the cdef preprocessor dropping the last character of indented lines

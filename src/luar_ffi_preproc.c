@@ -301,6 +301,31 @@ static void expand_func (lua_State *L, FFIState *S, Buf *out, Macro *m,
         sub.n--;
       continue;
     }
+    if (c == '#') {
+      size_t j = i + 1;
+      int pi;
+      while (j < bn && (m->body[j] == ' ' || m->body[j] == '\t'))
+        j++;
+      i = j;
+      while (j < bn && ident_char((unsigned char)m->body[j]))
+        j++;
+      pi = param_index(m, m->body + i, j - i);
+      if (pi < 0)
+        luaL_error(L, "ffi.cdef: '#' must precede a macro parameter");
+      buf_char(L, &sub, '"');
+      {
+        size_t k;
+        for (k = 0; k < args[pi].n; k++) {
+          char ac = args[pi].p[k];
+          if (ac == '"' || ac == '\\')
+            buf_char(L, &sub, '\\');
+          buf_char(L, &sub, ac);
+        }
+      }
+      buf_char(L, &sub, '"');
+      i = j;
+      continue;
+    }
     if (c == '"' || c == '\'') {
       char q = c;
       buf_char(L, &sub, c);
@@ -594,18 +619,6 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
           body = q;
           bn = rn;
           trim(&body, &bn);
-          {
-            size_t bi;
-            for (bi = 0; bi < bn; bi++) {
-              if (body[bi] == '#') {
-                if (bi + 1 < bn && body[bi + 1] == '#')
-                  bi++;
-                else
-                  luaL_error(L, "ffi.cdef:%d: macro stringification is not "
-                                 "supported", line);
-              }
-            }
-          }
           if (active)
             macro_set_func(L, S, name, nn, params, np, variadic, body, bn);
         }
@@ -836,8 +849,13 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         if (active) {
           const char *msg = q + 5;
           size_t mn = rn - 5;
+          Buf eb;
+          int bc = 0, ins = 0;
           trim(&msg, &mn);
-          luaL_error(L, "ffi.cdef:%d: #error %.*s", line, (int)mn, msg);
+          memset(&eb, 0, sizeof(eb));
+          expand(L, S, &eb, msg, mn, 0, &bc, &ins);
+          buf_char(L, &eb, '\0');
+          luaL_error(L, "ffi.cdef:%d: #error %s", line, eb.p);
         }
       }
       else {

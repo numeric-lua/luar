@@ -106,9 +106,14 @@ H.eq(pp.f1 + pp.f2, 7)
 H.eq(ffi.sizeof("struct PpPaste_s"), 4)
 
 -- unsupported forms fail clearly
-H.raises(function ()
-  return ffi.cdef("#define LUAR_PP_STR(x) #x")
-end, "stringification")
+-- stringification is observable in expanded #error text
+do
+  local ok, err = pcall(ffi.cdef,
+    '#define LUAR_PP_STR(x) #x\n#error LUAR_PP_STR(hello world)')
+  H.check(not ok, "#error with stringified macro unexpectedly succeeded")
+  H.check(tostring(err):find('"hello world"', 1, true) ~= nil,
+          "stringified error lacks quoted argument: " .. tostring(err))
+end
 H.raises(function ()
   return ffi.cdef("#include <stdio.h>")
 end, "only quoted")
