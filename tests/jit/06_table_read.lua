@@ -3,6 +3,7 @@ local H = dofile("tests/helpers.lua")
 
 jit.flush()
 jit.on()
+jit.opt.start("table=1")
 if jit.status() == false then
   print("jit/06_table_read: skipped (no native target)")
   return
@@ -67,4 +68,5 @@ jit.off()
 H.eq(sum(t, 20000), 200010000)
 jit.on()
 
+jit.opt.start("table=0")
 print("jit/06_table_read ok")

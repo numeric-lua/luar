@@ -31,7 +31,8 @@ typedef enum {
   LUAR_OP_MMBIN,
   /* Branch support (int-only loops): comparisons and jumps. */
   LUAR_OP_LT, LUAR_OP_LE, LUAR_OP_GT, LUAR_OP_GE, LUAR_OP_EQ,
-  LUAR_OP_JMP, LUAR_OP_NOP, LUAR_OP_GETTABLE, LUAR_OP_TABLE_ADD
+  LUAR_OP_JMP, LUAR_OP_NOP, LUAR_OP_GETTABLE, LUAR_OP_TABLE_ADD,
+  LUAR_OP_SETTABLE
 } LuaR_OpKind;
 
 /* Register flavours known to the compiled loop. */
@@ -61,6 +62,7 @@ typedef struct LuaR_LoopDesc {
   int table_reg;
   int table_array_off;
   int table_asize_off;
+  int table_metatable_off;
   int tag_table;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */

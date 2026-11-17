@@ -49,6 +49,7 @@ typedef struct LuaR_JIT {
   uint32_t traces;		/* recorded bytecode snapshots */
   uint32_t aborts;		/* loops too large / not decodable */
   int enabled;			/* jit.off() clears this */
+  int enable_table;		/* experimental J3 table lookups (opt-in) */
   uint32_t compiled;		/* native loops emitted */
   size_t mcode;			/* executable bytes */
   int ncode;

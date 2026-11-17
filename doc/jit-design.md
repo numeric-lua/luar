@@ -24,9 +24,9 @@ is provably observationally equivalent to that interpreter.
   exit stub/side-exit chain, no safepoint or GC barrier machinery (the
   compiled loop cannot allocate, call, or raise), no table/string/closure
   operations; comparisons/forward branches are compiled for int and double
-  operands; an early J3 experiment compiles a leading read-only integer
-  array lookup and its accumulating ADD.  Backward inner loops and table
-  writes still fall back.  There is one compiled loop per
+  operands; an early J3 experiment (opt-in `jit.opt.start("table=1")`)
+  compiles a leading integer array lookup/store and the accumulating ADD.
+  Backward inner loops still fall back.  There is one compiled loop per
   `Proto` (the latest); the code cache is capped at 64 mappings and released
   by `jit.flush`/state close.
 - **Gate status.**  `numeric/int_sum` is ~6x faster than the interpreter

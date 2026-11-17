@@ -122,11 +122,13 @@ Estimated: 6–10 weeks.
 
 ## 0.6 — Trace coverage
 
-Status: early J3.  A read-only raw-array lookup (`GETTABLE` +
-`acc = acc + t[i]`) can be emitted for integer arrays, with per-element tag
-and bounds guards that bail to the interpreter before the current iteration.
-It is correct and tested, but not yet faster than the interpreter; table
-stores, shape guards, calls and side traces remain to be done.
+Status: early J3, opt-in.  Read-only raw-array lookups and raw integer
+stores (`t[i]`, `acc = acc + t[i]`, `t[i] = i`) can be emitted behind
+`jit.opt.start("table=1")`, with per-element tag/bounds/metatable guards
+that bail before the current iteration.  They are correct and tested but
+not yet faster than the interpreter on the reference corpus, so they are
+disabled by default; shape guards, calls and side traces remain to be
+done.
 
 * Table loads/stores with shape guards and inline caches, `GETFIELD`/
   `SETFIELD`/`GETI`/`SETI`, array-part fast paths.

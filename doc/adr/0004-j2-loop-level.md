@@ -32,10 +32,10 @@ The whitelist is numeric only: MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV,
 the K variants, MMBIN, and numeric comparisons with forward `JMP` branches
 (an `if`/`else` whose targets stay inside the loop).  Both `for` loops and
 simple `while` loops (ending in an unconditional backward JMP) are
-eligible, with one experimental exception: a leading read-only integer
-array `GETTABLE` (or the fused `acc = acc + t[i]`) may be emitted under
-per-element bounds/tag guards.  No table writes, calls, strings, closures
-or backward inner loops.
+eligible, with one experimental, opt-in exception: a leading integer
+array `GETTABLE`/`SETTABLE` (or the fused `acc = acc + t[i]`) may be
+emitted under per-element bounds/tag/metatable guards.  No calls, strings,
+closures or backward inner loops.
 
 ## Consequences
 

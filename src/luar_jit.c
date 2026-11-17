@@ -176,6 +176,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   d.tag_table = LUA_VTABLE;
   d.table_array_off = (int)offsetof(Table, array);
   d.table_asize_off = (int)offsetof(Table, asize);
+  d.table_metatable_off = (int)offsetof(Table, metatable);
   if (!is_while) {
     for (i = 0; i < 3; i++) {
       cur[for_a + i] = LUAR_T_INT;
@@ -404,7 +405,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       }
       case OP_GETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
-        if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
+        if (!J->enable_table || i != 0 || d.has_table) return 0;   /* only a leading lookup */
         if (is_control_reg(ka, for_a)) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
         if (slot_type(b, cur, def, kc) != LUAR_T_INT) return 0;
@@ -445,6 +446,26 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
             }
           }
         }
+        break;
+      }
+      case OP_SETTABLE: {
+        int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
+        int vt;
+        if (!J->enable_table || i != 0 || d.has_table) return 0;
+        if (slot_type(b, cur, def, ka) != LUAR_T_TABLE) return 0;
+        if (slot_type(b, cur, def, kb) != LUAR_T_INT) return 0;
+        vt = slot_type(b, cur, def, kc);
+        if (vt != LUAR_T_INT && vt != LUAR_T_FLOAT) return 0;
+        op->kind = LUAR_OP_SETTABLE;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)kb;
+        op->c = (uint8_t)kc;
+        op->ta = (uint8_t)vt;
+        op->tb = LUAR_T_TABLE;
+        op->tc = LUAR_T_INT;
+        d.has_table = 1;
+        d.table_reg = ka;
+        has_branch = 1;
         break;
       }
       case OP_MMBIN:
@@ -519,6 +540,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
           reads[nr] = op->c; types[nr++] = LUAR_T_INT;
           reads[nr] = op->a; types[nr++] = op->ta;
+          break;
+        case LUAR_OP_SETTABLE:
+          reads[nr] = op->a; types[nr++] = LUAR_T_TABLE;
+          reads[nr] = op->b; types[nr++] = LUAR_T_INT;
+          reads[nr] = op->c; types[nr++] = op->ta;
           break;
         case LUAR_OP_ADDK:
         case LUAR_OP_SUBK:
@@ -742,14 +768,18 @@ static int jit_status (lua_State *L) {
 
 
 static int jit_opt_start (lua_State *L) {
-  /* Accept and validate the shape of LuaJIT-style option strings.  The
-  ** values are kept for the future tier-1 engine in the registry.
+  /* Accept and keep LuaJIT-style option strings.  LuaR's experimental
+  ** table JIT is opt-in ("table=1") because it is not yet a performance
+  ** win on the reference corpus.
   */
+  LuaR_JIT *J = checkjit(L);
   int i;
   int n = lua_gettop(L);
   lua_newtable(L);
   for (i = 1; i <= n; i++) {
     const char *opt = luaL_checkstring(L, i);
+    if (J != NULL && strncmp(opt, "table=", 6) == 0)
+      J->enable_table = (opt[6] != '0');
     lua_pushstring(L, opt);
     lua_rawseti(L, -2, i);
   }

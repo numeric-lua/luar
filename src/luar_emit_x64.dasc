@@ -452,6 +452,29 @@ static void emit_table_add (dasm_State **Dst, const LuaR_LoopDesc *d,
   }
 }
 
+static void emit_table_set (dasm_State **Dst, const LuaR_LoopDesc *d,
+                            const LuaR_Op *op)
+{
+  | mov rax, qword [rbx + ((int)LUAR_SLOT(op->b))]
+  | cmp rax, 1
+  | jl >3
+  | cmp rax, r14
+  | ja >3
+  | dec rax
+  | shl rax, 4
+  | add rax, r13
+  if (op->ta == LUAR_T_INT) {
+    | mov rcx, qword [rbx + ((int)LUAR_SLOT(op->c))]
+    | mov qword [rax], rcx
+    | mov byte [rax + 8], ((int)d->tag_int)
+  }
+  else {
+    | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(op->c))]
+    | movsd qword [rax], xmm0
+    | mov byte [rax + 8], ((int)d->tag_flt)
+  }
+}
+
 static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
   int i;
@@ -465,6 +488,9 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   emit_guards(Dst, d);
   if (d->has_table) {
     | mov r12, qword [rbx + ((int)LUAR_SLOT(d->table_reg))]
+    | mov rax, qword [r12 + ((int)d->table_metatable_off)]
+    | test rax, rax
+    | jnz >3
     | mov r13, qword [r12 + ((int)d->table_array_off)]
     | mov r14d, dword [r12 + ((int)d->table_asize_off)]
   }
@@ -492,6 +518,9 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
         break;
       case LUAR_OP_TABLE_ADD:
         emit_table_add(Dst, d, op);
+        break;
+      case LUAR_OP_SETTABLE:
+        emit_table_set(Dst, d, op);
         break;
       default:
         emit_int_one(Dst, d, op);
