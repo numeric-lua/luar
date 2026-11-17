@@ -1891,10 +1891,22 @@ static int ffi_typeof (lua_State *L) {
 }
 
 
+static int ctype_istype (CType *ct, CType *obj) {
+  if (ct == obj)
+    return 1;
+  if ((ct->kind == CT_STRUCT || ct->kind == CT_UNION) &&
+      obj->kind == CT_POINTER)
+    return obj->child == ct;
+  if (ct->kind == CT_POINTER && obj->kind == CT_POINTER)
+    return ct->child == obj->child;
+  return 0;
+}
+
+
 static int ffi_istype (lua_State *L) {
   CType *ct = ffi_checkctype(L, 1, "istype");
   CData *cd = ffi_tocdata(L, 2);
-  lua_pushboolean(L, cd != NULL && cd->ct == ct);
+  lua_pushboolean(L, cd != NULL && ctype_istype(ct, cd->ct));
   return 1;
 }
 

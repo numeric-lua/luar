@@ -45,7 +45,7 @@ local ffi = require "ffi"
 
 ffi.cdef(s)                 -- parse C declarations
 ffi.typeof(ct)              -- CType object (also accepts a cdata value)
-ffi.istype(ct, obj)         -- exact C type check
+ffi.istype(ct, obj)         -- C type compatibility check
 ffi.sizeof(ct [, nelem])    -- size in bytes
 ffi.alignof(ct)             -- alignment in bytes
 ffi.offsetof(ct, field)     -- byte offset, plus bit pos/size for bitfields
@@ -141,6 +141,9 @@ preprocessor subset is available.
   `long`/`long long` on the platform (`ctype<long>`), and
   `ffi.istype("size_t", ffi.new("unsigned long"))` is true.  This is a
   representation deviation from LuaJIT, not an ABI deviation.
+  `ffi.istype` follows LuaJIT's compatibility rules: a struct/union type
+  accepts a pointer to that type, pointers accept the same pointer type,
+  and `void *` gets no special treatment.
 
 Error messages carry the source name, line number, the reason, and the
 offending token (for example
