@@ -182,25 +182,33 @@ run_cmd () {
 }
 
 run_one () {
-  local pass=$1 label=$2 out=$3
-  shift 3
-  local err="$TMP/pass${pass}-${label}.err"
+  local pass=$1 label=$2 bench=$3 out=$4
+  shift 4
+  local safe=${bench//\//-}
+  local err="$TMP/pass${pass}-${label}-${safe}.err"
   local -a args
-  args=("$@" "$ROOT/bench/bench.lua" "$FILTER"
+  args=("$@" "$ROOT/bench/bench.lua" --bench "$bench"
         --repeat "$REPEAT" --warmup "$WARMUP" --scale "$SCALE"
         --json --label "$label")
-  if [ "$label" != "lua" ] && [ -s "$TMP/pass1-lua.json" ]; then
-    args+=(--baseline "$TMP/pass1-lua.json")
+  if [ "$label" != "lua" ] && [ -s "$TMP/pass1-lua-${safe}.json" ]; then
+    args+=(--baseline "$TMP/pass1-lua-${safe}.json")
   fi
-  printf '   pass %d: %-12s ' "$pass" "$label"
+  printf '   pass %d: %-12s %-24s ' "$pass" "$label" "$bench"
   if run_cmd "${args[@]}" >"$out" 2>"$err"; then
     printf 'ok\n'
   else
     printf 'FAILED\n'
     sed 's/^/     /' "$err" >&2 || true
-    die "benchmark run failed: pass $pass $label (JSON: $out)"
+    die "benchmark run failed: pass $pass $label $bench (JSON: $out)"
   fi
 }
+
+# One process per benchmark: a large table/hash benchmark changes the GC
+# and string-interning state enough to distort unrelated benchmarks that
+# follow in the same process.  Fresh processes keep the numbers honest.
+mapfile -t BENCHES < <("$LUA_BIN" "$ROOT/bench/bench.lua" "$FILTER" --list | awk '{print $1}')
+[ "${#BENCHES[@]}" -gt 0 ] || die "no benchmarks selected by FILTER=$FILTER"
+printf '   benchmarks: %d, each in a fresh process\n' "${#BENCHES[@]}"
 
 for ((pass = 1; pass <= PASSES; pass++)); do
   if (( pass % 2 == 0 )); then
@@ -208,22 +216,25 @@ for ((pass = 1; pass <= PASSES; pass++)); do
   else
     ORDER=(lua luar luajit luajit-joff)
   fi
-  for label in "${ORDER[@]}"; do
-    case "$label" in
-      lua)
-        run_one "$pass" lua "$TMP/pass${pass}-lua.json" "$LUA_BIN"
-        ;;
-      luar)
-        run_one "$pass" luar "$TMP/pass${pass}-luar.json" "$LUAR_COPY"
-        ;;
-      luajit)
-        run_one "$pass" luajit "$TMP/pass${pass}-luajit.json" "$LUAJIT_BIN"
-        ;;
-      luajit-joff)
-        run_one "$pass" luajit-joff "$TMP/pass${pass}-luajit-joff.json" \
-          "$LUAJIT_BIN" "${JITOFF_ARGS[@]}"
-        ;;
-    esac
+  for bench in "${BENCHES[@]}"; do
+    safe=${bench//\//-}
+    for label in "${ORDER[@]}"; do
+      case "$label" in
+        lua)
+          run_one "$pass" lua "$bench" "$TMP/pass${pass}-lua-${safe}.json" "$LUA_BIN"
+          ;;
+        luar)
+          run_one "$pass" luar "$bench" "$TMP/pass${pass}-luar-${safe}.json" "$LUAR_COPY"
+          ;;
+        luajit)
+          run_one "$pass" luajit "$bench" "$TMP/pass${pass}-luajit-${safe}.json" "$LUAJIT_BIN"
+          ;;
+        luajit-joff)
+          run_one "$pass" luajit-joff "$bench" "$TMP/pass${pass}-luajit-joff-${safe}.json" \
+            "$LUAJIT_BIN" "${JITOFF_ARGS[@]}"
+          ;;
+      esac
+    done
   done
 done
 
@@ -234,8 +245,13 @@ done
 FILES=()
 for ((pass = 1; pass <= PASSES; pass++)); do
   for label in lua luar luajit luajit-joff; do
-    f="$TMP/pass${pass}-${label}.json"
-    [ -s "$f" ] && FILES+=("$f")
+    for bench in "${BENCHES[@]}"; do
+      safe=${bench//\//-}
+      f="$TMP/pass${pass}-${label}-${safe}.json"
+      if [ -s "$f" ]; then
+        FILES+=("$f")
+      fi
+    done
   done
 done
 [ "${#FILES[@]}" -gt 0 ] || die "no result files were produced"
@@ -262,7 +278,7 @@ GCC_LINE=$(gcc --version 2>/dev/null | head -n 1 || true)
   printf -- '- JIT status: on-run `%s`, off-run (`%s`) `%s`\n' \
     "${JIT_ON_STATUS:-?}" "$JITOFF_FLAGS" "${JIT_OFF_STATUS:-?}"
   printf -- '- Corpus: `%s`; workload scale `%s`\n' "$FILTER" "$SCALE"
-  printf -- '- Method: warmup %s, %s timed CPU samples per pass, %s pass(es) pooled; ' \
+  printf -- '- Method: each benchmark runs in a fresh interpreter process; warmup %s, %s timed CPU samples per pass, %s pass(es) pooled; ' \
     "$WARMUP" "$REPEAT" "$PASSES"
   printf 'pilot batching targets ~20 ms per sample; GC collected between samples.\n'
   printf -- '- Command: `./bench/compare.sh` (REPEAT=%s WARMUP=%s PASSES=%s SCALE=%s)\n\n' \
@@ -273,7 +289,7 @@ GCC_LINE=$(gcc --version 2>/dev/null | head -n 1 || true)
   printf -- '- LuaR 0.1 is interpreter-only: no native JIT, no FFI. The LuaJIT rows are the performance ceiling a JIT can reach, not LuaR 0.1 behaviour.\n'
   printf -- '- The machine is shared and throttles; best-of-N is optimistic, the median is reported alongside it. Runs with ratios near 1.00 should be treated as equal.\n'
   printf -- '- Stock Lua lacks `table.new`/`table.clear`; `table/new_clear` uses a `table.create` + `pairs()` fallback and says so in Notes. LuaJIT 2.1 lacks `string.pack`, so that benchmark is `n/a` there.\n'
-  printf -- '- Wall time includes explicit GC between samples and harness overhead; CPU time is the primary metric.\n'
+  printf -- '- Wall time is sampled around the first timed run after the pre-sample GC; CPU time is the primary metric.\n'
   printf -- '- Numeric results are intentionally not committed: default output is under `tests/tmp/`. Regenerate with `./bench/compare.sh`.\n'
 } >"$OUT"
 

@@ -861,12 +861,14 @@ local function run_bench (b, opts, baseline, baseline_label, wall_now, wall_kind
   if batch > 200 then batch = 200 end
   rec.batch = batch
 
-  local wall0 = wall_now()
   local samples = {}
   local failed = nil
+  local wall_sample = nil
   for s = 1, opts.reps do
     collectgarbage("collect")
     local sink
+    local w0
+    if s == 1 then w0 = wall_now() end
     local c0 = os.clock()
     local sok, serr = pcall(function ()
       for j = 1, batch do
@@ -874,6 +876,10 @@ local function run_bench (b, opts, baseline, baseline_label, wall_now, wall_kind
       end
     end)
     local c1 = os.clock()
+    if w0 then
+      local w1 = wall_now()
+      if w1 and w1 > w0 then wall_sample = (w1 - w0) / batch end
+    end
     if not sok then
       failed = "timed run failed: " .. tostring(serr)
       break
@@ -884,7 +890,6 @@ local function run_bench (b, opts, baseline, baseline_label, wall_now, wall_kind
     end
     samples[#samples + 1] = (c1 - c0) / batch
   end
-  local wall1 = wall_now()
 
   if failed then
     rec.status = "error"
@@ -902,8 +907,8 @@ local function run_bench (b, opts, baseline, baseline_label, wall_now, wall_kind
   rec.median_cpu = median(samples)
   rec.mean_cpu = mean(samples)
   rec.runs_per_sec = 1 / rec.best_cpu
-  if wall0 and wall1 and wall1 > wall0 then
-    rec.wall_seconds = (wall1 - wall0) / (#samples * batch)
+  if wall_sample then
+    rec.wall_seconds = wall_sample
   end
 
   if baseline and baseline[b.name] and baseline[b.name].best_cpu then
@@ -1325,7 +1330,9 @@ local function main ()
   local opts = parse_args(arg or {})
 
   if opts.list then
-    for _, b in ipairs(BENCH) do
+    local lok, lsel = pcall(select_benches, opts.selections)
+    if not lok then die(tostring(lsel)) end
+    for _, b in ipairs(lsel) do
       io.write(format("%-24s %s\n", b.name, b.group))
     end
     return
