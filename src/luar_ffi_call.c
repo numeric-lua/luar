@@ -1071,7 +1071,7 @@ static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
                               CType *ft, CType *rt, int argstart,
                               const int *pidx, int pn) {
   uint64_t chunks[6] = {0, 0, 0, 0, 0, 0};
-  size_t arg_off[3], arg_chunks[3], chunk_n = 0, off = 16;
+  size_t arg_off[5], arg_chunks[5], chunk_n = 0, off = 16;
   int pc = 0;
   unsigned char code[128];
   size_t n = 0, i;
@@ -1513,13 +1513,13 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
       packed_int_type(ft->ret)) {
-    int pidx[3], pc = 0, ms = 0, mint = 0, mchunks = 0, mok = 1, j;
+    int pidx[5], pc = 0, ms = 0, mint = 0, mchunks = 0, mok = 1, j;
     for (j = 0; j < nargs; j++) {
       CType *at = ft->args[j];
       if (at->kind == CT_STRUCT && at->pack == 1 &&
           at->align_override == 0 && at->size > 0 && at->size <= 16 &&
           packed_int_type(at)) {
-        if (pc >= 3) { mok = 0; break; }
+        if (pc >= 5) { mok = 0; break; }
         pidx[pc++] = j;
         mchunks += (int)((at->size + 7) / 8);
       }

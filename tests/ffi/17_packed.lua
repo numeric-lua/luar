@@ -26,6 +26,7 @@ struct PackedS packedmixf(struct PackedS p, double d);
 struct PackedS packedmix2(struct PackedS p, int a, double b);
 struct PackedS packedmixmulti(struct PackedS a, struct PackedS b, int k);
 struct PackedS packedmixmulti2(struct PackedS a, double d, struct PackedS b, int k);
+struct PackedS packedadd4(struct PackedS a, struct PackedS b, struct PackedS c, struct PackedS d);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -109,6 +110,8 @@ local mm = h.packedmixmulti(p, p2, 100)
 H.eq(mm.i, 123456 + 1000 + 100)
 local mm2 = h.packedmixmulti2(p, 2.5, p2, 100)
 H.eq(mm2.i, 123456 + 1000 + 100 + 2)
+local pa = h.packedadd4(p, p2, p2, p)
+H.eq(pa.i, 123456 + 1000 + 1000 + 123456)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())

@@ -393,3 +393,6 @@ struct PackedS packedmixmulti (struct PackedS a, struct PackedS b, int k) {
 struct PackedS packedmixmulti2 (struct PackedS a, double d, struct PackedS b, int k) {
   struct PackedS q; q.c=(char)(a.c+b.c); q.i=a.i+b.i+k+(int)d; q.s=(short)(a.s+b.s); return q;
 }
+struct PackedS packedadd4 (struct PackedS a, struct PackedS b, struct PackedS c, struct PackedS d) {
+  struct PackedS q; q.c=(char)(a.c+b.c+c.c+d.c); q.i=a.i+b.i+c.i+d.i; q.s=(short)(a.s+b.s+c.s+d.s); return q;
+}
