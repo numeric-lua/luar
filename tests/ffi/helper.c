@@ -194,3 +194,7 @@ long long vararg_fixed_sum (struct Pair p, enum HelperColor c, _Bool b,
   va_end(ap);
   return (long long)p.a + p.b + (long long)c + (b ? 1 : 0) + n + x;
 }
+/* Callback with a struct-by-value argument. */
+int call_pair_cb (int (*cb)(struct Pair), struct Pair p) {
+  return cb(p);
+}

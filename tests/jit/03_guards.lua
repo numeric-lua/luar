@@ -109,6 +109,33 @@ same("float + int const", function ()
   return x
 end)
 
+same("float sub in place", function ()
+  local x = 1000.0
+  for i = 1, 5000 do x = x - i * 0.5 end
+  return x
+end)
+
+same("float div in place", function ()
+  local x = 1000.0
+  for i = 1, 5000 do x = x / 2 end
+  return x
+end)
+
+same("a==c mixed", function ()
+  local x = 0
+  for i = 1, 5000 do x = i + x end
+  return x
+end)
+
+same("loadf body", function ()
+  local s = 0.0
+  for i = 1, 5000 do
+    local z = 0.0
+    s = s + z + i
+  end
+  return s
+end)
+
 same("neg zero", function ()
   local z = 0.0
   for i = 1, 5000 do z = -0.0 * i end

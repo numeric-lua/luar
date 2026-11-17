@@ -21,6 +21,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
   closure, and `string.format` skips its cdata rewrite when no argument is
   cdata.
+- `ffi.callback` also handles struct-by-value arguments reaching Lua
+  (covered by the helper's `call_pair_cb`).
 - `ffi.callback`: libffi closures that call Lua functions, with GC
   lifetime, error capture through `ffi.callback_error()`, and clear
   rejection of aggregate-return/variadic callback types.

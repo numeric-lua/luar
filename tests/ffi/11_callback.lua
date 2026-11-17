@@ -1,6 +1,7 @@
 -- ffi/11_callback.lua -- ffi.callback: C closures that call Lua.
 local ffi = require "ffi"
 local H = dofile("tests/helpers.lua")
+local S = dofile("tests/ffi/support.lua")
 
 ffi.cdef[[
 typedef int (*cmp_t)(const void *, const void *);
@@ -44,6 +45,18 @@ collectgarbage()
 collectgarbage()
 H.eq(keep(21), 42)
 H.eq(ffi.callback_error(), nil)
+
+-- struct-by-value arguments reach the Lua callback intact
+local h = S.helper()
+ffi.cdef[[
+struct CbPair { int a, b; };
+typedef int (*pair_cb)(struct CbPair);
+int call_pair_cb(pair_cb cb, struct CbPair p);
+]]
+local pair_cb = ffi.callback("int(struct CbPair)", function (p)
+  return p.a + p.b
+end)
+H.eq(h.call_pair_cb(pair_cb, ffi.new("struct CbPair", {2, 3})), 5)
 
 -- ffi.gc finalizers still run for callback cdata
 local finalized = false

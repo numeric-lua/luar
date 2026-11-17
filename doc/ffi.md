@@ -452,8 +452,8 @@ probes, and variadic probes.  Coverage includes:
   comparisons, `tonumber`, and `tostring` formats;
 * `ffi.string`, `ffi.copy` (including the 2-argument string form),
   `ffi.fill`, and their bounds errors;
-* `ffi.callback` (qsort via a real C comparator, direct calls, errors,
-  GC lifetime) and `ffi.callback_error`;
+* `ffi.callback` (qsort via a real C comparator, struct-by-value arguments,
+  direct calls, errors, GC lifetime) and `ffi.callback_error`;
 * `ffi.metatype` constructors, `__index`/`__newindex`/`__tostring`/`__call`,
   protected metatables, and `ffi.gc` with Lua and C finalizers;
 * libc calls (`strlen`, `strcmp`, `memset`, `memcpy`, `abs`, `labs`,

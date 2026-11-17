@@ -49,7 +49,7 @@ local function same (a, b)
   return a == b
 end
 
-for case = 1, 150 do
+for case = 1, 300 do
   local expr = exprs[rnd(#exprs)]
   local init = inits[rnd(#inits)]
   local n = 250 + rnd(400)
@@ -78,4 +78,4 @@ for case = 1, 150 do
   end
 end
 
-print("jit/04_fuzz ok (150 cases)")
+print("jit/04_fuzz ok (300 cases)")
