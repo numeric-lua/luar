@@ -28,6 +28,11 @@ tests/upstream/run.sh --jobs 4            # official Lua suite under src/luar
 | `tools/upstream-baseline.txt` | LuaR | Checked-in record of every modified upstream file. |
 | `tests/tmp/` | disposable | Downloaded suites, caches and reports. Git-ignored. |
 
+`vendor/lua-<version>/` is deliberately pristine, so it still contains
+upstream's compile-time `LUA_COMPAT_*` options.  They are not built: `src/`
+has every legacy compatibility path removed and targets Lua 5.5 only.  The
+vendor tree is a reference for sync and comparison, not a configuration.
+
 `src/Makefile` is project-owned build machinery but has an upstream
 counterpart, so the baseline tracks it as a modification. That way a Lua
 release that changes the official Makefile shows up during sync instead of
