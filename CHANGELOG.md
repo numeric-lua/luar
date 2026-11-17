@@ -18,6 +18,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   fuzzer.
 - `string.format` integration for cdata: integer conversions and
   `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
+- `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
+  closure, and `string.format` skips its cdata rewrite when no argument is
+  cdata.
 - `ffi.callback`: libffi closures that call Lua functions, with GC
   lifetime, error capture through `ffi.callback_error()`, and clear
   rejection of aggregate-return/variadic callback types.

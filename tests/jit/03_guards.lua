@@ -38,6 +38,12 @@ same("empty loop", function ()
   return s
 end)
 
+same("step overflow", function ()
+  local s = 0
+  for i = 1, 100, math.maxinteger do s = s + i end
+  return s
+end)
+
 same("wrap", function ()
   local s = 0
   for i = 1, 200 do s = s + math.maxinteger end
