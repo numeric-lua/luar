@@ -10,6 +10,19 @@ int off_PackedS_i(void);
 int off_PackedS_s(void);
 int packed_i_ptr(const struct PackedS *p);
 int packed_by_value(struct PackedS p);
+
+#pragma pack(push, 1)
+struct PragmaPacked { char c; int i; short s; };
+#pragma pack(pop)
+int size_PragmaPacked(void);
+int off_PragmaPacked_i(void);
+int pragmapacked_i_ptr(const struct PragmaPacked *p);
+#pragma pack(push, 2)
+struct Pack2 { char c; int i; };
+#pragma pack(pop)
+int size_Pack2(void);
+int off_Pack2_i(void);
+struct PackNatural { char c; int i; };
 ]]
 local h = S.helper()
 
@@ -28,5 +41,17 @@ H.eq(h.packed_i_ptr(p), 123456)
 
 -- libffi cannot represent a packed layout by value; reject it clearly.
 H.raises(function () return h.packed_by_value(p) end, "layout")
+
+-- #pragma pack applies the same byte-granular layout
+H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())
+H.eq(ffi.offsetof("struct PragmaPacked", "i"), h.off_PragmaPacked_i())
+local pp = ffi.new("struct PragmaPacked")
+pp.c = 2
+pp.i = 777
+pp.s = 3
+H.eq(h.pragmapacked_i_ptr(pp), 777)
+H.eq(ffi.sizeof("struct Pack2"), h.size_Pack2())
+H.eq(ffi.offsetof("struct Pack2", "i"), h.off_Pack2_i())
+H.eq(ffi.offsetof("struct PackNatural", "i"), 4)  -- pack popped
 
 print("ffi/17_packed ok")

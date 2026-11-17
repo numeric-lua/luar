@@ -117,17 +117,17 @@ preprocessor subset is available.
   `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with
   object macros expanded outside strings/comments.  Function-like macros
   support named and variadic (`...`/`__VA_ARGS__`) parameters on a single
-  line.  `#`/`##`, `#include`, `#pragma` and complex `#if` expressions are
-  rejected.
+  line.  `#`/`##`, `#include`, non-pack `#pragma` and complex `#if`
+  expressions are rejected; `#pragma pack(n/push/pop)` drives layout.
 * `__attribute__((packed))` on a struct/union is supported; other
   attributes, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline asm
   and `_Static_assert` are rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
   supported.
-* `__attribute__((packed))` uses byte-granular layout and is field-accessible;
-  packed aggregates cannot be passed by value (libffi would mislay them), and
-  other packing/alignment attributes plus `#pragma pack` are unsupported;
-  layout
+* `__attribute__((packed))` and `#pragma pack(n)` (including
+  `push`/`pop`) use byte-granular layout and are field-accessible; packed
+  aggregates cannot be passed by value (libffi would mislay them), and other
+  packing/alignment attributes are unsupported; layout
   always follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
   type and pass the length to `ffi.new`/`ffi.sizeof`.

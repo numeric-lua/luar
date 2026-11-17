@@ -3,7 +3,8 @@
 **
 ** Supports object-like #define/#undef, #ifdef/#ifndef/#if/#else/#endif
 ** and macro expansion outside strings/comments.  Function-like macros,
-** #include and #pragma are rejected with clear errors rather than guessed.
+** #include and non-pack #pragma are rejected with clear errors rather than
+** guessed; #pragma pack(n/push/pop) maps to a parser marker.
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.
 */
@@ -428,6 +429,24 @@ static void trim (const char **p, size_t *n) {
     (*n)--;
 }
 
+static int parse_pack_num (const char *p, size_t n, int *out) {
+  char buf[32];
+  char *end = NULL;
+  long v;
+  trim(&p, &n);
+  if (n == 0 || n >= sizeof(buf))
+    return 0;
+  memcpy(buf, p, n);
+  buf[n] = '\0';
+  v = strtol(buf, &end, 10);
+  if (end == buf || *end != '\0' || v < 0 || v > 16 ||
+      (v != 0 && (v & (v - 1)) != 0))
+    return 0;
+  *out = (int)v;
+  return 1;
+}
+
+
 static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
                     int line) {
   const char *p = expr;
@@ -469,6 +488,7 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
   Buf b;
   Cond cond[MAX_COND_DEPTH];
   int depth = 0, active = 1;
+  int pack = 0, pack_stack[16], pack_depth = 0;
   int block_comment = 0, in_string = 0;
   size_t pos = 0;
   int line = 1;
@@ -646,6 +666,76 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
           luaL_error(L, "ffi.cdef:%d: #endif without #if", line);
         depth--;
         active = (depth == 0) ? 1 : cond[depth - 1].active;
+      }
+      else if (rn >= 6 && memcmp(q, "pragma", 6) == 0 &&
+               (rn == 6 || is_space((unsigned char)q[6]))) {
+        const char *pp = q + 6;
+        size_t pn = rn - 6;
+        int newpack = pack;
+        trim(&pp, &pn);
+        if (pn < 4 || memcmp(pp, "pack", 4) != 0 ||
+            (pn > 4 && ident_char((unsigned char)pp[4])))
+          luaL_error(L, "ffi.cdef:%d: unsupported #pragma", line);
+        pp += 4;
+        pn -= 4;
+        trim(&pp, &pn);
+        if (pn == 0 || *pp != '(')
+          luaL_error(L, "ffi.cdef:%d: expected #pragma pack(...)", line);
+        pp++;
+        pn--;
+        trim(&pp, &pn);
+        if (pn > 0 && pp[pn - 1] == ')') {
+          pn--;
+          trim(&pp, &pn);
+        }
+        else
+          luaL_error(L, "ffi.cdef:%d: unterminated #pragma pack", line);
+        if (pn == 0)
+          newpack = 0;
+        else if (pn >= 4 && memcmp(pp, "push", 4) == 0 &&
+                 (pn == 4 || is_space((unsigned char)pp[4]) ||
+                  pp[4] == ',')) {
+          const char *arg = pp + 4;
+          size_t an = pn - 4;
+          int v;
+          trim(&arg, &an);
+          if (an > 0) {
+            if (*arg != ',')
+              luaL_error(L, "ffi.cdef:%d: expected ',' after pack push", line);
+            arg++; an--;
+            if (!parse_pack_num(arg, an, &v))
+              luaL_error(L, "ffi.cdef:%d: bad #pragma pack push value", line);
+            newpack = v;
+          }
+          if (active) {
+            if (pack_depth >= 16)
+              luaL_error(L, "ffi.cdef:%d: #pragma pack nested too deeply", line);
+            pack_stack[pack_depth++] = pack;
+            pack = newpack;
+          }
+        }
+        else if (pn == 3 && memcmp(pp, "pop", 3) == 0) {
+          if (active) {
+            if (pack_depth == 0)
+              luaL_error(L, "ffi.cdef:%d: #pragma pack(pop) without push",
+                         line);
+            newpack = pack_stack[--pack_depth];
+            pack = newpack;
+          }
+        }
+        else {
+          int v;
+          if (!parse_pack_num(pp, pn, &v))
+            luaL_error(L, "ffi.cdef:%d: bad #pragma pack value", line);
+          newpack = v;
+          if (active)
+            pack = newpack;
+        }
+        if (active) {
+          char marker[48];
+          snprintf(marker, sizeof(marker), "__luar_pack(%d);\n", pack);
+          buf_mem(L, &b, marker, strlen(marker));
+        }
       }
       else if (rn >= 5 && memcmp(q, "error", 5) == 0) {
         if (active) {

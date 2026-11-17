@@ -93,7 +93,7 @@ struct CType {
   uint8_t vla;		/* array with variable/unknown length */
   uint8_t incomplete;	/* forward-declared struct/union */
   uint8_t vararg;	/* function with '...' */
-  uint8_t packed;	/* __attribute__((packed)) struct/union */
+  uint8_t pack;		/* 0 natural, 1 packed, 2/4/8 #pragma pack */
   uint16_t nargs;
   uint16_t argcap;
   uint16_t nfields;
@@ -151,6 +151,7 @@ struct FFIState {
   FAlloc *allocs;	/* tracked allocations, freed on state close */
   void *macros;		/* preprocessor macros (luar_ffi_preproc.c) */
   unsigned long long anon;	/* anonymous struct/union/enum counter */
+  int pack_align;		/* active #pragma pack alignment, 0 natural */
 
   /* Builtin types, initialized once per state. */
   CType *t_void, *t_bool;

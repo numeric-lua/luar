@@ -323,3 +323,14 @@ int off_PackedS_i (void) { return (int)offsetof(struct PackedS, i); }
 int off_PackedS_s (void) { return (int)offsetof(struct PackedS, s); }
 int packed_i_ptr (const struct PackedS *p) { return p->i; }
 int packed_by_value (struct PackedS p) { return p.i; }
+#pragma pack(push, 1)
+struct PragmaPacked { char c; int i; short s; };
+#pragma pack(pop)
+int size_PragmaPacked (void) { return (int)sizeof(struct PragmaPacked); }
+int off_PragmaPacked_i (void) { return (int)offsetof(struct PragmaPacked, i); }
+int pragmapacked_i_ptr (const struct PragmaPacked *p) { return p->i; }
+#pragma pack(push, 2)
+struct Pack2 { char c; int i; };
+#pragma pack(pop)
+int size_Pack2 (void) { return (int)sizeof(struct Pack2); }
+int off_Pack2_i (void) { return (int)offsetof(struct Pack2, i); }

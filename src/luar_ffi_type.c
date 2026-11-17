@@ -404,7 +404,9 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
         f->type->kind == CT_VOID || f->type->kind == CT_FUNC)
       luaL_error(S->L, "ffi: field '%s' has incomplete or invalid type",
                  f->name != NULL ? f->name : "<anonymous>");
-    if (!ct->packed && !f->zero_width && fal > align)
+    if (ct->pack != 0 && fal > ct->pack)
+      fal = ct->pack;
+    if (!f->zero_width && fal > align)
       align = fal;
     if (ct->kind == CT_UNION) {
       f->offset = 0;
@@ -413,26 +415,15 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
         maxsize = fsz;
       continue;
     }
-    if (ct->packed) {
-      if (!f->zero_width && f->bitwidth != 0) {
-        f->offset = bitpos / 8;
-        f->bitoffset = (uint8_t)(bitpos & 7);
-        bitpos += f->bitwidth;
-      }
-      else if (f->zero_width) {
-        /* packed zero-width fields do not force alignment */
-      }
-      else {
-        f->offset = (bitpos + 7) / 8;
-        off = f->offset + fsz;
-        bitpos = off * 8;
-      }
-      continue;
-    }
     if (f->zero_width) {
       size_t nb = (bitpos + 7) / 8;
       nb = (nb + fal - 1) & ~(fal - 1);
       bitpos = nb * 8;
+    }
+    else if (f->bitwidth != 0 && ct->pack == 1) {
+      f->offset = bitpos / 8;
+      f->bitoffset = (uint8_t)(bitpos & 7);
+      bitpos += f->bitwidth;
     }
     else if (f->bitwidth != 0) {
       size_t ustart = (bitpos / 8) & ~(fal - 1);
@@ -455,11 +446,9 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       bitpos = off * 8;
     }
   }
-  if (ct->packed)
-    align = 1;
   ct->align = align;
   if (ct->kind == CT_UNION)
-    ct->size = ct->packed ? maxsize : round_up(maxsize, align);
+    ct->size = round_up(maxsize, align);
   else
     ct->size = round_up((bitpos + 7) / 8, align);
   ct->incomplete = 0;

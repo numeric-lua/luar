@@ -1060,8 +1060,10 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
         break;
       }
     }
+    if (P->S->pack_align != 0 && ct->pack == 0)
+      ct->pack = (uint8_t)P->S->pack_align;
     if (accept_packed_attr(P))
-      ct->packed = 1;
+      ct->pack = 1;
     ffi_type_finish_struct(P->S, ct);
     return ct;
   }
@@ -1143,6 +1145,18 @@ static CType *parse_enum (Parser *P) {
 
 static void parse_external (Parser *P) {
   DeclSpec ds;
+  if (tok_is_ident(P, "__luar_pack")) {
+    int64_t v;
+    lex_next(P);
+    expect_punct(P, '(', "(");
+    v = parse_const_expr(P);
+    expect_punct(P, ')', ")");
+    expect_punct(P, ';', ";");
+    if (v < 0 || v > 16 || (v != 0 && (v & (v - 1)) != 0))
+      parser_error(P, "bad __luar_pack value");
+    P->S->pack_align = (int)v;
+    return;
+  }
   ds = parse_declspec(P);
   if (accept_punct(P, ';'))
     return;
@@ -1174,6 +1188,7 @@ static void parse_external (Parser *P) {
 void ffi_parse_cdef (lua_State *L, FFIState *S, const char *src, size_t len) {
   Parser P;
   size_t plen = 0;
+  S->pack_align = 0;
   char *pre = ffi_preprocess(L, S, src, len, &plen);
   if (pre != NULL) {
     src = pre;
