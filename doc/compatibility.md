@@ -113,7 +113,8 @@ Deliberate deviations, all documented:
 
 Not supported: C preprocessor, bitfields, `long double`/complex/vector
 types, packing attributes, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
-callback shapes.  `ffi.callback` itself is implemented.
+callback shapes.  `ffi.callback` itself is implemented, including
+struct-by-value arguments and returns.
 
 ### 3.4 Other LuaJIT libraries
 

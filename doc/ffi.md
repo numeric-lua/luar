@@ -369,7 +369,9 @@ Deliberately unsupported call features:
   can be passed and called normally.
 * `ffi.callback(ctype, lua_function)` creates a callable cdata function
   pointer backed by a libffi closure.  The function type must be
-  non-variadic and must not return an aggregate.  Arguments are converted
+  non-variadic.  A callback may return a struct by value when the Lua
+  function returns a cdata of the same layout; union/array returns are
+  rejected.  Arguments are converted
   with the normal read rules; pointer/aggregate arguments are references
   valid for the duration of the callback (do not retain them after it
   returns).  If the Lua function raises, the C caller receives a zero
@@ -419,8 +421,8 @@ Deliberately unsupported call features:
   `ffi.new`/`ffi.cast` to force a particular C type.
 * `long double`, bitfields, complex numbers, vectors and packing attributes
   are not implemented, and preprocessor macros are not parsed.  `ffi.callback`
-  supports non-variadic function types without aggregate returns; other
-  shapes fail with a clear error.  None are silently emulated.
+  supports non-variadic types, including struct-by-value returns when the
+  callback returns a matching cdata; union/array returns fail clearly.  None are silently emulated.
 * The implementation is little-endian-load based and has only been tested
   on Linux/x86-64.  It reports ABI facts (`ffi.os`/`ffi.arch`/`ffi.abi`)
   for the host it is built on; other targets need their own testing.

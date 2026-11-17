@@ -52,11 +52,19 @@ ffi.cdef[[
 struct CbPair { int a, b; };
 typedef int (*pair_cb)(struct CbPair);
 int call_pair_cb(pair_cb cb, struct CbPair p);
+typedef struct CbPair (*pair_ret_cb)(void);
+struct CbPair call_pair_ret_cb(pair_ret_cb cb);
 ]]
 local pair_cb = ffi.callback("int(struct CbPair)", function (p)
   return p.a + p.b
 end)
 H.eq(h.call_pair_cb(pair_cb, ffi.new("struct CbPair", {2, 3})), 5)
+local ret_cb = ffi.callback("struct CbPair(void)", function ()
+  return ffi.new("struct CbPair", {4, 5})
+end)
+local pair = h.call_pair_ret_cb(ret_cb)
+H.eq(pair.a, 4)
+H.eq(pair.b, 5)
 
 -- ffi.gc finalizers still run for callback cdata
 local finalized = false
@@ -69,8 +77,8 @@ H.eq(finalized, true)
 
 -- unsupported callback shapes fail clearly
 H.raises(function ()
-  return ffi.callback("struct { int a; }(void)", function () end)
-end, "aggregate")
+  return ffi.callback("union { int a; double b; }(void)", function () end)
+end, "return type")
 H.raises(function ()
   return ffi.callback("int(int, ...)", function () return 0 end)
 end, "variadic")

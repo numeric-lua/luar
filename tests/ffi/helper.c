@@ -198,3 +198,7 @@ long long vararg_fixed_sum (struct Pair p, enum HelperColor c, _Bool b,
 int call_pair_cb (int (*cb)(struct Pair), struct Pair p) {
   return cb(p);
 }
+/* Callback returning a struct by value. */
+struct Pair call_pair_ret_cb (struct Pair (*cb)(void)) {
+  return cb();
+}
