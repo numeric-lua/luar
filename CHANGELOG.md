@@ -38,7 +38,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   bit-granular packing including mixed base types, byte-crossing fields,
   unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named
   initializers; struct and union bitfields share the same layout engine,
-  while by-value bitfield structs fail clearly.
+  and bitfield structs can be passed/returned by value through grouped
+  synthetic integer storage fields.
 - `__thread`/`_Thread_local` globals are supported through the existing
   dlsym symbol path, with read/write access from Lua.
 - `ffi.callback` also returns small scalar unions by value when the Lua

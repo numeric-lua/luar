@@ -310,3 +310,10 @@ struct Odd12Box { int tag; union Odd12 u; };
 float odd12_box_sum (struct Odd12Box b) { return b.tag + b.u.f[0] + b.u.f[1] + b.u.f[2]; }
 union BitU { unsigned a:3; unsigned b:5; };
 unsigned bitu_b (union BitU u) { return u.b; }
+struct BitBY { unsigned a:3; unsigned b:5; int c; };
+int bitby_sum (struct BitBY s) { return (int)s.a + (int)s.b + s.c; }
+struct BitBY bitby_make (unsigned a, unsigned b, int c) {
+  struct BitBY s; s.a = a; s.b = b; s.c = c; return s;
+}
+struct BitPacked { unsigned a:3; unsigned b:5; unsigned c:3; };
+int bitpacked_sum (struct BitPacked s) { return (int)s.a + (int)s.b + (int)s.c; }

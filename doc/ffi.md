@@ -324,9 +324,8 @@ Calls support:
 * struct return/argument by value when the layout is representable by
   libffi and verified byte-for-byte against libffi's computed offsets.
   Fixed array members (including arrays of structs), all unions up to 16
-  bytes and larger memory-class unions are supported; structs with
-  bitfields, oversized unions and arrays themselves are rejected by
-  value;
+  bytes, larger memory-class unions and bitfield structs are supported;
+  oversized unions and arrays themselves are rejected by value;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
   conversion rules;
@@ -393,9 +392,8 @@ Call features:
   a C library that keeps a pointer after the cdata is collected has the
   usual use-after-free caveat.  Callbacks must be invoked from the Lua
   state that created them.
-* **Oversized unions** (>4096 alignment-sized fields), and structs with
-  bitfields; their ABI cannot be represented safely by the current libffi
-  mapping.
+* **Oversized unions** (>4096 alignment-sized fields); their ABI cannot
+  be represented safely by the current libffi mapping.
 * **C global variables** are best-effort: ordinary and `__thread`/
   `_Thread_local` data symbols can be read/written through `ffi.C` for the
   current thread; complex relocations and cross-thread access are not
@@ -443,8 +441,8 @@ Call features:
   zero-width alignment fields are supported (the zero-width type affects
   the next offset but not the struct alignment, as in GCC).  Union
   bitfields share offset zero and can be read, written and passed by
-  value; by-value bitfield structs are rejected rather than laid out
-  incorrectly.  `long double`, complex numbers, vectors and packing
+  value.  Struct bitfield storage runs are grouped into synthetic integer
+  fields for by-value passing, so bitfield structs work too.  `long double`, complex numbers, vectors and packing
   attributes are not implemented.  `ffi.callback`
   supports non-variadic types, including struct and scalar-union by-value
   returns when the callback returns a matching cdata; array/large aggregate

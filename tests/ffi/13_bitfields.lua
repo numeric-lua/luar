@@ -118,8 +118,8 @@ H.eq(pb.b, 6)
 H.eq(h.padbit_a_ptr(pbp), 5)
 H.eq(h.padbit_b_ptr(pbp), 6)
 
--- bitfield structs are accepted for field access but not by-value calls
-H.raises(function () return h.bitpack_by_value(b) end, "bitfield")
+-- bitfield structs are also accepted by-value calls
+H.eq(h.bitpack_by_value(b), 1)
 
 -- union bitfields share offset zero
 ffi.cdef[[
@@ -135,5 +135,22 @@ H.eq(bu.a, 1)
 H.eq(bu.b, 17)
 H.eq(h.bitu_b(bu), 17)
 H.eq(ffi.sizeof("union BitU"), 4)
+
+-- bitfield structs are also passable/returnable by value
+ffi.cdef[[
+struct BitBY { unsigned a:3; unsigned b:5; int c; };
+int bitby_sum(struct BitBY s);
+struct BitBY bitby_make(unsigned a, unsigned b, int c);
+struct BitPacked { unsigned a:3; unsigned b:5; unsigned c:3; };
+int bitpacked_sum(struct BitPacked s);
+]]
+local bs = ffi.new("struct BitBY", {a = 3, b = 9, c = 4})
+H.eq(h.bitby_sum(bs), 16)
+local bm = h.bitby_make(5, 17, 2)
+H.eq(bm.a, 5)
+H.eq(bm.b, 17)
+H.eq(bm.c, 2)
+local bp = ffi.new("struct BitPacked", {a = 1, b = 2, c = 3})
+H.eq(h.bitpacked_sum(bp), 6)
 
 print("ffi/13_bitfields ok")

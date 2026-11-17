@@ -113,15 +113,15 @@ Deliberate deviations, all documented:
   (per-eightbyte SSE/INTEGER classification, alignment-sized fields for odd
   sizes) or larger memory-class unions can be passed and returned by value.
 * Struct and union bitfields with integer/enum/bool bases are supported,
-  including mixed base types and union overlap at offset zero; by-value
-  bitfield structs are rejected.
+  including mixed base types, union overlap at offset zero and by-value
+  passing/returning.
 * `ffi.callback` and `ffi.callback_error` implement C→Lua closures through
   libffi; errors in the Lua callback become a zero C return plus a stored
   message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
 Not supported: stringifying cdef macros, `#include`, `#pragma`,
-by-value bitfield structs, oversized unions, `long double`/complex/vector
+oversized unions, `long double`/complex/vector
 types, packing attributes, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
 callback shapes.  `ffi.callback` itself is implemented, including
 struct-by-value arguments and returns.

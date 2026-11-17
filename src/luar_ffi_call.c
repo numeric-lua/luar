@@ -628,6 +628,8 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
   ffi_type *ft;
   ffi_type **elems;
   size_t *offs;
+  uint16_t *group_field;
+  size_t ngroups = 0, g;
   ffi_status st;
   uint16_t i;
   if (ct->incomplete)
@@ -639,23 +641,50 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
   ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
   elems = (ffi_type **)ft_alloc(L, allocs,
                                 sizeof(ffi_type *) * (ct->nfields + 1));
+  group_field = (uint16_t *)malloc(sizeof(uint16_t) * (ct->nfields + 1));
+  if (group_field == NULL)
+    luaL_error(L, "ffi: out of memory");
   memset(ft, 0, sizeof(*ft));
   ft->type = FFI_TYPE_STRUCT;
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
-    if (f->bitwidth != 0 || f->zero_width)
-      luaL_error(L, "ffi: struct '%s' has a bitfield and cannot be passed "
-                    "by value", ffi_type_repr(S, ct));
-    if (f->type->kind == CT_ARRAY)
-      elems[i] = build_array_type(L, S, f->type, allocs);
+    if (f->zero_width)
+      continue;   /* no storage */
+    if (f->bitwidth != 0) {
+      /* One synthetic integer field covers a bitfield storage run. */
+      CField *prev = (ngroups > 0) ? &ct->fields[group_field[ngroups - 1]]
+                                   : NULL;
+      if (prev != NULL && prev->bitwidth != 0 &&
+          ((prev->offset / ffi_type_size(prev->type)) *
+           ffi_type_size(prev->type)) ==
+          ((f->offset / ffi_type_size(f->type)) * ffi_type_size(f->type))) {
+        continue;
+      }
+      {
+        size_t sz = ffi_type_size(f->type);
+        if (sz == 1) elems[ngroups] = &ffi_type_uint8;
+        else if (sz == 2) elems[ngroups] = &ffi_type_uint16;
+        else if (sz == 4) elems[ngroups] = &ffi_type_uint32;
+        else if (sz == 8) elems[ngroups] = &ffi_type_uint64;
+        else {
+          free(group_field);
+          luaL_error(L, "ffi: struct '%s' has an unsupported bitfield "
+                        "storage size", ffi_type_repr(S, ct));
+        }
+      }
+    }
+    else if (f->type->kind == CT_ARRAY)
+      elems[ngroups] = build_array_type(L, S, f->type, allocs);
     else
-      elems[i] = build_ffi_type(L, S, f->type, allocs);
+      elems[ngroups] = build_ffi_type(L, S, f->type, allocs);
+    group_field[ngroups] = i;
+    ngroups++;
   }
-  elems[ct->nfields] = NULL;
+  elems[ngroups] = NULL;
   ft->elements = elems;
   ft->size = 0;
   ft->alignment = 0;
-  offs = (size_t *)malloc(sizeof(size_t) * (ct->nfields + 1));
+  offs = (size_t *)malloc(sizeof(size_t) * (ngroups + 1));
   if (offs == NULL)
     luaL_error(L, "ffi: out of memory");
   st = ffi_get_struct_offsets(FFI_DEFAULT_ABI, ft, offs);
@@ -664,13 +693,20 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
     luaL_error(L, "ffi: libffi cannot represent struct '%s' by value",
                ffi_type_repr(S, ct));
   }
-  for (i = 0; i < ct->nfields; i++) {
-    if (offs[i] != ct->fields[i].offset) {
+  for (g = 0; g < ngroups; g++) {
+    uint16_t fi = group_field[g];
+    CField *ff = &ct->fields[fi];
+    size_t expected = ff->offset;
+    if (ff->bitwidth != 0) {
+      size_t sz = ffi_type_size(ff->type);
+      expected = (ff->offset / sz) * sz;
+    }
+    if (offs[g] != expected) {
       free(offs);
       luaL_error(L, "ffi: struct '%s' layout is not supported by value "
                     "(field %s offset mismatch)",
                  ffi_type_repr(S, ct),
-                 ct->fields[i].name != NULL ? ct->fields[i].name : "<anon>");
+                 ct->fields[fi].name != NULL ? ct->fields[fi].name : "<anon>");
     }
   }
   if (ft->size != ct->size) {
@@ -679,6 +715,7 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
                   "(size mismatch)", ffi_type_repr(S, ct));
   }
   free(offs);
+  free(group_field);
   return ft;
 }
 
