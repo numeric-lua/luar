@@ -16,8 +16,9 @@ top.  Read `doc/architecture.md` and `doc/roadmap.md` before non-trivial work.
   libraries must be opt-in at build time (`WITH_FFI=1`, etc.).
 - LuaJIT compatibility means API shape and observable semantics, not bug
   compatibility.  Prefer correctness; document every intentional deviation.
-- Do not add Lua 5.1 APIs (`unpack`, `module`, `setfenv`, ...) that Lua 5.5
-  removed.  LuaR targets 5.5 and newer, not 5.1.
+- LuaR is 5.5-only.  Do not add any compatibility mode or legacy API for
+  older Lua versions (5.1–5.4); `global` is always reserved, deprecated math
+  functions and `LUA_COMPAT_*` switches do not exist here.
 
 ## Build and test
 
@@ -40,7 +41,6 @@ output deterministic and independent of wall-clock time.
 | --- | --- |
 | `src/luar_lib.c` | identity table, `luar_openlibs`, table extensions |
 | `src/luar_jit.c` | `jit.*` control surface |
-| `src/luar_bit.c` | 32-bit LuaJIT-compatible bit library |
 | `src/luar_ffi*.c` | FFI (parser, ctype registry, cdata, calls) |
 | `src/lua*.c/h` | Lua 5.5 core, modified in place and tracked upstream |
 | `dynasm/` | vendored DynASM, the future JIT assembler |

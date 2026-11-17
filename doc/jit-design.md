@@ -7,7 +7,7 @@ provably observationally equivalent to that interpreter.
 
 **Goals:** a tracing JIT for Lua 5.5.1 bytecode with ≥3× on call-free numeric loops and `mandelbrot` in `bench/` (recursive `fib` is call-bound; see section 12); 1.5–3× on table/object code; FFI kernels within
 30% of LuaJIT 2.1; exact semantics; interpreter fallback for every guard, abort, blacklist and `jit.off()`; truthful `jit.on/off/flush/status/opt`; x86-64 SysV
-first, ARM64/macOS next. **Non-goals:** Lua 5.1 semantics, LuaJIT bytecode/ABI, NaN-boxing, AOT/whole-program compilation, JIT for C modules, replacing the
+first, ARM64/macOS next. **Non-goals:** legacy Lua semantics, LuaJIT bytecode/ABI, NaN-boxing, AOT/whole-program compilation, JIT for C modules, replacing the
 interpreter, or promising LuaJIT parity; `jit.util`/`jit.profile`/`jit.attach` stay out of scope.
 
 **Contract.** With traces on and with `jit.off()`, every program must produce identical (1) values and language-visible side effects; (2) order, arguments and
@@ -31,7 +31,7 @@ leaves the rest to the interpreter. AOT is not viable: chunks arrive through `lo
 `TValue` is 16 bytes (`src/lobject.h:65-69`; verified `sizeof(TValue)==16`, `offsetof(TValue,tt_)==8`), an 8-byte `Value` union plus a tag byte; integers are
 `int64_t`, floats `double`; tags distinguish `LUA_VNUMINT` (3), `LUA_VNUMFLT` (19), table (5), short string (4), long string (20), etc. Stack slots are
 `StackValue` (16 bytes; `delta` is only TBC bookkeeping, `src/lobject.h:140-158`). We keep this and do **not** adopt LuaJIT's 8-byte NaN-boxed `TValue`
-(`vendor/luajit/src/lj_obj.h:174-215`) or its IR/recorder assumptions (`vendor/luajit/src/lj_record.c:285-325`).
+by LuaJIT's published design notes and source, not copied from its legacy value model.
 
 The design is a **memory-based tracing JIT**: (1) `base = ci->func.p + 1`; register `A` is the canonical `TValue` at `base+A` (`src/lvm.c:1108-1116`). (2)
 Inside a trace, values are unboxed into registers: `int64` in GPRs, `double` in XMM, pointers/tags as needed. (3) Before any call, allocation,
@@ -239,7 +239,7 @@ across a trace: `TBC`, `CLOSE`, and `RETURN` with `k` exit before closing; a loo
 
 ## 8. Code generation
 
-x86-64 SysV first. DynASM is vendored at `vendor/luajit/dynasm/` (`dynasm.lua`, `dasm_x86.lua`, `dasm_proto.h`, `dasm_x86.h`, 1.5.0). Write `src/luar_emit.c`
+x86-64 SysV first. DynASM is vendored at `dynasm/` (`dynasm.lua`, `dasm_x86.lua`, `dasm_proto.h`, `dasm_x86.h`, 1.5.0), with its backends ported to native Lua 5.5 operators. Write `src/luar_emit.c`
 plus `src/luar_emit_x64.dasc`; check the generated `src/luar_emit_x64.h` in and add a `make dynasm-check` target that regenerates and diffs. This avoids
 requiring a built LuaR to build LuaR (bootstrap cycle).
 

@@ -340,44 +340,7 @@
 /* }================================================================== */
 
 
-/*
-** {==================================================================
-** Compatibility with previous versions
-** ===================================================================
-*/
 
-/*
-@@ LUA_COMPAT_GLOBAL avoids 'global' being a reserved word
-*/
-#if !defined(LUA_COMPAT_GLOBAL)
-#define LUA_COMPAT_GLOBAL	1
-#endif
-
-
-/*
-@@ LUA_COMPAT_MATHLIB controls the presence of several deprecated
-** functions in the mathematical library.
-** (These functions were already officially removed in 5.3;
-** nevertheless they are still available here.)
-*/
-/* #define LUA_COMPAT_MATHLIB */
-
-
-/*
-@@ The following macros supply trivial compatibility for some
-** changes in the API. The macros themselves document how to
-** change your code to avoid using them.
-** (Once more, these macros were officially removed in 5.3, but they are
-** still available here.)
-*/
-#define lua_strlen(L,i)		lua_rawlen(L, (i))
-
-#define lua_objlen(L,i)		lua_rawlen(L, (i))
-
-#define lua_equal(L,idx1,idx2)		lua_compare(L,(idx1),(idx2),LUA_OPEQ)
-#define lua_lessthan(L,idx1,idx2)	lua_compare(L,(idx1),(idx2),LUA_OPLT)
-
-/* }================================================================== */
 
 
 

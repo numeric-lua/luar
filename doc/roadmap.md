@@ -14,7 +14,9 @@ Delivered:
 * `src/` rebranded from pristine Lua 5.5.1, `vendor/lua-5.5.1/` snapshot.
 * `luar`, `luarc`, `libluar.a`, installable with `PREFIX`, `luar.pc`, man page.
 * `luar` identity table, `LUAR_INIT`, `luar/5.5` module paths.
-* LuaJIT surface: `jit` (truthful `status()`), `bit`, `table.new/clear`.
+* LuaJIT-style surface: `jit` (truthful `status()`), `table.new/clear`.
+* 5.5-only build: all `LUA_COMPAT_*` switches and legacy APIs removed;
+  `global` is always reserved, deprecated math functions are gone.
 * Extended `luaL_openlibs`; stock Lua 5.5 C module ABI verified.
 * Smoke, semantics, compat and CLI/ABI suites; docs and decision records.
 
@@ -32,8 +34,7 @@ and `ffi.load` with fixed-argument calls through libffi, `ffi.errno`.
 Status: this scope is implemented and covered by `tests/ffi/` (including a
 `qsort` call with a C comparator and struct-by-value arguments/returns)
 behind `WITH_FFI=1`.  What remains before the milestone closes: cdata
-bitwise/shift operators and cdata-aware `bit.*` operands, automated
-ASan/UBSan coverage, the varargs/callback/bitfield decisions, and testing on
+bitwise/shift operators, automated ASan/UBSan coverage, the varargs/callback/bitfield decisions, and testing on
 non-x86-64 hosts.
 
 Exit criteria:
@@ -52,8 +53,6 @@ Estimated: 2–4 weeks.
   `pkg-config` file; static and shared installs tested on Linux and macOS.
 * CI matrix: gcc/clang, WITH_FFI on/off, ASan/UBSan job, official Lua suite.
 * Reproducible release tarballs, `make install`/`make uninstall` verified.
-* A porting guide for LuaJIT-based libraries (`doc/porting-from-luajit.md`),
-  including the 5.1→5.5 language differences that actually bite.
 
 Exit criteria: a downstream C extension built against `luar.pc` links and
 runs against both the static and shared library; CI is green on Linux/macOS.

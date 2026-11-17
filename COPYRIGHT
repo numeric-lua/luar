@@ -2,15 +2,16 @@ LuaR -- a Lua 5.5-forward runtime with LuaJIT-style extensions.
 
 Copyright (C) 2026 LuaR contributors.
 
-LuaR is derived from two MIT-licensed projects:
+LuaR contains code from two MIT-licensed projects:
 
   * Lua 5.5.1, the reference implementation of the Lua language.
     Copyright (C) 1994-2026 Lua.org, PUC-Rio.
 
-  * LuaJIT 2.1, Mike Pall's just-in-time compiler for Lua.
+  * DynASM, the code generator from LuaJIT 2.1, by Mike Pall.
     Copyright (C) 2005-2026 Mike Pall.
-    The vendored tree in vendor/luajit/ is kept as reference material
-    (notably DynASM) and as the origin of the project.
+    DynASM lives in dynasm/ and its backends have been ported from the
+    Lua 5.1-era bit library to native Lua 5.5 operators.  No LuaJIT
+    runtime, VM, FFI or Lua 5.1 compatibility code is included.
 
 Both are distributed under the MIT license, reproduced below.  The LuaR
 additions are released under the same terms.

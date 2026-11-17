@@ -36,6 +36,12 @@ H.check(load("global<const> *; X_READONLY = 1") == nil)
 -- a later explicit declaration re-enables writing
 H.check(load("global<const> *; global W; W = 1") ~= nil)
 
+-- 'global' is always a reserved word; no legacy compat switch exists
+H.check(load("local global = 1") == nil)
+
+-- legacy math functions are gone (no LUA_COMPAT_MATHLIB)
+H.check(math.pow == nil and math.atan2 == nil and math.log10 == nil)
+
 -- for-loop control variables are read-only (5.5)
 H.check(load("for i = 1, 3 do i = i + 1 end") == nil)
 H.check(load("for k, v in pairs({}) do k = 1 end") == nil)

@@ -10,36 +10,29 @@ LuaR is a Lua runtime with two identities that LuaJIT could never reconcile:
 
 1. **It is Lua.** The language, standard library, bytecode format, C API and
    module ABI are those of the current official Lua release (5.5.1 today,
-   5.6 when it ships). There is no second dialect frozen at 5.1.
+   5.6 when it ships). There is no second dialect frozen at an old release.
 2. **It is fast.** LuaJIT's practical wins — a compact FFI, cheap table
    primitives, a tracing JIT — are provided as additive layers.
 
-Non-goals: Lua 5.1 compatibility, source-level compatibility with LuaJIT's
-C API (`lua_State` layout, `LUAJIT_VERSION`), reproducing LuaJIT bugs, or
-supporting two Lua language versions at once. LuaR supports the newest Lua
-line and moves forward.
+Non-goals: compatibility with any legacy Lua line (5.1–5.4), source-level
+compatibility with LuaJIT's C API (`lua_State` layout, `LUAJIT_VERSION`),
+reproducing LuaJIT bugs, or supporting two Lua language versions at once.
+LuaR supports the newest Lua line and moves forward.
 
 ## 2. Why the Lua core is the foundation, not LuaJIT
 
-The obvious alternative — graft Lua 5.5 syntax and semantics onto the LuaJIT
-2.1 tree — was rejected after examining both codebases:
-
-* LuaJIT's VM is built around a 5.1 value model: no integer subtype, no
-  `<const>`/`<close>` attributes, no `global` declarations, no read-only
-  loop variables, different coercion and length rules. The value model is
-  threaded through the interpreter, the GC, the FFI and the JIT.
-* LuaJIT's bytecode (`BC_*`) and IR assume its NaN-boxed `TValue` and its
-  dual-number mode. Lua 5.5 requires exact 64-bit integers, integer
-  overflow wrap-around, distinct `/` and `//`, and the `OP_MMBIN*`
-  metamethod protocol. Adding these to LuaJIT's recorder is a rewrite of
-  the recorder, not a patch.
-* LuaJIT's FFI is coupled to its GC, ctype registry and recorder. Its
-  parser is portable in spirit, but its object model is not.
+The alternative — reuse LuaJIT's legacy engine and graft Lua 5.5 on top —
+was rejected after examining both codebases.  LuaJIT's VM has no integer
+subtype and none of 5.5's declaration or closing semantics; its bytecode
+and IR assume its own NaN-boxed value model and dual numbers; its FFI is
+coupled to its GC, ctype registry and recorder.  Reproducing 5.5's exact
+integer, metamethod and `<close>` behaviour there would rewrite every layer
+and would keep the project anchored to an old language.
 
 Starting from Lua 5.5.1 gives exact semantics for free, keeps the C API and
 module ABI stable, and makes upstream adoption a merge problem rather than a
-porting project. The cost is that the JIT must be built for Lua 5.5's
-bytecode instead of reused. That is the work this project exists to do.
+porting project.  The cost is that the JIT must be built for Lua 5.5
+bytecode instead of reused.  That is the work this project exists to do.
 
 See `doc/adr/0001-lua55-core.md`.
 
@@ -77,7 +70,7 @@ make correct against an unmodified VM.
 | T2  SSA IR + optimiser + DynASM x86-64/ARM64 (milestone 0.5)|
 | T3  FFI fast paths, allocation sinking, side traces (0.6+)  |
 +-------------------------------------------------------------+
-| stdlib + luar/jit/bit/ffi extensions | GC | coroutines      |
+| stdlib + luar/jit/ffi extensions | GC | coroutines        |
 +-------------------------------------------------------------+
 ```
 
@@ -117,7 +110,6 @@ Extensions must be additive and detectable:
 | --- | --- | --- |
 | `luar` | global table | version, lua_version, os, arch, features |
 | `jit` | global table | LuaJIT control surface; `status()` is truthful |
-| `bit` | global table | 32-bit LuaJIT semantics on 5.5 integers |
 | `ffi` | global table | LuaJIT-compatible core, opt-in (`doc/ffi.md`) |
 | `table.new`, `table.clear` | functions | LuaJIT/OpenResty names; `table.create` is upstream |
 
@@ -130,10 +122,8 @@ Rules:
 * Extensions that cannot work yet must fail loudly or report the truth:
   `jit.status()` returns `false` until code is actually generated, and
   `luar.features.ffi` is `false` in builds without libffi.
-* LuaJIT modules that need 5.1 semantics (`string.gfind`, `unpack`,
-  `module`, `setfenv`, `newproxy`, `jit.util.traceinfo` on 5.1 bytecode)
-  are out of scope. Porting such code to 5.5 is the user's job; LuaR does not
-  simulate a dead language version.
+* There is no legacy-language compatibility layer.  Code that relies on
+  pre-5.5 APIs must be updated; LuaR never emulates an older Lua.
 
 ## 7. Following upstream without losing the fork
 

@@ -20,7 +20,7 @@ make bench             # performance harness, no pass/fail gates
 
 | Path | Purpose | Must pass under stock Lua? |
 | --- | --- | --- |
-| `tests/smoke.lua` | identity, extension surface, 5.5 basics | no (uses `luar`/`jit`/`bit`) |
+| `tests/smoke.lua` | identity, extension surface, 5.5 basics | no (uses `luar`/`jit`) |
 | `tests/semantics/` | language and stdlib conformance | **yes** |
 | `tests/diff/` | byte-for-byte output comparison vs stock `lua` | yes by construction |
 | `tests/compat/` | LuaJIT-compatible extension API | no |

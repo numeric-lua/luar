@@ -23,7 +23,7 @@ Core provenance: `lvm.c`, `ltable.c`, `lstrlib.c`, `lstring.c`,
 `lobject.c`, `lgc.c`, `lapi.c`, `ldo.c` and `lbaselib.c` are byte-identical
 to `vendor/lua-5.5.1/src/` at this revision (zero diff lines).  Only the
 CLI (`lua.c`) differs.  LuaR's runtime differences are additive
-(`luar_lib.c`, `luar_jit.c`, `luar_bit.c`), so the VM behaviour measured
+(`luar_lib.c`, `luar_jit.c`), so the VM behaviour measured
 here is upstream Lua 5.5.1 behaviour.
 
 The machine is shared and laptop-class: another agent was building in the

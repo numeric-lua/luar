@@ -41,12 +41,12 @@ being missed.
    gets a `/* LUAR */` comment (or `/* LUAR begin */` / `/* LUAR end */` for
    a block). A reader diffing against upstream must see *why* the line is
    there.
-3. **Prefer new files.** `jit`, `bit`, FFI, `table.new`/`table.clear` and the
+3. **Prefer new files.** `jit`, FFI, `table.new`/`table.clear` and the
    extended `openlibs` live in `src/luar_*.c`. Do not scatter `#ifdef`s
    through the core.
 4. **No unrelated reformatting.** Do not touch whitespace, order or comments
    in untouched upstream lines; it turns every future rebase into noise.
-5. **No 5.1 compatibility code.** If upstream removed it, LuaR does not add
+5. **No legacy-version compatibility code.** If upstream removed it, LuaR does not add
    it back.
 6. **Record before committing.** A changed core file is not done until
    `tools/upstream-check.sh --update` has recorded its two hashes, the diff
@@ -257,7 +257,10 @@ What it does:
    `heavy.lua` in its own copy of the suite, with `_soft`, `_port` and
    `_nomsg` set as the official `_U` mode does — safe for `--jobs N`;
 4. runs the suite's authoritative `all.lua` driver with `-e"_U=true"` and
-   checks for `final OK !!!`;
+   checks for `final OK !!!`; because LuaR is strict 5.5, the runner disables
+   the one `goto.lua` assertion that expects `global` to be a legal variable
+   name under `LUA_COMPAT_GLOBAL` (upstream's own `ltests` build makes the
+   same choice);
 5. writes `tests/tmp/upstream-report.txt` with one PASS/FAIL line per file,
    the canonical result and the tail of each failure log.
 
@@ -328,10 +331,12 @@ API. Consequences:
   without recompilation (`tests/cli.sh` checks a stock `lua5.5` module);
 * upstream bug fixes and semantic changes arrive by merging core files, not
   by translating between two runtimes;
-* the delta stays small enough to audit: six tracked core/build files
-  (`lua.c`, `luac.c`, `luaconf.h`, `lualib.h`, `lvm.c`, `Makefile`) plus a
-  small set of additive `luar_*` source/header files.  `lvm.c` carries only
-  the gated `/* LUAR */` FFI equality hook;
+* the delta stays small enough to audit: eleven tracked core/build files
+  (the CLI, `luaconf.h`, `lualib.h`, `lauxlib.h`, the lexer/parser,
+  `lmathlib.c`, the gated FFI hook in `lvm.c`, and `Makefile`) plus a small
+  set of additive `luar_*` source/header files.  The lexer/parser/mathlib
+  deltas remove the old-version compatibility code; `lvm.c` carries only the
+  gated `/* LUAR */` FFI equality hook;
 * when Lua 5.6 changes internals, the rebase is visible in one three-way
   report, and anything the JIT hooks is forced through the same review.
 

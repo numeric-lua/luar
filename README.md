@@ -1,16 +1,15 @@
 # LuaR
 
-**A Lua 5.5-forward runtime with LuaJIT's superpowers — and without
-LuaJIT's time freeze.**
+**A Lua 5.5-only runtime with a LuaJIT-style FFI and a tiered JIT path.**
 
-LuaJIT stopped at Lua 5.1 and stayed there. LuaR starts from the official
-Lua 5.5.1 sources, keeps the complete Lua 5.5 language, C API and module
-ABI, and adds the things people actually missed: a compact FFI, the `jit`
-control surface, `table.new`/`table.clear`, 32-bit `bit` compatibility, and
-a tiered tracing JIT on a concrete, documented path.
+LuaR starts from the official Lua 5.5.1 sources and never looks backwards:
+no 5.1, 5.2, 5.3 or 5.4 compatibility switches, no legacy APIs, no second
+dialect. On top of that exact 5.5 language and C ABI it adds a compact FFI,
+the `jit` control surface, `table.new`/`table.clear`, and a concrete,
+documented route to a tracing JIT.
 
 The defining rule: **LuaR follows Lua.** When Lua 5.6 ships, LuaR adopts
-it. There is no second, frozen dialect to maintain.
+it. Each release supports one Lua line, the current one.
 
 ```
 $ luar -v
@@ -25,7 +24,6 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | C API and C module ABI | compatible; a stock `lua5.5` module loads unchanged |
 | `luar`, `luarc`, `libluar.a`, install | working (`make`, `make install`, `luar.pc`, man page) |
 | `luar` identity, `LUAR_INIT`, `luar/5.5` module paths | working |
-| `bit` (LuaJIT 32-bit semantics) | complete, value-for-value against LuaJIT 2.1 |
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working; `jit.status()` truthfully `false` (no native engine yet) |
 | FFI | LuaJIT-compatible core behind `WITH_FFI=1` (0.2 preview) |
@@ -35,8 +33,20 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for
 `liblua`: same bytecode format, C API and module ABI. Performance is stock
 Lua 5.5 performance (same VM): in `bench/`, LuaR is within ~1% of stock Lua
-in aggregate, while LuaJIT 2.1 is 6.7× faster with the JIT on. Closing that
-gap is the job of the JIT milestones, not a claim of 0.1.
+in aggregate. Closing the performance gap is the job of the JIT milestones,
+not a claim of 0.1.
+
+## 5.5 only, by construction
+
+* `global` is always a reserved word; `local global = 1` is a syntax error.
+* No `LUA_COMPAT_*` switches exist in the build: deprecated math functions
+  (`math.pow`, `math.atan2`, `math.log10`, ...) and legacy API macros
+  (`lua_strlen`, `lua_equal`, `luaL_checkint`, ...) are gone.
+* No `unpack`, `module`, `setfenv`, `newproxy`, `loadstring` or `bit`
+  compatibility library. Use `table.unpack`, `load` and native 5.5 bitwise
+  operators (`&`, `|`, `~`, `<<`, `>>`).
+* The vendored LuaJIT tree is not part of the repository; only its DynASM
+  code generator was kept, ported to native 5.5 operators.
 
 ## Build
 
@@ -59,8 +69,8 @@ automatically when `PREFIX` or `WITH_FFI` changes.
 $ luar -v
 LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 
-$ luar -e 'print(bit.tohex(0xdeadbeef), table.new and "table.new" or "?")'
-deadbeef	table.new
+$ luar -e 'print(0xdeadbeef & 0xffff, table.new and "table.new" or "?")'
+48879	table.new
 
 $ luar -b prog.lua prog.luac   # LuaJIT-compatible bytecode mode
 $ luar -joff prog.lua          # LuaJIT-compatible JIT control (no-op today)
@@ -84,21 +94,20 @@ print(ffi.C.sqrt(p.x * p.x + p.y * p.y))   -- 5.0
 
 ## How it is built
 
-Lua 5.5.1 is the semantic authority; the LuaJIT surface is additive and the
-JIT is a new tier over 5.5 bytecode, not a graft onto LuaJIT's 5.1-shaped
-VM. That keeps 5.5 semantics exact, keeps the C ABI intact, and makes
-upstream adoption a merge instead of a language port. The reasoning, value
-model and layer diagram are in `doc/architecture.md`; the decision record is
-`doc/adr/0001-lua55-core.md`.
+Lua 5.5.1 is the semantic authority. The LuaJIT-style surface is additive
+and the JIT is a new tier over 5.5 bytecode; there is no legacy VM to
+graft onto. That keeps 5.5 semantics exact, keeps the C ABI intact, and
+makes upstream adoption a merge instead of a language port. The reasoning,
+value model and layer diagram are in `doc/architecture.md`; the decision
+record is `doc/adr/0001-lua55-core.md`.
 
 ```
 src/                 LuaR engine (derived from Lua 5.5.1, small tagged deltas)
   luar_lib.c         identity, table extensions, extended openlibs
   luar_jit.c         jit.* control surface
-  luar_bit.c         32-bit LuaJIT-compatible bit library
   luar_ffi*.c        FFI: type system, cdef parser, cdata, libffi calls
 vendor/lua-5.5.1/    pristine upstream snapshot, the sync reference
-vendor/luajit/       original LuaJIT 2.1 tree (reference + DynASM)
+dynasm/              DynASM code generator, ported to native Lua 5.5 ops
 tests/               semantics, differential, compat, FFI, CLI/ABI, upstream
 bench/               16-benchmark corpus + cross-interpreter harness
 doc/                 architecture, roadmap, compatibility, JIT design, upstream
@@ -122,8 +131,8 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
 - [doc/architecture.md](doc/architecture.md) — value model, tiers, FFI/GC
   integration, why Lua 5.5 is the semantic authority.
 - [doc/roadmap.md](doc/roadmap.md) — 0.1 → 1.0 milestones with exit criteria.
-- [doc/compatibility.md](doc/compatibility.md) — the compatibility contract
-  and the LuaJIT API matrix.
+- [doc/compatibility.md](doc/compatibility.md) — the 5.5-only contract and
+  the LuaJIT API matrix.
 - [doc/jit-design.md](doc/jit-design.md) — tracing-JIT design: opcode map,
   IR, guards, GC safepoints, codegen and J1–J5 milestones.
 - [doc/ffi.md](doc/ffi.md) — FFI scope, semantics and known limitations.
@@ -132,12 +141,10 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
 - [doc/performance.md](doc/performance.md) — measured baseline and honest
   interpretation.
 - [doc/testing.md](doc/testing.md) — suites, differential testing, sanitizers.
-- [doc/porting-from-luajit.md](doc/porting-from-luajit.md) — migration guide
-  for LuaJIT codebases.
 - [CHANGELOG.md](CHANGELOG.md) — what 0.1.0 contains.
 
 ## License
 
 LuaR is MIT-licensed. It contains code from Lua 5.5.1
-(Copyright © 1994–2026 Lua.org, PUC-Rio) and from LuaJIT 2.1
-(Copyright © 2005–2026 Mike Pall). See `COPYRIGHT`.
+(Copyright © 1994–2026 Lua.org, PUC-Rio). The DynASM code generator is from
+LuaJIT (Copyright © 2005–2026 Mike Pall). See `COPYRIGHT`.

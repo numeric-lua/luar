@@ -76,7 +76,6 @@ typedef struct LexState {
   TString *source;  /* current source name */
   TString *envn;  /* environment variable name */
   TString *brkn;  /* "break" name (used as a label) */
-  TString *glbn;  /* "global" name (when not a reserved word) */
 } LexState;
 
 

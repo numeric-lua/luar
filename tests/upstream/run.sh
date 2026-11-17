@@ -159,6 +159,16 @@ if [ ! -f "$SUITE/all.lua" ]; then
 fi
 [ -f "$SUITE/all.lua" ] || die "suite did not unpack to $SUITE"
 
+# LuaR is strict Lua 5.5: 'global' is always a reserved word and there is no
+# LUA_COMPAT_GLOBAL.  The upstream basic suite still takes its compatibility
+# branch when T is nil, so skip that one assertion in the working copy.  This
+# is the same configuration upstream's own ltests build uses
+# (ltests/ltests.h undefines LUA_COMPAT_GLOBAL).
+if grep -q 'when not in "test mode", "global" isn' "$SUITE/goto.lua"; then
+  sed -i 's/if not T then  -- when not in "test mode", "global" isn.t reserved/if false then  -- LuaR strict 5.5: global is always reserved/' \
+    "$SUITE/goto.lua"
+fi
+
 rm -rf "$WORK"
 mkdir -p "$WORK/bin" "$WORK/logs" "$WORK/status" "$WORK/runs"
 
@@ -218,9 +228,9 @@ run_one() {
     if (
       cd "$rundir" || exit 125
       if [ -n "$TIMEOUT" ]; then
-        timeout "$TIMEOUT" "$LUAR" "$PRELUDE" "$name" > "$log" 2>&1
+        timeout "$TIMEOUT" "$LUAR" -e "dofile('$PRELUDE')" "$name" > "$log" 2>&1
       else
-        "$LUAR" "$PRELUDE" "$name" > "$log" 2>&1
+        "$LUAR" -e "dofile('$PRELUDE')" "$name" > "$log" 2>&1
       fi
     ); then
       rc=0
@@ -289,6 +299,7 @@ emit "# tarball:      tests/tmp/upstream/$SUITE_NAME.tar.gz"
 emit "# sha256:       $SHA"
 emit "# interpreter:  $LUAR_ID"
 emit "# mode:         official basic tests (_U=true; non-portable tests skipped)"
+emit "# adaptation:   strict 5.5 -- goto.lua's LUA_COMPAT_GLOBAL branch disabled"
 emit "# note:         PASS means the file harness completed; in _U mode some"
 emit "#               non-portable checks (notably main.lua) return early by design"
 emit "# jobs:         $JOBS"

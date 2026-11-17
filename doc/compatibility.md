@@ -1,7 +1,7 @@
 # Compatibility contract
 
-This document is the promise LuaR makes to users. It is split into what is
-guaranteed, what is emulated for LuaJIT code, and what is deliberately absent.
+This document is the promise LuaR makes: a complete Lua 5.5 runtime, a
+small additive extension surface, and no legacy Lua versions at all.
 
 ## 1. The guarantee: Lua 5.5.1
 
@@ -17,43 +17,54 @@ LuaR 0.1 is a drop-in replacement for the official Lua 5.5.1 runtime:
 | Coroutines, GC modes, `debug`, `utf8`, `string.pack` | untouched upstream implementation |
 
 The repository enforces this with `tests/semantics/`, which is also run under
-stock `lua` 5.5.1, and with the official Lua test suite
-(`tests/upstream/run.sh`).
+stock `lua` 5.5.1, with `tests/diff/` (identical output under both
+interpreters), and with the official Lua test suite (`tests/upstream/run.sh`).
 
 Intentional, documented differences:
 
 * `luar -v` prints the LuaR banner including the Lua base version.
 * The program name defaults to `luar`; `luarc` replaces `luac`.
 * `luaL_openlibs` (and the stand-alone interpreter) also open the LuaR
-  extensions: `luar`, `jit`, `bit`, and `ffi` when built.  A host compiled
-  against the **stock** Lua 5.5 headers still expands `luaL_openlibs` to
-  `luaL_openselectedlibs(L, ~0, 0)` and therefore gets exactly the standard
-  libraries; it can call `luar_openlibs(L)` explicitly to opt in.
+  extensions: `luar`, `jit`, `table.new`/`table.clear`, and `ffi` when
+  built.  A host compiled against the **stock** Lua 5.5 headers still expands
+  `luaL_openlibs` to `luaL_openselectedlibs(L, ~0, 0)` and therefore gets
+  exactly the standard libraries; it can call `luar_openlibs(L)` explicitly
+  to opt in.
 * Default module paths include `luar/5.5` directories before the Lua ones.
 * `LUAR_INIT` is consulted before `LUA_INIT`.
 * `LUA_ROOT` can be overridden at build time with `PREFIX`.
 * `_VERSION` stays `"Lua 5.5"`; LuaR's own version is in `luar.version`.
 
-## 2. LuaJIT compatibility surface
+## 2. Lua 5.5 only
 
-LuaJIT compatibility means API shape and observable semantics for portable
-code. It does not mean bug-for-bug behaviour, 5.1 semantics, or binary
-compatibility with LuaJIT.
+There is no compatibility mode for an older Lua line.  The build contains no
+`LUA_COMPAT_*` switches, and the following are deliberately absent:
 
-### 2.1 `bit` — implemented
+* `global` used as an identifier: it is always a reserved word.
+* Deprecated math functions (`math.pow`, `math.atan2`, `math.log10`,
+  `math.sinh`, ...).
+* Legacy C API macros (`lua_strlen`, `lua_objlen`, `lua_equal`,
+  `lua_lessthan`, `luaL_checkint`, `luaL_checklong`, ...).
+* The LuaJIT 5.1-era `bit` library.  Lua 5.5 has native `&`, `|`, `~`, `<<`
+  and `>>`.
+* `unpack`, `module`, `setfenv`/`getfenv`, `newproxy`, `string.gfind`,
+  `table.maxn`, `math.mod`, `loadstring` and the 5.1 vararg `arg` table.
 
-All of `bit.tobit`, `bnot`, `band`, `bor`, `bxor`, `lshift`, `rshift`,
-`arshift`, `rol`, `ror`, `bswap`, `tohex`, plus `bit.nbits == 32`.
-Operands follow LuaJIT's 32-bit folding rules; shift counts use 5 bits;
-results are signed 32-bit integers. Native 5.5 operators (`&`, `|`, `~`,
-`<<`, `>>`) are 64-bit and are the recommended form for new code.
+Code that needs those must be written for Lua 5.5.  LuaR does not ship,
+link, or emulate an older Lua runtime.
 
-### 2.2 `table` — implemented
+## 3. LuaJIT-style extension surface
+
+LuaJIT compatibility below means API shape and observable semantics for
+portable code.  It does not mean LuaJIT's C API, bytecode, or old-language
+semantics.
+
+### 3.1 `table` — implemented
 
 `table.new(narr, nrec)` and `table.clear(t)`. `table.create` is the upstream
 Lua 5.5 spelling and is left untouched.
 
-### 2.3 `jit` — control surface only
+### 3.2 `jit` — control surface only
 
 | API | Status | Notes |
 | --- | --- | --- |
@@ -65,13 +76,13 @@ Lua 5.5 spelling and is left untouched.
 | `jit.opt.start(...)` | implemented | options parsed and stored; thresholds used later |
 | `jit.attach()` | not implemented | planned with the profiler |
 | `jit.security()` | not implemented | out of scope |
-| `jit.util.*` | not implemented | bytecode is 5.5, LuaJIT's util is 5.1-shaped |
+| `jit.util.*` | not implemented | LuaJIT-specific bytecode introspection |
 | `jit.profile` | not implemented | candidate for 0.4 |
 
-### 2.4 `ffi` — core implemented (opt-in)
+### 3.3 `ffi` — core implemented (opt-in)
 
-Build with `WITH_FFI=1`; calls are made through libffi.  The full reference
-is `doc/ffi.md`.
+Build with `WITH_FFI=1`; calls are made through libffi, loaded with
+`dlopen`.  The full reference is `doc/ffi.md`.
 
 Implemented: `cdef` (typedefs, structs/unions including anonymous and nested
 members, enums and their constants, pointers, fixed and variable-length
@@ -95,53 +106,17 @@ Deliberate deviations, all documented:
 
 Not supported: C preprocessor, bitfields, `long double`/complex/vector
 types, packing attributes, variadic calls, C→Lua callbacks
-(`ffi.callback`), and `ffi.typeinfo`.
+(`ffi.callback`), `ffi.typeinfo`, and cdata bitwise/shift operators.
 
-### 2.5 Other LuaJIT libraries
+### 3.4 Other LuaJIT libraries
 
 | API | Status |
 | --- | --- |
 | `string.buffer` | candidate (0.7), not required for compatibility |
 | `table.clone`, OpenResty `table.*` | not provided (use a Lua module) |
-| `os.exit` 5.2 semantics | inherited from Lua 5.5 |
 | `LUAJIT_VERSION`, `luaJIT_setmode`, LuaJIT headers | not provided |
 
-## 3. Deliberately absent: Lua 5.1
-
-LuaR does not simulate Lua 5.1. Code and modules that require it must be
-ported:
-
-* no `unpack` (use `table.unpack`), `module`, `setfenv`/`getfenv`,
-  `newproxy`, `string.gfind`, `table.maxn`, `math.mod`, `loadstring`
-* no `arg` table in vararg functions (use `...`; the CLI `arg` table exists)
-* no 5.1 `__len`/`__ipairs` edge semantics; 5.5 rules apply
-* no 5.1 C API (`lua_open`, `luaL_getn`, `LUA_REGISTRYINDEX` layout changes)
-
-LuaJIT's `ffi` was the reason most numeric Lua code stayed on 5.1; that is
-what milestone 0.2 addresses.
-
-## 4. Lua 5.5 language changes that bite when porting from LuaJIT
-
-* **Integers exist.** `1` and `1.0` differ; `/` always produces a float;
-  `//` is floor division; integers wrap on overflow; `math.type` matters.
-* **`global` is a keyword** and introduces scoped strict-global declarations
-  (`global x`, `global<const> *`). Inside such a scope every free name must
-  be declared.
-* **`for` control variables are read-only.** Assigning to them is a compile
-  error; shadow them in the body instead.
-* **`__call` chains are limited** to 15 objects.
-* **`error(nil)` produces the string `"<no error object>"`.**
-* **C API changes:** `lua_newstate` takes a seed argument, `lua_resetthread`
-  is deprecated in favour of `lua_closethread`, `lua_setcstacklimit` is
-  deprecated, GC parameters moved to `LUA_GCPARAM`, `lua_dump` calls the
-  writer one extra time, and `nresults` is capped at 250.
-* **Numeric string coercion** goes string→number for arithmetic and
-  number→string for concatenation, but there is no implicit integer/float
-  promotion when formatting: `string.format("%d", 1.0)` fails.  Hex and
-  exponent strings are accepted by arithmetic (`"0x10" + 0` is 16); test
-  rather than assume.
-
-## 5. Versioning
+## 4. Versioning
 
 * `luar.version` / `LUAR_VERSION` follow semver for the runtime and its
   extension API.
@@ -150,9 +125,10 @@ what milestone 0.2 addresses.
 * Extensions may add functions in minor releases; removal requires a major
   release and a deprecation cycle in `luar.features`.
 
-## 6. What we will not promise
+## 5. What we will not promise
 
-* Binary compatibility with LuaJIT, its headers or its bytecode.
+* Binary or source compatibility with LuaJIT's C API, headers or bytecode.
 * Running unmodified LuaJIT C modules (they use LuaJIT's C API).
+* Any legacy Lua language version.
 * Identical performance to LuaJIT before the JIT milestones land. 0.1 is an
   interpreter at stock Lua 5.5 speed; `bench/` reports the gap honestly.
