@@ -265,3 +265,11 @@ struct PadBit { unsigned a : 3; unsigned : 2; unsigned b : 3; };
 int size_PadBit (void) { return (int)sizeof(struct PadBit); }
 unsigned padbit_a_ptr (const struct PadBit *p) { return p->a; }
 unsigned padbit_b_ptr (const struct PadBit *p) { return p->b; }
+union PairU { double d[2]; };
+double pairu_sum (union PairU u) { return u.d[0] + u.d[1]; }
+union PairU pairu_make (double a, double b) { union PairU u; u.d[0] = a; u.d[1] = b; return u; }
+union LongPairU { long v[2]; };
+long lpair_sum (union LongPairU u) { return u.v[0] + u.v[1]; }
+union LongPairU lpair_make (long a, long b) { union LongPairU u; u.v[0] = a; u.v[1] = b; return u; }
+struct PairUBox { int tag; union PairU u; };
+double pairu_box_sum (struct PairUBox b) { return b.tag + b.u.d[0] + b.u.d[1]; }

@@ -455,7 +455,30 @@ static ffi_type *build_array_type (lua_State *L, FFIState *S, CType *ct,
 }
 
 
-static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct) {
+static int type_float_only (CType *ct) {
+  uint16_t i;
+  if (ct->incomplete)
+    return 0;
+  switch (ct->kind) {
+    case CT_FLOAT:
+      return 1;
+    case CT_ARRAY:
+      return type_float_only(ct->child);
+    case CT_STRUCT:
+    case CT_UNION:
+      for (i = 0; i < ct->nfields; i++) {
+        if (!type_float_only(ct->fields[i].type))
+          return 0;
+      }
+      return ct->nfields > 0;
+    default:
+      return 0;
+  }
+}
+
+
+static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
+                                   FTAlloc **allocs) {
   uint16_t i;
   int all_float = 1;
   if (ct->incomplete || ct->size == 0 || ct->size == FFI_SIZE_UNKNOWN)
@@ -465,26 +488,42 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct) {
     luaL_error(L, "ffi: empty union '%s' cannot be passed by value",
                ffi_type_repr(S, ct));
   for (i = 0; i < ct->nfields; i++) {
-    if (ct->fields[i].type->kind != CT_FLOAT)
+    if (!type_float_only(ct->fields[i].type))
       all_float = 0;
   }
-  if (all_float) {
-    if (ct->size == 4)
-      return &ffi_type_float;
-    if (ct->size == 8)
-      return &ffi_type_double;
-    luaL_error(L, "ffi: union '%s' cannot be passed by value",
-               ffi_type_repr(S, ct));
+  if (ct->size <= 8) {
+    if (all_float) {
+      if (ct->size == 4)
+        return &ffi_type_float;
+      if (ct->size == 8)
+        return &ffi_type_double;
+    }
+    switch (ct->size) {
+      case 1: return &ffi_type_uint8;
+      case 2: return &ffi_type_uint16;
+      case 4: return &ffi_type_uint32;
+      case 8: return &ffi_type_uint64;
+      default: break;
+    }
   }
-  switch (ct->size) {
-    case 1: return &ffi_type_uint8;
-    case 2: return &ffi_type_uint16;
-    case 4: return &ffi_type_uint32;
-    case 8: return &ffi_type_uint64;
-    default:
-      luaL_error(L, "ffi: union '%s' is too large or cannot be passed by "
-                    "value", ffi_type_repr(S, ct));
+  else if (ct->size == 16) {
+    ffi_type *ft;
+    ffi_type **elems;
+    ffi_type *elem = all_float ? &ffi_type_double : &ffi_type_uint64;
+    ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+    elems = (ffi_type **)ft_alloc(L, allocs, sizeof(ffi_type *) * 3);
+    elems[0] = elem;
+    elems[1] = elem;
+    elems[2] = NULL;
+    memset(ft, 0, sizeof(*ft));
+    ft->type = FFI_TYPE_STRUCT;
+    ft->elements = elems;
+    ft->size = 0;
+    ft->alignment = 0;
+    return ft;
   }
+  luaL_error(L, "ffi: union '%s' is too large or cannot be passed by value",
+             ffi_type_repr(S, ct));
   return NULL;
 }
 
@@ -571,7 +610,7 @@ static ffi_type *build_ffi_type (lua_State *L, FFIState *S, CType *ct,
                  ffi_type_repr(S, ct));
       return NULL;
     case CT_UNION:
-      return build_union_type(L, S, ct);
+      return build_union_type(L, S, ct, allocs);
     case CT_FLOAT:
       if (ct->size == 4)
         return &ffi_type_float;
