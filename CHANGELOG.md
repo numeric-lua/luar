@@ -41,6 +41,8 @@ the machinery to keep following Lua.
 - `doc/architecture.md` — value model, tiers, why the Lua 5.5 core is the
   semantic authority, upstream-follow design.
 - `doc/roadmap.md` — 0.1 → 1.0 milestones with exit criteria.
+- `doc/lua55-only.md` — the practical 5.5-only guide: reserved words,
+  native bitwise operators, removed legacy names, strict C API.
 - `doc/compatibility.md` — the 5.5-only contract and the LuaJIT API matrix.
 - `doc/testing.md` — suite layout, differential testing, sanitizers.
 - `doc/upstream.md` — vendor/baseline policy and the Lua 5.6 adoption
@@ -49,7 +51,8 @@ the machinery to keep following Lua.
 
 ### Tests and tooling
 
-- Semantics suite that also passes under stock Lua 5.5.1.
+- Semantics suite that also passes under stock Lua 5.5.1, including a
+  native-bitwise-operator suite and a strict-5.5 regression suite.
 - Differential suite: identical stdout and exit status under `lua` and
   `luar`.
 - Official Lua 5.5.1 test suite runner (`tests/upstream/run.sh`); basic mode

@@ -37,7 +37,8 @@ Intentional, documented differences:
 
 ## 2. Lua 5.5 only
 
-There is no compatibility mode for an older Lua line.  The build contains no
+There is no compatibility mode for an older Lua line.  The practical guide
+is `doc/lua55-only.md`.  The build contains no
 `LUA_COMPAT_*` switches, and the following are deliberately absent:
 
 * `global` used as an identifier: it is always a reserved word.

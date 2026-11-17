@@ -23,7 +23,7 @@ make bench             # performance harness, no pass/fail gates
 | `tests/smoke.lua` | identity, extension surface, 5.5 basics | no (uses `luar`/`jit`) |
 | `tests/semantics/` | language and stdlib conformance | **yes** |
 | `tests/diff/` | byte-for-byte output comparison vs stock `lua` | yes by construction |
-| `tests/compat/` | LuaJIT-compatible extension API | no |
+| `tests/compat/` | LuaJIT-style extensions and strict-55 rules | no |
 | `tests/ffi/` | FFI parser, cdata, calls | no |
 | `tests/cli.sh` | binaries, bytecode, ABI, embedding | no |
 | `tests/upstream/` | official Lua authors' suite | it is the reference |

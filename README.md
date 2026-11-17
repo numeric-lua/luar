@@ -119,6 +119,8 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
 
 - `tests/semantics/` also passes under stock `lua` 5.5.1; `tests/diff/` runs
   identical scripts under both and compares stdout and exit status.
+- `tests/compat/strict55.lua` pins the 5.5-only rules: reserved `global`,
+  no `bit`, no deprecated math, no legacy library names.
 - The official Lua 5.5.1 test suite passes 31/31 files and the canonical
   `all.lua` (`make test-upstream`).
 - `tools/upstream-check.sh` fails CI on any unrecorded drift from
@@ -131,6 +133,8 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
 - [doc/architecture.md](doc/architecture.md) — value model, tiers, FFI/GC
   integration, why Lua 5.5 is the semantic authority.
 - [doc/roadmap.md](doc/roadmap.md) — 0.1 → 1.0 milestones with exit criteria.
+- [doc/lua55-only.md](doc/lua55-only.md) — what "5.5 only" means: reserved
+  words, native bitwise operators, removed legacy names, strict C API.
 - [doc/compatibility.md](doc/compatibility.md) — the 5.5-only contract and
   the LuaJIT API matrix.
 - [doc/jit-design.md](doc/jit-design.md) — tracing-JIT design: opcode map,
