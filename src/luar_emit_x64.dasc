@@ -715,8 +715,110 @@ static void emit_fast_int (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static void emit_fast_tsum (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  int isf = (d->ops[0].ta == LUAR_T_FLOAT);
+  | push rbx
+  | mov rbx, rdi
+  | push r12
+  | push r13
+  | push r14
+  | push r15
+  | mov r12, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+  | mov r13, qword [rbx + ((int)LUAR_SLOT(d->ft_idx))]
+  | mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+  if (!isf) {
+    | mov r15, qword [rbx + ((int)LUAR_SLOT(d->ft_acc))]
+  }
+  else {
+    | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->ft_acc))]
+  }
+  emit_guards(Dst, d);
+  | mov r8, qword [rbx + ((int)LUAR_SLOT(d->ft_table))]
+  | mov rax, qword [r8 + ((int)d->table_metatable_off)]
+  | test rax, rax
+  | jnz >3
+  | mov r9, qword [r8 + ((int)d->table_array_off)]
+  | mov r10d, dword [r8 + ((int)d->table_asize_off)]
+  /* This fast path only handles step 1 and pre-validates the whole range. */
+  | cmp r14, 1
+  | jne >3
+  | cmp r13, 1
+  | jl >3
+  | mov rax, r13
+  | add rax, r12
+  | cmp rax, r10
+  | ja >3
+  | mov rcx, r13
+  | dec rcx
+  | shl rcx, 4
+  | add rcx, r9
+  | mov rdx, r12
+  | inc rdx
+  |4:
+  | cmp byte [rcx + 8], ((int)d->tag_int)
+  | jne >3
+  | add rcx, 16
+  | dec rdx
+  | jnz <4
+  | mov r11, r13
+  | dec r11
+  | shl r11, 4
+  | add r11, r9
+  |1:
+  if (!isf) {
+    | add r15, qword [r11]
+  }
+  else {
+    | cvtsi2sd xmm1, qword [r11]
+    | addsd xmm0, xmm1
+  }
+  | add r11, 16
+  | test r12, r12
+  | jz >2
+  | dec r12
+  | inc r13
+  | jmp <1
+  |2:
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
+  if (!isf) {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->ft_acc))], r15
+  }
+  else {
+    | movsd qword [rbx + ((int)LUAR_SLOT(d->ft_acc))], xmm0
+  }
+  | mov eax, 1
+  | pop r15
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+  |3:
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
+  if (!isf) {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->ft_acc))], r15
+  }
+  else {
+    | movsd qword [rbx + ((int)LUAR_SLOT(d->ft_acc))], xmm0
+  }
+  | xor eax, eax
+  | pop r15
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+}
+
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
+  if (d->fast_tsum) {
+    emit_fast_tsum(Dst, d);
+    return;
+  }
   if (d->fast_int) {
     emit_fast_int(Dst, d);
     return;

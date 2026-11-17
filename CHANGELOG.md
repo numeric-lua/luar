@@ -67,7 +67,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
 - Early J3 coverage (opt-in `jit.opt.start("table=1")`): raw integer array
-  stores (`t[i] = i`), including a register-cached fill fast path,, with metatable/bounds/tag guards
+  stores (`t[i] = i`) and accumulation (`acc = acc + t[i]`), including
+  register-cached fill/sum fast paths,, with metatable/bounds/tag guards
   that bail before the current iteration.  Both are correct but not yet
   faster than the interpreter, so they are off by default.
 - Early J3 coverage: a read-only integer raw-array lookup

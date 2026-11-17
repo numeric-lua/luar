@@ -405,7 +405,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       }
       case OP_GETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
-        if (!J->enable_table || i != 0 || d.has_table) return 0;   /* only a leading lookup */
+        if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
         if (is_control_reg(ka, for_a)) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
         if (slot_type(b, cur, def, kc) != LUAR_T_INT) return 0;
@@ -496,6 +496,29 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
   }
+  /* Fast table sum: acc = acc + t[idx]. */
+  if (!is_while && d.nops >= 1 && ops[0].kind == LUAR_OP_TABLE_ADD &&
+      ops[0].c == for_a + 2) {
+    int only = 1;
+    for (i = 1; i < n - 1; i++)
+      if (ops[i].kind != LUAR_OP_MMBIN && ops[i].kind != LUAR_OP_NOP)
+        only = 0;
+    if (only) {
+      memset(seen, 0, sizeof(seen));
+      d.nguards = 0;
+      add_guard(&d, seen, ops[0].tb, LUAR_T_TABLE);
+      add_guard(&d, seen, ops[0].c, LUAR_T_INT);
+      add_guard(&d, seen, ops[0].a, ops[0].ta);
+      add_guard(&d, seen, for_a, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 1, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 2, LUAR_T_INT);
+      d.fast_tsum = 1;
+      d.ft_table = ops[0].b;
+      d.ft_idx = ops[0].c;
+      d.ft_acc = ops[0].a;
+    }
+  }
+
   /* Fast fill: t[idx] = idx with the loop index as both key and value. */
   if (!is_while && d.nops == 1 && ops[0].kind == LUAR_OP_SETTABLE &&
       ops[0].b == for_a + 2 && ops[0].c == for_a + 2) {
