@@ -119,15 +119,15 @@ preprocessor subset is available.
   support named and variadic (`...`/`__VA_ARGS__`) parameters on a single
   line.  `#`/`##`, `#include`, non-pack `#pragma` and complex `#if`
   expressions are rejected; `#pragma pack(n/push/pop)` drives layout.
-* `__attribute__((packed))` on a struct/union is supported; other
-  attributes, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline asm
-  and `_Static_assert` are rejected.
+* `__attribute__((packed))` and `__attribute__((aligned(n)))` (alone or
+  combined) on a struct/union are supported; other attributes,
+  `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline asm and
+  `_Static_assert` are rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
   supported.
-* `__attribute__((packed))` and `#pragma pack(n)` (including
-  `push`/`pop`) use byte-granular layout and are field-accessible; packed
-  aggregates cannot be passed by value (libffi would mislay them), and other
-  packing/alignment attributes are unsupported; layout
+* `__attribute__((packed))`/`aligned(n)` and `#pragma pack(n)` (including
+  `push`/`pop`) control layout and are field-accessible; packed aggregates
+  cannot be passed by value (libffi would mislay them); layout
   always follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
   type and pass the length to `ffi.new`/`ffi.sizeof`.

@@ -94,6 +94,7 @@ struct CType {
   uint8_t incomplete;	/* forward-declared struct/union */
   uint8_t vararg;	/* function with '...' */
   uint8_t pack;		/* 0 natural, 1 packed, 2/4/8 #pragma pack */
+  uint8_t align_override;	/* __attribute__((aligned(n))) */
   uint16_t nargs;
   uint16_t argcap;
   uint16_t nfields;

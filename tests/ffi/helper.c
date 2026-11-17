@@ -334,3 +334,9 @@ struct Pack2 { char c; int i; };
 #pragma pack(pop)
 int size_Pack2 (void) { return (int)sizeof(struct Pack2); }
 int off_Pack2_i (void) { return (int)offsetof(struct Pack2, i); }
+struct __attribute__((aligned(16))) AlignedS { int x; };
+int size_AlignedS (void) { return (int)sizeof(struct AlignedS); }
+int align_AlignedS (void) { return (int)_Alignof(struct AlignedS); }
+struct __attribute__((packed, aligned(2))) PackAligned { char c; int i; };
+int size_PackAligned (void) { return (int)sizeof(struct PackAligned); }
+int align_PackAligned (void) { return (int)_Alignof(struct PackAligned); }

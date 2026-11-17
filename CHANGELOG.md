@@ -38,8 +38,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   strings and comments and persisted across cdef calls.  Function-like
   macros, `#include`, non-pack `#pragma` and complex `#if` expressions fail
   clearly.  `#pragma pack(n/push/pop)` sets byte-granular layout.
-- `__attribute__((packed))` structs/unions get byte-granular layout and
-  field access; packed aggregates are rejected by value rather than mislayed.
+- `__attribute__((packed))`/`aligned(n)` structs/unions get byte-granular or
+  over-aligned layout and field access; packed aggregates are rejected by
+  value rather than mislayed.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
   bit-granular packing including mixed base types, byte-crossing fields,
   unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named

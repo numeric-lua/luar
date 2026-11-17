@@ -963,19 +963,35 @@ static DeclSpec parse_declspec (Parser *P) {
 /* struct / union / enum definitions                                 */
 /* ------------------------------------------------------------------ */
 
-static int accept_packed_attr (Parser *P) {
-  if (!tok_is_ident(P, "__attribute__"))
-    return 0;
-  lex_next(P);
-  expect_punct(P, '(', "(");
-  expect_punct(P, '(', "(");
-  if (tok_is_ident(P, "packed"))
+static void parse_struct_attrs (Parser *P, CType *ct) {
+  while (tok_is_ident(P, "__attribute__")) {
     lex_next(P);
-  else
-    parser_error(P, "only __attribute__((packed)) is supported");
-  expect_punct(P, ')', ")");
-  expect_punct(P, ')', ")");
-  return 1;
+    expect_punct(P, '(', "(");
+    expect_punct(P, '(', "(");
+    for (;;) {
+      if (tok_is_ident(P, "packed")) {
+        lex_next(P);
+        ct->pack = 1;
+      }
+      else if (tok_is_ident(P, "aligned")) {
+        int64_t v;
+        lex_next(P);
+        expect_punct(P, '(', "(");
+        v = parse_const_expr(P);
+        expect_punct(P, ')', ")");
+        if (v < 1 || v > 32 || (v & (v - 1)) != 0)
+          parser_error(P, "bad aligned() value");
+        ct->align_override = (uint8_t)v;
+      }
+      else
+        parser_error(P, "only packed/aligned attributes are supported");
+      if (accept_punct(P, ','))
+        continue;
+      break;
+    }
+    expect_punct(P, ')', ")");
+    expect_punct(P, ')', ")");
+  }
 }
 
 
@@ -1062,8 +1078,7 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
     }
     if (P->S->pack_align != 0 && ct->pack == 0)
       ct->pack = (uint8_t)P->S->pack_align;
-    if (accept_packed_attr(P))
-      ct->pack = 1;
+    parse_struct_attrs(P, ct);
     ffi_type_finish_struct(P->S, ct);
     return ct;
   }

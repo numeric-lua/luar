@@ -446,6 +446,8 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       bitpos = off * 8;
     }
   }
+  if (ct->align_override > align)
+    align = ct->align_override;
   ct->align = align;
   if (ct->kind == CT_UNION)
     ct->size = round_up(maxsize, align);
