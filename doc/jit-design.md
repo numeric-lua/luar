@@ -25,7 +25,8 @@ is provably observationally equivalent to that interpreter.
   compiled loop cannot allocate, call, or raise), no table/string/closure
   operations; comparisons/forward branches are compiled for int and double
   operands; an early J3 experiment (opt-in `jit.opt.start("table=1")`)
-  compiles a leading integer array lookup/store and the accumulating ADD.
+  compiles a leading integer array lookup/store, the accumulating ADD and a
+  register-cached fill loop.
   Backward inner loops still fall back.  There is one compiled loop per
   `Proto` (the latest); the code cache is capped at 64 mappings and released
   by `jit.flush`/state close.

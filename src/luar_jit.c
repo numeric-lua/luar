@@ -451,7 +451,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_SETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
         int vt;
-        if (!J->enable_table || i != 0 || d.has_table) return 0;
+        if (i != 0 || d.has_table) return 0;
         if (slot_type(b, cur, def, ka) != LUAR_T_TABLE) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_INT) return 0;
         vt = slot_type(b, cur, def, kc);
@@ -496,6 +496,15 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
   }
+  /* Fast fill: t[idx] = idx with the loop index as both key and value. */
+  if (!is_while && d.nops == 1 && ops[0].kind == LUAR_OP_SETTABLE &&
+      ops[0].b == for_a + 2 && ops[0].c == for_a + 2) {
+    d.fast_fill = 1;
+    d.ff_table = ops[0].a;
+  }
+  if (d.has_table && !J->enable_table)
+    return 0;
+
   /* Fast float pattern: acc = acc + idx * constant (the float_loop
   ** benchmark shape).  Keep acc in xmm0 and the loop counters in GPRs. */
   if (!has_branch && !is_while && n >= 3) {

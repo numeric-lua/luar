@@ -123,7 +123,8 @@ Estimated: 6–10 weeks.
 ## 0.6 — Trace coverage
 
 Status: early J3, opt-in.  Read-only raw-array lookups and raw integer
-stores (`t[i]`, `acc = acc + t[i]`, `t[i] = i`) can be emitted behind
+stores (`t[i]`, `acc = acc + t[i]`, `t[i] = i`, with a register-cached
+fill fast path) can be emitted behind
 `jit.opt.start("table=1")`, with per-element tag/bounds/metatable guards
 that bail before the current iteration.  They are correct and tested but
 not yet faster than the interpreter on the reference corpus, so they are
