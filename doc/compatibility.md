@@ -108,8 +108,9 @@ Deliberate deviations, all documented:
   `ffi.C`/`ffi.load` for the current thread.
 * `string.format` accepts integer cdata for integer conversions and uses
   `tostring` for `%s`/`%q`; float cdata is rejected by numeric conversions.
-* Structs with fixed array members and unions up to 16 bytes can be passed
-  and returned by value (per-eightbyte SSE/INTEGER classification).
+* Structs with fixed array members and unions up to 16 bytes (per-eightbyte
+  SSE/INTEGER classification) or larger memory-class unions can be passed
+  and returned by value.
 * Struct bitfields with integer/enum/bool bases are supported, including
   mixed base types; union bitfields and by-value bitfield structs are
   rejected.
@@ -119,7 +120,7 @@ Deliberate deviations, all documented:
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
 Not supported: stringifying cdef macros, `#include`, `#pragma`,
-union bitfields, odd-sized/large
+union bitfields, odd-sized/oversized
 unions by value, `long double`/complex/vector
 types, packing attributes, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
 callback shapes.  `ffi.callback` itself is implemented, including

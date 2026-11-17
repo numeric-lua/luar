@@ -280,3 +280,18 @@ union Mixed16 mixed16_make (long l, double d) {
 }
 struct Mixed16Box { int tag; union Mixed16 u; };
 double mixed16_box_get (struct Mixed16Box b) { return b.tag + b.u.s.l + b.u.s.d; }
+union BigD { double d[4]; };
+double bigd_sum (union BigD u) { return u.d[0] + u.d[1] + u.d[2] + u.d[3]; }
+union BigD bigd_make (double a, double b, double c, double d) {
+  union BigD u; u.d[0]=a; u.d[1]=b; u.d[2]=c; u.d[3]=d; return u;
+}
+union Big3D { double d[3]; };
+double big3d_sum (union Big3D u) { return u.d[0] + u.d[1] + u.d[2]; }
+union BigL { long v[4]; };
+long bigl_sum (union BigL u) { return u.v[0] + u.v[1] + u.v[2] + u.v[3]; }
+struct BigDBox { int tag; union BigD u; };
+double bigd_box_sum (struct BigDBox b) {
+  return b.tag + b.u.d[0] + b.u.d[1] + b.u.d[2] + b.u.d[3];
+}
+union Char32 { char c[32]; };
+int char32_sum (union Char32 u) { int i, s = 0; for (i = 0; i < 32; i++) s += u.c[i]; return s; }

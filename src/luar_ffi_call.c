@@ -522,12 +522,38 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
   if (ct->nfields == 0)
     luaL_error(L, "ffi: empty union '%s' cannot be passed by value",
                ffi_type_repr(S, ct));
-  if (ct->size > 16)
-    luaL_error(L, "ffi: union '%s' is too large or cannot be passed by "
-                  "value", ffi_type_repr(S, ct));
   if (ct->size > 8 && ct->size < 16)
     luaL_error(L, "ffi: union '%s' has an unsupported size for by-value "
                   "passing", ffi_type_repr(S, ct));
+  if (ct->size > 16) {
+    size_t n, k;
+    ffi_type *elem;
+    ffi_type *ft;
+    ffi_type **elems;
+    if (ct->align != 1 && ct->align != 2 && ct->align != 4 &&
+        ct->align != 8)
+      luaL_error(L, "ffi: union '%s' has an unsupported alignment",
+                 ffi_type_repr(S, ct));
+    if (ct->size % ct->align != 0 ||
+        ct->size / ct->align > 4096)
+      luaL_error(L, "ffi: union '%s' is too large for by-value passing",
+                 ffi_type_repr(S, ct));
+    n = ct->size / ct->align;
+    elem = (ct->align == 1) ? &ffi_type_uint8 :
+           (ct->align == 2) ? &ffi_type_uint16 :
+           (ct->align == 4) ? &ffi_type_uint32 : &ffi_type_uint64;
+    ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+    elems = (ffi_type **)ft_alloc(L, allocs, sizeof(ffi_type *) * (n + 1));
+    for (k = 0; k < n; k++)
+      elems[k] = elem;
+    elems[n] = NULL;
+    memset(ft, 0, sizeof(*ft));
+    ft->type = FFI_TYPE_STRUCT;
+    ft->elements = elems;
+    ft->size = 0;
+    ft->alignment = 0;
+    return ft;
+  }
   nchunks = ct->size > 8 ? 2 : 1;
   cls[0] = cls[1] = 0;
   for (i = 0; i < ct->nfields; i++)

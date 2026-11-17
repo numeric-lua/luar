@@ -31,6 +31,17 @@ double mixed16_get(union Mixed16 u);
 union Mixed16 mixed16_make(long l, double d);
 struct Mixed16Box { int tag; union Mixed16 u; };
 double mixed16_box_get(struct Mixed16Box b);
+union BigD { double d[4]; };
+double bigd_sum(union BigD u);
+union BigD bigd_make(double a, double b, double c, double d);
+union Big3D { double d[3]; };
+double big3d_sum(union Big3D u);
+union BigL { long v[4]; };
+long bigl_sum(union BigL u);
+struct BigDBox { int tag; union BigD u; };
+double bigd_box_sum(struct BigDBox b);
+union Char32 { char c[32]; };
+int char32_sum(union Char32 u);
 ]]
 
 local h = S.helper()
@@ -77,5 +88,19 @@ H.eq(h.mixed16_get(mx), 7.5)
 H.eq(h.mixed16_make(10, 2.5).s.l, 10)
 local mxb = ffi.new("struct Mixed16Box", {tag = 1, u = mx})
 H.eq(h.mixed16_box_get(mxb), 8.5)
+
+-- larger unions go through the memory ABI path
+local bd = ffi.new("union BigD", {{1.0, 2.0, 3.0, 4.0}})
+H.eq(h.bigd_sum(bd), 10.0)
+H.eq(h.bigd_make(1.0, 1.5, 2.0, 2.5).d[3], 2.5)
+local b3 = ffi.new("union Big3D", {{1.0, 2.0, 3.0}})
+H.eq(h.big3d_sum(b3), 6.0)
+local bl = ffi.new("union BigL", {{1, 2, 3, 4}})
+H.eq(h.bigl_sum(bl), 10)
+local bb = ffi.new("struct BigDBox", {tag = 1, u = bd})
+H.eq(h.bigd_box_sum(bb), 11.0)
+local c32 = ffi.new("union Char32")
+for i = 0, 31 do c32.c[i] = 1 end
+H.eq(h.char32_sum(c32), 32)
 
 print("ffi/15_union_value ok")
