@@ -571,7 +571,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
 
     int acc = -1, idx = -1, limit = -1, kind = 0, ok = 1, has_imm = 0;
     int inc_i = -1, temp = -1, square = 0, prod = 0;
-    int is_float = 0, accum_i = -1;
+    int is_float = 0, accum_i = -1, sub = 0;
     double fconst = 0.0;
     int64_t imm = 0;
     for (i = 0; i < n - 1 && ok; i++) {
@@ -624,6 +624,16 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         acc = op->a;
         accum_i = (int)i;
       }
+      else if (op->kind == LUAR_OP_SUB) {
+        if (prod || acc >= 0 || op->a != op->b || op->c != idx ||
+            (op->ta != LUAR_T_INT && op->ta != LUAR_T_FLOAT)) {
+          ok = 0; break;
+        }
+        acc = op->a;
+        is_float = (op->ta == LUAR_T_FLOAT);
+        sub = 1;
+        accum_i = (int)i;
+      }
       else if (op->kind == LUAR_OP_ADDI) {
         if (op->a != idx || op->b != idx || op->imm == 0 ||
             op->ta != LUAR_T_INT) { ok = 0; break; }
@@ -642,6 +652,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       d.fast_while = 1;
       d.fw_square = square;
       d.fw_prod = prod;
+      d.fw_sub = sub;
       d.fw_float = is_float;
       d.fw_const = fconst;
       d.fw_acc = acc;

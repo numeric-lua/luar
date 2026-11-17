@@ -48,6 +48,16 @@ local function wprodf (n)
   while i <= n do s = s * i; i = i + 1 end
   return s, i
 end
+local function wsub (n)
+  local i, s = 0, 0
+  while i < n do s = s - i; i = i + 1 end
+  return s, i
+end
+local function wsubf (n)
+  local i, s = 0, 0.0
+  while i < n do s = s - i; i = i + 1 end
+  return s, i
+end
 local function rev (n)
   local i, s = 0, 0
   while i < n do i = i + 1; s = s + i end
@@ -73,7 +83,14 @@ local wst, wsti = wstep(100000)
 H.eq(wst, 2499950000)
 H.eq(wsti, 100000)
 for _ = 1, 10 do H.eq(wprod(10), 3628800) end
-for _ = 1, 10 do H.eq(wprodf(10), 3628800.0) end
+for _ = 1, 10 do H.eq(wprodf(10), 3628800.0)
+H.eq(wsub(1000), -499500)
+H.eq(wsubf(1000), -499500.0) end
+local wsb, wsbi = wsub(100000)
+H.eq(wsb, -4999950000.0)
+H.eq(wsbi, 100000)
+local wsf = wsubf(100000)
+H.eq(wsf, -4999950000.0)
 local d = rev(100000)
 H.eq(d, 5000050000)
 
@@ -85,6 +102,8 @@ H.eq(wstep(1000), 249500)
 H.eq(wf(1000), 249750.0)
 H.eq(wprod(10), 3628800)
 H.eq(wprodf(10), 3628800.0)
+H.eq(wsub(1000), -499500)
+H.eq(wsubf(1000), -499500.0)
 H.eq(wsq(1000), 332833500)
 jit.on()
 
