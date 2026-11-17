@@ -233,3 +233,5 @@ coverage yet.
 * `doc/adr/0003-upstream-deltas.md` — vendor snapshot + baseline discipline.
 * `doc/adr/0004-j2-loop-level.md` — J2 compiles whitelisted numeric loops
   instead of full traces; J3 replaces it.
+* `doc/lua56-readiness.md` — the 5.6 adoption and JIT/FFI revalidation
+  checklist.

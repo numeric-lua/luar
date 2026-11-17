@@ -1,5 +1,7 @@
 # Following upstream Lua
 
+See `doc/lua56-readiness.md` for the concrete 5.6 adoption checklist.
+
 Status: normative for the 0.1 line. See `doc/adr/0003-upstream-deltas.md`
 for why LuaR chose a tracked delta baseline over a patch queue.
 

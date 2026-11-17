@@ -37,6 +37,11 @@ Compiled numeric for-loops are already ~6x (`int_sum`, matching LuaJIT)
 and ~2.5x (`float_loop`) faster; closing the rest of the gap is the job of the later
 JIT milestones, not a claim of 0.1.
 
+## Following Lua
+
+`doc/lua56-readiness.md` is the adoption checklist for the next upstream
+line; LuaR does not add compatibility modes for older ones.
+
 ## 5.5 only, by construction
 
 * `global` is always a reserved word; `local global = 1` is a syntax error.
