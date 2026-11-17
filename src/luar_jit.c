@@ -934,7 +934,7 @@ decode_done:
     LuaR_Op *cmp = &ops[d.nops - 1];
     LuaR_Op *addi = NULL, *accop = NULL;
     int idx = -1, acc = -1, limit = -1, imm = 0, left, opkind = 0;
-    int addi_i = -1, acc_i = -1;
+    int addi_i = -1, acc_i = -1, temp = -1, temp_i = -1;
     for (i = 0; i < d.nops - 1; i++) {
       LuaR_Op *op = &ops[i];
       if (op->kind == LUAR_OP_ADDI && addi == NULL &&
@@ -942,6 +942,19 @@ decode_done:
         addi = op;
         idx = op->a;
         addi_i = (int)i;
+      }
+      else if (addi != NULL && temp < 0 && op->kind == LUAR_OP_MUL &&
+               op->b == idx && op->c == idx && op->a != idx &&
+               op->ta == LUAR_T_INT) {
+        temp = op->a;
+        temp_i = (int)i;
+      }
+      else if (addi != NULL && accop == NULL && temp >= 0 &&
+               op->kind == LUAR_OP_ADD && op->a == op->b &&
+               op->c == temp && op->ta == LUAR_T_INT) {
+        accop = op;
+        acc_i = (int)i;
+        opkind = 3;
       }
       else if (addi != NULL && accop == NULL && op->a == op->b &&
                op->c == idx &&
@@ -954,7 +967,8 @@ decode_done:
                  (op->kind == LUAR_OP_MUL) ? 2 : 0;
       }
     }
-    if (addi != NULL && accop != NULL && acc_i > addi_i && idx >= 0) {
+    if (addi != NULL && accop != NULL && acc_i > addi_i &&
+        (opkind != 3 || temp_i > addi_i) && idx >= 0) {
       acc = accop->a;
       if (cmp->a == idx && cmp->b != idx) {
         left = 1;

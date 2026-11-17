@@ -1156,6 +1156,11 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
   else if (d->fr_op == 2) {
     | imul r15, r13
   }
+  else if (d->fr_op == 3) {
+    | mov rcx, r13
+    | imul rcx, r13
+    | add r15, rcx
+  }
   else {
     | add r15, r13
   }
