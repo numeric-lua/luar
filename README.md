@@ -25,16 +25,17 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `luar`, `luarc`, `libluar.a`, `libluar.so`, install | working (`make`, `make shared`, `make install`, `luar.pc`, man page) |
 | `luar` identity, `LUAR_INIT`, `luar/5.5` module paths | working |
 | `table.new` / `table.clear` | working |
-| `jit` control surface | working; `jit.status()` truthfully `false` (no native engine yet) |
+| `jit` control surface | working: `on/off/flush/status/stats/trace/ir`; `status()` is true on x86-64 with J2 |
 | FFI | LuaJIT-compatible core: cdef, cdata, varargs, callbacks, real-consumer test (`WITH_FFI=1`) |
 | native JIT | J1 recorder + J2 x86-64 numeric for-loop codegen (`jit.status()` true; ~4x `int_sum`, ~2.4x `float_loop`) |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for
-`liblua`: same bytecode format, C API and module ABI. Performance is stock
-Lua 5.5 performance (same VM): in `bench/`, LuaR is within ~1% of stock Lua
-in aggregate. Closing the performance gap is the job of the JIT milestones,
-not a claim of 0.1.
+`liblua`: same bytecode format, C API and module ABI. Outside the J2
+whitelist it runs the stock Lua 5.5 VM (within ~1% of stock in `bench/`).
+Compiled numeric for-loops are already ~4.4x (`int_sum`) and ~2.4x
+(`float_loop`) faster; closing the rest of the gap is the job of the later
+JIT milestones, not a claim of 0.1.
 
 ## 5.5 only, by construction
 
