@@ -538,6 +538,26 @@ def {
 }
 
 def {
+  name = "numeric/square_sum", group = "numeric",
+  run = function ()
+    local n = N(8000000)
+    local s = 0
+    for i = 1, n do s = s + i * i end
+    return s
+  end,
+}
+
+def {
+  name = "numeric/while_sum", group = "numeric",
+  run = function ()
+    local n = N(8000000)
+    local i, s = 0, 0
+    while i < n do s = s + i; i = i + 1 end
+    return s
+  end,
+}
+
+def {
   name = "numeric/fib", group = "numeric",
   run = function ()
     return fib(27)
