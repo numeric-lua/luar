@@ -1,0 +1,211 @@
+# LuaR architecture
+
+Status: 0.1.0. This document describes the system as built and the design
+constraints for everything that comes next. It is normative for contributors:
+if code and this document disagree, one of them is a bug.
+
+## 1. What LuaR is
+
+LuaR is a Lua runtime with two identities that LuaJIT could never reconcile:
+
+1. **It is Lua.** The language, standard library, bytecode format, C API and
+   module ABI are those of the current official Lua release (5.5.1 today,
+   5.6 when it ships). There is no second dialect frozen at 5.1.
+2. **It is fast.** LuaJIT's practical wins — a compact FFI, cheap table
+   primitives, a tracing JIT — are provided as additive layers.
+
+Non-goals: Lua 5.1 compatibility, source-level compatibility with LuaJIT's
+C API (`lua_State` layout, `LUAJIT_VERSION`), reproducing LuaJIT bugs, or
+supporting two Lua language versions at once. LuaR supports the newest Lua
+line and moves forward.
+
+## 2. Why the Lua core is the foundation, not LuaJIT
+
+The obvious alternative — graft Lua 5.5 syntax and semantics onto the LuaJIT
+2.1 tree — was rejected after examining both codebases:
+
+* LuaJIT's VM is built around a 5.1 value model: no integer subtype, no
+  `<const>`/`<close>` attributes, no `global` declarations, no read-only
+  loop variables, different coercion and length rules. The value model is
+  threaded through the interpreter, the GC, the FFI and the JIT.
+* LuaJIT's bytecode (`BC_*`) and IR assume its NaN-boxed `TValue` and its
+  dual-number mode. Lua 5.5 requires exact 64-bit integers, integer
+  overflow wrap-around, distinct `/` and `//`, and the `OP_MMBIN*`
+  metamethod protocol. Adding these to LuaJIT's recorder is a rewrite of
+  the recorder, not a patch.
+* LuaJIT's FFI is coupled to its GC, ctype registry and recorder. Its
+  parser is portable in spirit, but its object model is not.
+
+Starting from Lua 5.5.1 gives exact semantics for free, keeps the C API and
+module ABI stable, and makes upstream adoption a merge problem rather than a
+porting project. The cost is that the JIT must be built for Lua 5.5's
+bytecode instead of reused. That is the work this project exists to do.
+
+See `doc/adr/0001-lua55-core.md`.
+
+## 3. Value model and ABI
+
+LuaR keeps the official 16-byte tagged `TValue`: `int64_t` integers,
+`double` floats, interned strings, tables, closures, userdata, threads, and
+a `nil`/boolean tag. This is deliberate:
+
+* 64-bit integers cannot be NaN-boxed without a boxed escape hatch, which
+  would penalise exactly the numeric code LuaR targets.
+* The C API and binary module ABI are defined in terms of this layout.
+  Keeping it means **C modules compiled for Lua 5.5 load and run unchanged**
+  (`tests/cli.sh` proves this with a stock `pkg-config lua5.5` module).
+* The JIT can still unbox integers and doubles into registers between
+  safepoints; it just does not need a new heap representation.
+
+The JIT will therefore be a *memory-based* tracing JIT: Lua stack slots
+remain the canonical location of values, traces unbox and keep hot values in
+registers within a trace body, and spill back to stack slots before any
+safepoint (call, allocation, metamethod, guard exit). This is less radical
+than LuaJIT's fully register-allocated traces and substantially cheaper to
+make correct against an unmodified VM.
+
+## 4. Runtime layers
+
+```
++-------------------------------------------------------------+
+| Lua source / precompiled 5.5 chunks (luarc, string.dump)    |
++-------------------------------------------------------------+
+| Lua 5.5 front end: lexer, parser, code generator (pristine) |
++-------------------------------------------------------------+
+| T0  Lua 5.5 register VM (computed goto), exact semantics    |
+| T1  hot-loop counters + trace recorder (milestone 0.4)      |
+| T2  SSA IR + optimiser + DynASM x86-64/ARM64 (milestone 0.5)|
+| T3  FFI fast paths, allocation sinking, side traces (0.6+)  |
++-------------------------------------------------------------+
+| stdlib + luar/jit/bit/ffi extensions | GC | coroutines      |
++-------------------------------------------------------------+
+```
+
+* **T0 is the semantic authority.** Every optimisation must be
+  observationally equivalent to T0, including metamethod order, integer
+  wrap-around, error messages and GC behaviour.
+* **T1 is the recorder**, not a compiler: it counts loop backedges, selects
+  traces, and records the executed bytecode path plus type feedback.
+* **T2 compiles traces.** Guards fall back to the interpreter at the exact
+  bytecode PC; there is no deoptimisation of compiled frames, because
+  trace state is always representable as interpreter stack + PC.
+* **T3** removes helper-call overhead for FFI-heavy code, the main use case
+  of the numeric-Lua ecosystem.
+
+The interpreter is never removed. `jit.off()`, guard exits, unsupported
+opcodes, blacklisted loops and `jit.flush()` all return to T0.
+
+## 5. Bytecode and front end
+
+`luarc` emits the official Lua 5.5.1 bytecode format, including the version
+byte and endianness checks. LuaR does not add opcodes; extensions are library
+level. This keeps `luarc`/`luar` interchangeable with `luac`/`lua` 5.5.1 and
+keeps the JIT's input surface equal to upstream's.
+
+The only front-end changes are cosmetic: program name, banner, default module
+paths, and the `LUAR_INIT` variable. They are marked `/* LUAR */` for the
+upstream sync.
+
+## 6. Extension surface
+
+Extensions must be additive and detectable:
+
+| Name | Kind | Notes |
+| --- | --- | --- |
+| `luar` | global table | version, lua_version, os, arch, features |
+| `jit` | global table | LuaJIT control surface; `status()` is truthful |
+| `bit` | global table | 32-bit LuaJIT semantics on 5.5 integers |
+| `ffi` | global table | LuaJIT-compatible subset (milestone 0.2) |
+| `table.new`, `table.clear` | functions | LuaJIT/OpenResty names; `table.create` is upstream |
+
+Rules:
+
+* Never shadow or change an upstream 5.5 function with incompatible
+  behaviour. Add new names instead.
+* Every extension must be usable through `require()` and, where LuaJIT had
+  it, as a global. `package.loaded` and `_G` agree.
+* Extensions that cannot work yet must fail loudly or report the truth:
+  `jit.status()` returns `false` until code is actually generated, and
+  `luar.features.ffi` is `false` in builds without libffi.
+* LuaJIT modules that need 5.1 semantics (`string.gfind`, `unpack`,
+  `module`, `setfenv`, `newproxy`, `jit.util.traceinfo` on 5.1 bytecode)
+  are out of scope. Porting such code to 5.5 is the user's job; LuaR does not
+  simulate a dead language version.
+
+## 7. Following upstream without losing the fork
+
+Two trees are maintained:
+
+* `vendor/lua-X.Y.Z/` — pristine upstream tarball contents. Never edited.
+* `src/` — the LuaR engine, derived from the vendor tree.
+
+The deltas in `src/` are tracked by `tools/upstream-check.sh` against a
+checked-in baseline (`tools/upstream-baseline.txt`). A new Lua release is
+adopted by: fetch + verify the tarball, replace `vendor/`, three-way diff
+into `src/`, re-apply LuaR additions, run the semantic suite and the official
+Lua test suite, update version macros and paths, benchmark, release. The full
+checklist lives in `doc/upstream.md`.
+
+The design keeps this cheap:
+
+* extensions live in new files (`src/luar_*.c`), not scattered `#ifdef`s;
+* core edits are small and tagged `/* LUAR */`;
+* the C ABI does not change, so binary modules keep working across LuaR
+  releases that track the same Lua minor;
+* the JIT will hook `lvm.c` through a narrow, documented interface rather
+  than editing opcode implementations throughout the file.
+
+When Lua 5.6 arrives, LuaR 1.x adopts it and drops 5.5 from the supported
+line, exactly as the project promises. `LUAR_LUA_VERSION` and the
+`luar/5.5` module paths are the version-specific knobs.
+
+## 8. Modules and the ecosystem
+
+`package.path`/`package.cpath` search LuaR directories before the
+corresponding Lua ones:
+
+```
+/usr/local/share/luar/5.5/?.lua
+/usr/local/share/lua/5.5/?.lua
+/usr/local/lib/luar/5.5/?.so
+/usr/local/lib/lua/5.5/?.so
+```
+
+So a module can ship a LuaR-specific build without breaking plain Lua, and
+plain 5.5 modules work unmodified. C modules are ABI-compatible because the
+core is the official core; no shim layer is involved.
+
+`libluar.a` is the default artifact. A shared `libluar.so` that exports the
+`lua_*`/`luaL_*` symbols is a distribution task (milestone 0.3); it will keep
+the 5.5 soname contract documented rather than pretending to be `liblua`.
+
+## 9. Testing strategy
+
+1. **Semantic conformance** (`tests/semantics/`): the same files must pass
+   under stock Lua 5.5.1 and under LuaR. This is the anti-fork guard.
+2. **Official suite** (`tests/upstream/`): the Lua authors' own tests,
+   run against LuaR, with a report.
+3. **Extension tests** (`tests/compat/`, `tests/ffi/`): API shape,
+   semantics, failure modes.
+4. **ABI/CLI tests** (`tests/cli.sh`): build/load a stock Lua 5.5 C module,
+   bytecode round-trips, environment, exit codes.
+5. **Differential JIT tests** (from 0.5): every trace is compared against
+   the interpreter on randomized inputs before it is allowed to run.
+6. **Benchmarks** (`bench/`): no hard gates, but every release records
+   numbers versus Lua 5.5.1 and LuaJIT 2.1, including losses.
+
+## 10. Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Upstream changes internals used by the JIT | narrow hook surface, tagged diffs, sync CI |
+| JIT correctness bugs corrupt the VM | interpreter remains authoritative, differential tests, guard-exit design |
+| FFI ABI mistakes cause memory corruption | libffi for calls, bounds-checked cdata access, ASan test job |
+| Extension creep recreates a second dialect | compatibility contract, additive-only rule, feature matrix |
+| Performance claims drift from reality | benchmark docs with conditions and losses reported |
+
+## 11. Decision records
+
+* `doc/adr/0001-lua55-core.md` — Lua 5.5 core over grafting onto LuaJIT.
+* `doc/adr/0002-libffi.md` — libffi for FFI calls, opt-in at build time.
+* `doc/adr/0003-upstream-deltas.md` — vendor snapshot + baseline discipline.

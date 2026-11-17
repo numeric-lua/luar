@@ -101,6 +101,7 @@ static void print_usage (const char *badoption) {
   "  -i        enter interactive mode after executing 'script'\n"
   "  -l mod    require library 'mod' into global 'mod'\n"
   "  -l g=mod  require library 'mod' into global 'g'\n"
+  "  -j cmd    LuaJIT-compatible JIT control (on|off|flush|opt=...|v)\n"
   "  -v        show version information\n"
   "  -E        ignore environment variables\n"
   "  -W        turn warnings on\n"
@@ -333,7 +334,8 @@ static int collectargs (char **argv, int *first) {
         break;
       case 'e':
         args |= has_e;  /* FALLTHROUGH */
-      case 'l':  /* both options need an argument */
+      case 'l':  /* all these options need an argument */
+      case 'j':
         if (argv[i][2] == '\0') {  /* no concatenated argument? */
           i++;  /* try next 'argv' */
           if (argv[i] == NULL || argv[i][0] == '-')
@@ -350,8 +352,47 @@ static int collectargs (char **argv, int *first) {
 
 
 /*
-** Processes options 'e' and 'l', which involve running Lua code, and
-** 'W', which also affects the state.
+** Run a '-j cmd' option through the jit library.  This mirrors LuaJIT's
+** command line control surface: on, off, flush, opt=<flags>, v.
+*/
+static int dojitopt (lua_State *L, const char *opt) {
+  int status;
+  lua_getglobal(L, "jit");
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    return luaL_error(L, "'jit' library not available");
+  }
+  if (strcmp(opt, "on") == 0 || strcmp(opt, "off") == 0 ||
+      strcmp(opt, "flush") == 0) {
+    lua_getfield(L, -1, opt);
+    status = docall(L, 0, 0);
+  }
+  else if (strncmp(opt, "opt=", 4) == 0) {
+    lua_getfield(L, -1, "opt");
+    lua_getfield(L, -1, "start");
+    lua_remove(L, -2);
+    lua_pushstring(L, opt + 4);
+    status = docall(L, 1, 0);
+  }
+  else if (strcmp(opt, "v") == 0) {
+    lua_getfield(L, -1, "version");
+    lua_writestring(lua_tostring(L, -1), strlen(lua_tostring(L, -1)));
+    lua_writeline();
+    lua_pop(L, 1);
+    status = LUA_OK;
+  }
+  else {
+    lua_pop(L, 1);
+    return luaL_error(L, "unknown -j option '%s'", opt);
+  }
+  lua_pop(L, 1);
+  return status;
+}
+
+
+/*
+** Processes options 'e', 'l' and 'j', which involve running Lua code or
+** configuring the JIT, and 'W', which also affects the state.
 ** Returns 0 if some code raises an error.
 */
 static int runargs (lua_State *L, char **argv, int n) {
@@ -369,6 +410,15 @@ static int runargs (lua_State *L, char **argv, int n) {
         status = (option == 'e')
                  ? dostring(L, extra, "=(command line)")
                  : dolibrary(L, extra);
+        if (status != LUA_OK) return 0;
+        break;
+      }
+      case 'j': {
+        int status;
+        char *extra = argv[i] + 2;
+        if (*extra == '\0') extra = argv[++i];
+        status = dojitopt(L, extra);
+        report(L, status);
         if (status != LUA_OK) return 0;
         break;
       }

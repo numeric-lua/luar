@@ -22,13 +22,21 @@ INSTALL_LMOD= $(DESTDIR)$(PREFIX)/share/luar/$(LUAVER)
 INSTALL_CMOD= $(DESTDIR)$(PREFIX)/lib/luar/$(LUAVER)
 
 MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI)
+PREFIX_STAMP= src/.prefix
 
-.PHONY: all build shared test test-semantics test-compat test-ffi bench \
+.PHONY: all build prefix-check shared test test-semantics test-compat test-ffi bench \
 	install uninstall clean distclean upstream-check sync-diff docs help
 
 all: build
 
-build:
+# The install prefix is compiled into luaconf.h, so a change of PREFIX must
+# force a rebuild (the compiler cannot see a flag change on its own).
+prefix-check:
+	@mkdir -p $(dir $(PREFIX_STAMP))
+	@if [ -f $(PREFIX_STAMP) ] && [ "$$(cat $(PREFIX_STAMP))" = "$(PREFIX)" ]; then :; \
+	 else echo "$(PREFIX)" > $(PREFIX_STAMP); $(MAKE_SRC) clean; fi
+
+build: prefix-check
 	$(MAKE_SRC) all
 
 # Convenience: build a shared library with the Lua 5.5 ABI exported.
@@ -67,7 +75,7 @@ install: build
 	install -m 0644 src/libluar.a $(INSTALL_LIB)/libluar.a
 	install -m 0644 src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h \
 		src/lua.hpp src/luar.h src/luar_version.h $(INSTALL_INC)
-	install -m 0644 etc/luar.pc $(INSTALL_PC)/luar.pc
+	sed 's|^prefix=.*|prefix=$(PREFIX)|' etc/luar.pc > $(INSTALL_PC)/luar.pc
 	install -m 0644 man/luar.1 $(INSTALL_MAN)/luar.1
 
 uninstall:
@@ -79,7 +87,7 @@ uninstall:
 
 clean:
 	$(MAKE_SRC) clean
-	$(RM) -r build
+	$(RM) -r build $(PREFIX_STAMP)
 
 # FAIL if src/ has drifted from the vendored upstream snapshot in ways
 # that were not recorded in src/luar.patch.  See doc/upstream.md.

@@ -17,6 +17,7 @@
 # LuaR binaries (built into src/)
 /src/luar
 /src/luarc
+/src/.prefix
 
 # Scratch
 /build/
