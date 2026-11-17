@@ -12,6 +12,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -258,8 +259,181 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
   }
 }
 
+static void emit_int_one (dasm_State **Dst, const LuaR_LoopDesc *d,
+                          const LuaR_Op *op)
+{
+  int a = op->a, b = op->b;
+  switch (op->kind) {
+    case LUAR_OP_MOVE:
+      | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+      | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+      | mov al, byte [rbx + ((int)LUAR_TAG(b))]
+      | mov byte [rbx + ((int)LUAR_TAG(a))], al
+      break;
+    case LUAR_OP_LOADI:
+    case LUAR_OP_LOADK:
+      | mov64 rax, op->imm
+      | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+      | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+      break;
+    case LUAR_OP_ADDI:
+      | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+      | add rax, ((int64_t)op->imm)
+      | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+      | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+      break;
+    case LUAR_OP_ADDK:
+    case LUAR_OP_SUBK:
+    case LUAR_OP_MULK:
+      | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+      if (op->kind == LUAR_OP_ADDK) {
+        | add rax, ((int64_t)op->imm)
+      }
+      else if (op->kind == LUAR_OP_SUBK) {
+        | sub rax, ((int64_t)op->imm)
+      }
+      else {
+        | imul rax, ((int64_t)op->imm)
+      }
+      | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+      | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+      break;
+    case LUAR_OP_ADD:
+    case LUAR_OP_SUB:
+    case LUAR_OP_MUL:
+      | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+      if (op->kind == LUAR_OP_ADD) {
+        | add rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+      }
+      else if (op->kind == LUAR_OP_SUB) {
+        | sub rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+      }
+      else {
+        | imul rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+      }
+      | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+      | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+      break;
+    default:
+      break;
+  }
+}
+
+static void emit_cmp (dasm_State **Dst, const LuaR_LoopDesc *d,
+                      const LuaR_Op *op)
+{
+  int a = op->a, b = op->b;
+  (void)d;
+  int k = op->k;
+  | mov rax, qword [rbx + ((int)LUAR_SLOT(a))]
+  if (b == 0xFF) {
+    | mov64 rcx, op->imm
+    | cmp rax, rcx
+  }
+  else {
+    | cmp rax, qword [rbx + ((int)LUAR_SLOT(b))]
+  }
+  switch (op->kind) {
+    case LUAR_OP_LT:
+      if (k) {
+        | jl =>((int)op->target)
+      }
+      else {
+        | jge =>((int)op->target)
+      }
+      break;
+    case LUAR_OP_LE:
+      if (k) {
+        | jle =>((int)op->target)
+      }
+      else {
+        | jg =>((int)op->target)
+      }
+      break;
+    case LUAR_OP_GT:
+      if (k) {
+        | jg =>((int)op->target)
+      }
+      else {
+        | jle =>((int)op->target)
+      }
+      break;
+    case LUAR_OP_GE:
+      if (k) {
+        | jge =>((int)op->target)
+      }
+      else {
+        | jl =>((int)op->target)
+      }
+      break;
+    case LUAR_OP_EQ:
+      if (k) {
+        | je =>((int)op->target)
+      }
+      else {
+        | jne =>((int)op->target)
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  int i;
+  | push rbx
+  | mov rbx, rdi
+  emit_guards(Dst, d);
+  for (i = 0; i < d->nops; i++) {
+    const LuaR_Op *op = &d->ops[i];
+    |=>((int)i):
+    switch (op->kind) {
+      case LUAR_OP_LT:
+      case LUAR_OP_LE:
+      case LUAR_OP_GT:
+      case LUAR_OP_GE:
+      case LUAR_OP_EQ:
+        emit_cmp(Dst, d, op);
+        /* false/true fall-through skips the paired JMP */
+        | jmp =>((int)(i + 2))
+        break;
+      case LUAR_OP_JMP:
+        | jmp =>((int)op->target)
+        break;
+      case LUAR_OP_MMBIN:
+        break;
+      default:
+        emit_int_one(Dst, d, op);
+        break;
+    }
+  }
+  |=>((int)d->nops):
+  | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+  | test rax, rax
+  | jz >2
+  | dec rax
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
+  | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
+  | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
+  | jmp =>0
+  |2:
+  | mov eax, 1
+  | pop rbx
+  | ret
+  |3:
+  | xor eax, eax
+  | pop rbx
+  | ret
+}
+
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
+  if (d->has_branch) {
+    emit_branch_code(Dst, d);
+    return;
+  }
   | push rbx
   | mov rbx, rdi
   emit_guards(Dst, d);
@@ -299,6 +473,8 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
   dasm_init(&Dst, DASM_MAXSECTION);
   dasm_setupglobal(&Dst, NULL, 0);
   dasm_setup(&Dst, luar_emit_actions);
+  if (d->has_branch && d->npc > 0)
+    dasm_growpc(&Dst, (unsigned)d->npc + 2);
   emit_code(&Dst, d);
   if ((status = dasm_checkstep(&Dst, -1)) != 0) {
     dasm_free(&Dst);

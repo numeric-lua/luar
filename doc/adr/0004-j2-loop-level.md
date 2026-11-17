@@ -29,7 +29,9 @@ whitelisted body with DynASM and runs the *remaining* iterations natively:
   stops using it, and state close frees it.
 
 The whitelist is numeric only: MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV,
-the K variants and MMBIN.  No calls, tables, strings, closures or branches.
+the K variants, MMBIN, and integer comparisons with forward `JMP` branches
+(an `if`/`else` whose targets stay inside the loop).  No calls, tables,
+strings, closures, float comparisons or backward inner loops.
 
 ## Consequences
 

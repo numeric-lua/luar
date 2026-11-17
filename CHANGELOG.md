@@ -36,6 +36,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   compiled-loop case is compared against an interpreter run, including
   overflow, empty loops, division, negative zero, `break` and type-changing
   call sites.  `make JIT=0 test` verifies the compiled-out configuration.
+- J2 branch support: integer comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`)
+  and forward `if`/`else` jumps inside a whitelisted loop body are emitted as
+  guarded native branches; float comparisons and backward inner loops fall
+  back to the interpreter.
 - J2 native loops (x86-64): a hot `for` loop whose body is numeric register
   arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants
   and MMBIN, with int/double conversions) is compiled with DynASM and runs

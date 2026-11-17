@@ -53,6 +53,19 @@ local m = 1
 for i = 1, 10 do m = m * 3 end
 H.eq(m, 59049)
 
+-- conditional bodies (integer comparisons and forward jumps)
+local c = 0
+for i = 1, 5000 do if i < 1000 then c = c + i end end
+H.eq(c, 499500)
+local e = 0
+for i = 1, 5000 do
+  if i <= 1000 then e = e + 1 else e = e + 2 end
+end
+H.eq(e, 9000)
+local q = 0
+for i = 1, 5000 do if i == 5000 then q = q + 10000 end end
+H.eq(q, 10000)
+
 -- the compiled code must be abandoned when jit.off() is set
 jit.off()
 H.check(jit.status() == false, "status must be false after jit.off")

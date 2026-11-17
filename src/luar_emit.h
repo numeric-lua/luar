@@ -28,7 +28,10 @@ typedef enum {
   LUAR_OP_SUBK,
   LUAR_OP_MULK,
   LUAR_OP_DIVK,
-  LUAR_OP_MMBIN
+  LUAR_OP_MMBIN,
+  /* Branch support (int-only loops): comparisons and jumps. */
+  LUAR_OP_LT, LUAR_OP_LE, LUAR_OP_GT, LUAR_OP_GE, LUAR_OP_EQ,
+  LUAR_OP_JMP
 } LuaR_OpKind;
 
 /* Register flavours known to the compiled loop. */
@@ -38,6 +41,8 @@ typedef struct LuaR_Op {
   uint8_t kind;
   uint8_t a, b, c;
   uint8_t ta, tb, tc;	/* result and operand flavours (LUAR_T_*) */
+  uint8_t k;		/* comparison jump condition */
+  int32_t target;	/* branch target instruction index */
   int64_t imm;		/* LOADI/LOADK integer or constant value */
   double num;		/* LOADF value or constant value */
 } LuaR_Op;
@@ -49,6 +54,8 @@ typedef struct LuaR_LoopDesc {
   int tag_int;		/* LUA_VNUMINT value for the guards */
   int tag_flt;		/* LUA_VNUMFLT value for the guards */
   int nguards;
+  int npc;			/* instruction labels for branch loops */
+  int has_branch;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;

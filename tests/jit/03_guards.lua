@@ -143,6 +143,48 @@ same("neg zero", function ()
 end)
 
 -- a break must keep the loop on the interpreter
+same("if lt", function ()
+  local s = 0
+  for i = 1, 5000 do if i < 100 then s = s + i end end
+  return s
+end)
+
+same("if else", function ()
+  local s = 0
+  for i = 1, 5000 do
+    if i <= 1000 then s = s + 1 else s = s + 2 end
+  end
+  return s
+end)
+
+same("if eq", function ()
+  local s = 0
+  for i = 1, 5000 do if i == 4321 then s = s + 7 end end
+  return s
+end)
+
+same("nested if", function ()
+  local s = 0
+  for i = 1, 5000 do
+    if i < 1000 then
+      if i < 10 then s = s + 1 end
+    end
+  end
+  return s
+end)
+
+same("if gt", function ()
+  local s = 0
+  for i = 1, 5000 do if i > 4000 then s = s + i end end
+  return s
+end)
+
+same("if ne", function ()
+  local s = 0
+  for i = 1, 5000 do if i ~= 5000 then s = s + 1 end end
+  return s
+end)
+
 same("break", function ()
   local s = 0
   for i = 1, 5000 do

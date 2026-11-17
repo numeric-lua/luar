@@ -120,8 +120,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   ptrdiff_t i;
   Instruction last;
   TValue *b = (TValue *)base;
-  uint8_t cur[256], def[256], seen[256];
-  int for_a;
+  uint8_t cur[256], def[256], seen[256], paired[256];
+  int for_a, has_branch = 0;
   if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
     return 0;
   /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
@@ -143,6 +143,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   memset(cur, 0, sizeof(cur));
   memset(def, 0, sizeof(def));
   memset(seen, 0, sizeof(seen));
+  memset(paired, 0, sizeof(paired));
   d.ops = ops;
   d.nops = (int)n - 1;
   d.for_a = for_a;
@@ -158,8 +159,68 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     Instruction ins = p->code[start + i];
     LuaR_Op *op = &ops[i];
     int tb, tc;
+    OpCode opc = GET_OPCODE(ins);
     memset(op, 0, sizeof(*op));
-    switch (GET_OPCODE(ins)) {
+    if (opc == OP_EQ || opc == OP_LT || opc == OP_LE ||
+        opc == OP_EQK || opc == OP_EQI || opc == OP_LTI ||
+        opc == OP_LEI || opc == OP_GTI || opc == OP_GEI) {
+      Instruction jins;
+      ptrdiff_t j = i + 1, tgt;
+      int aa = GETARG_A(ins), bb = -1, kk = GETARG_k(ins);
+      int64_t imm = 0;
+      LuaR_OpKind ck;
+      if (j >= n - 1) return 0;
+      jins = p->code[start + j];
+      if (GET_OPCODE(jins) != OP_JMP) return 0;
+      switch (opc) {
+        case OP_EQ: ck = LUAR_OP_EQ; bb = GETARG_B(ins); break;
+        case OP_LT: ck = LUAR_OP_LT; bb = GETARG_B(ins); break;
+        case OP_LE: ck = LUAR_OP_LE; bb = GETARG_B(ins); break;
+        case OP_EQK: {
+          int idx = GETARG_B(ins);
+          TValue *kkv;
+          if (idx < 0 || idx >= p->sizek) return 0;
+          kkv = &p->k[idx];
+          if (!ttisinteger(kkv)) return 0;
+          ck = LUAR_OP_EQ;
+          imm = (int64_t)ivalue(kkv);
+          break;
+        }
+        case OP_EQI: ck = LUAR_OP_EQ; imm = GETARG_sB(ins); break;
+        case OP_LTI: ck = LUAR_OP_LT; imm = GETARG_sB(ins); break;
+        case OP_LEI: ck = LUAR_OP_LE; imm = GETARG_sB(ins); break;
+        case OP_GTI: ck = LUAR_OP_GT; imm = GETARG_sB(ins); break;
+        case OP_GEI: ck = LUAR_OP_GE; imm = GETARG_sB(ins); break;
+        default: return 0;
+      }
+      if (slot_type(b, cur, def, aa) != LUAR_T_INT) return 0;
+      if (bb >= 0 && slot_type(b, cur, def, bb) != LUAR_T_INT) return 0;
+      tgt = (start + j) + 1 + GETARG_sJ(jins);
+      if (tgt <= start + i || tgt > backedge || tgt == start + j)
+        return 0;
+      op->kind = ck;
+      op->a = (uint8_t)aa;
+      op->b = (uint8_t)bb;
+      op->imm = imm;
+      op->k = (uint8_t)(kk != 0);
+      op->target = (int32_t)(tgt - start);
+      memset(&ops[j], 0, sizeof(ops[j]));
+      ops[j].kind = LUAR_OP_JMP;
+      ops[j].target = (int32_t)(tgt - start);
+      paired[j] = 1;
+      has_branch = 1;
+      i = j;
+      continue;
+    }
+    if (opc == OP_JMP) {
+      ptrdiff_t tgt = (start + i) + 1 + GETARG_sJ(ins);
+      if (tgt <= start + i || tgt > backedge) return 0;
+      op->kind = LUAR_OP_JMP;
+      op->target = (int32_t)(tgt - start);
+      has_branch = 1;
+      continue;
+    }
+    switch (opc) {
       case OP_MOVE:
         if (is_control_reg(GETARG_A(ins), for_a)) return 0;
         tb = slot_type(b, cur, def, GETARG_B(ins));
@@ -307,6 +368,54 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
              op->kind == LUAR_OP_MULK || op->kind == LUAR_OP_DIVK) {
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
+  }
+  if (has_branch) {
+    /* Only integer loops: every value written must stay an integer, and
+    ** every register read gets an entry guard (a skipped write must not be
+    ** mistaken for a value that exists on all paths). */
+    memset(seen, 0, sizeof(seen));
+    d.nguards = 0;
+    for (i = 0; i < n - 1; i++) {
+      LuaR_Op *op = &ops[i];
+      if (op->kind == LUAR_OP_LOADF || op->kind == LUAR_OP_DIV ||
+          op->kind == LUAR_OP_DIVK)
+        return 0;
+      if (op->ta == LUAR_T_FLOAT || op->tb == LUAR_T_FLOAT ||
+          op->tc == LUAR_T_FLOAT)
+        return 0;
+      switch (op->kind) {
+        case LUAR_OP_MOVE: add_guard(&d, seen, op->b, LUAR_T_INT); break;
+        case LUAR_OP_ADD:
+        case LUAR_OP_SUB:
+        case LUAR_OP_MUL:
+          add_guard(&d, seen, op->b, LUAR_T_INT);
+          add_guard(&d, seen, op->c, LUAR_T_INT);
+          break;
+        case LUAR_OP_ADDI:
+          add_guard(&d, seen, op->b, LUAR_T_INT);
+          break;
+        case LUAR_OP_LT:
+        case LUAR_OP_LE:
+        case LUAR_OP_GT:
+        case LUAR_OP_GE:
+        case LUAR_OP_EQ:
+          add_guard(&d, seen, op->a, LUAR_T_INT);
+          if (op->b != 0xFF)
+            add_guard(&d, seen, op->b, LUAR_T_INT);
+          break;
+        default: break;
+      }
+      if (op->kind == LUAR_OP_JMP || op->kind == LUAR_OP_LT ||
+          op->kind == LUAR_OP_LE || op->kind == LUAR_OP_GT ||
+          op->kind == LUAR_OP_GE || op->kind == LUAR_OP_EQ) {
+        if (op->target < 0 || op->target >= n || paired[op->target])
+          return 0;
+      }
+    }
+    for (i = 0; i < 3; i++)
+      add_guard(&d, seen, for_a + i, LUAR_T_INT);
+    d.npc = (int)n;
+    d.has_branch = 1;
   }
   fn = luari_emit_build(&d, &size);
   if (fn == NULL)
