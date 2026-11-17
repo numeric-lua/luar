@@ -13,7 +13,7 @@ end
 
 -- jit.status() pattern
 local jit_on = jit and jit.status()
-H.eq(jit_on, false)
+H.eq(type(jit_on), "boolean")
 
 -- table.new/clear pattern
 local cache = table.new(0, 64)

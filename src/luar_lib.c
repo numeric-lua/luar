@@ -133,7 +133,7 @@ LUALIB_API int luaopen_luar (lua_State *L) {
   lua_setfield(L, -2, "ffi");
   lua_pushboolean(L, 1);
   lua_setfield(L, -2, "table");
-  lua_pushboolean(L, 0);        /* native JIT engine not enabled in 0.1 */
+  lua_pushboolean(L, luar_has_jit());
   lua_setfield(L, -2, "jit");
   lua_setfield(L, -2, "features");
   return 1;

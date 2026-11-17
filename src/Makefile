@@ -74,7 +74,7 @@ CORE_O=	lapi.o lcode.o lctype.o ldebug.o ldo.o ldump.o lfunc.o lgc.o llex.o \
 	lundump.o lvm.o lzio.o
 LIB_O=	lauxlib.o lbaselib.o lcorolib.o ldblib.o liolib.o lmathlib.o \
 	loadlib.o loslib.o lstrlib.o ltablib.o lutf8lib.o linit.o
-LUAR_O=	luar_lib.o luar_jit.o $(FFI_O)
+LUAR_O=	luar_lib.o luar_jit.o luar_emit.o $(FFI_O)
 BASE_O= $(CORE_O) $(LIB_O) $(LUAR_O)
 
 LUA_T=	luar
@@ -149,6 +149,9 @@ shared: $(LUA_SO)
 	ln -sfn $(LUA_SO) $(LUA_SONAME)
 	ln -sfn $(LUA_SONAME) $(LUA_SOLINK)
 
+
+luar_emit.o: luar_emit.c luar_emit_x64.h luar_emit.h
+	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) -I../dynasm -c luar_emit.c
 
 %.o: %.c
 	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) -c $<

@@ -44,7 +44,7 @@ ok "-e / exit codes"
 out=$("$LUAR" -jv)
 case "$out" in "LuaR "*) ;; *) fail "-jv output: $out" ;; esac
 "$LUAR" -joff -e 'assert(jit.status() == false)' || fail "-joff"
-"$LUAR" -j opt=hotloop=10 -e 'assert(jit.status() == false)' || fail "-j opt="
+"$LUAR" -j opt=hotloop=10 -e 'assert(type(jit.status()) == "boolean")' || fail "-j opt="
 ok "-j control options"
 
 # -- script arguments ------------------------------------------------------

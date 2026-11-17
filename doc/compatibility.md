@@ -71,7 +71,7 @@ Lua 5.5 spelling and is left untouched.
 | --- | --- | --- |
 | `jit.version`, `jit.version_num` | implemented | LuaR version, not LuaJIT's |
 | `jit.os`, `jit.arch` | implemented | `Linux`/`OSX`/..., `x64`/`arm64`/... |
-| `jit.status()` | implemented | truthfully `false` until codegen ships |
+| `jit.status()` | implemented | `true, arch` when the J2 x86-64 engine is active; `false` after `jit.off()` or on unsupported hosts |
 | `jit.on()`, `jit.off()` | no-ops | accepted; enable/disable later |
 | `jit.flush()` | no-op | clears nothing yet |
 | `jit.opt.start(...)` | implemented | options parsed and stored; thresholds used later |

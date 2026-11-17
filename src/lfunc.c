@@ -265,6 +265,10 @@ Proto *luaF_newproto (lua_State *L) {
   f->source = NULL;
   f->luar_hot = 0;    /* LUAR: J1 counters */
   f->luar_epoch = 0;
+  f->luar_code = NULL;        /* LUAR: J2 native loop */
+  f->luar_code_pc = -1;
+  f->luar_code_base = -1;
+  f->luar_code_epoch = 0;
   return f;
 }
 

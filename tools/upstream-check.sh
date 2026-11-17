@@ -102,7 +102,7 @@ hash_file() {
 
 is_luar_added() {
   case $1 in
-    luar_*.c|luar_*.h|luar.h) return 0 ;;
+    luar_*.c|luar_*.h|luar_*.dasc|luar.h) return 0 ;;
   esac
   return 1
 }

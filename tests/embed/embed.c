@@ -37,7 +37,7 @@ int main (void) {
   if (!lua_istable(L, -1)) return fail("jit table missing");
   lua_getfield(L, -1, "status");
   if (lua_pcall(L, 0, 1, 0) != LUA_OK) return fail("jit.status");
-  if (lua_toboolean(L, -1)) return fail("jit.status must be false in 0.1");
+  if (!lua_isboolean(L, -1)) return fail("jit.status must return a boolean");
   lua_pop(L, 2);
 
   /* 5.5-only: no legacy bit library, no deprecated math functions. */

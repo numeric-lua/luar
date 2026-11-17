@@ -1,5 +1,13 @@
 # LuaR 0.1 performance baseline
 
+> **J2 update (2026-11-17, later the same day).**  The x86-64 integer-loop
+> JIT now compiles hot `for` loops with integer MOVE/LOADI/ADDI/ADD/SUB/MUL
+> bodies.  In the same harness, `numeric/int_sum` dropped from ~35 ms to
+> **7.8 ms** (0.22x stock Lua, versus LuaJIT's 5.9 ms / 0.17x).  Float loops,
+> `fib` and `mandel` are unchanged; the tables below are the pre-J2 baseline
+> and remain valid for everything the JIT does not compile.  Re-run
+> `make bench-compare` for current numbers.
+
 Measured on 2026-11-17 (America/Sao_Paulo) against stock Lua 5.5.1 and
 LuaJIT 2.1, on the machine described below.  LuaR 0.1 is an interpreter
 with no native JIT and (in this build) no FFI; the numbers are the honest

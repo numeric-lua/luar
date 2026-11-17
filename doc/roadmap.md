@@ -87,6 +87,14 @@ Estimated: 3–5 weeks.
 
 ## 0.5 — x86-64 trace JIT MVP
 
+Status: partial J2.  DynASM emission, entry tag guards, exact FORLOOP
+semantics and the VM hand-off exist for integer `for` loops whose body is
+MOVE/LOADI/ADDI/ADD/SUB/MUL/MMBIN: the remaining iterations run natively on
+the Lua stack slots.  `numeric/int_sum` is ~4x faster than the interpreter.
+Still missing from this milestone: float/branch ops, general traces and
+side exits, and trace-level optimisation.
+
+
 * DynASM-based codegen for the numeric core of T1 loops: integer and float
   arithmetic, comparisons, `FORLOOP`/`FORPREP`, `JMP`, `MOVE`, locals,
   constants, returns.

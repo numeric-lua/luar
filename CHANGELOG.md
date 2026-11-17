@@ -24,6 +24,11 @@ the runtime, while the Lua language surface follows upstream Lua.
 - A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the
   libtorch-backed `libluatorch.so` C ABI and runs tensor creation, `lt_add`,
   scalar reads and data transfer through `ffi.load`.
+- J2 native loops (x86-64): a hot integer `for` loop whose body is
+  MOVE/LOADI/ADDI/ADD/SUB/MUL/MMBIN is compiled with DynASM and runs its
+  remaining iterations directly on the Lua stack slots, with tag guards and
+  exact FORLOOP semantics.  `jit.status()` is now `true` and
+  `luar.features.jit` is enabled on x86-64; other hosts keep the interpreter.
 - J1 trace recorder: hot-loop counters, trace selection, bytecode
   snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, a linear IR
   dump (`jit.ir()`), working `jit.flush()`/`jit.off()` recording control.

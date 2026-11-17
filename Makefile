@@ -164,3 +164,8 @@ docs:
 
 help:
 	@sed -n '2,20p' Makefile
+# Verify that the checked-in DynASM output matches its .dasc source.  Needs a
+# host lua 5.5 (or luar) on PATH; not part of the default build.
+dynasm-check:
+	lua dynasm/dynasm.lua -D X64 src/luar_emit_x64.dasc | \
+	  diff -u src/luar_emit_x64.h -

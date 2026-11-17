@@ -1686,7 +1686,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         const Instruction *luarback = pc - 1;  /* LUAR: J1 backedge */
         dojump(ci, i, 0);
         if (GETARG_sJ(i) < 0)  /* LUAR: backward jump */
-          LUAR_JIT_HOT(L, cl->p, luarback);
+          LUAR_JIT_HOT(L, cl->p, luarback, (void *)base);
         vmbreak;
       }
       vmcase(OP_EQ) {
@@ -1885,6 +1885,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       }
       vmcase(OP_FORLOOP) {
         StkId ra = RA(i);
+        const Instruction *luarb = pc - 1;  /* LUAR: J2 backedge */
         if (ttisinteger(s2v(ra + 1))) {  /* integer loop? */
           lua_Unsigned count = l_castS2U(ivalue(s2v(ra)));
           if (count > 0) {  /* still more iterations? */
@@ -1894,12 +1895,17 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             idx = intop(+, idx, step);  /* add step to index */
             chgivalue(s2v(ra + 2), idx);  /* update control variable */
             pc -= GETARG_Bx(i);  /* jump back */
-            LUAR_JIT_HOT(L, cl->p, pc + GETARG_Bx(i) - 1);  /* LUAR */
+            LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
+            if (cl->p->luar_code != NULL &&
+                cl->p->luar_code_pc == (int)(luarb - cl->p->code) &&
+                cl->p->luar_code_base == GETARG_A(i) &&
+                luar_jit_run(L, cl->p, (void *)base))
+              pc = luarb + 1;  /* LUAR: the native loop finished it */
           }
         }
         else if (floatforloop(L, ra)) {  /* float loop */
           pc -= GETARG_Bx(i);  /* jump back */
-          LUAR_JIT_HOT(L, cl->p, pc + GETARG_Bx(i) - 1);  /* LUAR */
+          LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
         }
         updatetrap(ci);  /* allows a signal to break the loop */
         vmbreak;
@@ -1954,7 +1960,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         StkId ra = RA(i);
         if (!ttisnil(s2v(ra + 3))) {  /* continue loop? */
           pc -= GETARG_Bx(i);  /* jump back */
-          LUAR_JIT_HOT(L, cl->p, pc + GETARG_Bx(i) - 1);  /* LUAR */
+          LUAR_JIT_HOT(L, cl->p, pc + GETARG_Bx(i) - 1, (void *)base);  /* LUAR */
         }
         vmbreak;
       }}

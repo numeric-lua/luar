@@ -41,5 +41,6 @@ LUA_API const char *luar_arch (void);
 ** (Declared as a function so it is usable from any language binding.)
 */
 LUA_API int luar_has_ffi (void);
+LUA_API int luar_has_jit (void);
 
 #endif

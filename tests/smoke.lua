@@ -18,7 +18,7 @@ check(luar.version and luar.copyright, "identity strings missing")
 check(type(jit) == "table", "missing jit table")
 check(type(jit.status) == "function", "missing jit.status")
 local on = jit.status()
-check(on == false, "JIT should report off in 0.1")
+check(type(on) == "boolean", "jit.status must return a boolean")
 check(jit.version_num == luar.version_num, "version mismatch")
 
 -- table extensions

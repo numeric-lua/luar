@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 
 #include "lua.h"
 
@@ -25,6 +26,7 @@
 
 #include "lopcodes.h"
 #include "lopnames.h"
+#include "luar_emit.h"
 #include "luar_jit.h"
 
 
@@ -46,9 +48,26 @@ void luari_jit_init (lua_State *L) {
 }
 
 
+static void free_code (LuaR_JIT *J) {
+  int i;
+  if (J == NULL)
+    return;
+  for (i = 0; i < J->ncode; i++) {
+    if (J->code[i].code != NULL && J->code[i].size != 0)
+      munmap(J->code[i].code, J->code[i].size);
+    J->code[i].code = NULL;
+    J->code[i].size = 0;
+  }
+  J->ncode = 0;
+  J->compiled = 0;
+  J->mcode = 0;
+}
+
+
 void luari_jit_shutdown (lua_State *L) {
   LuaR_JIT *J = G(L)->luar_jit;
   if (J != NULL) {
+    free_code(J);
     G(L)->luar_jit = NULL;
     free(J);
   }
@@ -56,10 +75,145 @@ void luari_jit_shutdown (lua_State *L) {
 
 
 /* ---------------------------------------------------------------- */
+/* J2: native numeric loops                                         */
+/* ---------------------------------------------------------------- */
+
+static int is_control_reg (int r, int for_a) {
+  return r == for_a || r == for_a + 1 || r == for_a + 2;
+}
+
+
+/* Validate and compile the loop [start, backedge].  The trace must end in
+** FORLOOP and contain only integer register arithmetic.  Returns 1 when a
+** loop was compiled (or a previous one is already installed). */
+static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
+                        ptrdiff_t backedge, void *base) {
+  LuaR_JIT *J = G(L)->luar_jit;
+  LuaR_Op ops[LUAR_JIT_MAXINS];
+  LuaR_LoopDesc d;
+  LuaR_LoopFn fn;
+  size_t size = 0;
+  ptrdiff_t n = backedge - start + 1;
+  ptrdiff_t i;
+  Instruction last;
+  int for_a;
+  if (!luar_emit_available() || n < 2 || n > LUAR_JIT_MAXINS)
+    return 0;
+  last = p->code[backedge];
+  if (GET_OPCODE(last) != OP_FORLOOP)
+    return 0;
+  for_a = GETARG_A(last);
+  if (base != NULL) {
+    TValue *b = (TValue *)base;
+    if (!ttisinteger(&b[for_a]) || !ttisinteger(&b[for_a + 1]) ||
+        !ttisinteger(&b[for_a + 2]))
+      return 0;   /* float or non-integer loop: no native code */
+  }
+  d.ops = ops;
+  d.nops = (int)n - 1;
+  d.for_a = for_a;
+  d.tag_int = LUA_VNUMINT;
+  for (i = 0; i < n - 1; i++) {
+    Instruction ins = p->code[start + i];
+    LuaR_Op *op = &ops[i];
+    memset(op, 0, sizeof(*op));
+    switch (GET_OPCODE(ins)) {
+      case OP_MOVE:
+        op->kind = LUAR_OP_MOVE;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        break;
+      case OP_LOADI:
+        op->kind = LUAR_OP_LOADI;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->imm = (int32_t)GETARG_sBx(ins);
+        break;
+      case OP_ADDI:
+        op->kind = LUAR_OP_ADDI;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        op->imm = (int32_t)GETARG_sC(ins);
+        break;
+      case OP_ADD:
+        op->kind = LUAR_OP_ADD;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        op->c = (uint8_t)GETARG_C(ins);
+        break;
+      case OP_SUB:
+        op->kind = LUAR_OP_SUB;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        op->c = (uint8_t)GETARG_C(ins);
+        break;
+      case OP_MUL:
+        op->kind = LUAR_OP_MUL;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        op->c = (uint8_t)GETARG_C(ins);
+        break;
+      case OP_MMBIN:
+      case OP_MMBINI:
+      case OP_MMBINK:
+        op->kind = LUAR_OP_MMBIN;
+        break;
+      default:
+        return 0;
+    }
+    if (op->kind != LUAR_OP_MMBIN && is_control_reg(op->a, for_a))
+      return 0;  /* never let the body rewrite the loop control slots */
+  }
+  fn = luar_emit_build(&d, &size);
+  if (fn == NULL)
+    return 0;
+  if (J->ncode >= LUAR_JIT_MAXCODE) {
+    munmap((void *)fn, size);
+    return 0;
+  }
+  J->code[J->ncode].code = (void *)fn;
+  J->code[J->ncode].size = size;
+  J->ncode++;
+  J->compiled++;
+  J->mcode += size;
+  p->luar_code = (void *)fn;
+  p->luar_code_pc = (int)backedge;
+  p->luar_code_base = for_a;
+  p->luar_code_epoch = J->epoch;
+  return 1;
+}
+
+
+int luar_jit_run (lua_State *L, Proto *p, void *base) {
+  LuaR_JIT *J = G(L)->luar_jit;
+  if (p == NULL || p->luar_code == NULL)
+    return 0;
+  if (J == NULL || !J->enabled)
+    return 0;
+  if (p->luar_code_epoch != J->epoch) {
+    p->luar_code = NULL;   /* flushed: mapping was released */
+    return 0;
+  }
+  if (L->hookmask != 0)
+    return 0;              /* debug hooks need the interpreter */
+  return ((LuaR_LoopFn)p->luar_code)(base);
+}
+
+
+int luar_has_jit (void) {
+#if defined(LUAR_JIT_DISABLE)
+  return 0;
+#else
+  return luar_emit_available();
+#endif
+}
+
+
+/* ---------------------------------------------------------------- */
 /* Recording                                                         */
 /* ---------------------------------------------------------------- */
 
-int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge) {
+int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
+                       void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
   Instruction ins;
   ptrdiff_t off, target, n;
@@ -110,6 +264,8 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge) {
     memcpy(t->code, p->code + target, (size_t)n * sizeof(Instruction));
     J->traces++;
   }
+  if (J->enabled)
+    try_compile(L, p, target, off, base);
   return 1;
 }
 
@@ -149,14 +305,19 @@ static int jit_flush (lua_State *L) {
     J->hotloops = 0;
     J->traces = 0;
     J->aborts = 0;
+    free_code(J);
   }
   return 0;
 }
 
 
 static int jit_status (lua_State *L) {
-  lua_pushboolean(L, 0);   /* truthful: no native code generator yet */
-  return 1;
+  LuaR_JIT *J = G(L)->luar_jit;
+  int on = luar_has_jit() && J != NULL && J->enabled;
+  lua_pushboolean(L, on);
+  if (on)
+    lua_pushstring(L, luar_arch());
+  return on ? 2 : 1;
 }
 
 
@@ -313,9 +474,11 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "aborts");
   lua_pushboolean(L, J != NULL && J->enabled);
   lua_setfield(L, -2, "enabled");
-  lua_pushinteger(L, 0);
+  lua_pushinteger(L, (lua_Integer)J->mcode);
   lua_setfield(L, -2, "mcode");
-  lua_pushboolean(L, 0);
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->compiled : 0);
+  lua_setfield(L, -2, "compiled");
+  lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;
 }
