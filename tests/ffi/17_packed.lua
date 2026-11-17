@@ -21,6 +21,9 @@ struct PackedS packedswap(struct PackedS p);
 struct PackedS packedadd(struct PackedS a, struct PackedS b);
 struct PackedS packedwideadd(struct PackedWide a, struct PackedWide b);
 struct PackedWide packedwideid(struct PackedWide p);
+struct PackedS packedmix(struct PackedS p, int k);
+struct PackedS packedmixf(struct PackedS p, double d);
+struct PackedS packedmix2(struct PackedS p, int a, double b);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -94,6 +97,12 @@ local wid = h.packedwideid(pw)
 H.eq(wid.a, 10)
 H.eq(wid.b, 1000)
 H.eq(wid.c, 3)
+local mx = h.packedmix(p, 1000)
+H.eq(mx.i, 124456)
+local mf = h.packedmixf(p, 1000.5)
+H.eq(mf.i, 124456)
+local m2 = h.packedmix2(p, 1000, 0.5)
+H.eq(m2.i, 124456)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())

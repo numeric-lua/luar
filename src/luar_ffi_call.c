@@ -1046,6 +1046,98 @@ static int packed_return_signature (CType *ft) {
 
 
 #if defined(__x86_64__)
+static int packed_mixed_call (lua_State *L, FFIState *S, CData *fn,
+                              CType *ft, CType *rt, int argstart,
+                              int packed_idx) {
+  CType *at = ft->args[packed_idx];
+  CData *cd = ffi_tocdata(L, argstart + packed_idx);
+  unsigned char chunkbuf[8] = {0};
+  uint64_t chunk = 0;
+  unsigned char code[96];
+  size_t n = 0, i;
+  void *mem;
+  size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  ffi_type *atypes[6];
+  ffi_cif cif;
+  unsigned char *retbuf = (unsigned char *)calloc(1, rt->size > 0 ? rt->size : 1);
+  ArgSlot slots[5];
+  void *values[6];
+  int nscalars = 0, nargs = (int)ft->nargs;
+  CData *out;
+  ffi_status st;
+  int saved_errno;
+  if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct != at)
+    luaL_error(L, "ffi: argument %d: cannot convert %s to '%s'",
+               argstart + packed_idx, luaL_typename(L, argstart + packed_idx),
+               ffi_type_repr(S, at));
+  {
+    void *src = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+                    ? cd->v.p : (void *)&cd->v;
+    memcpy(chunkbuf, src, at->size);
+  }
+  memcpy(&chunk, chunkbuf, at->size);
+  if (retbuf == NULL)
+    luaL_error(L, "ffi: out of memory for packed return");
+  atypes[0] = &ffi_type_uint64;
+  values[0] = &chunk;
+  for (i = 0; i < (size_t)nargs; i++) {
+    ffi_type *aoverride = NULL;
+    if ((int)i == packed_idx)
+      continue;
+    memset(&slots[nscalars], 0, sizeof(slots[nscalars]));
+    convert_call_arg(L, S, ft->args[i], argstart + (int)i,
+                     &slots[nscalars], &values[nscalars + 1], &aoverride);
+    atypes[nscalars + 1] = (aoverride != NULL)
+                               ? aoverride
+                               : build_ffi_type(L, S, ft->args[i], NULL);
+    nscalars++;
+  }
+  /* sub rsp,72; mov [rsp+16],rdi; mov rdi,retbuf; add rsp,16;
+     mov rax,target; call rax; sub rsp,16; add rsp,72; ret */
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x48;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x7c; code[n++] = 0x24;
+  code[n++] = 0x10;
+  code[n++] = 0x48; code[n++] = 0xbf;
+  {
+    uint64_t rb = (uint64_t)(uintptr_t)retbuf;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(rb >> (8 * i));
+  }
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x10;
+  code[n++] = 0x48; code[n++] = 0xb8;
+  {
+    uint64_t target = (uint64_t)(uintptr_t)fn->v.p;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(target >> (8 * i));
+  }
+  code[n++] = 0xff; code[n++] = 0xd0;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x10;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x48;
+  code[n++] = 0xc3;
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)(nscalars + 1),
+                    &ffi_type_void, atypes);
+  if (st != FFI_OK)
+    luaL_error(L, "ffi: libffi cannot prepare a mixed packed call");
+  mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED)
+    luaL_error(L, "ffi: cannot allocate a mixed packed thunk");
+  memcpy(mem, code, n);
+  if (mprotect(mem, pagesize, PROT_READ | PROT_EXEC) != 0) {
+    munmap(mem, pagesize);
+    luaL_error(L, "ffi: cannot make the mixed packed thunk executable");
+  }
+  ffi_call(&cif, FFI_FN(mem), NULL, values);
+  saved_errno = errno;
+  munmap(mem, pagesize);
+  errno = saved_errno;
+  out = ffi_push_owned(L, S, rt, rt->size);
+  memcpy(out->v.p, retbuf, rt->size);
+  free(retbuf);
+  return 1;
+}
+#endif
+
+
+#if defined(__x86_64__)
 static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
                                CType *ft, CType *rt, int argstart) {
   unsigned char code[64];
@@ -1359,6 +1451,27 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   ntotal = provided;
 
 #if defined(__x86_64__)
+  if (!ft->vararg && nargs >= 1 &&
+      ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
+      ft->ret->align_override == 0 && ft->ret->size > 0 &&
+      packed_int_type(ft->ret)) {
+    int mi = -1, mc = 0, ms = 0, mok = 1, j;
+    for (j = 0; j < nargs; j++) {
+      CType *at = ft->args[j];
+      if (at->kind == CT_STRUCT && at->pack == 1 &&
+          at->align_override == 0 && at->size > 0 && at->size <= 8 &&
+          packed_int_type(at)) {
+        mi = j;
+        mc++;
+      }
+      else if (packed_scalar_arg(at))
+        ms++;
+      else
+        mok = 0;
+    }
+    if (mok && mc == 1 && ms <= 5)
+      return packed_mixed_call(L, S, fn, ft, ft->ret, argstart, mi);
+  }
   if (!ft->vararg && nargs >= 1 && nargs <= 3 &&
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
