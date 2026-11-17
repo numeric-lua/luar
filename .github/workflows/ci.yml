@@ -76,6 +76,8 @@ jobs:
             pkg-config --cflags --libs luar
           make WITH_FFI=1 PREFIX=/usr/local DESTDIR="$PWD/stage" uninstall
           test ! -e stage/usr/local/bin/luar
+      - name: Reproducible source tarball
+        run: make test-dist
 
   nojit:
     name: linux (JIT=0)

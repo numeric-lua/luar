@@ -26,6 +26,7 @@
 /tests/tmp/
 /experimental/**/build/
 *.out
+/*.tar.gz
 
 # GCC/Clang -MMD header dependencies
 /src/*.d

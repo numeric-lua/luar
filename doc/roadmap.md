@@ -62,7 +62,8 @@ Estimated: 2–4 weeks.
 * CI matrix: gcc/clang, WITH_FFI on/off, JIT=0, staged install with
   `pkg-config`, shared-library FFI, ASan/UBSan and fuzz jobs.  The official
   Lua suite job is optional because CI downloads its inputs.
-* Reproducible release tarballs, `make install`/`make uninstall` verified.
+* Reproducible release tarball (`make dist`/`test-dist`), `make install`/
+  `make uninstall` verified.
 
 Exit criteria: a downstream C extension built against `luar.pc` links and
 runs against both the static and shared library; CI is green on Linux/macOS.

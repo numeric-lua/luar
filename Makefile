@@ -17,6 +17,7 @@ LUAVER= 5.5
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 LUA_SO= libluar.so.$(VERSION)
 LUA_SONAME= libluar.so.$(SOVERSION)
+DISTNAME= luar-$(VERSION)
 
 INSTALL_BIN= $(DESTDIR)$(PREFIX)/bin
 INSTALL_LIB= $(DESTDIR)$(PREFIX)/lib
@@ -33,7 +34,8 @@ JIT_STAMP= src/.jit
 
 .PHONY: all build config-check shared test test-shared test-semantics test-compat \
 	test-ffi test-diff test-jit test-asan test-fuzz test-consumer test-upstream \
-	bench install uninstall clean distclean upstream-check sync-diff docs help
+	bench install uninstall clean distclean upstream-check sync-diff docs help \
+	dist test-dist
 
 all: build
 
@@ -142,6 +144,15 @@ install: build shared
 		src/lua.hpp src/luar.h src/luar_version.h $(INSTALL_INC)
 	sed 's|^prefix=.*|prefix=$(PREFIX)|' etc/luar.pc > $(INSTALL_PC)/luar.pc
 	install -m 0644 man/luar.1 $(INSTALL_MAN)/luar.1
+
+dist:
+	git archive --format=tar --prefix=$(DISTNAME)/ HEAD | gzip -n > $(DISTNAME).tar.gz
+
+test-dist: dist
+	rm -rf tests/tmp/dist && mkdir -p tests/tmp/dist
+	tar -xzf $(DISTNAME).tar.gz -C tests/tmp/dist
+	$(MAKE) -C tests/tmp/dist/$(DISTNAME) build
+	./tests/tmp/dist/$(DISTNAME)/src/luar -v | grep -q 'LuaR $(VERSION) (Lua 5.5'
 
 uninstall:
 	$(RM) $(INSTALL_BIN)/luar $(INSTALL_BIN)/luarc
