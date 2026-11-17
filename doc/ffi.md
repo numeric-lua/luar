@@ -310,11 +310,14 @@ Calls support:
 * structs and unions passed by pointer, including the LuaJIT convenience of
   passing an aggregate cdata where a pointer to the exact same aggregate
   type is expected;
+* small scalar unions (up to 8 bytes) and structs containing them by value;
+  a float-only union maps to a float/double, other unions to an integer of
+  the same size, with libffi's offsets/size validated for struct members;
 * struct return/argument by value when the layout is representable by
   libffi and verified byte-for-byte against libffi's computed offsets.
-  Fixed array members (including arrays of structs) are supported; union
-  members and bitfield structs are rejected by value, as are unions and
-  arrays themselves;
+  Fixed array members (including arrays of structs) and small scalar union
+  members are supported; bitfield structs, large/aggregate unions and
+  arrays themselves are rejected by value;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
   conversion rules;
@@ -381,9 +384,9 @@ Deliberately unsupported call features:
   a C library that keeps a pointer after the cdata is collected has the
   usual use-after-free caveat.  Callbacks must be invoked from the Lua
   state that created them.
-* **Union members by value**, union values themselves and structs with
-  bitfields; their ABI cannot be represented safely by the current libffi
-  mapping.
+* **Large/aggregate unions by value** (over 8 bytes, or containing
+  non-scalar members) and structs with bitfields; their ABI cannot be
+  represented safely by the current libffi mapping.
 * **C global variables** are best-effort: ordinary and `__thread`/
   `_Thread_local` data symbols can be read/written through `ffi.C` for the
   current thread; complex relocations and cross-thread access are not
@@ -474,8 +477,8 @@ probes, and variadic probes.  Coverage includes:
   `malloc`/`free`, `strerror`, `getpid`, `chdir`, `div`) and `errno`;
 * `ffi.load` (including `"c"`), `ffi.C`, missing declarations, wrong
   arity, and callback rejection;
-* struct-by-value arguments and returns, nested structs and fixed array
-  members, pointer fields,
+* struct-by-value arguments and returns, nested structs, fixed array
+  members, small scalar unions and structs containing them, pointer fields,
   qsort via a C comparator, and enum/bool/64-bit call paths;
 * variadic calls through libc (`snprintf`, `printf`): mixed fixed and
   variadic arguments, integer widths, floats, runtime-built strings,

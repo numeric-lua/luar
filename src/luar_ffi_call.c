@@ -455,6 +455,40 @@ static ffi_type *build_array_type (lua_State *L, FFIState *S, CType *ct,
 }
 
 
+static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct) {
+  uint16_t i;
+  int all_float = 1;
+  if (ct->incomplete || ct->size == 0 || ct->size == FFI_SIZE_UNKNOWN)
+    luaL_error(L, "ffi: incomplete union '%s' passed by value",
+               ffi_type_repr(S, ct));
+  if (ct->nfields == 0)
+    luaL_error(L, "ffi: empty union '%s' cannot be passed by value",
+               ffi_type_repr(S, ct));
+  for (i = 0; i < ct->nfields; i++) {
+    if (ct->fields[i].type->kind != CT_FLOAT)
+      all_float = 0;
+  }
+  if (all_float) {
+    if (ct->size == 4)
+      return &ffi_type_float;
+    if (ct->size == 8)
+      return &ffi_type_double;
+    luaL_error(L, "ffi: union '%s' cannot be passed by value",
+               ffi_type_repr(S, ct));
+  }
+  switch (ct->size) {
+    case 1: return &ffi_type_uint8;
+    case 2: return &ffi_type_uint16;
+    case 4: return &ffi_type_uint32;
+    case 8: return &ffi_type_uint64;
+    default:
+      luaL_error(L, "ffi: union '%s' is too large or cannot be passed by "
+                    "value", ffi_type_repr(S, ct));
+  }
+  return NULL;
+}
+
+
 static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
                                     FTAlloc **allocs) {
   ffi_type *ft;
@@ -478,9 +512,6 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
     if (f->bitwidth != 0)
       luaL_error(L, "ffi: struct '%s' has a bitfield and cannot be passed "
                     "by value", ffi_type_repr(S, ct));
-    if (f->type->kind == CT_UNION)
-      luaL_error(L, "ffi: struct '%s' has a union member and cannot be "
-                    "passed by value", ffi_type_repr(S, ct));
     if (f->type->kind == CT_ARRAY)
       elems[i] = build_array_type(L, S, f->type, allocs);
     else
@@ -539,6 +570,8 @@ static ffi_type *build_ffi_type (lua_State *L, FFIState *S, CType *ct,
       luaL_error(L, "ffi: unsupported integer size in '%s'",
                  ffi_type_repr(S, ct));
       return NULL;
+    case CT_UNION:
+      return build_union_type(L, S, ct);
     case CT_FLOAT:
       if (ct->size == 4)
         return &ffi_type_float;
@@ -552,10 +585,6 @@ static ffi_type *build_ffi_type (lua_State *L, FFIState *S, CType *ct,
       return &ffi_type_pointer;
     case CT_STRUCT:
       return build_struct_type(L, S, ct, allocs);
-    case CT_UNION:
-      luaL_error(L, "ffi: union '%s' cannot be passed or returned by value",
-                 ffi_type_repr(S, ct));
-      return NULL;
     case CT_ARRAY:
       luaL_error(L, "ffi: array '%s' cannot be passed by value",
                  ffi_type_repr(S, ct));
@@ -870,21 +899,22 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   }
 
   retkind = rt->kind;
-  if (retkind == CT_STRUCT) {
+  if (retkind == CT_STRUCT || retkind == CT_UNION) {
     if (rt->incomplete || rt->size == FFI_SIZE_UNKNOWN)
-      luaL_error(L, "ffi: incomplete return struct type");
+      luaL_error(L, "ffi: incomplete return aggregate type");
     retcd = ffi_push_owned(L, S, rt, rt->size);
   }
   else if (retkind == CT_VOID) {
     retcd = NULL;
   }
-  else if (retkind == CT_UNION || retkind == CT_ARRAY) {
+  else if (retkind == CT_ARRAY) {
     luaL_error(L, "ffi: unsupported return type '%s'",
                ffi_type_repr(S, rt));
   }
 
   ffi_call(&cif, FFI_FN(fn->v.p),
-           (retkind == CT_STRUCT) ? retcd->v.p : (void *)&retslot,
+           (retkind == CT_STRUCT || retkind == CT_UNION) ? retcd->v.p
+                                                         : (void *)&retslot,
            avalue);
   {
     int saved_errno = errno;
@@ -897,7 +927,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
 
   if (retkind == CT_VOID)
     return 0;
-  if (retkind == CT_STRUCT)
+  if (retkind == CT_STRUCT || retkind == CT_UNION)
     return 1;
   ffi_push_value(L, S, rt, &retslot, 0);
   return 1;

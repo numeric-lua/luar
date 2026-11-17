@@ -21,6 +21,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
   closure, and `string.format` skips its cdata rewrite when no argument is
   cdata.
+- Small scalar unions (up to 8 bytes) and structs containing them can be
+  passed and returned by value; aggregate/large unions remain rejected.
 - FFI structs with fixed array members (including arrays of structs) can be
   passed and returned by value; VLA/empty arrays and bitfield structs are
   rejected.

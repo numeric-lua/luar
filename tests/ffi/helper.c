@@ -239,3 +239,13 @@ struct Named named_make (const char *s, int n) {
 }
 struct PairBox { struct Named items[2]; };
 int box_sum (struct PairBox b) { return b.items[0].n + b.items[1].n; }
+/* Scalar unions by value. */
+union DoubleU { double d; };
+double du_get (union DoubleU u) { return u.d; }
+union DoubleU du_make (double d) { union DoubleU u; u.d = d; return u; }
+union FloatU { float f; };
+float fu_get (union FloatU u) { return u.f; }
+union FloatU fu_make (float f) { union FloatU u; u.f = f; return u; }
+union MixedU { float f; int i; };
+int mu_get (union MixedU u) { return u.i; }
+union MixedU mu_make (int i) { union MixedU u; u.i = i; return u; }

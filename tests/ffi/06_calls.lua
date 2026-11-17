@@ -189,13 +189,13 @@ H.raises(function() return ffi.C.no_such_luar_symbol end,
 H.raises(function() return ffi.C.abs(1, 2) end, "wrong number")
 H.raises(function() h.fn_apply(function() return 1 end, 1) end,
          "cannot convert")
-H.raises(function() return h.val_int(ffi.new("union Val", {i = 3})) end,
-         "union")
-H.raises(function() return h.val_make(3) end, "union")
+H.eq(h.val_int(ffi.new("union Val", {i = 3})), 3)
+H.eq(h.val_make(4).i, 4)
 H.eq(h.with_array_sum(ffi.new("struct WithArray", {a = {1, 2, 3}})), 6)
-H.raises(function()
-  return h.with_union_sum(ffi.new("struct WithUnion", {t = 1, i = 2}))
-end, "union member")
+local wu = ffi.new("struct WithUnion")
+wu.t = 1
+wu.u.i = 2
+H.eq(h.with_union_sum(wu), 3)
 H.raises(function() return h.pair_sum(ffi.new("struct Nested")) end,
          "cannot convert")
 
