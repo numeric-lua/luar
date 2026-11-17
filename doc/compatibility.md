@@ -75,7 +75,7 @@ Lua 5.5 spelling and is left untouched.
 | `jit.on()`, `jit.off()` | implemented | toggles native loop entry; the interpreter stays authoritative |
 | `jit.flush()` | implemented | bumps the epoch, frees code and clears trace/stats; already-hot Protos are not walked (J1 limitation) |
 | `jit.dump(mode)` | implemented | `"t"` prints bytecode snapshots and `"i"` linear IR to stderr; no file/function output argument |
-| `jit.opt.start(...)` | implemented | `hotloop=N` sets the threshold for newly created Protos; `table=1` toggles the experimental table tier |
+| `jit.opt.start(...)` | implemented | `hotloop=N` sets the threshold for newly created Protos; `table=1`/`call=1` toggle the experimental table and partial-call tiers |
 | `jit.attach()` | not implemented | planned with the profiler |
 | `jit.security()` | not implemented | out of scope |
 | `jit.util.*` | not implemented | LuaJIT-specific bytecode introspection |

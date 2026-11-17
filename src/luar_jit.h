@@ -51,6 +51,7 @@ typedef struct LuaR_JIT {
   int enabled;			/* jit.off() clears this */
   uint32_t hotloop;		/* jit.opt.start("hotloop=N") */
   int enable_table;		/* experimental J3 table lookups (opt-in) */
+  int enable_partial;		/* experimental numeric prefixes before CALL */
   int dump_trace;		/* jit.dump("t"): print bytecode snapshots */
   int dump_ir;			/* jit.dump("i"): print linear IR */
   uint32_t compiled;		/* native loops emitted */

@@ -287,7 +287,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         tb = slot_type(b, cur, def, GETARG_B(ins));
         if (tb == 0 || tb == LUAR_T_TABLE ||
             (tb != LUAR_T_INT && tb != LUAR_T_FLOAT)) {
-          if (call_at > (int)i && i > 0 && !has_branch) {
+          if (J->enable_partial && call_at > (int)i && i > 0 &&
+              !has_branch) {
             d.partial = 1;
             d.exit_pc = (int)(start + i);
             d.nops = (int)i;
@@ -497,7 +498,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         /* A call-free numeric prefix can run natively and hand the CALL
         ** itself back to the interpreter.  Branches or an empty prefix
         ** are not supported. */
-        if (call_at == (int)i && i > 0 && !has_branch && !d.has_table) {
+        if (call_at == (int)i && i > 0 && !has_branch && !d.has_table &&
+            J->enable_partial) {
           d.partial = 1;
           d.exit_pc = (int)(start + i);
           d.nops = (int)i;
@@ -506,7 +508,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         }
         return 0;
       default:
-        if (call_at > (int)i && i > 0 && !has_branch) {
+        if (J->enable_partial && call_at > (int)i && i > 0 &&
+            !has_branch) {
           d.partial = 1;
           d.exit_pc = (int)(start + i);
           d.nops = (int)i;
@@ -1212,6 +1215,8 @@ static int jit_opt_start (lua_State *L) {
     const char *opt = luaL_checkstring(L, i);
     if (J != NULL && strncmp(opt, "table=", 6) == 0)
       J->enable_table = (opt[6] != '0');
+    else if (J != NULL && strncmp(opt, "call=", 5) == 0)
+      J->enable_partial = (opt[5] != '0');
     else if (J != NULL && strncmp(opt, "hotloop=", 8) == 0) {
       unsigned long v = strtoul(opt + 8, NULL, 10);
       if (v >= 1 && v <= 100000)
