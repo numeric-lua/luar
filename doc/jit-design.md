@@ -29,8 +29,8 @@ is provably observationally equivalent to that interpreter.
   compiles a leading integer array lookup/store, the accumulating ADD and
   register-cached fill/sum loops.
   Conditional backedges from `repeat ... until` are recorded and compiled,
-  with register-cached sum/subtraction/product fast paths; other backward
-  inner loops still fall back.  A `Proto` keeps the first compiled
+  with register-cached sum/subtraction/product fast paths (integer or
+  float); other backward inner loops still fall back.  A `Proto` keeps the first compiled
   loop and the most recently compiled one (two slots); a 64-bit bloom of
   hot backedges prevents retrying rejected loops.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.

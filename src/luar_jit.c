@@ -899,7 +899,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         addi_i = (int)i;
       }
       else if (addi != NULL && accop == NULL && op->a == op->b &&
-               op->c == idx && op->ta == LUAR_T_INT &&
+               op->c == idx &&
+               (op->ta == LUAR_T_INT || op->ta == LUAR_T_FLOAT) &&
                (op->kind == LUAR_OP_ADD || op->kind == LUAR_OP_SUB ||
                 op->kind == LUAR_OP_MUL)) {
         accop = op;
@@ -927,12 +928,13 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (acc >= 0 && !is_control_reg(acc, -1)) {
         memset(seen, 0, sizeof(seen));
         d.nguards = 0;
-        add_guard(&d, seen, acc, LUAR_T_INT);
+        add_guard(&d, seen, acc, accop->ta);
         add_guard(&d, seen, idx, LUAR_T_INT);
         if (limit >= 0)
           add_guard(&d, seen, limit, LUAR_T_INT);
         d.fast_repeat = 1;
         d.fr_op = opkind;
+        d.fr_float = (accop->ta == LUAR_T_FLOAT);
         d.fr_acc = acc;
         d.fr_idx = idx;
         d.fr_limit = limit >= 0 ? limit : 0xFF;
