@@ -361,3 +361,5 @@ int big600_sum (union Big600 u) {
   for (i = 0; i < 600000; i++) s += (unsigned char)u.c[i];
   return s;
 }
+struct __attribute__((packed)) PackedWide { int a; long b; char c; };
+long packedwide_sum (struct PackedWide p) { return p.a + p.b + p.c; }

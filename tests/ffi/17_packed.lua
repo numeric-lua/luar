@@ -10,6 +10,8 @@ int off_PackedS_i(void);
 int off_PackedS_s(void);
 int packed_i_ptr(const struct PackedS *p);
 int packed_by_value(struct PackedS p);
+struct PackedWide { int a; long b; char c; } __attribute__((packed));
+long packedwide_sum(struct PackedWide p);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -39,8 +41,12 @@ H.eq(p.c, 7)
 H.eq(p.i, 123456)
 H.eq(h.packed_i_ptr(p), 123456)
 
--- libffi cannot represent a packed layout by value; reject it clearly.
-H.raises(function () return h.packed_by_value(p) end, "layout")
+-- single packed integer arguments are passed through a MEMORY-ABI thunk
+H.eq(h.packed_by_value(p), 123456)
+local pref = ffi.cast("struct PackedS *", p)[0]
+H.eq(h.packed_by_value(pref), 123456)
+local pw = ffi.new("struct PackedWide", {a = 10, b = 1000, c = 3})
+H.eq(h.packedwide_sum(pw), 1013)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())

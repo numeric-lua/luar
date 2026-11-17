@@ -136,9 +136,11 @@ preprocessor subset is available.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
   supported.
 * `__attribute__((packed))`/`aligned(n)` and `#pragma pack(n)` (including
-  `push`/`pop`) control layout and are field-accessible; packed aggregates
-  cannot be passed by value (libffi would mislay them); layout
-  always follows the natural C ABI of the target.
+  `push`/`pop`) control layout and are field-accessible.  On x86-64 a
+  packed **integer** struct with exactly one by-value argument and a scalar
+  return can be called through a MEMORY-ABI stack thunk; other packed
+  aggregate call shapes are rejected rather than mislaid.  Layout always
+  follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
   type and pass the length to `ffi.new`/`ffi.sizeof`.
 * A bare declaration of a named struct/union inside another struct only

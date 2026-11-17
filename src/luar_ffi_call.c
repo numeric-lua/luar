@@ -22,6 +22,8 @@
 #include <string.h>
 
 #include <dlfcn.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #include "lua.h"
 
@@ -993,6 +995,108 @@ static ffi_type *convert_vararg (lua_State *L, FFIState *S, int argidx,
 }
 
 
+static int packed_int_type (CType *ct) {
+  uint16_t i;
+  if (ct->incomplete)
+    return 0;
+  switch (ct->kind) {
+    case CT_INT: case CT_BOOL: case CT_ENUM:
+    case CT_POINTER: case CT_FUNC:
+      return 1;
+    case CT_ARRAY:
+      return packed_int_type(ct->child);
+    case CT_STRUCT: case CT_UNION:
+      for (i = 0; i < ct->nfields; i++) {
+        CField *f = &ct->fields[i];
+        if (f->bitwidth == 0 && f->zero_width)
+          continue;
+        if (!packed_int_type(f->type))
+          return 0;
+      }
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+
+#if defined(__x86_64__)
+static int packed_single_call (lua_State *L, FFIState *S, CData *fn,
+                               CType *at, CType *rt, int argidx) {
+  CData *cd = ffi_tocdata(L, argidx);
+  unsigned char chunkbuf[16];
+  uint64_t chunks[2] = {0, 0};
+  size_t chunks_n = (at->size + 7) / 8;
+  unsigned char code[64];
+  size_t n = 0, i;
+  void *mem;
+  size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  ffi_type *atypes[2];
+  ffi_type *rtype;
+  ffi_cif cif;
+  void *values[2];
+  union { int64_t i; double d; void *p; unsigned char b[16]; } ret;
+  FTAlloc *fta = NULL;
+  ffi_status st;
+  int saved_errno;
+  if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct != at)
+    luaL_error(L, "ffi: argument %d: cannot convert %s to '%s'",
+               argidx, luaL_typename(L, argidx), ffi_type_repr(S, at));
+  {
+    void *src = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+                    ? cd->v.p : (void *)&cd->v;
+    memcpy(chunkbuf, src, at->size);
+  }
+  memcpy(chunks, chunkbuf, at->size);
+  /* sub rsp,24; mov [rsp],rdi; mov [rsp+8],rsi; mov rax,target; call rax;
+     add rsp,24; ret */
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x18;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x3c; code[n++] = 0x24;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x74; code[n++] = 0x24;
+  code[n++] = 0x08;
+  code[n++] = 0x48; code[n++] = 0xb8;
+  {
+    uint64_t target = (uint64_t)(uintptr_t)fn->v.p;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(target >> (8 * i));
+  }
+  code[n++] = 0xff; code[n++] = 0xd0;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x18;
+  code[n++] = 0xc3;
+  mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED)
+    luaL_error(L, "ffi: cannot allocate a packed-call thunk");
+  memcpy(mem, code, n);
+  if (mprotect(mem, pagesize, PROT_READ | PROT_EXEC) != 0) {
+    munmap(mem, pagesize);
+    luaL_error(L, "ffi: cannot make the packed-call thunk executable");
+  }
+  for (i = 0; i < chunks_n; i++)
+    atypes[i] = &ffi_type_uint64;
+  rtype = build_ffi_type(L, S, rt, &fta);
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)chunks_n, rtype,
+                    atypes);
+  if (st != FFI_OK) {
+    munmap(mem, pagesize);
+    ft_free_all(fta);
+    luaL_error(L, "ffi: libffi cannot prepare a packed call");
+  }
+  for (i = 0; i < chunks_n; i++)
+    values[i] = &chunks[i];
+  memset(&ret, 0, sizeof(ret));
+  ffi_call(&cif, FFI_FN(mem), &ret, values);
+  saved_errno = errno;
+  munmap(mem, pagesize);
+  ft_free_all(fta);
+  errno = saved_errno;
+  if (rt->kind == CT_VOID)
+    return 0;
+  ffi_push_value(L, S, rt, &ret, 0);
+  return 1;
+}
+#endif
+
+
 int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   CType *ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
   int nargs;
@@ -1026,6 +1130,21 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
                   "(expected %d, got %d)",
                ffi_type_repr(S, ft), nargs, provided);
   ntotal = provided;
+
+#if defined(__x86_64__)
+  if (!ft->vararg && nargs == 1 && provided == 1) {
+    CType *at = ft->args[0];
+    CType *rt0 = ft->ret;
+    if (at->kind == CT_STRUCT && at->pack == 1 &&
+        at->align_override == 0 && at->size > 0 && at->size <= 16 &&
+        packed_int_type(at) &&
+        (rt0->kind == CT_INT || rt0->kind == CT_BOOL ||
+         rt0->kind == CT_ENUM || rt0->kind == CT_FLOAT ||
+         rt0->kind == CT_POINTER || rt0->kind == CT_FUNC ||
+         rt0->kind == CT_VOID))
+      return packed_single_call(L, S, fn, at, rt0, argstart);
+  }
+#endif
 
   atypes = (ffi_type **)malloc(sizeof(ffi_type *) *
                                 (size_t)(ntotal > 0 ? ntotal : 1));

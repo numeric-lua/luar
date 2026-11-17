@@ -114,7 +114,9 @@ Deliberate deviations, all documented:
   sizes) or larger memory-class unions (up to 1M alignment-sized fields) can be passed
   and returned by value.
 * `__attribute__((packed))`/`aligned(n)` structs/unions and `#pragma pack`
-  control layout; packed aggregates fail clearly by value.
+  control layout.  On x86-64, packed integer structs with one by-value
+  argument and a scalar return use a MEMORY-ABI thunk; other packed shapes
+  fail clearly by value.
 * Struct and union bitfields with integer/enum/bool bases are supported,
   including mixed base types, union overlap at offset zero and by-value
   passing/returning.

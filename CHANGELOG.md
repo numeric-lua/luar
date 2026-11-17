@@ -57,8 +57,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   methods; freeing invalidates the pointer and later use is a clear error.
 - `__attribute__((packed))`/`aligned(n)` are accepted before the struct tag
   as well as after the body; byte-granular/over-aligned layout and field
-  access work; packed aggregates are rejected by
-  value rather than mislayed.
+  access work.  On x86-64, a packed integer struct with one by-value
+  argument and scalar return is called through a MEMORY-ABI stack thunk;
+  other packed aggregates are rejected by value rather than mislayed.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
   bit-granular packing including mixed base types, byte-crossing fields,
   unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named
