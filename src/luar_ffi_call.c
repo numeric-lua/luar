@@ -1138,6 +1138,95 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
 
 
 #if defined(__x86_64__)
+static int packed_roundtrip_call (lua_State *L, FFIState *S, CData *fn,
+                                  CType *at, CType *rt, int argidx) {
+  CData *cd = ffi_tocdata(L, argidx);
+  unsigned char chunkbuf[16];
+  uint64_t chunks[2] = {0, 0};
+  size_t in_chunks = (at->size + 7) / 8;
+  size_t out_chunks = (rt->size + 7) / 8;
+  unsigned char code[64];
+  size_t n = 0, i;
+  void *mem;
+  size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  ffi_type ftret;
+  ffi_type *elems[3];
+  ffi_type *atypes[2];
+  ffi_cif cif;
+  unsigned char retbuf[16];
+  void *values[2];
+  CData *out;
+  ffi_status st;
+  int saved_errno;
+  if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct != at)
+    luaL_error(L, "ffi: argument %d: cannot convert %s to '%s'",
+               argidx, luaL_typename(L, argidx), ffi_type_repr(S, at));
+  {
+    void *src = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+                    ? cd->v.p : (void *)&cd->v;
+    memcpy(chunkbuf, src, at->size);
+  }
+  memcpy(chunks, chunkbuf, at->size);
+  /* sub rsp,40; mov [rsp+16],rdi; mov [rsp+24],rsi; mov rdi,rsp;
+     add rsp,16; mov rax,target; call rax; sub rsp,16;
+     mov rax,[rsp]; mov rdx,[rsp+8]; add rsp,40; ret */
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x28;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x7c; code[n++] = 0x24;
+  code[n++] = 0x10;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x74; code[n++] = 0x24;
+  code[n++] = 0x18;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe7;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x10;
+  code[n++] = 0x48; code[n++] = 0xb8;
+  {
+    uint64_t target = (uint64_t)(uintptr_t)fn->v.p;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(target >> (8 * i));
+  }
+  code[n++] = 0xff; code[n++] = 0xd0;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x10;
+  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x04; code[n++] = 0x24;
+  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x54; code[n++] = 0x24;
+  code[n++] = 0x08;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x28;
+  code[n++] = 0xc3;
+  memset(&ftret, 0, sizeof(ftret));
+  ftret.type = FFI_TYPE_STRUCT;
+  for (i = 0; i < out_chunks; i++)
+    elems[i] = &ffi_type_uint64;
+  elems[out_chunks] = NULL;
+  ftret.elements = elems;
+  ftret.size = 0;
+  ftret.alignment = 0;
+  for (i = 0; i < in_chunks; i++)
+    atypes[i] = &ffi_type_uint64;
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)in_chunks, &ftret,
+                    atypes);
+  if (st != FFI_OK)
+    luaL_error(L, "ffi: libffi cannot prepare a packed round-trip");
+  mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED)
+    luaL_error(L, "ffi: cannot allocate a packed round-trip thunk");
+  memcpy(mem, code, n);
+  if (mprotect(mem, pagesize, PROT_READ | PROT_EXEC) != 0) {
+    munmap(mem, pagesize);
+    luaL_error(L, "ffi: cannot make the packed round-trip thunk executable");
+  }
+  for (i = 0; i < in_chunks; i++)
+    values[i] = &chunks[i];
+  memset(retbuf, 0, sizeof(retbuf));
+  ffi_call(&cif, FFI_FN(mem), retbuf, values);
+  saved_errno = errno;
+  munmap(mem, pagesize);
+  errno = saved_errno;
+  out = ffi_push_owned(L, S, rt, rt->size);
+  memcpy(out->v.p, retbuf, rt->size);
+  return 1;
+}
+#endif
+
+
+#if defined(__x86_64__)
 static int packed_single_call (lua_State *L, FFIState *S, CData *fn,
                                CType *at, CType *rt, int argidx) {
   CData *cd = ffi_tocdata(L, argidx);
@@ -1249,6 +1338,14 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   ntotal = provided;
 
 #if defined(__x86_64__)
+  if (!ft->vararg && nargs == 1 &&
+      ft->args[0]->kind == CT_STRUCT && ft->args[0]->pack == 1 &&
+      ft->args[0]->align_override == 0 && ft->args[0]->size > 0 &&
+      ft->args[0]->size <= 16 && packed_int_type(ft->args[0]) &&
+      ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
+      ft->ret->align_override == 0 && ft->ret->size > 0 &&
+      ft->ret->size <= 16 && packed_int_type(ft->ret))
+    return packed_roundtrip_call(L, S, fn, ft->args[0], ft->ret, argstart);
   if (!ft->vararg &&
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&

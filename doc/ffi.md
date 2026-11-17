@@ -141,7 +141,8 @@ preprocessor subset is available.
   return can be called through a MEMORY-ABI stack thunk; a packed integer
   struct can also be returned from functions taking up to five scalar
   arguments through an sret thunk (integer registers shifted past the
-  hidden return pointer).  Other packed aggregate call shapes are rejected rather than
+  hidden return pointer).  A packed integer struct can also be passed to a
+  function that returns another packed integer struct in the same call.  Other packed aggregate call shapes are rejected rather than
   mislaid.  Layout always
   follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length

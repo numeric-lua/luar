@@ -17,6 +17,7 @@ struct PackedS packedmake(int i);
 struct PackedS packedmakef(double d);
 struct PackedS packedmake2(int a, int b);
 struct PackedS packedmake3(int a, double b, int c);
+struct PackedS packedswap(struct PackedS p);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -72,6 +73,10 @@ local made3 = h.packedmake3(5, 2.5, 7)
 H.eq(made3.c, 5)
 H.eq(made3.i, 14)
 H.eq(made3.s, 7)
+local sw = h.packedswap(p)
+H.eq(sw.c, 99)
+H.eq(sw.i, 123457)
+H.eq(sw.s, 7)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())
