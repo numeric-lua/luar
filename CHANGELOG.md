@@ -23,8 +23,15 @@ the runtime, while the Lua language surface follows upstream Lua.
   scalar reads and data transfer through `ffi.load`.
 - J1 trace recorder: hot-loop counters, trace selection, bytecode
   snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, a linear IR
-  dump (`jit.ir()`), working `jit.flush()`/`jit.off()` recording control.  No machine code is
-  generated and `jit.status()` remains `false`.
+  dump (`jit.ir()`), working `jit.flush()`/`jit.off()` recording control.
+  No machine code is generated and `jit.status()` remains `false`.
+- `make shared` builds `libluar.so.0.1.0` with SONAME `libluar.so.0` and the
+  `libluar.so.0`/`libluar.so` symlinks, from separate `.pic.o` objects. An
+  ELF export map (`etc/libluar.map`) limits the dynamic symbol table to the
+  Lua 5.5 C API and `luar_*`. `make install` installs it next to
+  `libluar.a`; `make test-shared` links an embedding host and the CLI
+  against it and loads a stock Lua 5.5 C module. `make clean` removes the
+  shared library, symlinks and PIC objects.
 
 ## [0.1.0] — 2026-11-17
 

@@ -32,7 +32,7 @@
 /* State                                                             */
 /* ---------------------------------------------------------------- */
 
-void luar_jit_init (lua_State *L) {
+void luari_jit_init (lua_State *L) {
   LuaR_JIT *J;
   if (G(L)->luar_jit != NULL)
     return;
@@ -46,7 +46,7 @@ void luar_jit_init (lua_State *L) {
 }
 
 
-void luar_jit_shutdown (lua_State *L) {
+void luari_jit_shutdown (lua_State *L) {
   LuaR_JIT *J = G(L)->luar_jit;
   if (J != NULL) {
     G(L)->luar_jit = NULL;
@@ -59,13 +59,13 @@ void luar_jit_shutdown (lua_State *L) {
 /* Recording                                                         */
 /* ---------------------------------------------------------------- */
 
-int luar_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge) {
+int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge) {
   LuaR_JIT *J = G(L)->luar_jit;
   Instruction ins;
   ptrdiff_t off, target, n;
 
   if (J == NULL) {
-    luar_jit_init(L);
+    luari_jit_init(L);
     J = G(L)->luar_jit;
     if (J == NULL)
       return 0;
@@ -121,7 +121,7 @@ int luar_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge) {
 static LuaR_JIT *checkjit (lua_State *L) {
   LuaR_JIT *J = G(L)->luar_jit;
   if (J == NULL) {
-    luar_jit_init(L);
+    luari_jit_init(L);
     J = G(L)->luar_jit;
   }
   return J;
@@ -342,7 +342,7 @@ static const luaL_Reg jitoptlib[] = {
 
 LUALIB_API int luaopen_jit (lua_State *L) {
   luaL_checkversion(L);
-  luar_jit_init(L);
+  luari_jit_init(L);
   luaL_newlib(L, jitlib);
   lua_pushliteral(L, "LuaR " LUAR_VERSION);
   lua_setfield(L, -2, "version");

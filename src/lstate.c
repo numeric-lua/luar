@@ -269,7 +269,7 @@ static void close_state (lua_State *L) {
     luaC_freeallobjects(L);  /* collect all objects */
     luai_userstateclose(L);
   }
-  luar_jit_shutdown(L);  /* LUAR: free J1 trace state before the global block */
+  luari_jit_shutdown(L);  /* LUAR: free J1 trace state before the global block */
   luaM_freearray(L, G(L)->strt.hash, cast_sizet(G(L)->strt.size));
   freestack(L);
   lua_assert(gettotalbytes(g) == sizeof(global_State));

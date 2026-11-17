@@ -13,6 +13,9 @@ RM= rm -f
 
 VERSION= 0.1.0
 LUAVER= 5.5
+SOVERSION= $(firstword $(subst ., ,$(VERSION)))
+LUA_SO= libluar.so.$(VERSION)
+LUA_SONAME= libluar.so.$(SOVERSION)
 
 INSTALL_BIN= $(DESTDIR)$(PREFIX)/bin
 INSTALL_LIB= $(DESTDIR)$(PREFIX)/lib
@@ -22,12 +25,12 @@ INSTALL_MAN= $(DESTDIR)$(PREFIX)/share/man/man1
 INSTALL_LMOD= $(DESTDIR)$(PREFIX)/share/luar/$(LUAVER)
 INSTALL_CMOD= $(DESTDIR)$(PREFIX)/lib/luar/$(LUAVER)
 
-MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI) WITH_JIT=$(WITH_JIT)
+MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI) WITH_JIT=$(WITH_JIT) VERSION=$(VERSION)
 PREFIX_STAMP= src/.prefix
 FFI_STAMP= src/.ffi
 JIT_STAMP= src/.jit
 
-.PHONY: all build config-check shared test test-semantics test-compat test-ffi test-diff test-jit \
+.PHONY: all build config-check shared test test-shared test-semantics test-compat test-ffi test-diff test-jit \
 	test-upstream bench install uninstall clean distclean upstream-check sync-diff docs help
 
 all: build
@@ -46,9 +49,11 @@ config-check:
 build: config-check
 	$(MAKE_SRC) all
 
-# Convenience: build a shared library with the Lua 5.5 ABI exported.
-shared:
-	$(MAKE_SRC) libluar.so
+# Shared library: libluar.so.<version>, SONAME libluar.so.<major>, and the
+# unversioned libluar.so symlink.  Uses separate .pic.o objects, so the
+# static build is unaffected.
+shared: config-check
+	$(MAKE_SRC) shared
 
 test: build
 	@echo "== smoke =="
@@ -61,6 +66,11 @@ test: build
 	@if [ "$(WITH_FFI)" = "1" ]; then ./src/luar tests/run.lua ffi; fi
 	@echo "== differential vs stock lua =="
 	./tests/diff/run.sh
+
+# Link an embedding host and the CLI against libluar.so, then load a stock
+# Lua 5.5 C module.  See tests/shared.sh.
+test-shared: build shared
+	./tests/shared.sh
 
 test-semantics: build
 	./src/luar tests/run.lua semantics
@@ -94,11 +104,14 @@ bench: build
 bench-compare: build
 	./bench/compare.sh
 
-install: build
+install: build shared
 	mkdir -p $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_PC) \
 		$(INSTALL_MAN) $(INSTALL_LMOD) $(INSTALL_CMOD)
 	install -m 0755 src/luar src/luarc $(INSTALL_BIN)
 	install -m 0644 src/libluar.a $(INSTALL_LIB)/libluar.a
+	install -m 0755 src/$(LUA_SO) $(INSTALL_LIB)/$(LUA_SO)
+	ln -sfn $(LUA_SO) $(INSTALL_LIB)/$(LUA_SONAME)
+	ln -sfn $(LUA_SONAME) $(INSTALL_LIB)/libluar.so
 	install -m 0644 src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h \
 		src/lua.hpp src/luar.h src/luar_version.h $(INSTALL_INC)
 	sed 's|^prefix=.*|prefix=$(PREFIX)|' etc/luar.pc > $(INSTALL_PC)/luar.pc
@@ -107,6 +120,8 @@ install: build
 uninstall:
 	$(RM) $(INSTALL_BIN)/luar $(INSTALL_BIN)/luarc
 	$(RM) $(INSTALL_LIB)/libluar.a
+	$(RM) $(INSTALL_LIB)/$(LUA_SO) $(INSTALL_LIB)/$(LUA_SONAME) \
+		$(INSTALL_LIB)/libluar.so
 	$(RM) -r $(INSTALL_INC)
 	$(RM) $(INSTALL_PC)/luar.pc
 	$(RM) $(INSTALL_MAN)/luar.1

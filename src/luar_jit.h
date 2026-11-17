@@ -47,11 +47,11 @@ typedef struct LuaR_JIT {
 
 
 /* Lifecycle (luar_jit.c). */
-LUAI_FUNC void luar_jit_init (lua_State *L);
-LUAI_FUNC void luar_jit_shutdown (lua_State *L);
+LUAI_FUNC void luari_jit_init (lua_State *L);
+LUAI_FUNC void luari_jit_shutdown (lua_State *L);
 
 /* Called once per loop when its counter reaches LUAR_JIT_HOTCOUNT. */
-LUAI_FUNC int luar_jit_hotloop (lua_State *L, Proto *p,
+LUAI_FUNC int luari_jit_hotloop (lua_State *L, Proto *p,
                                 const Instruction *backedge);
 
 /*
@@ -61,19 +61,19 @@ LUAI_FUNC int luar_jit_hotloop (lua_State *L, Proto *p,
 ** the heap to reset already-hot prototypes (J1 limitation; J2 keeps a
 ** prototype list).
 */
-static inline int luar_jit_hot (lua_State *L, Proto *p,
+static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge) {
   if (p->luar_hot >= LUAR_JIT_HOTCOUNT)
     return 0;
   if (++p->luar_hot < LUAR_JIT_HOTCOUNT)
     return 0;
-  return luar_jit_hotloop(L, p, backedge);
+  return luari_jit_hotloop(L, p, backedge);
 }
 
 #if defined(LUAR_JIT_DISABLE)
 #define LUAR_JIT_HOT(L, p, pc)	((void)0)
 #else
-#define LUAR_JIT_HOT(L, p, pc)	luar_jit_hot((L), (p), (pc))
+#define LUAR_JIT_HOT(L, p, pc)	luari_jit_hot((L), (p), (pc))
 #endif
 
 #endif

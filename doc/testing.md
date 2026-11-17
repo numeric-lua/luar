@@ -7,6 +7,7 @@ the test strategy is about proving that LuaR has not drifted from it.
 
 ```sh
 make test              # smoke + CLI/ABI + semantics + compat + differential
+make test-shared       # shared-library embedding, C module ABI, luar.pc
 make test-semantics    # tests/semantics/*.lua
 make test-compat       # tests/compat/*.lua
 make test-diff         # same scripts under stock lua 5.5 and luar
@@ -27,6 +28,7 @@ make bench             # performance harness, no pass/fail gates
 | `tests/ffi/` | FFI parser, cdata, calls | no |
 | `tests/consumer/` | real `libluatorch.so` over FFI (skips if absent) | n/a |
 | `tests/cli.sh` | binaries, bytecode, ABI, embedding | no |
+| `tests/shared.sh` | `libluar.so` soname, exports, embedding, C module ABI | no |
 | `tests/upstream/` | official Lua authors' suite | it is the reference |
 
 `tests/run.lua` runs every `.lua` file in the requested suite directories and
@@ -58,8 +60,24 @@ headers and loads it into `luar`, proving the module ABI. It also compiles
 `tests/embed/embed.c` against `src/libluar.a` and `luar.h`, proving the
 embedding API and that `luaL_openlibs` brings up the extensions.
 
-When the shared library lands (milestone 0.3), the same module must load
-against `libluar.so` through `luar.pc`.
+`tests/shared.sh` (run by `make test-shared`) repeats the embedding test
+against `src/libluar.so` with `-L src -lluar` and `LD_LIBRARY_PATH=src`, and
+links a copy of the CLI itself against the shared library. It checks the
+soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.1.0`), verifies
+with `nm -D` that only `lua_*`/`luaL_*`/`luaopen_*`/`luar_*` are exported,
+loads the stock `mhello.c` module into the shared-linked CLI, and exercises
+both `pkg-config --libs luar` and `pkg-config --static --libs luar` against
+the checked-in `etc/luar.pc` (with `libdir`/`includedir` pointed at the
+source tree and a temporary static-only directory).
+
+The stock module is linked with `-llua` and therefore carries
+`DT_NEEDED liblua.so.5.5`. This does not cause interposition: `libluar.so`
+is a direct dependency of the host and therefore precedes the module's own
+dependency in the global lookup scope, so the module's `lua_*` references
+bind to LuaR. On glibc the test confirms this with `LD_DEBUG=bindings`;
+elsewhere the working module is the evidence. The same reasoning explains
+why a *static* host must be linked with `-Wl,-E` to load C modules at all:
+it has no other way to publish `lua_*` to `dlopen`.
 
 ## Official suite
 
