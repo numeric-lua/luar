@@ -25,7 +25,10 @@ Intentional, documented differences:
 * `luar -v` prints the LuaR banner including the Lua base version.
 * The program name defaults to `luar`; `luarc` replaces `luac`.
 * `luaL_openlibs` (and the stand-alone interpreter) also open the LuaR
-  extensions: `luar`, `jit`, `bit`, and `ffi` when built.
+  extensions: `luar`, `jit`, `bit`, and `ffi` when built.  A host compiled
+  against the **stock** Lua 5.5 headers still expands `luaL_openlibs` to
+  `luaL_openselectedlibs(L, ~0, 0)` and therefore gets exactly the standard
+  libraries; it can call `luar_openlibs(L)` explicitly to opt in.
 * Default module paths include `luar/5.5` directories before the Lua ones.
 * `LUAR_INIT` is consulted before `LUA_INIT`.
 * `LUA_ROOT` can be overridden at build time with `PREFIX`.
@@ -114,9 +117,11 @@ what milestone 0.2 addresses.
   is deprecated in favour of `lua_closethread`, `lua_setcstacklimit` is
   deprecated, GC parameters moved to `LUA_GCPARAM`, `lua_dump` calls the
   writer one extra time, and `nresults` is capped at 250.
-* **Numeric string coercion** is narrower than 5.1 (no implicit coercion in
-  concatenation of numbers? it still works, but `"10" + 1` is fine while
-  `"0x10" + 0` is hexadecimal-aware; test rather than assume).
+* **Numeric string coercion** goes string→number for arithmetic and
+  number→string for concatenation, but there is no implicit integer/float
+  promotion when formatting: `string.format("%d", 1.0)` fails.  Hex and
+  exponent strings are accepted by arithmetic (`"0x10" + 0` is 16); test
+  rather than assume.
 
 ## 5. Versioning
 

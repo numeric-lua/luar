@@ -23,20 +23,23 @@ INSTALL_CMOD= $(DESTDIR)$(PREFIX)/lib/luar/$(LUAVER)
 
 MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI)
 PREFIX_STAMP= src/.prefix
+FFI_STAMP= src/.ffi
 
-.PHONY: all build prefix-check shared test test-semantics test-compat test-ffi test-diff \
+.PHONY: all build config-check shared test test-semantics test-compat test-ffi test-diff \
 	test-upstream bench install uninstall clean distclean upstream-check sync-diff docs help
 
 all: build
 
-# The install prefix is compiled into luaconf.h, so a change of PREFIX must
-# force a rebuild (the compiler cannot see a flag change on its own).
-prefix-check:
+# PREFIX and WITH_FFI change compiler flags, which make cannot see, so a
+# change to either must force a clean rebuild.
+config-check:
 	@mkdir -p $(dir $(PREFIX_STAMP))
 	@if [ -f $(PREFIX_STAMP) ] && [ "$$(cat $(PREFIX_STAMP))" = "$(PREFIX)" ]; then :; \
 	 else echo "$(PREFIX)" > $(PREFIX_STAMP); $(MAKE_SRC) clean; fi
+	@if [ -f $(FFI_STAMP) ] && [ "$$(cat $(FFI_STAMP))" = "$(WITH_FFI)" ]; then :; \
+	 else echo "$(WITH_FFI)" > $(FFI_STAMP); $(MAKE_SRC) clean; fi
 
-build: prefix-check
+build: config-check
 	$(MAKE_SRC) all
 
 # Convenience: build a shared library with the Lua 5.5 ABI exported.
@@ -67,9 +70,6 @@ test-ffi: build
 test-diff: build
 	./tests/diff/run.sh
 
-test-upstream: build
-	tests/upstream/run.sh
-
 # Official Lua test suite under src/luar (downloads into tests/tmp/).
 test-upstream: build
 	tests/upstream/run.sh
@@ -78,7 +78,11 @@ test-all: test-semantics test-compat
 	@echo "all test suites passed"
 
 bench: build
-	./src/luar tests/run.lua bench
+	./src/luar bench/bench.lua all
+
+# Full cross-interpreter comparison (lua, luajit, luajit -joff, luar).
+bench-compare: build
+	./bench/compare.sh
 
 install: build
 	mkdir -p $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_PC) \
@@ -99,7 +103,7 @@ uninstall:
 
 clean:
 	$(MAKE_SRC) clean
-	$(RM) -r build $(PREFIX_STAMP)
+	$(RM) -r build $(PREFIX_STAMP) $(FFI_STAMP)
 
 # FAIL if src/ has drifted from the vendored upstream snapshot in ways
 # that were not recorded in tools/upstream-baseline.txt.  See doc/upstream.md.

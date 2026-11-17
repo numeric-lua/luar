@@ -93,7 +93,10 @@ make correct against an unmodified VM.
   of the numeric-Lua ecosystem.
 
 The interpreter is never removed. `jit.off()`, guard exits, unsupported
-opcodes, blacklisted loops and `jit.flush()` all return to T0.
+opcodes, blacklisted loops and `jit.flush()` all return to T0.  The detailed
+design — opcode map, IR, guards, GC safepoints, code generation and the
+J1–J5 milestones — is in `doc/jit-design.md`; a working DynASM prototype of
+the 5.5-bytecode-to-native path lives in `experimental/tracejit/`.
 
 ## 5. Bytecode and front end
 

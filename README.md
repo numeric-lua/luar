@@ -55,9 +55,11 @@ src/                 LuaR engine (derived from Lua 5.5.1)
   luar_ffi*.c        FFI (in progress)
 vendor/lua-5.5.1/    pristine upstream source, the sync reference
 vendor/luajit/       the original LuaJIT 2.1 tree (reference + DynASM)
-tests/               semantics, compatibility, FFI and benchmark suites
+tests/               semantics, differential, compatibility, FFI, CLI/ABI suites
+bench/               microbenchmark corpus and comparison harness
 doc/                 architecture, roadmap, compatibility and upstream policy
 tools/               upstream sync/diff machinery
+experimental/        DynASM trace prototype (not part of the build)
 ```
 
 ## Documentation
@@ -67,7 +69,13 @@ tools/               upstream sync/diff machinery
 - [doc/roadmap.md](doc/roadmap.md) — milestones 0.1 → 1.0 with exit criteria.
 - [doc/compatibility.md](doc/compatibility.md) — the compatibility contract
   and the LuaJIT API matrix.
-- [doc/upstream.md](doc/upstream.md) — how LuaR tracks Lua releases.
+- [doc/upstream.md](doc/upstream.md) — how LuaR tracks Lua releases, and the
+  Lua 5.6 adoption checklist.
+- [doc/jit-design.md](doc/jit-design.md) — the tracing-JIT design, opcode
+  map, IR, GC integration and J1–J5 milestones.
+- [doc/testing.md](doc/testing.md) — suites, differential testing, sanitizers.
+- [doc/porting-from-luajit.md](doc/porting-from-luajit.md) — a practical
+  migration guide for LuaJIT codebases.
 
 ## License
 

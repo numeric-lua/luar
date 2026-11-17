@@ -18,6 +18,7 @@
 /src/luar
 /src/luarc
 /src/.prefix
+/src/.ffi
 
 # Scratch
 /build/

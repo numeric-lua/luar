@@ -2,7 +2,7 @@
 # tests/cli.sh -- command line and ABI surface checks.
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 LUAR="$ROOT/src/luar"
 LUARC="$ROOT/src/luarc"
 TMP="$ROOT/tests/tmp"
@@ -109,6 +109,7 @@ ok "C embedding"
 
 # -- C module ABI (needs pkg-config lua5.5) --------------------------------
 if pkg-config --exists lua5.5 2>/dev/null; then
+  # shellcheck disable=SC2046  # pkg-config output is a flag list
   cc -O2 -fPIC -shared $(pkg-config --cflags lua5.5) \
      -o "$TMP/mhello.so" "$ROOT/tests/cmod/mhello.c" \
      $(pkg-config --libs lua5.5) 2>"$TMP/mhello.err" || {
