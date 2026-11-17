@@ -22,13 +22,24 @@ struct IncB { struct IncA a; int y[LUAR_INC_N]; };
 #endif
 ]])
 b:close()
+local c = assert(io.open(dir .. "/c.h", "w"))
+c:write([[
+#ifndef LUAR_INC_C
+#define LUAR_INC_C
+#include "a.h"
+struct IncC { struct IncA a; int z; };
+#endif
+]])
+c:close()
 
 ffi.cdef[[
+#include "tests/tmp/ffi-include/c.h"
 #include "tests/tmp/ffi-include/b.h"
 #include "tests/tmp/ffi-include/a.h"
 ]]
 H.eq(ffi.sizeof("struct IncA"), 4)
 H.eq(ffi.sizeof("struct IncB"), 16)
+H.eq(ffi.sizeof("struct IncC"), 8)
 
 H.raises(function ()
   ffi.cdef('#include "tests/tmp/ffi-include/missing.h"')

@@ -120,8 +120,8 @@ preprocessor subset is available.
   `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with
   object macros expanded outside strings/comments.  Function-like macros
   support named and variadic (`...`/`__VA_ARGS__`) parameters on a single
-  line.  Quoted `#include "path"` reads a file relative to the current
-  working directory (depth/size limited); token pasting (`##`) and
+  line.  Quoted `#include "path"` resolves relative to the including file
+  first (falling back to the working directory), with depth/size limits; token pasting (`##`) and
   parameter stringification (`#`) are supported, and `#error` text is
   macro-expanded; angle includes, non-pack `#pragma` and complex `#if`
   expressions are rejected;

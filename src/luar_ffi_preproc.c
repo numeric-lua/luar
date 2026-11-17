@@ -73,7 +73,8 @@ static void buf_mem (lua_State *L, Buf *b, const char *s, size_t n) {
 }
 
 static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
-                              size_t len, size_t *outlen, int incdepth);
+                              size_t len, size_t *outlen, int incdepth,
+                              const char *base);
 
 static Macro *macro_find (FFIState *S, const char *name, size_t n) {
   Macro *m = (Macro *)S->macros;
@@ -521,7 +522,8 @@ static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
 }
 
 static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
-                              size_t len, size_t *outlen, int incdepth) {
+                              size_t len, size_t *outlen, int incdepth,
+                              const char *base) {
   Buf b;
   Cond cond[MAX_COND_DEPTH];
   int depth = 0, active = 1;
@@ -800,12 +802,34 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
           size_t inclen = 0;
           if (incdepth >= 16)
             luaL_error(L, "ffi.cdef:%d: #include nesting too deep", line);
-          fname = (char *)malloc(plen + 1);
-          if (fname == NULL)
-            luaL_error(L, "ffi.cdef: out of memory");
-          memcpy(fname, path, plen);
-          fname[plen] = '\0';
+          {
+            size_t bl = (base != NULL) ? strlen(base) : 0;
+            int joined = (bl > 0 && path[0] != '/');
+            fname = (char *)malloc((joined ? bl + 1 : 0) + plen + 1);
+            if (fname == NULL)
+              luaL_error(L, "ffi.cdef: out of memory");
+            if (joined) {
+              memcpy(fname, base, bl);
+              fname[bl] = '/';
+              memcpy(fname + bl + 1, path, plen);
+              fname[bl + 1 + plen] = '\0';
+            }
+            else {
+              memcpy(fname, path, plen);
+              fname[plen] = '\0';
+            }
+          }
           f = fopen(fname, "rb");
+          if (f == NULL && base != NULL && path[0] != '/') {
+            /* fall back to the working-directory form */
+            free(fname);
+            fname = (char *)malloc(plen + 1);
+            if (fname == NULL)
+              luaL_error(L, "ffi.cdef: out of memory");
+            memcpy(fname, path, plen);
+            fname[plen] = '\0';
+            f = fopen(fname, "rb");
+          }
           if (f == NULL) {
             free(fname);
             luaL_error(L, "ffi.cdef:%d: cannot open include '%.*s'", line,
@@ -834,8 +858,27 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
                        (int)plen, path);
           }
           filebuf[got] = '\0';
-          incout = preprocess_impl(L, S, filebuf, got, &inclen,
-                                   incdepth + 1);
+          {
+            char *newbase = NULL;
+            char *slash = strrchr(fname, '/');
+            if (slash != NULL) {
+              size_t blen = (size_t)(slash - fname);
+              newbase = (char *)malloc(blen + 2);
+              if (newbase != NULL) {
+                if (blen == 0) {
+                  newbase[0] = '/';
+                  newbase[1] = '\0';
+                }
+                else {
+                  memcpy(newbase, fname, blen);
+                  newbase[blen] = '\0';
+                }
+              }
+            }
+            incout = preprocess_impl(L, S, filebuf, got, &inclen,
+                                     incdepth + 1, newbase);
+            free(newbase);
+          }
           if (incout != NULL)
             buf_mem(L, &b, incout, inclen);
           else
@@ -883,5 +926,5 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
 
 char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
                       size_t *outlen) {
-  return preprocess_impl(L, S, src, len, outlen, 0);
+  return preprocess_impl(L, S, src, len, outlen, 0, NULL);
 }

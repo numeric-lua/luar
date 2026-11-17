@@ -39,8 +39,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   macros, angle includes, non-pack `#pragma` and complex `#if` expressions
   fail clearly.  Token pasting (`##`) and parameter stringification (`#`)
   work in function macros, and `#error` text is expanded; quoted
-  `#include "path"` reads cwd-relative headers with include-guard/macro
-  persistence and depth/size limits.  `#pragma pack(n/push/pop)` sets byte-granular layout.
+  `#include "path"` resolves relative to the including file (cwd fallback)
+  with include-guard/macro persistence and depth/size limits.  `#pragma pack(n/push/pop)` sets byte-granular layout.
 - Fixed the cdef preprocessor dropping the last character of indented lines
   (leading whitespace was subtracted from the expansion length twice).  This
   affected multiline enums and any indented declaration followed by commas.
