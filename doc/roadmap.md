@@ -95,7 +95,8 @@ variants and MMBIN), with int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
 `numeric/int_sum` is ~6x faster than the interpreter (LuaJIT parity) and
 `numeric/float_loop` ~2.5x.  Still missing: branch/comparison ops, general traces and side
-exits, tables/calls, and trace-level optimisation.
+exits, tables/calls, and trace-level optimisation.  See
+`doc/adr/0004-j2-loop-level.md` for the scope decision.
 
 
 * DynASM-based codegen for the numeric core of T1 loops: integer and float
