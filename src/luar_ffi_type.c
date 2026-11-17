@@ -407,10 +407,9 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
     if (!f->zero_width && fal > align)
       align = fal;
     if (ct->kind == CT_UNION) {
-      if (f->bitwidth != 0 || f->zero_width)
-        luaL_error(S->L, "ffi: bitfields in unions are not supported");
       f->offset = 0;
-      if (fsz > maxsize)
+      f->bitoffset = 0;
+      if (!f->zero_width && fsz > maxsize)
         maxsize = fsz;
       continue;
     }

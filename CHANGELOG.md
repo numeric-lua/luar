@@ -37,8 +37,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
   bit-granular packing including mixed base types, byte-crossing fields,
   unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named
-  initializers; mixed-size/union bitfields and by-value bitfield structs
-  fail clearly.
+  initializers; struct and union bitfields share the same layout engine,
+  while by-value bitfield structs fail clearly.
 - `__thread`/`_Thread_local` globals are supported through the existing
   dlsym symbol path, with read/write access from Lua.
 - `ffi.callback` also returns small scalar unions by value when the Lua

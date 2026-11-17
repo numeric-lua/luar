@@ -308,3 +308,5 @@ union Odd12I { int v[3]; };
 int odd12i_sum (union Odd12I u) { return u.v[0] + u.v[1] + u.v[2]; }
 struct Odd12Box { int tag; union Odd12 u; };
 float odd12_box_sum (struct Odd12Box b) { return b.tag + b.u.f[0] + b.u.f[1] + b.u.f[2]; }
+union BitU { unsigned a:3; unsigned b:5; };
+unsigned bitu_b (union BitU u) { return u.b; }

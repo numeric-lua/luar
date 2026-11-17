@@ -121,4 +121,19 @@ H.eq(h.padbit_b_ptr(pbp), 6)
 -- bitfield structs are accepted for field access but not by-value calls
 H.raises(function () return h.bitpack_by_value(b) end, "bitfield")
 
+-- union bitfields share offset zero
+ffi.cdef[[
+union BitU { unsigned a:3; unsigned b:5; };
+unsigned bitu_b(union BitU u);
+]]
+local bu = ffi.new("union BitU")
+bu.a = 5
+H.eq(bu.a, 5)
+H.eq(bu.b, 5)
+bu.b = 17
+H.eq(bu.a, 1)
+H.eq(bu.b, 17)
+H.eq(h.bitu_b(bu), 17)
+H.eq(ffi.sizeof("union BitU"), 4)
+
 print("ffi/13_bitfields ok")

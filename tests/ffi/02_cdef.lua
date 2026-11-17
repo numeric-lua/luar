@@ -95,7 +95,6 @@ end
 bad("int f(int x) __attribute__((unused));", "unsupported C construct")
 bad("struct __attribute__((packed)) S { int x; };", "unsupported C construct")
 bad("struct B { int x : 0; };", "width")
-bad("union U { int x : 3; };", "bitfields in unions")
 bad("long double d;", "long double")
 bad("int x", "expected ';'")
 bad("struct C { int; };", "does not declare")

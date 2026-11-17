@@ -1018,8 +1018,6 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
         if (accept_punct(P, ':')) {
           int64_t width = parse_const_expr(P);
           size_t bits;
-          if (ct->kind == CT_UNION)
-            parser_error(P, "bitfields in unions are not supported");
           if (ft->kind != CT_INT && ft->kind != CT_ENUM &&
               ft->kind != CT_BOOL)
             parser_error(P, "bitfield '%s' must have an integer type",

@@ -324,8 +324,9 @@ Calls support:
 * struct return/argument by value when the layout is representable by
   libffi and verified byte-for-byte against libffi's computed offsets.
   Fixed array members (including arrays of structs), all unions up to 16
-  bytes and larger memory-class unions are supported; bitfield structs,
-  oversized unions and arrays themselves are rejected by value;
+  bytes and larger memory-class unions are supported; structs with
+  bitfields, oversized unions and arrays themselves are rejected by
+  value;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
   conversion rules;
@@ -441,8 +442,9 @@ Call features:
   fields crossing byte boundaries.  Unnamed padding bitfields and unnamed
   zero-width alignment fields are supported (the zero-width type affects
   the next offset but not the struct alignment, as in GCC).  Union
-  bitfields and by-value bitfield structs are rejected rather than laid
-  out incorrectly.  `long double`, complex numbers, vectors and packing
+  bitfields share offset zero and can be read, written and passed by
+  value; by-value bitfield structs are rejected rather than laid out
+  incorrectly.  `long double`, complex numbers, vectors and packing
   attributes are not implemented.  `ffi.callback`
   supports non-variadic types, including struct and scalar-union by-value
   returns when the callback returns a matching cdata; array/large aggregate
@@ -481,7 +483,8 @@ probes, and variadic probes.  Coverage includes:
   comparisons, `tonumber`, and `tostring` formats;
 * `ffi.string`, `ffi.copy` (including the 2-argument string form),
   `ffi.fill`, and their bounds errors;
-* bitfield layout (mixed bases, byte-crossing fields, signed extraction,
+* bitfield layout (mixed bases, byte-crossing fields, union bitfields,
+  signed extraction,
   masking),
   get/set, positional/named initializers and by-value rejection;
 * `ffi.callback` (qsort via a real C comparator, struct-by-value arguments,
