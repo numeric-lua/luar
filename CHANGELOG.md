@@ -24,6 +24,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 - A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the
   libtorch-backed `libluatorch.so` C ABI and runs tensor creation, `lt_add`,
   scalar reads and data transfer through `ffi.load`.
+- Deterministic JIT differential fuzzing (`tests/jit/04_fuzz.lua`): 150
+  generated chunks compare interpreter and compiled results bit-for-bit,
+  including value flavours and mixed int/float arithmetic.
 - JIT differential/stress coverage (`tests/jit/03_guards.lua`): every
   compiled-loop case is compared against an interpreter run, including
   overflow, empty loops, division, negative zero, `break` and type-changing
