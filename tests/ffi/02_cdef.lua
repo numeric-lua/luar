@@ -92,7 +92,6 @@ local function bad (src, needle)
           "error for '" .. src .. "' lacks offending token: " .. err)
 end
 
-bad("#define X 1", "preprocessor")
 bad("int f(int x) __attribute__((unused));", "unsupported C construct")
 bad("struct __attribute__((packed)) S { int x; };", "unsupported C construct")
 bad("struct B { int x : 0; };", "width")

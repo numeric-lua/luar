@@ -148,6 +148,7 @@ typedef struct FAlloc {
 struct FFIState {
   lua_State *L;
   FAlloc *allocs;	/* tracked allocations, freed on state close */
+  void *macros;		/* preprocessor macros (luar_ffi_preproc.c) */
   unsigned long long anon;	/* anonymous struct/union/enum counter */
 
   /* Builtin types, initialized once per state. */
@@ -302,6 +303,8 @@ void ffi_callback_free (lua_State *L, CData *cd);
 /* ------------------------------------------------------------------ */
 
 void ffi_parse_cdef (lua_State *L, FFIState *S, const char *src, size_t len);
+char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
+                      size_t *outlen);
 CType *ffi_parse_type (lua_State *L, FFIState *S, const char *src,
                        size_t len);
 

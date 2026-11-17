@@ -35,7 +35,7 @@ Status: implemented behind `WITH_FFI=1`: cdata bitwise/shift, variadic
 calls, callbacks (struct/scalar-union returns), structs with array members
 and small scalar unions by value, bitfields, TLS globals, ASan/UBSan/fuzz
 coverage and a real `libluatorch.so` consumer.  What remains: large or
-aggregate unions by value, mixed-base bitfield runs, the preprocessor, and
+aggregate unions by value, function-like/include preprocessing, and
 non-x86-64 hosts.
 
 Exit criteria:

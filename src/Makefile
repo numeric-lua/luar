@@ -49,7 +49,7 @@ FFI_O= luar_ffi_stub.o
 # Objects of both FFI variants, so 'make clean' also removes a previous
 # WITH_FFI=1 build.
 ALL_FFI_O= luar_ffi_stub.o luar_ffi.o luar_ffi_type.o luar_ffi_parse.o \
-	luar_ffi_call.o
+	luar_ffi_call.o luar_ffi_preproc.o
 ifeq ($(WITH_JIT),0)
 SYSCFLAGS+= -DLUAR_JIT_DISABLE
 endif
@@ -60,7 +60,8 @@ ifeq ($(WITH_FFI),1)
 # loaded with dlopen()/dlsym() when the module opens (so luar binaries and
 # embedders have no link-time dependency on it; the headers are still needed
 # to build).
-FFI_O= luar_ffi.o luar_ffi_type.o luar_ffi_parse.o luar_ffi_call.o
+FFI_O= luar_ffi.o luar_ffi_type.o luar_ffi_parse.o luar_ffi_call.o \
+	luar_ffi_preproc.o
 endif
 # The VM has two small inert hook points for FFI cdata equality (see
 # doc/ffi.md).  Compile them in both variants so switching WITH_FFI does

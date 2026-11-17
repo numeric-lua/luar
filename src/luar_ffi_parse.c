@@ -1157,6 +1157,12 @@ static void parse_external (Parser *P) {
 
 void ffi_parse_cdef (lua_State *L, FFIState *S, const char *src, size_t len) {
   Parser P;
+  size_t plen = 0;
+  char *pre = ffi_preprocess(L, S, src, len, &plen);
+  if (pre != NULL) {
+    src = pre;
+    len = plen;
+  }
   memset(&P, 0, sizeof(P));
   P.L = L;
   P.S = S;
@@ -1169,6 +1175,7 @@ void ffi_parse_cdef (lua_State *L, FFIState *S, const char *src, size_t len) {
   lex_next(&P);
   while (P.tok.kind != TK_EOF)
     parse_external(&P);
+  free(pre);
 }
 
 

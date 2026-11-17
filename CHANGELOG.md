@@ -26,6 +26,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 - FFI structs with fixed array members (including arrays of structs) can be
   passed and returned by value; VLA/empty arrays and bitfield structs are
   rejected.
+- `ffi.cdef` preprocessing: object-like macros, `#undef`, and
+  `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with macros expanded outside
+  strings and comments and persisted across cdef calls.  Function-like
+  macros, `#include`, `#pragma` and complex `#if` expressions fail clearly.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
   bit-granular packing including mixed base types, byte-crossing fields,
   unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named
