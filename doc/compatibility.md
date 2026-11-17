@@ -122,7 +122,8 @@ Deliberate deviations, all documented:
   zero C return plus a stored message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
-Not supported: system include search (`<...>` paths are local only),
+Not supported: default system include search (`LUAR_FFI_INCLUDE` can add
+directories),
 non-pack `#pragma`,
 oversized unions, `long double`/complex/vector
 types, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic

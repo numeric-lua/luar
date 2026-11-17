@@ -834,6 +834,31 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
             fname[plen] = '\0';
             f = fopen(fname, "rb");
           }
+          if (f == NULL && path[0] != '/') {
+            const char *dirs = getenv("LUAR_FFI_INCLUDE");
+            while (dirs != NULL && *dirs != '\0') {
+              const char *colon = strchr(dirs, ':');
+              size_t dl = (colon != NULL) ? (size_t)(colon - dirs)
+                                          : strlen(dirs);
+              if (dl > 0) {
+                char *cand = (char *)malloc(dl + 1 + plen + 1);
+                if (cand != NULL) {
+                  memcpy(cand, dirs, dl);
+                  cand[dl] = '/';
+                  memcpy(cand + dl + 1, path, plen);
+                  cand[dl + 1 + plen] = '\0';
+                  f = fopen(cand, "rb");
+                  if (f != NULL) {
+                    free(fname);
+                    fname = cand;
+                    break;
+                  }
+                  free(cand);
+                }
+              }
+              dirs = (colon != NULL) ? colon + 1 : NULL;
+            }
+          }
           if (f == NULL)
             luaL_error(L, "ffi.cdef:%d: cannot open include '%s'", line,
                        fname);
