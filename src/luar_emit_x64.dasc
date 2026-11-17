@@ -821,7 +821,16 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
   | push r12
   | push r13
   | push r14
-  | mov r12, qword [rbx + ((int)LUAR_SLOT(d->fw_acc))]
+  if (d->fw_float) {
+    union { double d; uint64_t u; } cv;
+    cv.d = d->fw_const;
+    | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->fw_acc))]
+    | mov64 rax, cv.u
+    | movq xmm2, rax
+  }
+  else {
+    | mov r12, qword [rbx + ((int)LUAR_SLOT(d->fw_acc))]
+  }
   | mov r13, qword [rbx + ((int)LUAR_SLOT(d->fw_idx))]
   if (d->fw_limit == 0xFF) {
     | mov64 r14, d->fw_imm
@@ -848,7 +857,12 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
       | jg >2
     }
   }
-  if (d->fw_square) {
+  if (d->fw_float) {
+    | cvtsi2sd xmm1, r13
+    | mulsd xmm1, xmm2
+    | addsd xmm0, xmm1
+  }
+  else if (d->fw_square) {
     | mov rcx, r13
     | imul rcx, r13
     | add r12, rcx
@@ -859,7 +873,12 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
   | add r13, d->fw_step
   | jmp <1
   |2:
-  | mov qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], r12
+  if (d->fw_float) {
+    | movsd qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], xmm0
+  }
+  else {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], r12
+  }
   | mov qword [rbx + ((int)LUAR_SLOT(d->fw_idx))], r13
   | mov eax, 1
   | pop r14

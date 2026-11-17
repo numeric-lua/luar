@@ -526,7 +526,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   if (is_while && n >= 5) {
 
     int acc = -1, idx = -1, limit = -1, kind = 0, ok = 1, has_imm = 0;
-    int add_i = -1, inc_i = -1, temp = -1, square = 0;
+    int add_i = -1, inc_i = -1, temp = -1, square = 0, is_float = 0;
+    double fconst = 0.0;
     int64_t imm = 0;
     for (i = 0; i < n - 1 && ok; i++) {
       LuaR_Op *op = &ops[i];
@@ -545,15 +546,27 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
             op->a == idx || op->ta != LUAR_T_INT) { ok = 0; break; }
         temp = op->a;
       }
+      else if (op->kind == LUAR_OP_MULK) {
+        if (temp >= 0 || op->b != idx || op->ta != LUAR_T_FLOAT ||
+            op->a == idx) { ok = 0; break; }
+        temp = op->a;
+        is_float = 1;
+        fconst = op->num;
+      }
       else if (op->kind == LUAR_OP_ADD) {
-        if (acc >= 0 || op->a != op->b || op->ta != LUAR_T_INT) {
-          ok = 0; break;
-        }
-        if (op->c == idx && temp < 0)
+        if (acc >= 0 || op->a != op->b) { ok = 0; break; }
+        if (is_float) {
+          if (op->ta != LUAR_T_FLOAT || op->c != temp) { ok = 0; break; }
           square = 0;
-        else if (op->c == temp && temp >= 0)
-          square = 1;
-        else { ok = 0; break; }
+        }
+        else {
+          if (op->ta != LUAR_T_INT) { ok = 0; break; }
+          if (op->c == idx && temp < 0)
+            square = 0;
+          else if (op->c == temp && temp >= 0)
+            square = 1;
+          else { ok = 0; break; }
+        }
         acc = op->a;
         add_i = (int)i;
       }
@@ -568,12 +581,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         (limit >= 0 || has_imm)) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
-      add_guard(&d, seen, acc, LUAR_T_INT);
+      add_guard(&d, seen, acc, is_float ? LUAR_T_FLOAT : LUAR_T_INT);
       add_guard(&d, seen, idx, LUAR_T_INT);
       if (limit >= 0)
         add_guard(&d, seen, limit, LUAR_T_INT);
       d.fast_while = 1;
       d.fw_square = square;
+      d.fw_float = is_float;
+      d.fw_const = fconst;
       d.fw_acc = acc;
       d.fw_idx = idx;
       d.fw_limit = limit >= 0 ? limit : 0xFF;
