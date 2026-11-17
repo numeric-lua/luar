@@ -356,9 +356,10 @@ Deliberately unsupported call features:
   5.5 would never call `__eq` for `userdata == number`/`nil`, making the
   required LuaJIT behavior impossible.  Comparison ordering is handled by
   the normal `__lt`/`__le` metamethods.
-* String formatting of cdata is not hooked:
-  `string.format("%d", cdata)` is not supported (use `tonumber(cdata)`).
-  `tostring(cdata)` is supported.
+* `string.format` is wrapped when the FFI loads: integer cdata formats with
+  `%d %i %u %o %x %X`, `%s`/`%q` use cdata `tostring`, and float cdata is
+  rejected by numeric conversions, matching LuaJIT.  Non-cdata values keep
+  stock Lua 5.5 behavior.
 * Typedef names are not preserved in type representations; see above.
 * `ffi.string`, `ffi.copy`, and `ffi.fill` perform stricter bounds checks
   for owned arrays than LuaJIT.

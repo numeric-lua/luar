@@ -12,6 +12,7 @@
 
 #include "lprefix.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2285,6 +2286,63 @@ static int ffi_lua_tonumber (lua_State *L) {
 }
 
 
+/*
+** string.format("%d", cdata): Lua 5.5's formatter only accepts Lua
+** numbers, while LuaJIT formats numeric cdata.  Rewrite just the numeric
+** cdata arguments according to their conversion specifier, then delegate.
+*/
+static int ffi_lua_format (lua_State *L) {
+  FFIState *S = ffi_getstate(L);
+  int n = lua_gettop(L);
+  size_t len = 0, i = 0;
+  const char *fmt = NULL;
+  int arg = 2;
+  if (lua_type(L, 1) == LUA_TSTRING)
+    fmt = lua_tolstring(L, 1, &len);
+  while (fmt != NULL && i < len) {
+    char conv;
+    if (fmt[i] != '%') { i++; continue; }
+    i++;
+    if (i < len && fmt[i] == '%') { i++; continue; }
+    while (i < len && strchr("-+ #0", fmt[i]) != NULL) i++;
+    while (i < len && isdigit((unsigned char)fmt[i])) i++;
+    if (i < len && fmt[i] == '.') {
+      i++;
+      while (i < len && isdigit((unsigned char)fmt[i])) i++;
+    }
+    if (i >= len) break;
+    conv = fmt[i++];
+    if (arg <= n && ffi_iscdata(L, arg)) {
+      CData *cd = ffi_tocdata(L, arg);
+      if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
+          ffi_is_numeric(cd->ct)) {
+        /* LuaJIT formats integer cdata for integer conversions and uses
+        ** tostring for %s/%q; float cdata is not accepted by %d/%f. */
+        if (strchr("diouxX", conv) != NULL && cd->ct->kind != CT_FLOAT) {
+          int ok = 0;
+          int64_t v = ffi_to_int(L, S, arg, &ok);
+          if (ok) {
+            lua_pushinteger(L, (lua_Integer)v);
+            lua_replace(L, arg);
+          }
+        }
+        else if (conv == 's' || conv == 'q') {
+          /* LuaJIT formats cdata via tostring for %s and %q; stock 5.5
+          ** does that for %s but rejects %q. */
+          luaL_tolstring(L, arg, NULL);
+          lua_replace(L, arg);
+        }
+      }
+    }
+    arg++;
+  }
+  lua_getfield(L, LUA_REGISTRYINDEX, "luar.ffi.orig_format");
+  lua_insert(L, 1);
+  lua_call(L, n, LUA_MULTRET);
+  return lua_gettop(L);
+}
+
+
 static void install_type_wrapper (lua_State *L) {
   lua_getfield(L, LUA_REGISTRYINDEX, "luar.ffi.orig_type");
   if (!lua_isfunction(L, -1)) {
@@ -2318,6 +2376,25 @@ static void install_type_wrapper (lua_State *L) {
     else {
       lua_pop(L, 1);
     }
+  }
+  else {
+    lua_pop(L, 1);
+  }
+  lua_getfield(L, LUA_REGISTRYINDEX, "luar.ffi.orig_format");
+  if (!lua_isfunction(L, -1)) {
+    lua_pop(L, 1);
+    lua_getglobal(L, "string");
+    if (lua_istable(L, -1)) {
+      lua_getfield(L, -1, "format");
+      if (lua_isfunction(L, -1)) {
+        lua_pushvalue(L, -1);
+        lua_setfield(L, LUA_REGISTRYINDEX, "luar.ffi.orig_format");
+        lua_pushcfunction(L, ffi_lua_format);
+        lua_setfield(L, -3, "format");
+      }
+      lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
   }
   else {
     lua_pop(L, 1);

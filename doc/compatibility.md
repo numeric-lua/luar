@@ -103,7 +103,8 @@ Deliberate deviations, all documented:
 * A small, gated `/* LUAR */` hook in `src/lvm.c` lets the VM call `__eq`
   for cdata↔number/nil; stock Lua 5.5 never does.  It is compiled into both
   builds (`LUAR_FFI_HOOKS`) but inert without the reserved cdata marker.
-* `string.format("%d", cdata)` is not hooked; use `tonumber(cdata)`.
+* `string.format` accepts integer cdata for integer conversions and uses
+  `tostring` for `%s`/`%q`; float cdata is rejected by numeric conversions.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
 Not supported: C preprocessor, bitfields, `long double`/complex/vector

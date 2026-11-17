@@ -10,6 +10,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 - FFI cdata bitwise/shift operators (`& | ~ << >>`, `__band`..`__bnot`),
   `//` and `^` with LuaJIT-compatible 64-bit promotion and masked shifts.
+- `string.format` integration for cdata: integer conversions and
+  `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
 - J1 trace recorder: hot-loop counters, trace selection, bytecode
   snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, working
   `jit.flush()`/`jit.off()` recording control.  No machine code is
