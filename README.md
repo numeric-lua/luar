@@ -121,6 +121,8 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
   identical scripts under both and compares stdout and exit status.
 - `tests/compat/strict55.lua` pins the 5.5-only rules: reserved `global`,
   no `bit`, no deprecated math, no legacy library names.
+- `tests/consumer/luatorch.lua` drives the real `libluatorch.so` C ABI
+  through `ffi.load` (tensor creation, `lt_add`, scalar reads, data copy).
 - The official Lua 5.5.1 test suite passes 31/31 files and the canonical
   `all.lua` (`make test-upstream`).
 - `tools/upstream-check.sh` fails CI on any unrecorded drift from

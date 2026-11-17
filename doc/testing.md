@@ -25,6 +25,7 @@ make bench             # performance harness, no pass/fail gates
 | `tests/diff/` | byte-for-byte output comparison vs stock `lua` | yes by construction |
 | `tests/compat/` | LuaJIT-style extensions and strict-55 rules | no |
 | `tests/ffi/` | FFI parser, cdata, calls | no |
+| `tests/consumer/` | real `libluatorch.so` over FFI (skips if absent) | n/a |
 | `tests/cli.sh` | binaries, bytecode, ABI, embedding | no |
 | `tests/upstream/` | official Lua authors' suite | it is the reference |
 

@@ -12,6 +12,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   `//` and `^` with LuaJIT-compatible 64-bit promotion and masked shifts.
 - `string.format` integration for cdata: integer conversions and
   `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
+- A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the
+  libtorch-backed `libluatorch.so` C ABI and runs tensor creation, `lt_add`,
+  scalar reads and data transfer through `ffi.load`.
 - J1 trace recorder: hot-loop counters, trace selection, bytecode
   snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, a linear IR
   dump (`jit.ir()`), working `jit.flush()`/`jit.off()` recording control.  No machine code is

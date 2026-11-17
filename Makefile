@@ -53,7 +53,7 @@ test: build
 	@echo "== cli / abi =="
 	./tests/cli.sh
 	@echo "== suites =="
-	./src/luar tests/run.lua semantics compat jit
+	./src/luar tests/run.lua semantics compat jit consumer
 	@if [ "$(WITH_FFI)" = "1" ]; then ./src/luar tests/run.lua ffi; fi
 	@echo "== differential vs stock lua =="
 	./tests/diff/run.sh
@@ -72,6 +72,9 @@ test-diff: build
 
 test-jit: build
 	./src/luar tests/run.lua jit
+
+test-consumer: build
+	./src/luar tests/run.lua consumer
 
 # Official Lua test suite under src/luar (downloads into tests/tmp/).
 test-upstream: build
