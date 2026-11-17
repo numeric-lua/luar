@@ -1031,6 +1031,20 @@ static int packed_scalar_arg (CType *ct) {
 }
 
 
+static int packed_return_signature (CType *ft) {
+  int i, ints = 0;
+  if (ft->nargs > 5)
+    return 0;
+  for (i = 0; i < (int)ft->nargs; i++) {
+    if (!packed_scalar_arg(ft->args[i]))
+      return 0;
+    if (ft->args[i]->kind != CT_FLOAT)
+      ints++;
+  }
+  return ints <= 5;
+}
+
+
 #if defined(__x86_64__)
 static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
                                CType *ft, CType *rt, int argstart) {
@@ -1041,28 +1055,42 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
   size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
   ffi_type ftret;
   ffi_type *elems[3];
-  ffi_type *atypes[1];
+  ffi_type *atypes[5];
   ffi_cif cif;
   unsigned char retbuf[16];
-  ArgSlot argslot;
-  void *avalue = NULL;
-  ffi_type *aoverride = NULL;
-  int has_arg = (ft->nargs == 1);
+  ArgSlot slots[5];
+  void *values[5];
+  int nargs = (int)ft->nargs;
+  int ints = 0;
   CData *cd;
   ffi_status st;
   int saved_errno;
-  if (has_arg) {
-    memset(&argslot, 0, sizeof(argslot));
-    convert_call_arg(L, S, ft->args[0], argstart, &argslot, &avalue,
-                     &aoverride);
-    atypes[0] = (aoverride != NULL) ? aoverride
-                                   : build_ffi_type(L, S, ft->args[0], NULL);
+  for (i = 0; i < (size_t)nargs; i++) {
+    ffi_type *aoverride = NULL;
+    memset(&slots[i], 0, sizeof(slots[i]));
+    convert_call_arg(L, S, ft->args[i], argstart + (int)i, &slots[i],
+                     &values[i], &aoverride);
+    atypes[i] = (aoverride != NULL) ? aoverride
+                                    : build_ffi_type(L, S, ft->args[i], NULL);
+    if (ft->args[i]->kind != CT_FLOAT)
+      ints++;
   }
-  /* sub rsp,40; [mov rsi,rdi]; mov rdi,rsp; mov rax,target; call rax;
-     mov rax,[rsp]; mov rdx,[rsp+8]; add rsp,40; ret */
+  /* sub rsp,40; shift integer args past the sret pointer; mov rdi,rsp;
+     mov rax,target; call rax; mov rax,[rsp]; mov rdx,[rsp+8];
+     add rsp,40; ret */
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x28;
-  if (has_arg && ft->args[0]->kind != CT_FLOAT) {
-    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xfe; /* mov rsi,rdi */
+  for (i = (size_t)ints; i > 0; i--) {
+    /* wrapper integer regs: rdi,rsi,rdx,rcx,r8; target: rsi,rdx,rcx,r8,r9 */
+    static const unsigned char movs[5][3] = {
+      {0x48, 0x89, 0xfe},	/* mov rsi,rdi */
+      {0x48, 0x89, 0xf2},	/* mov rdx,rsi */
+      {0x48, 0x89, 0xd1},	/* mov rcx,rdx */
+      {0x49, 0x89, 0xc8},	/* mov r8,rcx */
+      {0x4d, 0x89, 0xc1}	/* mov r9,r8 */
+    };
+    code[n++] = movs[i - 1][0];
+    code[n++] = movs[i - 1][1];
+    code[n++] = movs[i - 1][2];
   }
   code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe7;
   code[n++] = 0x48; code[n++] = 0xb8;
@@ -1084,8 +1112,8 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
   ftret.elements = elems;
   ftret.size = 0;
   ftret.alignment = 0;
-  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, has_arg ? 1 : 0, &ftret,
-                    has_arg ? atypes : NULL);
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)nargs, &ftret,
+                    nargs > 0 ? atypes : NULL);
   if (st != FFI_OK)
     luaL_error(L, "ffi: libffi cannot prepare a packed return");
   mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
@@ -1098,7 +1126,7 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
     luaL_error(L, "ffi: cannot make the packed-return thunk executable");
   }
   memset(retbuf, 0, sizeof(retbuf));
-  ffi_call(&cif, FFI_FN(mem), retbuf, has_arg ? &avalue : NULL);
+  ffi_call(&cif, FFI_FN(mem), retbuf, nargs > 0 ? values : NULL);
   saved_errno = errno;
   munmap(mem, pagesize);
   errno = saved_errno;
@@ -1225,7 +1253,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
       ft->ret->size <= 16 && packed_int_type(ft->ret) &&
-      (nargs == 0 || (nargs == 1 && packed_scalar_arg(ft->args[0]))))
+      packed_return_signature(ft))
     return packed_return_call(L, S, fn, ft, ft->ret, argstart);
   if (!ft->vararg && nargs == 1 && provided == 1) {
     CType *at = ft->args[0];

@@ -366,3 +366,5 @@ long packedwide_sum (struct PackedWide p) { return p.a + p.b + p.c; }
 struct PackedS packedmake (int i) { struct PackedS p; p.c=1; p.i=i; p.s=2; return p; }
 struct PackedS packedmake0 (void) { struct PackedS p; p.c=5; p.i=777; p.s=9; return p; }
 struct PackedS packedmakef (double d) { struct PackedS p; p.c=2; p.i=(int)d; p.s=3; return p; }
+struct PackedS packedmake2 (int a, int b) { struct PackedS p; p.c=(char)a; p.i=a+b; p.s=(short)b; return p; }
+struct PackedS packedmake3 (int a, double b, int c) { struct PackedS p; p.c=(char)a; p.i=a+(int)b+c; p.s=(short)c; return p; }
