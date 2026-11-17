@@ -25,9 +25,9 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `luar`, `luarc`, `libluar.a`, `libluar.so`, install | working (`make`, `make shared`, `make install`, `luar.pc`, man page) |
 | `luar` identity, `LUAR_INIT`, `luar/5.5` module paths | working |
 | `table.new` / `table.clear` | working |
-| `jit` control surface | working: `on/off/flush/status/stats/trace/ir`; `status()` is true on x86-64 with J2 |
-| FFI | LuaJIT-compatible core: cdef, cdata, bitfields, small unions, varargs, callbacks, TLS, real-consumer test (`WITH_FFI=1`) |
-| native JIT | J1 recorder + J2 x86-64 numeric `for`/`while` codegen with guarded numeric `if` conditions + experimental opt-in J3 integer array reads/writes (`jit.status()` true; ~9x `int_sum` (faster than LuaJIT), ~4x `float_loop`) |
+| `jit` control surface | working: `on/off/flush/dump/status/stats/trace/traces/ir/opt`; `status()` is true on x86-64 with J2 |
+| FFI | LuaJIT-compatible core: cdef macros/includes, cdata, struct/union bitfields, packed/aligned layouts, unions to 512 KiB by value, varargs, callbacks + `cb:set/free`, TLS, real-consumer test (`WITH_FFI=1`) |
+| native JIT | J1 recorder + J2 x86-64 numeric `for`/`while`/`repeat` codegen with guarded numeric conditions and register-cached sums/squares/products/linear/subtraction; experimental opt-in table and partial-call tiers (`jit.status()` true; ~9x `int_sum`, ~4x `float_loop`) |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for
