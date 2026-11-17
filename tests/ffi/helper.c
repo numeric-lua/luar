@@ -273,3 +273,10 @@ long lpair_sum (union LongPairU u) { return u.v[0] + u.v[1]; }
 union LongPairU lpair_make (long a, long b) { union LongPairU u; u.v[0] = a; u.v[1] = b; return u; }
 struct PairUBox { int tag; union PairU u; };
 double pairu_box_sum (struct PairUBox b) { return b.tag + b.u.d[0] + b.u.d[1]; }
+union Mixed16 { struct { long l; double d; } s; double d[2]; };
+double mixed16_get (union Mixed16 u) { return (double)u.s.l + u.s.d; }
+union Mixed16 mixed16_make (long l, double d) {
+  union Mixed16 u; u.s.l = l; u.s.d = d; return u;
+}
+struct Mixed16Box { int tag; union Mixed16 u; };
+double mixed16_box_get (struct Mixed16Box b) { return b.tag + b.u.s.l + b.u.s.d; }

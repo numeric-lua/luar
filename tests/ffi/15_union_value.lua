@@ -26,6 +26,11 @@ long lpair_sum(union LongPairU16 u);
 union LongPairU16 lpair_make(long a, long b);
 struct PairUBox16 { int tag; union PairU16 u; };
 double pairu_box_sum(struct PairUBox16 b);
+union Mixed16 { struct { long l; double d; } s; double d[2]; };
+double mixed16_get(union Mixed16 u);
+union Mixed16 mixed16_make(long l, double d);
+struct Mixed16Box { int tag; union Mixed16 u; };
+double mixed16_box_get(struct Mixed16Box b);
 ]]
 
 local h = S.helper()
@@ -63,5 +68,14 @@ H.eq(h.lpair_sum(lu), 30)
 H.eq(h.lpair_make(5, 6).v[0], 5)
 local box = ffi.new("struct PairUBox16", {tag = 1, u = pu})
 H.eq(h.pairu_box_sum(box), 5.0)
+
+-- a mixed INTEGER/SSE union keeps each eightbyte's class
+local mx = ffi.new("union Mixed16")
+mx.s.l = 3
+mx.s.d = 4.5
+H.eq(h.mixed16_get(mx), 7.5)
+H.eq(h.mixed16_make(10, 2.5).s.l, 10)
+local mxb = ffi.new("struct Mixed16Box", {tag = 1, u = mx})
+H.eq(h.mixed16_box_get(mxb), 8.5)
 
 print("ffi/15_union_value ok")

@@ -455,48 +455,87 @@ static ffi_type *build_array_type (lua_State *L, FFIState *S, CType *ct,
 }
 
 
-static int type_float_only (CType *ct) {
+/* 0 = no member, 1 = INTEGER, 2 = SSE (SysV eightbyte classes). */
+static void classify_union (CType *ct, size_t base, unsigned char *cls,
+                            size_t nchunks) {
   uint16_t i;
   if (ct->incomplete)
-    return 0;
+    return;
   switch (ct->kind) {
-    case CT_FLOAT:
-      return 1;
-    case CT_ARRAY:
-      return type_float_only(ct->child);
-    case CT_STRUCT:
-    case CT_UNION:
-      for (i = 0; i < ct->nfields; i++) {
-        if (!type_float_only(ct->fields[i].type))
-          return 0;
+    case CT_FLOAT: {
+      size_t b = base / 8, e = (base + ct->size + 7) / 8;
+      if (b < nchunks) {
+        if (cls[b] == 0 || cls[b] == 2) cls[b] = 2;
+        else cls[b] = 1;
       }
-      return ct->nfields > 0;
+      (void)e;
+      break;
+    }
+    case CT_INT:
+    case CT_BOOL:
+    case CT_ENUM:
+    case CT_POINTER:
+    case CT_FUNC: {
+      size_t b = base / 8, e = (base + ct->size + 7) / 8;
+      for (; b < e && b < nchunks; b++) cls[b] = 1;
+      break;
+    }
+    case CT_ARRAY: {
+      size_t esz = ct->child->size;
+      size_t n = ct->length;
+      size_t k;
+      if (esz == 0)
+        break;
+      for (k = 0; k < n && base + k * esz < nchunks * 8; k++)
+        classify_union(ct->child, base + k * esz, cls, nchunks);
+      break;
+    }
+    case CT_STRUCT:
+      for (i = 0; i < ct->nfields; i++) {
+        CField *f = &ct->fields[i];
+        if (f->bitwidth != 0 || f->zero_width) {
+          size_t b = (base + f->offset) / 8;
+          if (b < nchunks) cls[b] = 1;
+        }
+        else
+          classify_union(f->type, base + f->offset, cls, nchunks);
+      }
+      break;
+    case CT_UNION:
+      for (i = 0; i < ct->nfields; i++)
+        classify_union(ct->fields[i].type, base, cls, nchunks);
+      break;
     default:
-      return 0;
+      break;
   }
 }
 
 
 static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
                                    FTAlloc **allocs) {
+  unsigned char cls[2];
+  size_t nchunks;
   uint16_t i;
-  int all_float = 1;
   if (ct->incomplete || ct->size == 0 || ct->size == FFI_SIZE_UNKNOWN)
     luaL_error(L, "ffi: incomplete union '%s' passed by value",
                ffi_type_repr(S, ct));
   if (ct->nfields == 0)
     luaL_error(L, "ffi: empty union '%s' cannot be passed by value",
                ffi_type_repr(S, ct));
-  for (i = 0; i < ct->nfields; i++) {
-    if (!type_float_only(ct->fields[i].type))
-      all_float = 0;
-  }
+  if (ct->size > 16)
+    luaL_error(L, "ffi: union '%s' is too large or cannot be passed by "
+                  "value", ffi_type_repr(S, ct));
+  if (ct->size > 8 && ct->size < 16)
+    luaL_error(L, "ffi: union '%s' has an unsupported size for by-value "
+                  "passing", ffi_type_repr(S, ct));
+  nchunks = ct->size > 8 ? 2 : 1;
+  cls[0] = cls[1] = 0;
+  for (i = 0; i < ct->nfields; i++)
+    classify_union(ct->fields[i].type, 0, cls, nchunks);
   if (ct->size <= 8) {
-    if (all_float) {
-      if (ct->size == 4)
-        return &ffi_type_float;
-      if (ct->size == 8)
-        return &ffi_type_double;
+    if (cls[0] == 2) {
+      if (ct->size == 4) return &ffi_type_float;
+      if (ct->size == 8) return &ffi_type_double;
     }
     switch (ct->size) {
       case 1: return &ffi_type_uint8;
@@ -506,14 +545,12 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
       default: break;
     }
   }
-  else if (ct->size == 16) {
-    ffi_type *ft;
-    ffi_type **elems;
-    ffi_type *elem = all_float ? &ffi_type_double : &ffi_type_uint64;
-    ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
-    elems = (ffi_type **)ft_alloc(L, allocs, sizeof(ffi_type *) * 3);
-    elems[0] = elem;
-    elems[1] = elem;
+  else {
+    ffi_type *ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+    ffi_type **elems = (ffi_type **)ft_alloc(L, allocs,
+                                             sizeof(ffi_type *) * 3);
+    elems[0] = (cls[0] == 2) ? &ffi_type_double : &ffi_type_uint64;
+    elems[1] = (cls[1] == 2) ? &ffi_type_double : &ffi_type_uint64;
     elems[2] = NULL;
     memset(ft, 0, sizeof(*ft));
     ft->type = FFI_TYPE_STRUCT;
@@ -522,7 +559,7 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
     ft->alignment = 0;
     return ft;
   }
-  luaL_error(L, "ffi: union '%s' is too large or cannot be passed by value",
+  luaL_error(L, "ffi: union '%s' cannot be passed by value",
              ffi_type_repr(S, ct));
   return NULL;
 }

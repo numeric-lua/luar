@@ -314,17 +314,16 @@ Calls support:
 * structs and unions passed by pointer, including the LuaJIT convenience of
   passing an aggregate cdata where a pointer to the exact same aggregate
   type is expected;
-* unions up to 16 bytes whose members classify as all-float or all-integer
-  (scalars, arrays and nested structs included) and structs containing
-  them by value; float-only unions map to float/double fields, others to
-  same-size integer fields, with libffi's offsets/size validated for struct
+* unions up to 16 bytes (scalars, arrays and nested structs included) and
+  structs containing them by value; the union is classified per eightbyte
+  (SSE/INTEGER, with mixed members merging to INTEGER) and mapped to
+  libffi double/integer fields, with offsets/size validated for struct
   members;
 * struct return/argument by value when the layout is representable by
   libffi and verified byte-for-byte against libffi's computed offsets.
   Fixed array members (including arrays of structs) and unions up to 16
-  bytes with uniform float/integer classification are supported; bitfield
-  structs, larger/mixed-class unions and arrays themselves are rejected by
-  value;
+  bytes are supported; bitfield structs, larger/odd-sized unions and arrays
+  themselves are rejected by value;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
   conversion rules;
@@ -391,9 +390,8 @@ Call features:
   a C library that keeps a pointer after the cdata is collected has the
   usual use-after-free caveat.  Callbacks must be invoked from the Lua
   state that created them.
-* **Unions over 16 bytes or with mixed per-eightbyte classes** and structs
-  with bitfields; their ABI cannot be represented safely by the current
-  libffi mapping.
+* **Unions over 16 bytes or 9–15 bytes**, and structs with bitfields;
+  their ABI cannot be represented safely by the current libffi mapping.
 * **C global variables** are best-effort: ordinary and `__thread`/
   `_Thread_local` data symbols can be read/written through `ffi.C` for the
   current thread; complex relocations and cross-thread access are not
