@@ -6,6 +6,7 @@
 ** library is used.  Built at test time by tests/ffi/build_helper.sh.
 */
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -171,3 +172,25 @@ enum HelperColor helper_color_next (enum HelperColor c) {
 }
 int helper_color_value (enum HelperColor c) { return (int)c; }
 _Bool helper_bool_not (_Bool b) { return !b; }
+
+/* Variadic probes: check the vararg conversions without depending on a
+** particular printf implementation. */
+int vararg_first_is_null (int tag, ...) {
+  va_list ap;
+  void *p;
+  (void)tag;
+  va_start(ap, tag);
+  p = va_arg(ap, void *);
+  va_end(ap);
+  return p == NULL;
+}
+
+long long vararg_fixed_sum (struct Pair p, enum HelperColor c, _Bool b,
+                            long long n, ...) {
+  va_list ap;
+  long long x;
+  va_start(ap, n);
+  x = va_arg(ap, long long);
+  va_end(ap);
+  return (long long)p.a + p.b + (long long)c + (b ? 1 : 0) + n + x;
+}
