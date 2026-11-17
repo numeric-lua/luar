@@ -55,8 +55,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   containing byte and bit offset within it.
 - Callback cdata supports LuaJIT's `cb:set(function)` and `cb:free()`
   methods; freeing invalidates the pointer and later use is a clear error.
-- `__attribute__((packed))`/`aligned(n)` structs/unions get byte-granular or
-  over-aligned layout and field access; packed aggregates are rejected by
+- `__attribute__((packed))`/`aligned(n)` are accepted before the struct tag
+  as well as after the body; byte-granular/over-aligned layout and field
+  access work; packed aggregates are rejected by
   value rather than mislayed.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
   bit-granular packing including mixed base types, byte-crossing fields,

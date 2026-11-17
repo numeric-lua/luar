@@ -1048,8 +1048,12 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
   const char *kind = is_union ? "union" : "struct";
   char tag[256];
   CType *ct = NULL;
+  CType attrs;
+  memset(&attrs, 0, sizeof(attrs));
   tag[0] = '\0';
   lex_next(P);			/* consume struct/union */
+  if (tok_is_ident(P, "__attribute__"))
+    parse_struct_attrs(P, &attrs);
   if (is_unsupported_keyword(P))
     reject_unsupported(P);
   if (P->tok.kind == TK_IDENT) {
@@ -1068,6 +1072,10 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
     if (ct == NULL)
       ct = ffi_type_new_struct(P->L, P->S, is_union,
                                tag[0] != '\0' ? tag : NULL);
+    if (attrs.pack != 0 && ct->pack == 0)
+      ct->pack = attrs.pack;
+    if (attrs.align_override > ct->align_override)
+      ct->align_override = attrs.align_override;
     if (tag[0] != '\0')
       register_tag(P, kind, tag, ct);
     lex_next(P);		/* consume '{' */

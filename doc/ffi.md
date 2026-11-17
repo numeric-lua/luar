@@ -129,8 +129,8 @@ preprocessor subset is available.
   macro-expanded; angle includes use the same local resolution, while
   non-pack `#pragma` and complex `#if` expressions are rejected;
   `#pragma pack(n/push/pop)` drives layout.
-* `__attribute__((packed))` and `__attribute__((aligned(n)))` (alone or
-  combined) on a struct/union are supported; other attributes,
+* `__attribute__((packed))`/`aligned(n)` before the struct tag or after
+  the body (alone or combined) are supported; other attributes,
   `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline asm and
   `_Static_assert` are rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
