@@ -57,6 +57,10 @@ static ffi_type *libffi_type_sint16_p, *libffi_type_uint32_p;
 static ffi_type *libffi_type_sint32_p, *libffi_type_uint64_p;
 static ffi_type *libffi_type_sint64_p, *libffi_type_float_p;
 static ffi_type *libffi_type_double_p, *libffi_type_pointer_p;
+static void *(*libffi_closure_alloc_p) (size_t, void **);
+static ffi_status (*libffi_prep_closure_loc_p) (ffi_closure *, ffi_cif *,
+    void (*) (ffi_cif *, void *, void **, void *), void *, void *);
+static void (*libffi_closure_free_p) (void *);
 
 #define ffi_prep_cif		(*libffi_prep_cif_p)
 #define ffi_prep_cif_var	(*libffi_prep_cif_var_p)
@@ -74,6 +78,9 @@ static ffi_type *libffi_type_double_p, *libffi_type_pointer_p;
 #define ffi_type_float		(*libffi_type_float_p)
 #define ffi_type_double		(*libffi_type_double_p)
 #define ffi_type_pointer	(*libffi_type_pointer_p)
+#define ffi_closure_alloc	(*libffi_closure_alloc_p)
+#define ffi_prep_closure_loc	(*libffi_prep_closure_loc_p)
+#define ffi_closure_free	(*libffi_closure_free_p)
 
 
 static void *libffi_sym (lua_State *L, const char *name) {
@@ -133,6 +140,15 @@ void ffi_libffi_init (lua_State *L) {
   libffi_type_float_p = (ffi_type *)libffi_sym(L, "ffi_type_float");
   libffi_type_double_p = (ffi_type *)libffi_sym(L, "ffi_type_double");
   libffi_type_pointer_p = (ffi_type *)libffi_sym(L, "ffi_type_pointer");
+  libffi_closure_alloc_p =
+      (void *(*)(size_t, void **))libffi_sym(L, "ffi_closure_alloc");
+  libffi_prep_closure_loc_p =
+      (ffi_status (*)(ffi_closure *, ffi_cif *,
+                      void (*)(ffi_cif *, void *, void **, void *),
+                      void *, void *))
+          libffi_sym(L, "ffi_prep_closure_loc");
+  libffi_closure_free_p =
+      (void (*)(void *))libffi_sym(L, "ffi_closure_free");
 }
 
 
@@ -856,4 +872,185 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
     return 1;
   ffi_push_value(L, S, rt, &retslot, 0);
   return 1;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Callbacks from C into Lua (ffi.callback)                          */
+/* ------------------------------------------------------------------ */
+
+typedef struct FCallback {
+  lua_State *L;
+  FFIState *S;
+  CType *ft;			/* function type (not the pointer) */
+  ffi_cif cif;
+  ffi_type **args;
+  FTAlloc *allocs;
+  ffi_closure *closure;
+  void *code;
+  int fnref;			/* registry ref to the Lua function */
+} FCallback;
+
+
+static void callback_set_error (lua_State *L, const char *msg) {
+  lua_pushstring(L, msg != NULL ? msg : "callback error");
+  lua_setfield(L, LUA_REGISTRYINDEX, "luar.ffi.callback_error");
+}
+
+
+static void callback_ret (lua_State *L, FFIState *S, CType *rt, int idx,
+                          void *ret) {
+  int ok = 1;
+  switch (rt->kind) {
+    case CT_INT:
+    case CT_BOOL:
+    case CT_ENUM: {
+      int64_t v = ffi_to_int(L, S, idx, &ok);
+      if (!ok) v = 0;
+      ffi_store_int(ret, rt->size, v);
+      break;
+    }
+    case CT_FLOAT: {
+      double d = ffi_to_double(L, S, idx, &ok);
+      if (!ok) d = 0;
+      if (rt->size == 4) {
+        float f = (float)d;
+        memcpy(ret, &f, sizeof(f));
+      }
+      else
+        memcpy(ret, &d, sizeof(d));
+      break;
+    }
+    case CT_POINTER:
+    case CT_FUNC: {
+      void *p = ffi_to_ptr(L, S, idx, &ok);
+      if (!ok) p = NULL;
+      memcpy(ret, &p, sizeof(p));
+      break;
+    }
+    default:
+      if (rt->size != FFI_SIZE_UNKNOWN)
+        memset(ret, 0, rt->size);
+      break;
+  }
+}
+
+
+static void callback_handler (ffi_cif *cif, void *ret, void **args,
+                              void *ud) {
+  FCallback *cb = (FCallback *)ud;
+  lua_State *L = cb->L;
+  int top = lua_gettop(L);
+  int i, nargs = (int)cif->nargs;
+  if (!lua_checkstack(L, nargs + 4)) {
+    if (ret != NULL && cif->rtype->size != 0)
+      memset(ret, 0, cif->rtype->size);
+    return;
+  }
+  lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
+  for (i = 0; i < nargs; i++)
+    ffi_push_value(L, cb->S, cb->ft->args[i], args[i], 0);
+  if (lua_pcall(L, nargs, cb->ft->ret->kind == CT_VOID ? 0 : 1, 0) !=
+      LUA_OK) {
+    const char *msg = lua_tostring(L, -1);
+    callback_set_error(L, msg);
+    if (ret != NULL && cif->rtype->size != 0)
+      memset(ret, 0, cif->rtype->size);
+    lua_settop(L, top);
+    return;
+  }
+  if (cb->ft->ret->kind != CT_VOID && ret != NULL)
+    callback_ret(L, cb->S, cb->ft->ret, -1, ret);
+  lua_settop(L, top);
+}
+
+
+int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
+  CType *ft = ct;
+  FCallback *cb;
+  FTAlloc *allocs = NULL;
+  ffi_status st;
+  int i, nargs;
+  if (ft->kind == CT_POINTER && ft->child != NULL)
+    ft = ft->child;
+  if (ft->kind != CT_FUNC)
+    return luaL_error(L, "ffi.callback: function type expected");
+  if (ft->vararg)
+    return luaL_error(L, "ffi.callback: variadic callbacks are not supported");
+  if (ft->ret->kind == CT_STRUCT || ft->ret->kind == CT_UNION ||
+      ft->ret->kind == CT_ARRAY)
+    return luaL_error(L, "ffi.callback: aggregate return type '%s' is not "
+                         "supported", ffi_type_repr(S, ft->ret));
+  nargs = ft->nargs;
+  cb = (FCallback *)calloc(1, sizeof(FCallback));
+  if (cb == NULL)
+    return luaL_error(L, "ffi.callback: out of memory");
+  cb->L = L;
+  cb->S = S;
+  cb->ft = ft;
+  cb->fnref = LUA_NOREF;
+  cb->args = (ffi_type **)calloc((size_t)(nargs > 0 ? nargs : 1),
+                                 sizeof(ffi_type *));
+  if (cb->args == NULL) {
+    free(cb);
+    return luaL_error(L, "ffi.callback: out of memory");
+  }
+  for (i = 0; i < nargs; i++)
+    cb->args[i] = build_ffi_type(L, S, ft->args[i], &allocs);
+  {
+    ffi_type *rtype = build_ffi_type(L, S, ft->ret, &allocs);
+    st = ffi_prep_cif(&cb->cif, FFI_DEFAULT_ABI, (unsigned)nargs, rtype,
+                      cb->args);
+    if (st != FFI_OK) {
+      ft_free_all(allocs);
+      free(cb->args);
+      free(cb);
+      return luaL_error(L, "ffi.callback: ffi_prep_cif failed (%d)", (int)st);
+    }
+  }
+  cb->allocs = allocs;
+  cb->closure = (ffi_closure *)ffi_closure_alloc(sizeof(ffi_closure),
+                                                 &cb->code);
+  if (cb->closure == NULL) {
+    ft_free_all(cb->allocs);
+    free(cb->args);
+    free(cb);
+    return luaL_error(L, "ffi.callback: cannot allocate a libffi closure");
+  }
+  lua_pushvalue(L, funcidx);
+  cb->fnref = luaL_ref(L, LUA_REGISTRYINDEX);
+  st = ffi_prep_closure_loc(cb->closure, &cb->cif, callback_handler, cb,
+                            cb->code);
+  if (st != FFI_OK) {
+    luaL_unref(L, LUA_REGISTRYINDEX, cb->fnref);
+    ffi_closure_free(cb->closure);
+    ft_free_all(cb->allocs);
+    free(cb->args);
+    free(cb);
+    return luaL_error(L, "ffi.callback: ffi_prep_closure_loc failed (%d)",
+                      (int)st);
+  }
+  {
+    CData *cd = ffi_push_cdata_object(L, S, ct,
+                                      CDATA_FUNC | CDATA_CALLBACK, 0);
+    cd->v.p = cb->code;
+    cd->aux = cb;
+  }
+  return 1;
+}
+
+
+void ffi_callback_free (lua_State *L, CData *cd) {
+  FCallback *cb = (FCallback *)cd->aux;
+  (void)L;
+  if (cb == NULL)
+    return;
+  cd->aux = NULL;
+  if (cb->closure != NULL)
+    ffi_closure_free(cb->closure);
+  ft_free_all(cb->allocs);
+  free(cb->args);
+  if (cb->fnref != LUA_NOREF)
+    luaL_unref(cb->L, LUA_REGISTRYINDEX, cb->fnref);
+  free(cb);
 }

@@ -113,6 +113,7 @@ struct CType {
 #define CDATA_REF	0x02u	/* value points at external memory */
 #define CDATA_CTYPE	0x04u	/* this object denotes a C type */
 #define CDATA_FUNC	0x08u	/* value is a C function address */
+#define CDATA_CALLBACK	0x10u	/* CDATA_FUNC created by ffi.callback */
 
 typedef union CDataValue {
   int64_t i64;
@@ -130,6 +131,7 @@ struct CData {
   size_t len;		/* array length (VLA or fixed) for arrays */
   uint32_t flags;
   uint32_t magic;
+  void *aux;		/* ffi.callback closure descriptor, or NULL */
   CDataValue v;
 };
 
@@ -286,6 +288,10 @@ void ffi_push_clib (lua_State *L, FFIState *S, void *handle, int is_default);
 void ffi_push_default_clib (lua_State *L, FFIState *S);
 
 int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart);
+
+/* ffi.callback: create a C closure that calls a Lua function. */
+int ffi_callback_new (lua_State *L, FFIState *S, CType *ft, int funcidx);
+void ffi_callback_free (lua_State *L, CData *cd);
 
 
 /* ------------------------------------------------------------------ */

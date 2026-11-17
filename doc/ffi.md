@@ -36,7 +36,7 @@ Implementation files:
 | `src/luar_ffi_type.c` | C type objects, interning, layout, representations |
 | `src/luar_ffi_parse.c` | lexer and recursive-descent declaration parser |
 | `src/luar_ffi.c` | cdata, metamethods, `ffi.*`, finalizers |
-| `src/luar_ffi_call.c` | `ffi.C`, `ffi.load`, libffi calls |
+| `src/luar_ffi_call.c` | `ffi.C`, `ffi.load`, libffi calls and callbacks |
 
 ## Module surface
 
@@ -365,10 +365,19 @@ The variadic part is not type-checked against the callee's `va_arg` or
 
 Deliberately unsupported call features:
 
-* **Callbacks from C into Lua.**  Passing a Lua function where a function
-  pointer is expected is rejected.  A C function pointer (including one
-  provided by another C function) can be passed normally.  The test suite
-  demonstrates `qsort` through a C comparator helper.
+* C function pointers (including pointers returned by other C functions)
+  can be passed and called normally.
+* `ffi.callback(ctype, lua_function)` creates a callable cdata function
+  pointer backed by a libffi closure.  The function type must be
+  non-variadic and must not return an aggregate.  Arguments are converted
+  with the normal read rules; pointer/aggregate arguments are references
+  valid for the duration of the callback (do not retain them after it
+  returns).  If the Lua function raises, the C caller receives a zero
+  return and the message is available from `ffi.callback_error()` (a LuaR
+  extension that clears the stored message).  Callbacks are freed by the GC;
+  a C library that keeps a pointer after the cdata is collected has the
+  usual use-after-free caveat.  Callbacks must be invoked from the Lua
+  state that created them.
 * **Unions/arrays by value**, and structs whose by-value layout would
   involve those members.
 * **C global variables** are only best-effort: non-TLS data symbols can be
@@ -443,6 +452,8 @@ probes, and variadic probes.  Coverage includes:
   comparisons, `tonumber`, and `tostring` formats;
 * `ffi.string`, `ffi.copy` (including the 2-argument string form),
   `ffi.fill`, and their bounds errors;
+* `ffi.callback` (qsort via a real C comparator, direct calls, errors,
+  GC lifetime) and `ffi.callback_error`;
 * `ffi.metatype` constructors, `__index`/`__newindex`/`__tostring`/`__call`,
   protected metatables, and `ffi.gc` with Lua and C finalizers;
 * libc calls (`strlen`, `strcmp`, `memset`, `memcpy`, `abs`, `labs`,

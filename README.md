@@ -26,7 +26,7 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `luar` identity, `LUAR_INIT`, `luar/5.5` module paths | working |
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working; `jit.status()` truthfully `false` (no native engine yet) |
-| FFI | LuaJIT-compatible core behind `WITH_FFI=1` (0.2 preview) |
+| FFI | LuaJIT-compatible core: cdef, cdata, varargs, callbacks, real-consumer test (`WITH_FFI=1`) |
 | native JIT | J1 hot-loop recorder (`jit.stats`/`trace`/`ir`, no codegen); design in `doc/jit-design.md` |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 

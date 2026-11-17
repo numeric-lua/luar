@@ -18,6 +18,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   fuzzer.
 - `string.format` integration for cdata: integer conversions and
   `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
+- `ffi.callback`: libffi closures that call Lua functions, with GC
+  lifetime, error capture through `ffi.callback_error()`, and clear
+  rejection of aggregate-return/variadic callback types.
 - A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the
   libtorch-backed `libluatorch.so` C ABI and runs tensor creation, `lt_add`,
   scalar reads and data transfer through `ffi.load`.

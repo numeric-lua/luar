@@ -106,11 +106,14 @@ Deliberate deviations, all documented:
   builds (`LUAR_FFI_HOOKS`) but inert without the reserved cdata marker.
 * `string.format` accepts integer cdata for integer conversions and uses
   `tostring` for `%s`/`%q`; float cdata is rejected by numeric conversions.
+* `ffi.callback` and `ffi.callback_error` implement C→Lua closures through
+  libffi; errors in the Lua callback become a zero C return plus a stored
+  message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
 Not supported: C preprocessor, bitfields, `long double`/complex/vector
-types, packing attributes, C→Lua callbacks (`ffi.callback`), and
-`ffi.typeinfo`.
+types, packing attributes, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
+callback shapes.  `ffi.callback` itself is implemented.
 
 ### 3.4 Other LuaJIT libraries
 

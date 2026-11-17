@@ -1774,6 +1774,10 @@ static int cdata_gc (lua_State *L) {
   cd = (CData *)lua_touserdata(L, 1);
   if (cd == NULL || cd->magic != LUAR_FFI_MAGIC)
     return 0;
+  if ((cd->flags & CDATA_CALLBACK) != 0) {
+    ffi_callback_free(L, cd);
+    return 0;
+  }
   lua_getiuservalue(L, 1, 2);
   if (lua_isfunction(L, -1)) {
     lua_pushnil(L);
@@ -2176,6 +2180,22 @@ static int ffi_lua_type (lua_State *L) {
 /* Library registration                                              */
 /* ------------------------------------------------------------------ */
 
+static int ffi_callback (lua_State *L) {
+  FFIState *S = ffi_getstate(L);
+  CType *ct = ffi_checkctype(L, 1, "callback");
+  luaL_checktype(L, 2, LUA_TFUNCTION);
+  return ffi_callback_new(L, S, ct, 2);
+}
+
+
+static int ffi_callback_error (lua_State *L) {
+  lua_getfield(L, LUA_REGISTRYINDEX, "luar.ffi.callback_error");
+  lua_pushnil(L);
+  lua_setfield(L, LUA_REGISTRYINDEX, "luar.ffi.callback_error");
+  return 1;
+}
+
+
 static const luaL_Reg ffi_lib[] = {
   {"cdef", ffi_cdef},
   {"new", ffi_new},
@@ -2193,6 +2213,8 @@ static const luaL_Reg ffi_lib[] = {
   {"metatype", ffi_metatype},
   {"errno", ffi_errno},
   {"load", ffi_load},
+  {"callback", ffi_callback},
+  {"callback_error", ffi_callback_error},
   {NULL, NULL}
 };
 
