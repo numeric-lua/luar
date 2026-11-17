@@ -1975,6 +1975,12 @@ static int ffi_offsetof (lua_State *L) {
   if (field == NULL)
     luaL_error(L, "ffi: '%s' has no member named '%s'",
                ffi_type_repr(S, ct), name);
+  if (field->bitwidth != 0 && field->packed) {
+    lua_pushinteger(L, (lua_Integer)off);
+    lua_pushinteger(L, (lua_Integer)field->bitoffset);
+    lua_pushinteger(L, (lua_Integer)field->bitwidth);
+    return 3;
+  }
   if (field->bitwidth != 0) {
     size_t unit = off;
     size_t usize = ffi_type_size(field->type);

@@ -399,6 +399,7 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
     size_t fsz = ffi_type_size(f->type);
+    f->packed = (ct->pack == 1);
     size_t fal = ffi_type_align(f->type);
     if (fsz == FFI_SIZE_UNKNOWN || f->type->incomplete ||
         f->type->kind == CT_VOID || f->type->kind == CT_FUNC)

@@ -83,6 +83,7 @@ struct CField {
   uint8_t bitwidth;	/* 0 for a normal field */
   uint8_t bitoffset;	/* bit position inside the first byte */
   uint8_t zero_width;	/* unnamed zero-width padding bitfield */
+  uint8_t packed;	/* byte-granular bitfield storage */
 };
 
 typedef struct FCallCache FCallCache;
