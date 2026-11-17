@@ -26,6 +26,13 @@ struct BitLong { char a : 4; long b : 40; char c; };
 int size_BitLong(void);
 int off_BitLong_c(void);
 long blong_b_ptr(const struct BitLong *p);
+struct ZeroBit { char a; int : 0; char b; };
+int size_ZeroBit(void);
+int off_ZeroBit_b(void);
+struct PadBit { unsigned a : 3; unsigned : 2; unsigned b : 3; };
+int size_PadBit(void);
+unsigned padbit_a_ptr(const struct PadBit *p);
+unsigned padbit_b_ptr(const struct PadBit *p);
 ]]
 
 local h = S.helper()
@@ -96,6 +103,20 @@ H.eq(w.a, 7)
 H.eq(w.b, 0x123456789)
 H.eq(w.c, 7)
 H.eq(h.blong_b_ptr(wp), 0x123456789)
+
+-- unnamed zero-width and padding bitfields
+H.eq(ffi.sizeof("struct ZeroBit"), h.size_ZeroBit())
+H.eq(ffi.offsetof("struct ZeroBit", "b"), h.off_ZeroBit_b())
+local zb = ffi.new("struct ZeroBit", {a = 1, b = 2})
+H.eq(zb.a, 1)
+H.eq(zb.b, 2)
+local pb = ffi.new("struct PadBit", {a = 5, b = 6})
+local pbp = ffi.cast("struct PadBit *", pb)
+H.eq(ffi.sizeof("struct PadBit"), h.size_PadBit())
+H.eq(pb.a, 5)
+H.eq(pb.b, 6)
+H.eq(h.padbit_a_ptr(pbp), 5)
+H.eq(h.padbit_b_ptr(pbp), 6)
 
 -- bitfield structs are accepted for field access but not by-value calls
 H.raises(function () return h.bitpack_by_value(b) end, "bitfield")

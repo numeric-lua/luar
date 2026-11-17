@@ -404,17 +404,22 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
         f->type->kind == CT_VOID || f->type->kind == CT_FUNC)
       luaL_error(S->L, "ffi: field '%s' has incomplete or invalid type",
                  f->name != NULL ? f->name : "<anonymous>");
-    if (fal > align)
+    if (!f->zero_width && fal > align)
       align = fal;
     if (ct->kind == CT_UNION) {
-      if (f->bitwidth != 0)
+      if (f->bitwidth != 0 || f->zero_width)
         luaL_error(S->L, "ffi: bitfields in unions are not supported");
       f->offset = 0;
       if (fsz > maxsize)
         maxsize = fsz;
       continue;
     }
-    if (f->bitwidth != 0) {
+    if (f->zero_width) {
+      size_t nb = (bitpos + 7) / 8;
+      nb = (nb + fal - 1) & ~(fal - 1);
+      bitpos = nb * 8;
+    }
+    else if (f->bitwidth != 0) {
       size_t ustart = (bitpos / 8) & ~(fal - 1);
       if ((bitpos - ustart * 8) + f->bitwidth > fsz * 8) {
         size_t nb = (bitpos + 7) / 8;

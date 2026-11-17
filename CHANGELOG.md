@@ -27,8 +27,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   passed and returned by value; VLA/empty arrays and bitfield structs are
   rejected.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
-  bit-granular packing including mixed base types and byte-crossing
-  fields, signed extraction, masking on set, positional/named
+  bit-granular packing including mixed base types, byte-crossing fields,
+  unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named
   initializers; mixed-size/union bitfields and by-value bitfield structs
   fail clearly.
 - `__thread`/`_Thread_local` globals are supported through the existing

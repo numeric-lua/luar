@@ -258,3 +258,10 @@ struct BitLong { char a : 4; long b : 40; char c; };
 int size_BitLong (void) { return (int)sizeof(struct BitLong); }
 int off_BitLong_c (void) { return (int)offsetof(struct BitLong, c); }
 long blong_b_ptr (const struct BitLong *p) { return p->b; }
+struct ZeroBit { char a; int : 0; char b; };
+int size_ZeroBit (void) { return (int)sizeof(struct ZeroBit); }
+int off_ZeroBit_b (void) { return (int)offsetof(struct ZeroBit, b); }
+struct PadBit { unsigned a : 3; unsigned : 2; unsigned b : 3; };
+int size_PadBit (void) { return (int)sizeof(struct PadBit); }
+unsigned padbit_a_ptr (const struct PadBit *p) { return p->a; }
+unsigned padbit_b_ptr (const struct PadBit *p) { return p->b; }

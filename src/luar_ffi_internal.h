@@ -81,7 +81,8 @@ struct CField {
   CType *type;
   size_t offset;
   uint8_t bitwidth;	/* 0 for a normal field */
-  uint8_t bitoffset;	/* bit position inside the storage unit */
+  uint8_t bitoffset;	/* bit position inside the first byte */
+  uint8_t zero_width;	/* unnamed zero-width padding bitfield */
 };
 
 typedef struct FCallCache FCallCache;

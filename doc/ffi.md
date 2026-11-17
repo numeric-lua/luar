@@ -430,8 +430,11 @@ Call features:
   thread sees its own instance.
 * Bitfields are supported for integer, enum and `_Bool` fields in structs
   with GCC/x86-64 bit-granular packing, including mixed base types and
-  fields crossing byte boundaries.  Union bitfields and by-value bitfield
-  structs are rejected rather than laid out incorrectly.  `long double`, complex
+  fields crossing byte boundaries.  Unnamed padding bitfields and unnamed
+  zero-width alignment fields are supported (the zero-width type affects
+  the next offset but not the struct alignment, as in GCC).  Union
+  bitfields and by-value bitfield structs are rejected rather than laid
+  out incorrectly.  `long double`, complex
   numbers, vectors and packing attributes are not implemented, and
   preprocessor macros are not parsed.  `ffi.callback`
   supports non-variadic types, including struct and scalar-union by-value

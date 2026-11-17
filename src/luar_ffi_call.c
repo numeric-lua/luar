@@ -509,7 +509,7 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
   ft->type = FFI_TYPE_STRUCT;
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
-    if (f->bitwidth != 0)
+    if (f->bitwidth != 0 || f->zero_width)
       luaL_error(L, "ffi: struct '%s' has a bitfield and cannot be passed "
                     "by value", ffi_type_repr(S, ct));
     if (f->type->kind == CT_ARRAY)

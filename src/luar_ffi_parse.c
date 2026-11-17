@@ -1013,7 +1013,7 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
         DNode *node = parse_declarator(P);
         char *name = NULL;
         CType *ft = apply_node(P, node, ds.base, &name);
-        if (name == NULL)
+        if (name == NULL && !tok_is_punct(P, ':'))
           parser_error(P, "expected a field name");
         if (accept_punct(P, ':')) {
           int64_t width = parse_const_expr(P);
@@ -1022,13 +1022,19 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
             parser_error(P, "bitfields in unions are not supported");
           if (ft->kind != CT_INT && ft->kind != CT_ENUM &&
               ft->kind != CT_BOOL)
-            parser_error(P, "bitfield '%s' must have an integer type", name);
+            parser_error(P, "bitfield '%s' must have an integer type",
+                         name != NULL ? name : "<anonymous>");
           bits = ffi_type_size(ft) * 8;
-          if (width <= 0 || (uint64_t)width > bits)
+          if (width < 0 || (uint64_t)width > bits)
             parser_error(P, "bitfield '%s' width %d is out of range",
-                         name, (int)width);
+                         name != NULL ? name : "<anonymous>", (int)width);
+          if (width == 0 && name != NULL)
+            parser_error(P, "zero-width bitfield must be unnamed");
           ffi_type_add_field(P->S, ct, name, ft);
-          ct->fields[ct->nfields - 1].bitwidth = (uint8_t)width;
+          if (width == 0)
+            ct->fields[ct->nfields - 1].zero_width = 1;
+          else
+            ct->fields[ct->nfields - 1].bitwidth = (uint8_t)width;
         }
         else {
           reject_unsupported(P);
