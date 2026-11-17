@@ -35,7 +35,8 @@
 > | table/new_clear | 16.58 | **12.18** | 0.73 | 2.93 | 0.18 |
 >
 > The register-cached fast paths are the source of the integer, float,
-> square-sum and while gains.  `fib` is unchanged because calls are not
+> product, linear, square, repeat and while gains; `table/new_clear` is
+> faster through the LuaR extension/interpreter path.  `fib` is unchanged because calls are not
 > compiled; `mandel` is now at parity, `table/array` is still a modest
 > regression because its loops are not profitable under the loop-level JIT,
 > and the table tier remains opt-in.  `-O3` (the default from this build)
