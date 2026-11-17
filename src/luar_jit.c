@@ -32,6 +32,9 @@
 #include "luar_emit.h"
 #include "luar_jit.h"
 
+static void pushtrace (lua_State *L, const LuaR_Trace *t);
+static void pushir (lua_State *L, const LuaR_Trace *t);
+
 
 /* ---------------------------------------------------------------- */
 /* State                                                             */
@@ -912,6 +915,24 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     t->nins = (uint32_t)n;
     memcpy(t->code, p->code + target, (size_t)n * sizeof(Instruction));
     J->traces++;
+    if (J->dump_trace || J->dump_ir) {
+      int top = lua_gettop(L);
+      if (J->dump_trace) {
+        pushtrace(L, t);
+        fprintf(stderr, "-- trace %u (pc %u..%u)\n%s",
+                (unsigned)J->traces, (unsigned)t->startpc,
+                (unsigned)t->endpc,
+                lua_tostring(L, -1));
+        lua_pop(L, 1);
+      }
+      if (J->dump_ir) {
+        pushir(L, t);
+        fprintf(stderr, "-- ir %u\n%s", (unsigned)J->traces,
+                lua_tostring(L, -1));
+        lua_pop(L, 1);
+      }
+      lua_settop(L, top);
+    }
   }
   if (J->enabled) {
     int ok = try_compile(L, p, target, off, base);
@@ -958,6 +979,17 @@ static int jit_flush (lua_State *L) {
     J->traces = 0;
     J->aborts = 0;
     free_code(J);
+  }
+  return 0;
+}
+
+
+static int jit_dump (lua_State *L) {
+  LuaR_JIT *J = checkjit(L);
+  const char *mode = luaL_optstring(L, 1, NULL);
+  if (J != NULL) {
+    J->dump_trace = (mode != NULL && strchr(mode, 't') != NULL);
+    J->dump_ir = (mode != NULL && strchr(mode, 'i') != NULL);
   }
   return 0;
 }
@@ -1144,6 +1176,7 @@ static const luaL_Reg jitlib[] = {
   {"on", jit_on},
   {"off", jit_off},
   {"flush", jit_flush},
+  {"dump", jit_dump},
   {"status", jit_status},
   {"stats", jit_stats},
   {"trace", jit_trace},

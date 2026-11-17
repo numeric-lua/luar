@@ -72,14 +72,15 @@ Lua 5.5 spelling and is left untouched.
 | `jit.version`, `jit.version_num` | implemented | LuaR version, not LuaJIT's |
 | `jit.os`, `jit.arch` | implemented | `Linux`/`OSX`/..., `x64`/`arm64`/... |
 | `jit.status()` | implemented | `true, arch` when the J2 x86-64 engine is active; `false` after `jit.off()` or on unsupported hosts |
-| `jit.on()`, `jit.off()` | no-ops | accepted; enable/disable later |
-| `jit.flush()` | no-op | clears nothing yet |
-| `jit.opt.start(...)` | implemented | options parsed and stored; thresholds used later |
+| `jit.on()`, `jit.off()` | implemented | toggles native loop entry; the interpreter stays authoritative |
+| `jit.flush()` | implemented | bumps the epoch, frees code and clears trace/stats; already-hot Protos are not walked (J1 limitation) |
+| `jit.dump(mode)` | implemented | `"t"` prints bytecode snapshots and `"i"` linear IR to stderr; no file/function output argument |
+| `jit.opt.start(...)` | implemented | options are parsed/stored; `table=1` toggles the experimental table tier |
 | `jit.attach()` | not implemented | planned with the profiler |
 | `jit.security()` | not implemented | out of scope |
 | `jit.util.*` | not implemented | LuaJIT-specific bytecode introspection |
 | `jit.profile` | not implemented | candidate for 0.4 |
-| `jit.stats()`, `jit.trace()`, `jit.traces()`, `jit.ir()` | LuaR extension | J1 recorder/J2 introspection (`compiled`, `mcode`); `jit.flush()` clears traces/stats and frees code but does not reset already-hot Protos (J1 limitation) |
+| `jit.stats()`, `jit.trace()`, `jit.traces()`, `jit.ir()` | LuaR extension | J1 recorder/J2 introspection (`compiled`, `mcode`, `traces`) |
 
 ### 3.3 `ffi` — core implemented (opt-in)
 
