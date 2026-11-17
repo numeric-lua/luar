@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: linux (gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Test
+        run: make test
+
+      - name: Upstream drift check (offline)
+        run: tools/upstream-check.sh
+
+      - name: Shell scripts
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck tools/*.sh tests/upstream/*.sh
+          else
+            echo "shellcheck not installed; skipping"
+          fi
+
+      # FFI is milestone 0.2.  Keep this best-effort until src/luar_ffi.c
+      # lands so a partially implemented FFI never blocks the core matrix.
+      - name: Build with FFI (best effort)
+        continue-on-error: true
+        run: |
+          if [ -f src/luar_ffi.c ]; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+            make WITH_FFI=1
+          else
+            echo "src/luar_ffi.c not present yet; skipping WITH_FFI=1"
+          fi
+
+  macos:
+    name: macos (clang, optional)
+    runs-on: macos-latest
+    # Optional platform coverage: keep it visible without blocking the
+    # Linux gate on runner-image quirks.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: make -j"$(sysctl -n hw.ncpu)"
+
+      - name: Test
+        run: make test
+
+      - name: Upstream drift check (offline)
+        run: tools/upstream-check.sh

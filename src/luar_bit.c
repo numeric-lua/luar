@@ -29,18 +29,24 @@
 #define BIT_MASK	0xffffffffu
 
 
+/*
+** LuaJIT folds numbers to 32 bits with a round-to-nearest-even conversion
+** (cvtsd2si), not a C truncation: bit.tobit(1.5) is 2 and bit.tobit(3.7)
+** is 4.  Match that, including the modular wrap outside the int32 range.
+*/
 static uint32_t num2bit (lua_Number n) {
+  if (!isfinite(n))
+    return 0;
+  n = nearbyint(n);
   if (n >= 0.0 && n <= 4294967295.0)
-    return (uint32_t)n;
+    return (uint32_t)(int64_t)n;
   else if (n < 0.0 && n >= -4294967296.0)
     return (uint32_t)(int64_t)n;
-  else if (isfinite(n)) {
+  else {
     double m = fmod(n, 4294967296.0);
     if (m < 0) m += 4294967296.0;
     return (uint32_t)m;
   }
-  else
-    return 0;
 }
 
 
@@ -71,8 +77,8 @@ static int bit_bnot (lua_State *L) {
 
 static int bit_band (lua_State *L) {
   int i, n = lua_gettop(L);
-  uint32_t v = BIT_MASK;
-  for (i = 1; i <= n; i++)
+  uint32_t v = checkbit(L, 1);
+  for (i = 2; i <= n; i++)
     v &= checkbit(L, i);
   lua_pushinteger(L, (lua_Integer)(int32_t)v);
   return 1;
@@ -81,8 +87,8 @@ static int bit_band (lua_State *L) {
 
 static int bit_bor (lua_State *L) {
   int i, n = lua_gettop(L);
-  uint32_t v = 0;
-  for (i = 1; i <= n; i++)
+  uint32_t v = checkbit(L, 1);
+  for (i = 2; i <= n; i++)
     v |= checkbit(L, i);
   lua_pushinteger(L, (lua_Integer)(int32_t)v);
   return 1;
@@ -91,8 +97,8 @@ static int bit_bor (lua_State *L) {
 
 static int bit_bxor (lua_State *L) {
   int i, n = lua_gettop(L);
-  uint32_t v = 0;
-  for (i = 1; i <= n; i++)
+  uint32_t v = checkbit(L, 1);
+  for (i = 2; i <= n; i++)
     v ^= checkbit(L, i);
   lua_pushinteger(L, (lua_Integer)(int32_t)v);
   return 1;

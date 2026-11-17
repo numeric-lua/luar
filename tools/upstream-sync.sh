@@ -137,7 +137,7 @@ download() {
   url=$1
   dest=$2
   if command -v curl >/dev/null 2>&1; then
-    curl -fL --retry 3 --connect-timeout 20 -o "$dest" "$url" ||
+    curl -fsSL --retry 3 --connect-timeout 20 -o "$dest" "$url" ||
       die "download failed: $url"
   elif command -v wget >/dev/null 2>&1; then
     wget -O "$dest" "$url" ||
@@ -294,110 +294,117 @@ STALE=$TMP/stale
 : > "$MISSING"
 : > "$STALE"
 
-ALL=$TMP/all.list
-cat "$OLD_LIST" "$NEW_LIST" "$SRC_LIST" | sort -u > "$ALL"
+UP_MOD_N=0
+UP_ADD_N=0
+UP_DEL_N=0
+LR_MOD_N=0
+LR_ADD_N=0
+CONFLICT_N=0
+MISSING_N=0
+STALE_N=0
 
-while IFS= read -r name; do
-  in_old=0
-  in_new=0
-  in_src=0
-  [ -f "$OLD/src/$name" ] && in_old=1
-  [ -f "$NEW/src/$name" ] && in_new=1
-  [ -f "$SRC/$name" ] && in_src=1
+if [ -z "$OLD" ]; then
+  echo "Three-way summary: no old vendor tree to compare against."
+  echo "  new vendor: $NEW"
+  echo "  source:     $SRC"
+  echo "  (the first snapshot cannot classify upstream vs LuaR changes;"
+  echo "   use --from DIR to compare against an unpacked older release)"
+  echo
+else
+  ALL=$TMP/all.list
+  cat "$OLD_LIST" "$NEW_LIST" "$SRC_LIST" | sort -u > "$ALL"
 
-  up=0
-  if [ "$in_old" -eq 1 ] && [ "$in_new" -eq 1 ]; then
-    cmp -s "$OLD/src/$name" "$NEW/src/$name" || up=1
-  elif [ "$in_old" -eq 0 ] && [ "$in_new" -eq 1 ]; then
-    up=1
-    printf '%s\n' "$name" >> "$UP_ADD"
-  elif [ "$in_old" -eq 1 ] && [ "$in_new" -eq 0 ]; then
-    up=1
-    printf '%s\n' "$name" >> "$UP_DEL"
-  fi
-  if [ "$up" -eq 1 ] && [ "$in_old" -eq 1 ] && [ "$in_new" -eq 1 ]; then
-    printf '%s\n' "$name" >> "$UP_MOD"
-  fi
+  while IFS= read -r name; do
+    in_old=0
+    in_new=0
+    in_src=0
+    [ -f "$OLD/src/$name" ] && in_old=1
+    [ -f "$NEW/src/$name" ] && in_new=1
+    [ -f "$SRC/$name" ] && in_src=1
 
-  lr=0
-  if [ "$in_old" -eq 1 ] && [ "$in_src" -eq 1 ]; then
-    cmp -s "$OLD/src/$name" "$SRC/$name" || lr=1
-  elif [ "$in_old" -eq 1 ] && [ "$in_src" -eq 0 ]; then
-    lr=1
-  elif [ "$in_old" -eq 0 ] && [ "$in_src" -eq 1 ]; then
-    lr=1
-    if is_luar_added "$name"; then
-      printf '%s\n' "$name" >> "$LR_ADD"
-    else
+    up=0
+    if [ "$in_old" -eq 1 ] && [ "$in_new" -eq 1 ]; then
+      cmp -s "$OLD/src/$name" "$NEW/src/$name" || up=1
+    elif [ "$in_old" -eq 0 ] && [ "$in_new" -eq 1 ]; then
+      up=1
+      printf '%s\n' "$name" >> "$UP_ADD"
+    elif [ "$in_old" -eq 1 ] && [ "$in_new" -eq 0 ]; then
+      up=1
+      printf '%s\n' "$name" >> "$UP_DEL"
+    fi
+    if [ "$up" -eq 1 ] && [ "$in_old" -eq 1 ] && [ "$in_new" -eq 1 ]; then
+      printf '%s\n' "$name" >> "$UP_MOD"
+    fi
+
+    lr=0
+    if [ "$in_old" -eq 1 ] && [ "$in_src" -eq 1 ]; then
+      cmp -s "$OLD/src/$name" "$SRC/$name" || lr=1
+      [ "$lr" -eq 1 ] && printf '%s\n' "$name" >> "$LR_MOD"
+    elif [ "$in_old" -eq 1 ] && [ "$in_src" -eq 0 ]; then
+      lr=1
+      printf '%s\n' "$name" >> "$LR_MOD"
+    elif [ "$in_old" -eq 0 ] && [ "$in_src" -eq 1 ]; then
+      lr=1
       printf '%s\n' "$name" >> "$LR_ADD"
     fi
-  fi
-  if [ "$lr" -eq 1 ] && [ "$in_old" -eq 1 ] && [ "$in_src" -eq 1 ] && [ "$up" -eq 0 ]; then
-    printf '%s\n' "$name" >> "$LR_MOD"
-  elif [ "$lr" -eq 1 ] && [ "$in_old" -eq 1 ] && [ "$in_src" -eq 0 ] && [ "$up" -eq 0 ]; then
-    printf '%s\n' "$name" >> "$LR_MOD"
-  fi
 
-  if [ "$up" -eq 1 ] && [ "$lr" -eq 1 ]; then
-    printf '%s\n' "$name" >> "$CONFLICT"
-  fi
+    if [ "$up" -eq 1 ] && [ "$lr" -eq 1 ]; then
+      printf '%s\n' "$name" >> "$CONFLICT"
+    fi
 
-  # New upstream files absent from src/ must be added during the rebase.
-  if [ "$in_old" -eq 0 ] && [ "$in_new" -eq 1 ] && [ "$in_src" -eq 0 ]; then
-    printf '%s\n' "$name" >> "$MISSING"
-  fi
-  # Files removed upstream but still present in src/ must be dealt with.
-  if [ "$in_old" -eq 1 ] && [ "$in_new" -eq 0 ] && [ "$in_src" -eq 1 ]; then
-    printf '%s\n' "$name" >> "$STALE"
-  fi
-done < "$ALL"
+    # New upstream files absent from src/ must be added during the rebase.
+    if [ "$in_old" -eq 0 ] && [ "$in_new" -eq 1 ] && [ "$in_src" -eq 0 ]; then
+      printf '%s\n' "$name" >> "$MISSING"
+    fi
+    # Files removed upstream but still present in src/ must be dealt with.
+    if [ "$in_old" -eq 1 ] && [ "$in_new" -eq 0 ] && [ "$in_src" -eq 1 ]; then
+      printf '%s\n' "$name" >> "$STALE"
+    fi
+  done < "$ALL"
 
-count() {
-  wc -l < "$1" | tr -d ' '
-}
+  count() {
+    wc -l < "$1" | tr -d ' '
+  }
 
-UP_MOD_N=$(count "$UP_MOD")
-UP_ADD_N=$(count "$UP_ADD")
-UP_DEL_N=$(count "$UP_DEL")
-LR_MOD_N=$(count "$LR_MOD")
-LR_ADD_N=$(count "$LR_ADD")
-CONFLICT_N=$(count "$CONFLICT")
-MISSING_N=$(count "$MISSING")
-STALE_N=$(count "$STALE")
+  UP_MOD_N=$(count "$UP_MOD")
+  UP_ADD_N=$(count "$UP_ADD")
+  UP_DEL_N=$(count "$UP_DEL")
+  LR_MOD_N=$(count "$LR_MOD")
+  LR_ADD_N=$(count "$LR_ADD")
+  CONFLICT_N=$(count "$CONFLICT")
+  MISSING_N=$(count "$MISSING")
+  STALE_N=$(count "$STALE")
 
-echo "Three-way summary (old vendor -> new vendor, compared with src/):"
-if [ -n "$OLD" ]; then
+  echo "Three-way summary (old vendor -> new vendor, compared with src/):"
   echo "  old vendor: $OLD"
-else
-  echo "  old vendor: (none)"
+  echo "  new vendor: $NEW"
+  echo "  source:     $SRC"
+  echo
+  echo "  upstream changes: $((UP_MOD_N + UP_ADD_N + UP_DEL_N))" \
+       "(modified $UP_MOD_N, added $UP_ADD_N, removed $UP_DEL_N)"
+  echo "  LuaR changes vs old vendor: $((LR_MOD_N + LR_ADD_N))" \
+       "(modified/deleted $LR_MOD_N, added $LR_ADD_N)"
+  echo "  conflicts requiring a manual rebase: $CONFLICT_N"
+
+  print_list() {
+    label=$1
+    file=$2
+    n=$3
+    [ "$n" -gt 0 ] || return 0
+    echo "    $label:"
+    sed 's/^/      /' "$file"
+  }
+
+  print_list "modified upstream" "$UP_MOD" "$UP_MOD_N"
+  print_list "added upstream" "$UP_ADD" "$UP_ADD_N"
+  print_list "removed upstream" "$UP_DEL" "$UP_DEL_N"
+  print_list "changed by LuaR" "$LR_MOD" "$LR_MOD_N"
+  print_list "LuaR-added files" "$LR_ADD" "$LR_ADD_N"
+  print_list "conflicts" "$CONFLICT" "$CONFLICT_N"
+  print_list "new upstream files missing from src" "$MISSING" "$MISSING_N"
+  print_list "removed upstream but still in src" "$STALE" "$STALE_N"
+  echo
 fi
-echo "  new vendor: $NEW"
-echo "  source:     $SRC"
-echo
-echo "  upstream changes: $((UP_MOD_N + UP_ADD_N + UP_DEL_N))" \
-     "(modified $UP_MOD_N, added $UP_ADD_N, removed $UP_DEL_N)"
-echo "  LuaR changes vs old vendor: $((LR_MOD_N + LR_ADD_N))" \
-     "(modified $LR_MOD_N, added $LR_ADD_N)"
-echo "  conflicts requiring a manual rebase: $CONFLICT_N"
-
-print_list() {
-  label=$1
-  file=$2
-  n=$3
-  [ "$n" -gt 0 ] || return 0
-  echo "    $label:"
-  sed 's/^/      /' "$file"
-}
-
-print_list "modified upstream" "$UP_MOD" "$UP_MOD_N"
-print_list "added upstream" "$UP_ADD" "$UP_ADD_N"
-print_list "removed upstream" "$UP_DEL" "$UP_DEL_N"
-print_list "changed by LuaR" "$LR_MOD" "$LR_MOD_N"
-print_list "LuaR-added files" "$LR_ADD" "$LR_ADD_N"
-print_list "conflicts" "$CONFLICT" "$CONFLICT_N"
-print_list "new upstream files missing from src" "$MISSING" "$MISSING_N"
-print_list "removed upstream but still in src" "$STALE" "$STALE_N"
-echo
 
 if [ "$APPLY" -eq 0 ]; then
   echo "Dry run: no files changed.  The extracted snapshot is under tests/tmp/."
@@ -411,7 +418,7 @@ fi
 
 if [ -d "$TARGET" ]; then
   if tree_equal "$TARGET" "$NEW"; then
-    echo "vendor/$VENDOR_NAME is already identical to the downloaded release; nothing to do."
+    echo "vendor/lua-$VERSION is already identical to the downloaded release; nothing to do."
     exit 0
   fi
   if [ "$FORCE" -ne 1 ]; then

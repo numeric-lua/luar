@@ -49,8 +49,10 @@ H.raises(function() table.clear(42) end, "table expected")
 -- bit library (LuaJIT 32-bit semantics)
 H.eq(bit.tobit(0xffffffff), -1)
 H.eq(bit.band(0xff, 0x0f), 15)
-H.eq(bit.band(), -1)                  -- identity is all ones
-H.eq(bit.bor(), 0)
+H.raises(function() bit.band() end, "number expected", "zero-arg band")
+H.eq(bit.tobit(1.5), 2)               -- LuaJIT rounds to nearest even
+H.eq(bit.tobit(3.7), 4)
+H.eq(bit.tobit(-3.7), -4)
 H.eq(bit.bxor(0xff, 0x0f), 0xf0)
 H.eq(bit.bnot(0), -1)
 H.eq(bit.lshift(1, 31), -2147483648)
