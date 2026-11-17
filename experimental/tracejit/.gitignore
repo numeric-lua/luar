@@ -1,0 +1,5 @@
+# build products (demo_trace.c is generated from demo.dasc by DynASM)
+demo
+demo.o
+demo_trace.o
+demo_trace.c

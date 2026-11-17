@@ -1,0 +1,109 @@
+/* DynASM x64 source.  Build with:
+**   lua ../../vendor/luajit/dynasm/dynasm.lua -D X64 demo.dasc > demo_trace.c
+**
+** The generated function has the SysV x86-64 shape int64_t trace_sum(int64_t n):
+**   rdi = n (the decoded free/limit operand)
+**   rax = accumulator, rcx = loop variable, rdx = step
+** No stack frame, no calls, no guards: this is a toolchain proof only.
+*/
+
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <sys/mman.h>
+
+#define DASM_CHECKS 1
+#include "dasm_proto.h"
+#include "dasm_x86.h"
+#include "trace.h"
+
+|.arch x64
+|.section code
+|.actionlist trace_actions
+
+/* Assemble the loop described by t.  DynASM actions are emitted into the
+** action stream that trace_build() links and encodes into executable
+** memory.  All loop constants come from t, not from the assembler source.
+*/
+static void emit_trace(dasm_State **Dst, const TraceDesc *t)
+{
+  | mov64 rax, ((int64_t)t->acc_init)  // decoded accumulator init
+  | mov64 rcx, ((int64_t)t->init)  // decoded loop initial value
+  | mov64 rdx, ((int64_t)t->step)  // decoded loop step
+  if (t->op == TRACE_ADD_IMM)
+    | mov64 r8, ((int64_t)t->add_imm)
+
+  |1:  // loop head
+  | cmp rcx, rdi  // compare i with runtime limit n
+  if (t->step > 0) {
+    | jg >2  // ascending: exit when i > n
+  } else {
+    | jl >2  // descending: exit when i < n
+  }
+  if (t->op == TRACE_ADD_IMM) {
+    | add rax, r8  // acc += immediate
+  } else {
+    | add rax, rcx  // acc += i
+  }
+  | add rcx, rdx  // i += step
+  | jmp <1
+  |2:
+  | ret  // return acc in rax
+}
+
+trace_sum_fn trace_build(const TraceDesc *t, size_t *code_size)
+{
+  dasm_State *Dst;
+  size_t size = 0;
+  void *mem;
+  int status;
+
+  if (t == NULL || code_size == NULL || t->step == 0 || t->limit_name == NULL ||
+      t->init_reg != t->for_reg || t->limit_reg != t->for_reg + 1 ||
+      t->step_reg != t->for_reg + 2 || t->var_reg != t->step_reg ||
+      t->acc_reg == t->for_reg || t->acc_reg == t->limit_reg ||
+      t->acc_reg == t->step_reg || t->acc_reg == t->var_reg ||
+      (t->op != TRACE_ADD_REG && t->op != TRACE_ADD_IMM)) {
+    fprintf(stderr, "trace_build: unsupported/decoded trace shape\n");
+    return NULL;
+  }
+
+  dasm_init(&Dst, DASM_MAXSECTION);
+  dasm_setupglobal(&Dst, NULL, 0);
+  dasm_setup(&Dst, trace_actions);
+  emit_trace(&Dst, t);
+
+  if ((status = dasm_checkstep(&Dst, -1)) != 0) {
+    fprintf(stderr, "trace_build: dasm_checkstep failed (%d)\n", status);
+    goto fail;
+  }
+  if ((status = dasm_link(&Dst, &size)) != 0) {
+    fprintf(stderr, "trace_build: dasm_link failed (%d)\n", status);
+    goto fail;
+  }
+
+  mem = mmap(NULL, size, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED) {
+    perror("trace_build: mmap");
+    goto fail;
+  }
+  if ((status = dasm_encode(&Dst, mem)) != 0) {
+    fprintf(stderr, "trace_build: dasm_encode failed (%d)\n", status);
+    munmap(mem, size);
+    goto fail;
+  }
+  if (mprotect(mem, size, PROT_READ | PROT_EXEC) != 0) {
+    perror("trace_build: mprotect");
+    munmap(mem, size);
+    goto fail;
+  }
+
+  dasm_free(&Dst);
+  *code_size = size;
+  return (trace_sum_fn)mem;  /* x86-64: object and function pointers are compatible */
+
+fail:
+  dasm_free(&Dst);
+  return NULL;
+}
