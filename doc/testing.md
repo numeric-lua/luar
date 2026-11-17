@@ -169,13 +169,14 @@ allocation or calls.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` gates the Linux matrix (`WITH_FFI=0` and
-`WITH_FFI=1`, each running `make test`), a clean ASan/UBSan job
-(`tests/asan.sh`), a deterministic fuzz job (`make test-fuzz`), and the
-offline `tools/upstream-check.sh` drift check. shellcheck runs when
-available. The macOS job is optional (`continue-on-error`). The official Lua
-suite is not in CI because it downloads its inputs; run
-`tests/upstream/run.sh` locally.
+`.github/workflows/ci.yml` gates the Linux matrix: gcc with `WITH_FFI=0`
+and `WITH_FFI=1`, clang with `WITH_FFI=1`, a `JIT=0` build, a staged
+`make install` plus `pkg-config` check, a shared-library/FFI job, a clean
+ASan/UBSan job (`tests/asan.sh`), a deterministic fuzz job
+(`make test-fuzz`), and the offline `tools/upstream-check.sh` drift check.
+shellcheck runs when available. The macOS job is optional
+(`continue-on-error`). The official Lua suite is not in CI because it
+downloads its inputs; run `tests/upstream/run.sh` locally.
 
 ## JIT testing (from milestone 0.4)
 

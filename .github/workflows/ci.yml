@@ -35,6 +35,46 @@ jobs:
       - name: Build and test
         run: make WITH_FFI=${{ matrix.with_ffi }} test
 
+  clang:
+    name: linux (clang, WITH_FFI=1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Ensure libffi headers
+        run: |
+          if ! printf '#include <ffi.h>\n' | cc -E - >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+          fi
+      - name: Build and test with clang
+        run: make CC=clang WITH_FFI=1 test
+
+  install:
+    name: linux (staged install + pkg-config)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Ensure libffi headers
+        run: |
+          if ! printf '#include <ffi.h>\n' | cc -E - >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+          fi
+      - name: Install into a staging root
+        run: |
+          make WITH_FFI=1 PREFIX=/usr/local DESTDIR="$PWD/stage" install
+          test -x stage/usr/local/bin/luar
+          test -f stage/usr/local/lib/libluar.a
+          test -f stage/usr/local/lib/pkgconfig/luar.pc
+          LD_LIBRARY_PATH="$PWD/stage/usr/local/lib" \
+            stage/usr/local/bin/luar -v | grep -q "LuaR 0.1.0"
+          PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
+            pkg-config --exists luar
+          PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
+            pkg-config --cflags --libs luar
+
   nojit:
     name: linux (JIT=0)
     runs-on: ubuntu-latest
@@ -87,8 +127,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Ensure libffi headers
+        run: |
+          if ! printf '#include <ffi.h>\n' | cc -E - >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y libffi-dev
+          fi
+
       - name: Shared library
-        run: make shared test-shared
+        run: make WITH_FFI=1 shared test-shared
 
       - name: Upstream drift check (offline)
         run: tools/upstream-check.sh

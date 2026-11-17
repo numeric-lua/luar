@@ -56,7 +56,9 @@ Estimated: 2–4 weeks.
   Shared build, `libluar.so.0` soname, export map and the `luar.pc` shared/
   static recipes are in place and tested on Linux (`make test-shared`);
   macOS verification remains.
-* CI matrix: gcc/clang, WITH_FFI on/off, ASan/UBSan job, official Lua suite.
+* CI matrix: gcc/clang, WITH_FFI on/off, JIT=0, staged install with
+  `pkg-config`, shared-library FFI, ASan/UBSan and fuzz jobs.  The official
+  Lua suite runs locally because CI would need to download its inputs.
 * Reproducible release tarballs, `make install`/`make uninstall` verified.
 
 Exit criteria: a downstream C extension built against `luar.pc` links and
