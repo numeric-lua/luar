@@ -34,7 +34,9 @@ static void emit_guards (dasm_State **Dst, const LuaR_LoopDesc *d)
   int i;
   for (i = 0; i < d->nguards; i++) {
     int r = d->guard_reg[i];
-    int tag = (d->guard_type[i] == LUAR_T_FLOAT) ? d->tag_flt : d->tag_int;
+    int tag = (d->guard_type[i] == LUAR_T_FLOAT) ? d->tag_flt :
+              (d->guard_type[i] == LUAR_T_TABLE) ? d->tag_table :
+              d->tag_int;
     | cmp byte [rbx + ((int)LUAR_TAG(r))], ((int)tag)
     | jne >3
   }
@@ -404,12 +406,68 @@ static void emit_cmp (dasm_State **Dst, const LuaR_LoopDesc *d,
   }
 }
 
+static void emit_table_get (dasm_State **Dst, const LuaR_LoopDesc *d,
+                            const LuaR_Op *op)
+{
+  | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+  | cmp rax, 1
+  | jl >3
+  | cmp rax, r14
+  | ja >3
+  | dec rax
+  | shl rax, 4
+  | add rax, r13
+  | cmp byte [rax + 8], ((int)d->tag_int)
+  | jne >3
+  | mov rcx, qword [rax]
+  | mov qword [rbx + ((int)LUAR_SLOT(op->a))], rcx
+  | mov byte [rbx + ((int)LUAR_TAG(op->a))], ((int)d->tag_int)
+}
+
+static void emit_table_add (dasm_State **Dst, const LuaR_LoopDesc *d,
+                            const LuaR_Op *op)
+{
+  | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+  | cmp rax, 1
+  | jl >3
+  | cmp rax, r14
+  | ja >3
+  | dec rax
+  | shl rax, 4
+  | add rax, r13
+  | cmp byte [rax + 8], ((int)d->tag_int)
+  | jne >3
+  | mov rcx, qword [rax]
+  if (op->ta == LUAR_T_INT) {
+    | mov rax, qword [rbx + ((int)LUAR_SLOT(op->a))]
+    | add rax, rcx
+    | mov qword [rbx + ((int)LUAR_SLOT(op->a))], rax
+    | mov byte [rbx + ((int)LUAR_TAG(op->a))], ((int)d->tag_int)
+  }
+  else {
+    | cvtsi2sd xmm0, rcx
+    | addsd xmm0, qword [rbx + ((int)LUAR_SLOT(op->a))]
+    | movsd qword [rbx + ((int)LUAR_SLOT(op->a))], xmm0
+    | mov byte [rbx + ((int)LUAR_TAG(op->a))], ((int)d->tag_flt)
+  }
+}
+
 static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
   int i;
   | push rbx
   | mov rbx, rdi
+  if (d->has_table) {
+    | push r12
+    | push r13
+    | push r14
+  }
   emit_guards(Dst, d);
+  if (d->has_table) {
+    | mov r12, qword [rbx + ((int)LUAR_SLOT(d->table_reg))]
+    | mov r13, qword [r12 + ((int)d->table_array_off)]
+    | mov r14d, dword [r12 + ((int)d->table_asize_off)]
+  }
   for (i = 0; i < d->nops; i++) {
     const LuaR_Op *op = &d->ops[i];
     |=>((int)i):
@@ -429,6 +487,12 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
       case LUAR_OP_MMBIN:
       case LUAR_OP_NOP:
         break;
+      case LUAR_OP_GETTABLE:
+        emit_table_get(Dst, d, op);
+        break;
+      case LUAR_OP_TABLE_ADD:
+        emit_table_add(Dst, d, op);
+        break;
       default:
         emit_int_one(Dst, d, op);
         break;
@@ -438,6 +502,11 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
     | jmp =>0
     |=>((int)d->nops):
     | mov eax, 1
+    if (d->has_table) {
+      | pop r14
+      | pop r13
+      | pop r12
+    }
     | pop rbx
     | ret
   }
@@ -455,11 +524,21 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
     |=>((int)(d->nops + 1)):
     |2:
     | mov eax, 1
+    if (d->has_table) {
+      | pop r14
+      | pop r13
+      | pop r12
+    }
     | pop rbx
     | ret
   }
   |3:
   | xor eax, eax
+  if (d->has_table) {
+    | pop r14
+    | pop r13
+    | pop r12
+  }
   | pop rbx
   | ret
 }

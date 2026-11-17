@@ -27,7 +27,7 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working: `on/off/flush/status/stats/trace/ir`; `status()` is true on x86-64 with J2 |
 | FFI | LuaJIT-compatible core: cdef, cdata, varargs, callbacks, real-consumer test (`WITH_FFI=1`) |
-| native JIT | J1 recorder + J2 x86-64 numeric `for`/`while` codegen with guarded numeric `if` conditions (`jit.status()` true; ~6x `int_sum` (LuaJIT parity), ~2.5x `float_loop`) |
+| native JIT | J1 recorder + J2 x86-64 numeric `for`/`while` codegen with guarded numeric `if` conditions + experimental J3 integer array reads (`jit.status()` true; ~6x `int_sum` (LuaJIT parity), ~2.5x `float_loop`) |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for

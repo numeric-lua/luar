@@ -31,11 +31,11 @@ typedef enum {
   LUAR_OP_MMBIN,
   /* Branch support (int-only loops): comparisons and jumps. */
   LUAR_OP_LT, LUAR_OP_LE, LUAR_OP_GT, LUAR_OP_GE, LUAR_OP_EQ,
-  LUAR_OP_JMP, LUAR_OP_NOP
+  LUAR_OP_JMP, LUAR_OP_NOP, LUAR_OP_GETTABLE, LUAR_OP_TABLE_ADD
 } LuaR_OpKind;
 
 /* Register flavours known to the compiled loop. */
-enum { LUAR_T_INT = 1, LUAR_T_FLOAT = 2 };
+enum { LUAR_T_INT = 1, LUAR_T_FLOAT = 2, LUAR_T_TABLE = 3 };
 
 typedef struct LuaR_Op {
   uint8_t kind;
@@ -57,6 +57,11 @@ typedef struct LuaR_LoopDesc {
   int npc;			/* instruction labels for branch loops */
   int has_branch;
   int is_while;			/* loop ends in a backward JMP, no FORLOOP */
+  int has_table;		/* one raw array lookup at the body start */
+  int table_reg;
+  int table_array_off;
+  int table_asize_off;
+  int tag_table;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;

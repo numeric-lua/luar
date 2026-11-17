@@ -94,8 +94,8 @@ loops whose body is numeric register arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD
 variants and MMBIN), with int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
 `numeric/int_sum` is ~6x faster than the interpreter (LuaJIT parity) and
-`numeric/float_loop` ~2.5x.  Still missing: branch/comparison ops, general traces and side
-exits, tables/calls, and trace-level optimisation.  See
+`numeric/float_loop` ~2.5x.  Numeric branches and simple `while` loops are
+in; general traces/side exits, calls and table writes are still missing.  See
 `doc/adr/0004-j2-loop-level.md` for the scope decision.
 
 
@@ -119,6 +119,12 @@ Exit criteria:
 Estimated: 6–10 weeks.
 
 ## 0.6 — Trace coverage
+
+Status: early J3.  A read-only raw-array lookup (`GETTABLE` +
+`acc = acc + t[i]`) can be emitted for integer arrays, with per-element tag
+and bounds guards that bail to the interpreter before the current iteration.
+It is correct and tested, but not yet faster than the interpreter; table
+stores, shape guards, calls and side traces remain to be done.
 
 * Table loads/stores with shape guards and inline caches, `GETFIELD`/
   `SETFIELD`/`GETI`/`SETI`, array-part fast paths.

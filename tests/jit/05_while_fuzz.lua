@@ -65,4 +65,5 @@ for case = 1, 100 do
   end
 end
 
+jit.on()
 print("jit/05_while_fuzz ok (100 cases)")

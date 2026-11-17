@@ -8,7 +8,8 @@
 > matching LuaJIT's 5.9 ms / 0.17x), and `numeric/float_loop` from ~27 ms
 > to **11.1 ms** (0.40x vs LuaJIT's 3.0 ms).  `fib` and `mandel` are unchanged (calls and
 > branches); the tables below are the pre-J2 baseline and remain valid for
-> everything the JIT does not compile.  Re-run
+> everything the JIT does not compile.  The experimental read-only array
+> lookup is correct but does not yet beat the interpreter on this corpus.  Re-run
 > `make bench-compare` for current numbers.
 
 Measured on 2026-11-17 (America/Sao_Paulo) against stock Lua 5.5.1 and

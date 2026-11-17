@@ -26,6 +26,7 @@
 #include "lualib.h"
 #include "luar.h"
 
+#include "ltable.h"
 #include "lopcodes.h"
 #include "lopnames.h"
 #include "luar_emit.h"
@@ -97,6 +98,8 @@ static int slot_type (TValue *b, uint8_t *cur, uint8_t *def, int r) {
     return LUAR_T_INT;
   if (ttisfloat(&b[r]))
     return LUAR_T_FLOAT;
+  if (ttistable(&b[r]))
+    return LUAR_T_TABLE;
   return 0;
 }
 
@@ -170,6 +173,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   d.is_while = is_while;
   d.tag_int = LUA_VNUMINT;
   d.tag_flt = LUA_VNUMFLT;
+  d.tag_table = LUA_VTABLE;
+  d.table_array_off = (int)offsetof(Table, array);
+  d.table_asize_off = (int)offsetof(Table, asize);
   if (!is_while) {
     for (i = 0; i < 3; i++) {
       cur[for_a + i] = LUAR_T_INT;
@@ -227,10 +233,10 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         default: return 0;
       }
       at = slot_type(b, cur, def, aa);
-      if (at == 0) return 0;
+      if (at == 0 || at == LUAR_T_TABLE) return 0;
       if (bb >= 0) {
         bt = slot_type(b, cur, def, bb);
-        if (bt == 0) return 0;
+        if (bt == 0 || bt == LUAR_T_TABLE) return 0;
       }
       tgt = (start + j) + 1 + GETARG_sJ(jins);
       if (tgt < start || tgt == start + j ||
@@ -273,7 +279,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_MOVE:
         if (is_control_reg(GETARG_A(ins), for_a)) return 0;
         tb = slot_type(b, cur, def, GETARG_B(ins));
-        if (tb == 0) return 0;
+        if (tb == 0 || tb == LUAR_T_TABLE) return 0;
         add_guard(&d, seen, GETARG_B(ins), tb);
         op->kind = LUAR_OP_MOVE;
         op->a = (uint8_t)GETARG_A(ins);
@@ -342,7 +348,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         if (is_control_reg(ka, for_a)) return 0;
         tb = slot_type(b, cur, def, GETARG_B(ins));
         tc = slot_type(b, cur, def, GETARG_C(ins));
-        if (tb == 0 || tc == 0) return 0;
+        if (tb == 0 || tc == 0 ||
+            tb == LUAR_T_TABLE || tc == LUAR_T_TABLE) return 0;
         add_guard(&d, seen, GETARG_B(ins), tb);
         add_guard(&d, seen, GETARG_C(ins), tc);
         op->kind = GET_OPCODE(ins) == OP_ADD ? LUAR_OP_ADD :
@@ -374,7 +381,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
              ttisfloat(k) ? LUAR_T_FLOAT : 0;
         if (ct == 0) return 0;
         tb = slot_type(b, cur, def, GETARG_B(ins));
-        if (tb == 0) return 0;
+        if (tb == 0 || tb == LUAR_T_TABLE) return 0;
         add_guard(&d, seen, GETARG_B(ins), tb);
         op->kind = GET_OPCODE(ins) == OP_ADDK ? LUAR_OP_ADDK :
                    GET_OPCODE(ins) == OP_SUBK ? LUAR_OP_SUBK :
@@ -393,6 +400,51 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         }
         cur[op->a] = op->ta;
         def[op->a] = 1;
+        break;
+      }
+      case OP_GETTABLE: {
+        int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
+        if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
+        if (is_control_reg(ka, for_a)) return 0;
+        if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
+        if (slot_type(b, cur, def, kc) != LUAR_T_INT) return 0;
+        op->kind = LUAR_OP_GETTABLE;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)kb;
+        op->c = (uint8_t)kc;
+        op->ta = LUAR_T_INT;   /* the native path accepts integer elements */
+        op->tb = LUAR_T_TABLE;
+        op->tc = LUAR_T_INT;
+        cur[ka] = LUAR_T_INT;
+        def[ka] = 1;
+        d.has_table = 1;
+        d.table_reg = kb;
+        has_branch = 1;   /* use the labelled emitter and typed guards */
+        /* Fuse the common "acc = acc + t[key]" shape. */
+        if (i + 1 < n - 1) {
+          Instruction nx = p->code[start + i + 1];
+          if (GET_OPCODE(nx) == OP_ADD) {
+            int na = GETARG_A(nx), nb = GETARG_B(nx), nc = GETARG_C(nx);
+            int acct = 0;
+            if ((nb == ka && nc == na) || (nc == ka && nb == na))
+              acct = slot_type(b, cur, def, na);
+            if ((acct == LUAR_T_INT || acct == LUAR_T_FLOAT) &&
+                !is_control_reg(na, for_a)) {
+              op->kind = LUAR_OP_TABLE_ADD;
+              op->a = (uint8_t)na;
+              op->b = (uint8_t)kb;
+              op->c = (uint8_t)kc;
+              op->ta = (uint8_t)acct;
+              op->tb = LUAR_T_TABLE;
+              op->tc = LUAR_T_INT;
+              memset(&ops[i + 1], 0, sizeof(ops[i + 1]));
+              ops[i + 1].kind = LUAR_OP_NOP;
+              cur[na] = (uint8_t)acct;
+              def[na] = 1;
+              i++;
+            }
+          }
+        }
         break;
       }
       case OP_MMBIN:
@@ -459,6 +511,15 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           break;
         case LUAR_OP_ADDI:
           reads[nr] = op->b; types[nr++] = LUAR_T_INT; break;
+        case LUAR_OP_GETTABLE:
+          reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
+          reads[nr] = op->c; types[nr++] = LUAR_T_INT;
+          break;
+        case LUAR_OP_TABLE_ADD:
+          reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
+          reads[nr] = op->c; types[nr++] = LUAR_T_INT;
+          reads[nr] = op->a; types[nr++] = op->ta;
+          break;
         case LUAR_OP_ADDK:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
@@ -499,6 +560,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
+        case LUAR_OP_GETTABLE:
+        case LUAR_OP_TABLE_ADD:
           last_write[op->a] = (int)i;
           break;
         default: break;
