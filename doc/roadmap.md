@@ -38,8 +38,8 @@ memory-class shapes by value, struct/union bitfields, packed/aligned
 layouts, `#pragma pack`, object/function/variadic cdef macros,
 `sizeof`/`_Alignof`/`offsetof` constants, TLS globals, ASan/UBSan/fuzz
 coverage and a real `libluatorch.so` consumer (2.5.1).  What remains:
-stringifying/#include preprocessing, packed aggregates by value,
-oversized (>4096-field) unions, and non-x86-64 hosts.
+packed aggregates by value (the MEMORY-class call ABI needs a custom
+thunk), non-x86-64 hosts, and full macOS ABI verification.
 
 Exit criteria:
 
