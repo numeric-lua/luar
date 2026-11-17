@@ -81,7 +81,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   interpreter.
 - J4 peephole: `while i < limit do acc = acc + i; i = i + 1 end` keeps the
   accumulator/index/limit in GPRs; prefix-sum while loops run ~12x faster
-  than the interpreter in a direct 20M-iteration measurement.
+  than the interpreter in a direct 20M-iteration measurement.  The same
+  fast path recognises `acc = acc + i * i` (~10x).
 - J4 peephole: `acc = acc + i` integer loops keep the accumulator and loop
   counters in GPRs; `numeric/int_sum` drops from ~5.9 ms to ~3.9 ms (0.11x
   stock Lua, faster than LuaJIT).

@@ -23,6 +23,11 @@ local function wc ()
   while i < 100000 do s = s + i; i = i + 1 end
   return s, i
 end
+local function wsq (n)
+  local i, s = 0, 0
+  while i < n do s = s + i * i; i = i + 1 end
+  return s, i
+end
 local function rev (n)
   local i, s = 0, 0
   while i < n do i = i + 1; s = s + i end
@@ -38,6 +43,9 @@ H.eq(bi, 100001)
 local c, ci = wc()
 H.eq(c, 4999950000)
 H.eq(ci, 100000)
+local ws, wsi = wsq(100000)
+H.eq(ws, 333328333350000)
+H.eq(wsi, 100000)
 local d = rev(100000)
 H.eq(d, 5000050000)
 
@@ -45,6 +53,7 @@ jit.off()
 H.eq(w(1000), 499500)
 H.eq(wle(1000), 500500)
 H.eq(rev(1000), 500500)
+H.eq(wsq(1000), 332833500)
 jit.on()
 
 print("jit/09_while_fast ok")

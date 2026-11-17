@@ -848,7 +848,14 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
       | jg >2
     }
   }
-  | add r12, r13
+  if (d->fw_square) {
+    | mov rcx, r13
+    | imul rcx, r13
+    | add r12, rcx
+  }
+  else {
+    | add r12, r13
+  }
   | inc r13
   | jmp <1
   |2:

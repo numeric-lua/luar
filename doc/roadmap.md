@@ -96,8 +96,8 @@ loops (up to two per Proto) whose body is numeric register arithmetic (MOVE/LOAD
 variants and MMBIN), with int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
 `numeric/int_sum` is ~9x faster than the interpreter (ahead of LuaJIT),
-`numeric/float_loop` ~4x, and prefix-sum/square-sum `for`/`while` loops are
-register-cached too.  Numeric branches and simple `while` loops are
+`numeric/float_loop` ~4x, and prefix/square-sum `for`/`while` loops
+(including `while` squares) are register-cached too.  Numeric branches and simple `while` loops are
 in; general traces/side exits, calls and table writes are still missing.  See
 `doc/adr/0004-j2-loop-level.md` for the scope decision.
 
