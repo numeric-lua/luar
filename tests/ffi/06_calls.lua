@@ -182,8 +182,8 @@ H.eq(tonumber(dflt.strlen("x")), 1)
 H.raises(function() return ffi.load("no-such-library-for-luar-tests") end,
          "cannot load")
 
--- Deliberate limitations: varargs, callbacks, unions/arrays by value.
-H.raises(function() return ffi.C.printf("x\n") end, "variadic")
+-- Deliberate limitations: callbacks, unions/arrays by value.  (Variadic
+-- calls now work; see tests/ffi/07_varargs.lua.)
 H.raises(function() return ffi.C.no_such_luar_symbol end,
          "missing declaration")
 H.raises(function() return ffi.C.abs(1, 2) end, "wrong number")

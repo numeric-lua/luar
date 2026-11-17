@@ -66,6 +66,13 @@ out=$("$LUAR" -e "print(dofile('$TMP/prog.luac'))")
 [ "$out" = "42" ] || fail "bytecode roundtrip: $out"
 ok "luarc bytecode"
 
+# Shared source for the bytecode checks below.
+cat > "$TMP/cross.lua" <<'LUAEOF'
+local t = {}
+for i = 1, 5 do t[i] = i * i end
+print(table.concat(t, ","))
+LUAEOF
+
 # -- luar -b (LuaJIT CLI compatibility) -----------------------------------
 cat > "$TMP/cross.lua" <<'LUAEOF'
 local t = {}

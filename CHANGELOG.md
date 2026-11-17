@@ -53,9 +53,9 @@ the machinery to keep following Lua.
 - `table.new` and `table.clear`.
 - FFI (0.2 preview, `WITH_FFI=1`): `cdef` parser, C type model and layout,
   cdata allocation/access, int64/uint64, metatypes and finalizers,
-  `ffi.C`/`ffi.load` calls through libffi (struct-by-value included),
-  `ffi.errno`, plus `type()`/`tonumber()` integration and NULL-pointer
-  semantics.
+  `ffi.C`/`ffi.load` calls through libffi (struct-by-value and variadic
+  calls included), `ffi.errno`, plus `type()`/`tonumber()` integration and
+  NULL-pointer semantics.
 - `jit` control surface: `version`, `version_num`, `os`, `arch`, `status`,
   `on`, `off`, `flush`, `opt.start`. `jit.status()` truthfully returns
   `false`: no native code generator ships in 0.1.
@@ -105,9 +105,8 @@ the machinery to keep following Lua.
 
 ### Known limitations
 
-- The FFI is opt-in and still 0.2-preview: variadic calls, bitfields,
-  preprocessor macros and C→Lua callbacks are not implemented (see
-  `doc/ffi.md`).
+- The FFI is opt-in and still 0.2-preview: bitfields, preprocessor macros
+  and C→Lua callbacks are not implemented (see `doc/ffi.md`).
 - No native JIT. Performance is stock Lua 5.5 interpreter performance; see
   `doc/performance.md` for measured numbers against Lua 5.5.1 and LuaJIT 2.1.
 - Only Lua 5.5 is supported.  There is no compatibility mode for any older

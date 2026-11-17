@@ -316,7 +316,11 @@ Calls support:
   and arrays themselves;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
-  conversion rules.
+  conversion rules;
+* variadic prototypes (`...`): the declared fixed parameters are converted
+  as above and each remaining argument is passed with the default
+  conversions described next.  `ffi_prep_cif_var` is used so the platform
+  variadic ABI (including the x86-64 `AL` register count) is correct.
 
 Integer results up to 32 bits and enums are returned as Lua integers;
 `int64_t`/`uint64_t` results are cdata; `float`/`double` are Lua numbers;
@@ -324,10 +328,43 @@ pointers and aggregates are cdata; `_Bool` returns a Lua boolean; `void`
 returns no values.  `ffi.errno` is preserved across the libffi call
 machinery, so the callee's errno can be read afterwards.
 
+### Variadic argument conversions
+
+A variadic call requires at least the fixed parameters of the prototype
+(calling it with fewer is an error), and a prototype with no fixed
+parameter before `...` is rejected (ISO C does not permit it, and libffi
+requires one fixed parameter).  The fixed part uses the declared parameter
+types, including structs by value, enums, `bool` and 64-bit integers.
+Each argument in the `...` part is converted independently:
+
+| Lua value / cdata | Passed to the callee as |
+| --- | --- |
+| Lua integer that fits in `int` | `int` |
+| any other Lua integer | `long long` |
+| Lua float | `double` |
+| Lua string | `const char *` (anchored until the call returns) |
+| Lua boolean | `int` (0 or 1) |
+| `nil` | `void *` NULL |
+| light userdata | `void *` |
+| cdata integer, 4 or 8 bytes | declared signed/unsigned C type |
+| cdata integer smaller than `int` | `int` (C default promotion) |
+| cdata enum | `int` |
+| cdata `bool` | `int` (0 or 1) |
+| cdata `float` | `double` (C default promotion) |
+| cdata `double` | `double` |
+| cdata pointer/function | pointer of its declared type |
+| cdata array | pointer to its first element |
+| cdata struct/union | error: aggregate varargs are not portable |
+| any other value | error: cannot pass as a variadic argument |
+
+The C default argument promotions are applied where the ABI requires them
+(small integers and `float`); libffi additionally rejects unpromoted
+variadic types.  Use `ffi.new`/`ffi.cast` to force an exact integer width.
+The variadic part is not type-checked against the callee's `va_arg` or
+`printf` expectations, so a mismatch is undefined behavior, as in C.
+
 Deliberately unsupported call features:
 
-* **Variadic calls.**  A function declared with `...` can be looked up,
-  but calling it raises a clear error.  Prototypes with `...` are parsed.
 * **Callbacks from C into Lua.**  Passing a Lua function where a function
   pointer is expected is rejected.  A C function pointer (including one
   provided by another C function) can be passed normally.  The test suite
@@ -364,10 +401,17 @@ Deliberately unsupported call features:
 * `ffi.string`, `ffi.copy`, and `ffi.fill` perform stricter bounds checks
   for owned arrays than LuaJIT.
 * Only the metatype metamethods listed above are dispatched.
+* Variadic default conversions differ from LuaJIT in two places.  LuaJIT
+  passes every Lua number as `double`, while LuaR passes an integer Lua
+  number as `int`/`long long` (so `printf("%d", 42)` works) and only a
+  non-integer Lua number as `double`.  LuaJIT also passes struct/union
+  cdata as pointers, while LuaR rejects aggregate varargs with a clear
+  error because passing them by value is not portable.  Use
+  `ffi.new`/`ffi.cast` to force a particular C type.
 * `long double`, bitfields, complex numbers, vectors, packing attributes,
-  preprocessor macros, variadic calls, and C→Lua callbacks are not
-  implemented.  They fail with errors or are documented as unsupported;
-  none are silently emulated.
+  preprocessor macros, and C→Lua callbacks are not implemented.  They fail
+  with errors or are documented as unsupported; none are silently
+  emulated.
 * The implementation is little-endian-load based and has only been tested
   on Linux/x86-64.  It reports ABI facts (`ffi.os`/`ffi.arch`/`ffi.abi`)
   for the host it is built on; other targets need their own testing.
@@ -386,8 +430,8 @@ make WITH_FFI=0 && make test
 The tests are deterministic and use only libc plus a tiny C helper
 (`tests/ffi/helper.c`) that is compiled at test time into the gitignored
 `tests/tmp/` directory.  The helper supplies layout probes, struct-by-value
-entry points, a qsort wrapper with a C comparator, and enum/bool/64-bit
-call probes.  Coverage includes:
+entry points, a qsort wrapper with a C comparator, enum/bool/64-bit call
+probes, and variadic probes.  Coverage includes:
 
 * `ffi.cdef` success and error cases, including offending-token messages;
 * sizes, alignments, and offsets compared against the C compiler's
@@ -404,9 +448,14 @@ call probes.  Coverage includes:
 * libc calls (`strlen`, `strcmp`, `memset`, `memcpy`, `abs`, `labs`,
   `malloc`/`free`, `strerror`, `getpid`, `chdir`, `div`) and `errno`;
 * `ffi.load` (including `"c"`), `ffi.C`, missing declarations, wrong
-  arity, variadic and callback rejection;
+  arity, and callback rejection;
 * struct-by-value arguments and returns, nested structs, pointer fields,
-  qsort via a C comparator, and enum/bool/64-bit call paths.
+  qsort via a C comparator, and enum/bool/64-bit call paths;
+* variadic calls through libc (`snprintf`, `printf`): mixed fixed and
+  variadic arguments, integer widths, floats, runtime-built strings,
+  booleans, `nil`, cdata scalars/pointers/arrays, fixed struct/enum/bool/
+  64-bit arguments, aggregate rejection, two consecutive calls, and
+  `ffi.C`/`ffi.load` parity.
 
 ## Known crash/edge cases
 
@@ -415,4 +464,6 @@ and passing NULL to a C function that does not accept it are unchecked and
 can crash the process.  Such operations are the caller's responsibility.
 Examples to avoid: indexing `ffi.cast("int *", 0)`, calling a C function
 that dereferences a NULL pointer, and freeing memory through `ffi.C.free`
-while another cdata still points into it.
+while another cdata still points into it.  Variadic arguments are likewise
+unchecked: passing a value whose promoted type does not match the callee's
+`va_arg` type or format specifier is undefined behavior.

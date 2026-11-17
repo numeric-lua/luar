@@ -2,8 +2,10 @@
 ** luar_ffi_call.c -- C library namespaces and libffi calls.
 **
 ** ffi.C and ffi.load() resolve symbols with dlopen()/dlsym().  Calls
-** with fixed arguments go through libffi.  Variadic calls, callbacks
-** from C into Lua and by-value unions are deliberately rejected.
+** go through libffi, including variadic prototypes (ffi_prep_cif_var)
+** with the default argument promotions documented in doc/ffi.md.
+** Callbacks from C into Lua and by-value unions are deliberately
+** rejected.
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.
 */
@@ -14,6 +16,7 @@
 #include "lprefix.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,6 +45,9 @@ typedef struct CLibrary {
 static void *libffi_handle = NULL;
 static ffi_status (*libffi_prep_cif_p) (ffi_cif *, ffi_abi, unsigned,
                                         ffi_type *, ffi_type **);
+static ffi_status (*libffi_prep_cif_var_p) (ffi_cif *, ffi_abi, unsigned,
+                                            unsigned, ffi_type *,
+                                            ffi_type **);
 static void (*libffi_call_p) (ffi_cif *, void (*)(void), void *, void **);
 static ffi_status (*libffi_get_struct_offsets_p) (ffi_abi, ffi_type *,
                                                   size_t *);
@@ -53,6 +59,7 @@ static ffi_type *libffi_type_sint64_p, *libffi_type_float_p;
 static ffi_type *libffi_type_double_p, *libffi_type_pointer_p;
 
 #define ffi_prep_cif		(*libffi_prep_cif_p)
+#define ffi_prep_cif_var	(*libffi_prep_cif_var_p)
 #define ffi_call		(*libffi_call_p)
 #define ffi_get_struct_offsets	(*libffi_get_struct_offsets_p)
 #define ffi_type_void		(*libffi_type_void_p)
@@ -105,6 +112,10 @@ void ffi_libffi_init (lua_State *L) {
   libffi_prep_cif_p = (ffi_status (*)(ffi_cif *, ffi_abi, unsigned,
                                       ffi_type *, ffi_type **))
       libffi_sym(L, "ffi_prep_cif");
+  libffi_prep_cif_var_p = (ffi_status (*)(ffi_cif *, ffi_abi, unsigned,
+                                          unsigned, ffi_type *,
+                                          ffi_type **))
+      libffi_sym(L, "ffi_prep_cif_var");
   libffi_call_p = (void (*)(ffi_cif *, void (*)(void), void *, void **))
       libffi_sym(L, "ffi_call");
   libffi_get_struct_offsets_p =
@@ -586,10 +597,162 @@ static void convert_call_arg (lua_State *L, FFIState *S, CType *at,
 }
 
 
+/*
+** Infer the C type of one argument in the variable part of a variadic
+** call, following the promotion rules documented in doc/ffi.md: Lua
+** integers become int when they fit and long long otherwise, Lua floats
+** become double, strings become const char *, booleans become int, nil
+** becomes a NULL void * and cdata scalars are promoted like C default
+** arguments (small integers to int, float to double) or keep their
+** declared 4/8-byte integer or pointer type.  libffi itself rejects
+** smaller integer types and float in the variadic part.
+** The converted value is stored in 'slot' and '*avalue' points at it.
+** Strings are anchored on the Lua stack until the call returns.
+*/
+static ffi_type *convert_vararg (lua_State *L, FFIState *S, int argidx,
+                                 ArgSlot *slot, void **avalue,
+                                 FTAlloc **allocs) {
+  int t = lua_type(L, argidx);
+  memset(slot, 0, sizeof(*slot));
+  switch (t) {
+    case LUA_TNUMBER:
+      if (lua_isinteger(L, argidx)) {
+        lua_Integer v = lua_tointeger(L, argidx);
+        if (v >= (lua_Integer)INT_MIN && v <= (lua_Integer)INT_MAX) {
+          int32_t iv = (int32_t)v;
+          memcpy(slot->bytes, &iv, sizeof(iv));
+          *avalue = slot;
+          return &ffi_type_sint32;
+        }
+        else {
+          int64_t lv = (int64_t)v;
+          memcpy(slot->bytes, &lv, sizeof(lv));
+          *avalue = slot;
+          return &ffi_type_sint64;
+        }
+      }
+      else {
+        double d = (double)lua_tonumber(L, argidx);
+        memcpy(slot->bytes, &d, sizeof(d));
+        *avalue = slot;
+        return &ffi_type_double;
+      }
+    case LUA_TSTRING: {
+      const char *s = lua_tolstring(L, argidx, NULL);
+      slot->p = (void *)s;
+      lua_pushvalue(L, argidx);	/* anchor until the call returns */
+      *avalue = slot;
+      return &ffi_type_pointer;
+    }
+    case LUA_TBOOLEAN: {
+      int32_t iv = lua_toboolean(L, argidx) ? 1 : 0;
+      memcpy(slot->bytes, &iv, sizeof(iv));
+      *avalue = slot;
+      return &ffi_type_sint32;
+    }
+    case LUA_TNIL:
+      slot->p = NULL;
+      *avalue = slot;
+      return &ffi_type_pointer;
+    case LUA_TLIGHTUSERDATA:
+      slot->p = lua_touserdata(L, argidx);
+      *avalue = slot;
+      return &ffi_type_pointer;
+    case LUA_TUSERDATA: {
+      CData *cd = ffi_tocdata(L, argidx);
+      CType *ct;
+      if (cd == NULL)
+        luaL_error(L, "ffi: cannot pass userdata as a variadic argument");
+      if ((cd->flags & CDATA_CTYPE) != 0)
+        luaL_error(L, "ffi: cannot pass a C type object as a variadic "
+                      "argument");
+      ct = cd->ct;
+      switch (ct->kind) {
+        case CT_STRUCT:
+        case CT_UNION:
+          luaL_error(L, "ffi: cannot pass %s '%s' as a variadic argument "
+                        "(aggregate varargs are not portable)",
+                     ct->kind == CT_STRUCT ? "struct" : "union",
+                     ffi_type_repr(S, ct));
+          return NULL;
+        case CT_ARRAY:
+          slot->p = cd->v.p;	/* arrays decay to a pointer */
+          *avalue = slot;
+          return &ffi_type_pointer;
+        case CT_INT: {
+          size_t sz = ct->size;
+          void *p = cdata_value_addr(cd);
+          if (sz < sizeof(int)) {
+            /* C default argument promotion: int8/uint8/int16/uint16
+            ** are passed as int. */
+            int32_t iv = ct->is_unsigned
+                ? (int32_t)ffi_load_uint(p, sz)
+                : (int32_t)ffi_load_int(p, sz);
+            memcpy(slot->bytes, &iv, sizeof(iv));
+            *avalue = slot;
+            return &ffi_type_sint32;
+          }
+          if (sz == 0 || sz > sizeof(slot->bytes))
+            luaL_error(L, "ffi: unsupported variadic argument type '%s'",
+                       ffi_type_repr(S, ct));
+          memcpy(slot->bytes, p, sz);
+          *avalue = slot;
+          return build_ffi_type(L, S, ct, allocs);
+        }
+        case CT_ENUM: {
+          int32_t iv = (int32_t)ffi_load_int(cdata_value_addr(cd),
+                                             ct->size);
+          memcpy(slot->bytes, &iv, sizeof(iv));
+          *avalue = slot;
+          return &ffi_type_sint32;
+        }
+        case CT_BOOL: {
+          int32_t iv = ffi_load_uint(cdata_value_addr(cd), ct->size) ? 1 : 0;
+          memcpy(slot->bytes, &iv, sizeof(iv));
+          *avalue = slot;
+          return &ffi_type_sint32;
+        }
+        case CT_FLOAT: {
+          void *p = cdata_value_addr(cd);
+          double d;
+          if (ct->size == 4) {
+            float f;
+            memcpy(&f, p, sizeof(f));
+            d = (double)f;
+          }
+          else if (ct->size == 8)
+            memcpy(&d, p, sizeof(d));
+          else
+            luaL_error(L, "ffi: unsupported variadic argument type '%s'",
+                       ffi_type_repr(S, ct));
+          memcpy(slot->bytes, &d, sizeof(d));
+          *avalue = slot;
+          return &ffi_type_double;
+        }
+        case CT_POINTER:
+        case CT_FUNC:
+          slot->p = cd->v.p;
+          *avalue = slot;
+          return &ffi_type_pointer;
+        default:
+          luaL_error(L, "ffi: cannot pass '%s' as a variadic argument",
+                     ffi_type_repr(S, ct));
+          return NULL;
+      }
+    }
+    default:
+      luaL_error(L, "ffi: cannot pass %s as a variadic argument",
+                 luaL_typename(L, argidx));
+      return NULL;
+  }
+}
+
+
 int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   CType *ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
   int nargs;
   int provided;
+  int ntotal;
   int i;
   ffi_cif cif;
   ffi_type **atypes = NULL;
@@ -602,20 +765,29 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   ArgSlot retslot;
   CData *retcd = NULL;
 
-  if (ft->vararg)
-    luaL_error(L, "ffi: cannot call variadic C function '%s' "
-                  "(varargs are not supported)",
-               ffi_type_repr(S, ft));
   nargs = (int)ft->nargs;
   provided = lua_gettop(L) - argstart + 1;
-  if (provided != nargs)
+  if (ft->vararg) {
+    if (nargs == 0)
+      luaL_error(L, "ffi: cannot call variadic C function '%s' without "
+                    "a fixed parameter", ffi_type_repr(S, ft));
+    if (provided < nargs)
+      luaL_error(L, "ffi: wrong number of arguments for '%s' "
+                    "(expected at least %d, got %d)",
+                 ffi_type_repr(S, ft), nargs, provided);
+  }
+  else if (provided != nargs)
     luaL_error(L, "ffi: wrong number of arguments for '%s' "
                   "(expected %d, got %d)",
                ffi_type_repr(S, ft), nargs, provided);
+  ntotal = provided;
 
-  atypes = (ffi_type **)malloc(sizeof(ffi_type *) * (size_t)(nargs > 0 ? nargs : 1));
-  slots = (ArgSlot *)malloc(sizeof(ArgSlot) * (size_t)(nargs > 0 ? nargs : 1));
-  avalue = (void **)malloc(sizeof(void *) * (size_t)(nargs > 0 ? nargs : 1));
+  atypes = (ffi_type **)malloc(sizeof(ffi_type *) *
+                                (size_t)(ntotal > 0 ? ntotal : 1));
+  slots = (ArgSlot *)malloc(sizeof(ArgSlot) *
+                            (size_t)(ntotal > 0 ? ntotal : 1));
+  avalue = (void **)malloc(sizeof(void *) *
+                           (size_t)(ntotal > 0 ? ntotal : 1));
   if (atypes == NULL || slots == NULL || avalue == NULL) {
     free(atypes); free(slots); free(avalue);
     luaL_error(L, "ffi: out of memory while preparing a call");
@@ -634,14 +806,22 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
     else
       atypes[i] = build_ffi_type(L, S, at, &allocs);
   }
+  for (i = nargs; i < ntotal; i++)
+    atypes[i] = convert_vararg(L, S, argstart + i, &slots[i], &avalue[i],
+                               &allocs);
   rt = ft->ret;
   rtype = build_ffi_type(L, S, rt, &allocs);
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)nargs, rtype,
-                   atypes) != FFI_OK) {
-    ft_free_all(allocs);
-    free(atypes); free(slots); free(avalue);
-    luaL_error(L, "ffi: libffi cannot prepare a call to '%s'",
-               ffi_type_repr(S, ft));
+  {
+    ffi_status st = ft->vararg
+      ? ffi_prep_cif_var(&cif, FFI_DEFAULT_ABI, (unsigned)nargs,
+                         (unsigned)ntotal, rtype, atypes)
+      : ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)ntotal, rtype, atypes);
+    if (st != FFI_OK) {
+      ft_free_all(allocs);
+      free(atypes); free(slots); free(avalue);
+      luaL_error(L, "ffi: libffi cannot prepare a call to '%s'",
+                 ffi_type_repr(S, ft));
+    }
   }
 
   retkind = rt->kind;

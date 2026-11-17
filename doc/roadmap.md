@@ -29,20 +29,20 @@ Scope: `ffi.cdef` (typedef/struct/union/enum/pointer/array/function types),
 ctype introspection (`typeof`, `istype`, `sizeof`, `alignof`, `offsetof`),
 cdata allocation and access (`new`, `cast`, field/array access, pointer
 arithmetic, int64/uint64), `string`/`copy`/`fill`/`gc`/`metatype`, `ffi.C`
-and `ffi.load` with fixed-argument calls through libffi, `ffi.errno`.
+and `ffi.load` with fixed and variadic calls through libffi, `ffi.errno`.
 
 Status: this scope is implemented and covered by `tests/ffi/` (including a
-`qsort` call with a C comparator and struct-by-value arguments/returns)
-behind `WITH_FFI=1`.  What remains before the milestone closes: cdata
-bitwise/shift operators, automated ASan/UBSan coverage, the varargs/callback/bitfield decisions, and testing on
-non-x86-64 hosts.
+`qsort` call with a C comparator, struct-by-value arguments/returns and
+variadic calls) behind `WITH_FFI=1`.  What remains before the milestone
+closes: cdata bitwise/shift operators, automated ASan/UBSan coverage, the
+callback/bitfield decisions, and testing on non-x86-64 hosts.
 
 Exit criteria:
 
 * A pure-FFI program that allocates structs, passes pointers to libc and
   calls `qsort`-style APIs runs correctly under `make WITH_FFI=1`.
 * No crashes under the ffi test suite with ASan/UBSan (`make test-asan`).
-* Documented limitations: no varargs, bitfields, preprocessor, callbacks.
+* Documented limitations: no bitfields, preprocessor, callbacks.
 * `make WITH_FFI=0` remains green.
 
 Estimated: 2–4 weeks.

@@ -93,8 +93,9 @@ arrays, function types, extern variables),
 VLAs, structs/unions; table, string and positional initializers), `cast`,
 `string`, `copy`, `fill`, `gc` (Lua or C finalizer), `metatype`, `C`,
 `load`, `errno`, `abi`, `os`, `arch`, `NULL`, field/array access, pointer
-arithmetic, int64/uint64 wrap-around, comparisons with numbers/nil, and
-struct-by-value arguments and returns.
+arithmetic, int64/uint64 wrap-around, comparisons with numbers/nil,
+struct-by-value arguments and returns, and variadic calls with documented
+default argument promotions.
 
 Deliberate deviations, all documented:
 
@@ -108,8 +109,8 @@ Deliberate deviations, all documented:
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
 Not supported: C preprocessor, bitfields, `long double`/complex/vector
-types, packing attributes, variadic calls, C→Lua callbacks
-(`ffi.callback`), and `ffi.typeinfo`.
+types, packing attributes, C→Lua callbacks (`ffi.callback`), and
+`ffi.typeinfo`.
 
 ### 3.4 Other LuaJIT libraries
 
