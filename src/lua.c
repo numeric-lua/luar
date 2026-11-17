@@ -9,6 +9,7 @@
 #include "lprefix.h"
 
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,6 +103,7 @@ static void print_usage (const char *badoption) {
   "  -l mod    require library 'mod' into global 'mod'\n"
   "  -l g=mod  require library 'mod' into global 'g'\n"
   "  -j cmd    LuaJIT-compatible JIT control (on|off|flush|opt=...|v)\n"
+  "  -b in out compile 'in' to bytecode 'out' (LuaJIT-compatible)\n"
   "  -v        show version information\n"
   "  -E        ignore environment variables\n"
   "  -W        turn warnings on\n"
@@ -213,6 +215,75 @@ static int dofile (lua_State *L, const char *name) {
 }
 
 
+/* ---------------------------------------------------------------- */
+/* -b: bytecode compilation (LuaJIT command line compatibility)      */
+/* ---------------------------------------------------------------- */
+
+typedef struct DumpData {
+  FILE *f;
+  int error;
+} DumpData;
+
+
+static int dumpwriter (lua_State *L, const void *p, size_t sz, void *ud) {
+  DumpData *d = (DumpData *)ud;
+  UNUSED(L);
+  if (sz == 0) return 0;   /* 5.5 signals EOF with an empty write */
+  if (d->error) return 1;
+  if (fwrite(p, 1, sz, d->f) != sz) {
+    d->error = 1;
+    return 1;
+  }
+  return 0;
+}
+
+
+static int dobytecode (lua_State *L, char **argv) {
+  const char *opts = argv[0] + 2;
+  int strip = (strchr(opts, 's') != NULL);
+  int i = 1;
+  const char *input, *output;
+  int status;
+  FILE *f;
+  DumpData d;
+  if (strchr(opts, 'l') != NULL)
+    return luaL_error(L, "-b listing is not supported; use 'luarc -l' instead");
+  if (strchr(opts, 'g') != NULL) strip = 0;
+  /* LuaJIT also accepts the flags as separate arguments (-b -s in out). */
+  while (argv[i] != NULL && argv[i][0] == '-' && argv[i][2] == '\0') {
+    switch (argv[i][1]) {
+      case 's': strip = 1; break;
+      case 'g': strip = 0; break;
+      case 'l': return luaL_error(L, "-b listing is not supported; "
+                                     "use 'luarc -l' instead");
+      default: return luaL_error(L, "unknown -b option '%s'", argv[i]);
+    }
+    i++;
+  }
+  input = argv[i];
+  output = argv[i + 1];
+  if (input == NULL)
+    return luaL_error(L, "-b needs an input file");
+  if (output == NULL)
+    return luaL_error(L, "-b needs an output file");
+  status = luaL_loadfilex(L, input, "bt");
+  if (status != LUA_OK) {
+    report(L, status);
+    return 0;
+  }
+  f = fopen(output, "wb");
+  if (f == NULL)
+    return luaL_error(L, "cannot open '%s': %s", output, strerror(errno));
+  d.f = f;
+  d.error = 0;
+  status = lua_dump(L, dumpwriter, &d, strip);
+  if (fclose(f) != 0) d.error = 1;
+  if (status != LUA_OK || d.error)
+    return luaL_error(L, "cannot write '%s'", output);
+  return 1;
+}
+
+
 static int dostring (lua_State *L, const char *s, const char *name) {
   return dochunk(L, luaL_loadbufferx(L, s, strlen(s), name, "t"));
 }
@@ -283,6 +354,7 @@ static int handle_script (lua_State *L, char **argv) {
 #define has_v		4	/* -v */
 #define has_e		8	/* -e */
 #define has_E		16	/* -E */
+#define has_b		32	/* -b: bytecode mode, stops option parsing */
 
 
 /*
@@ -321,6 +393,9 @@ static int collectargs (char **argv, int *first) {
           return has_error;  /* invalid option */
         args |= has_E;
         break;
+      case 'b':  /* bytecode mode: the remaining arguments are file names */
+        *first = i;
+        return args | has_b;
       case 'W':
         if (argv[i][2] != '\0')  /* extra characters? */
           return has_error;  /* invalid option */
@@ -791,6 +866,11 @@ static int pmain (lua_State *L) {
   if (args == has_error) {  /* bad arg? */
     print_usage(argv[script]);  /* 'script' has index of bad arg. */
     return 0;
+  }
+  if (args & has_b) {  /* bytecode compilation mode? */
+    int ok = dobytecode(L, argv + script);
+    lua_pushboolean(L, ok);
+    return 1;
   }
   if (args & has_v)  /* option '-v'? */
     print_version();

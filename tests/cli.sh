@@ -66,6 +66,33 @@ out=$("$LUAR" -e "print(dofile('$TMP/prog.luac'))")
 [ "$out" = "42" ] || fail "bytecode roundtrip: $out"
 ok "luarc bytecode"
 
+# -- luar -b (LuaJIT CLI compatibility) -----------------------------------
+"$LUAR" -b "$TMP/cross.lua" "$TMP/cross-b.luac" || fail "luar -b"
+out=$("$LUAR" "$TMP/cross-b.luac")
+[ "$out" = "1,4,9,16,25" ] || fail "luar -b output: $out"
+"$LUAR" -b -s "$TMP/cross.lua" "$TMP/cross-bs.luac" || fail "luar -b -s"
+out=$("$LUAR" "$TMP/cross-bs.luac")
+[ "$out" = "1,4,9,16,25" ] || fail "luar -b -s output: $out"
+ok "luar -b"
+
+# -- cross-interpreter bytecode compatibility ------------------------------
+cat > "$TMP/cross.lua" <<'LUAEOF'
+local t = {}
+for i = 1, 5 do t[i] = i * i end
+print(table.concat(t, ","))
+LUAEOF
+"$LUARC" -o "$TMP/cross-luar.luac" "$TMP/cross.lua"
+if command -v lua >/dev/null 2>&1; then
+  out=$(lua "$TMP/cross-luar.luac")
+  [ "$out" = "1,4,9,16,25" ] || fail "luarc output on stock lua: $out"
+fi
+if command -v luac >/dev/null 2>&1; then
+  luac -o "$TMP/cross-stock.luac" "$TMP/cross.lua"
+  out=$("$LUAR" "$TMP/cross-stock.luac")
+  [ "$out" = "1,4,9,16,25" ] || fail "stock luac output on luar: $out"
+fi
+ok "bytecode is interchangeable with Lua 5.5.1"
+
 # -- LUAR_INIT precedence --------------------------------------------------
 out=$(LUAR_INIT='print("luar-init")' LUA_INIT='print("lua-init")' "$LUAR" -e '')
 [ "$out" = "luar-init" ] || fail "LUAR_INIT not honoured: $out"

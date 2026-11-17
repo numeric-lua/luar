@@ -22,6 +22,20 @@ libraries.
 The options are the same as for
 .BR lua (1):
 .BR \-e " stat, " \-i ", " \-l " mod, " \-v ", " \-E ", " \-W ", " \-\- " and " \- .
+.PP
+LuaJIT-compatible additions:
+.TP
+.BR \-b " [\-s] input output"
+Compile
+.I input
+to precompiled bytecode in
+.IR output .
+With
+.BR \-s ,
+strip debug information.
+.TP
+.BR \-j " cmd"
+JIT control: on, off, flush, opt=..., or v (print the engine version).
 .SH ENVIRONMENT
 .TP
 .B LUAR_INIT
