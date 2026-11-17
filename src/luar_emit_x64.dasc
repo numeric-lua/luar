@@ -1114,8 +1114,96 @@ static void emit_fast_sub (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  int kind = d->fr_kind, k = d->fr_k;
+  | push rbx
+  | mov rbx, rdi
+  | push r13
+  | push r14
+  | push r15
+  | mov r13, qword [rbx + ((int)LUAR_SLOT(d->fr_idx))]
+  | mov r15, qword [rbx + ((int)LUAR_SLOT(d->fr_acc))]
+  if (d->fr_limit != 0xFF) {
+    | mov r14, qword [rbx + ((int)LUAR_SLOT(d->fr_limit))]
+  }
+  else {
+    | mov64 r14, d->fr_immediate
+  }
+  emit_guards(Dst, d);
+  |1:
+  | add r13, d->fr_step
+  | add r15, r13
+  if (d->fr_idx_left) {
+    | cmp r13, r14
+  }
+  else {
+    | cmp r14, r13
+  }
+  if (kind == LUAR_OP_LT) {
+    if (k) {
+      | jl <1
+    }
+    else {
+      | jge <1
+    }
+  }
+  else if (kind == LUAR_OP_LE) {
+    if (k) {
+      | jle <1
+    }
+    else {
+      | jg <1
+    }
+  }
+  else if (kind == LUAR_OP_GT) {
+    if (k) {
+      | jg <1
+    }
+    else {
+      | jle <1
+    }
+  }
+  else if (kind == LUAR_OP_GE) {
+    if (k) {
+      | jge <1
+    }
+    else {
+      | jl <1
+    }
+  }
+  else {
+    if (k) {
+      | je <1
+    }
+    else {
+      | jne <1
+    }
+  }
+  | mov qword [rbx + ((int)LUAR_SLOT(d->fr_idx))], r13
+  | mov qword [rbx + ((int)LUAR_SLOT(d->fr_acc))], r15
+  | mov eax, 1
+  | pop r15
+  | pop r14
+  | pop r13
+  | pop rbx
+  | ret
+  |3:
+  |2:
+  | xor eax, eax
+  | pop r15
+  | pop r14
+  | pop r13
+  | pop rbx
+  | ret
+}
+
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
+  if (d->fast_repeat) {
+    emit_fast_repeat(Dst, d);
+    return;
+  }
   if (d->fast_sub) {
     emit_fast_sub(Dst, d);
     return;

@@ -28,8 +28,9 @@ is provably observationally equivalent to that interpreter.
   operands; an early J3 experiment (opt-in `jit.opt.start("table=1")`)
   compiles a leading integer array lookup/store, the accumulating ADD and
   register-cached fill/sum loops.
-  Conditional backedges from `repeat ... until` are recorded and compiled;
-  other backward inner loops still fall back.  A `Proto` keeps the first compiled
+  Conditional backedges from `repeat ... until` are recorded and compiled,
+  with a register-cached prefix-sum fast path; other backward inner loops
+  still fall back.  A `Proto` keeps the first compiled
   loop and the most recently compiled one (two slots); a 64-bit bloom of
   hot backedges prevents retrying rejected loops.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.

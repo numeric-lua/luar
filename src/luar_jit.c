@@ -885,6 +885,58 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
        ops[d.nops - 1].kind == LUAR_OP_GE ||
        ops[d.nops - 1].kind == LUAR_OP_EQ))
     d.repeat = 1;
+  if (d.repeat && d.nops >= 3) {
+    LuaR_Op *cmp = &ops[d.nops - 1];
+    LuaR_Op *addi = NULL, *add = NULL;
+    int idx = -1, acc = -1, limit = -1, imm = 0, left;
+    for (i = 0; i < d.nops - 1; i++) {
+      LuaR_Op *op = &ops[i];
+      if (op->kind == LUAR_OP_ADDI && addi == NULL &&
+          op->a == op->b && op->ta == LUAR_T_INT) {
+        addi = op;
+        idx = op->a;
+      }
+      else if (op->kind == LUAR_OP_ADD && add == NULL &&
+               op->a == op->b && op->ta == LUAR_T_INT) {
+        add = op;
+      }
+    }
+    if (addi != NULL && add != NULL && add->c == idx && idx >= 0) {
+      acc = add->a;
+      if (cmp->a == idx && cmp->b != idx) {
+        left = 1;
+        if (cmp->b == 0xFF) imm = 1;
+        else limit = cmp->b;
+      }
+      else if (cmp->b == idx) {
+        left = 0;
+        if (cmp->a == 0xFF) imm = 1;
+        else limit = cmp->a;
+      }
+      else {
+        acc = -1;
+        left = 0;
+      }
+      if (acc >= 0 && !is_control_reg(acc, -1)) {
+        memset(seen, 0, sizeof(seen));
+        d.nguards = 0;
+        add_guard(&d, seen, acc, LUAR_T_INT);
+        add_guard(&d, seen, idx, LUAR_T_INT);
+        if (limit >= 0)
+          add_guard(&d, seen, limit, LUAR_T_INT);
+        d.fast_repeat = 1;
+        d.fr_acc = acc;
+        d.fr_idx = idx;
+        d.fr_limit = limit >= 0 ? limit : 0xFF;
+        d.fr_imm = imm;
+        d.fr_immediate = imm ? cmp->imm : 0;
+        d.fr_step = (int)addi->imm;
+        d.fr_kind = cmp->kind;
+        d.fr_k = cmp->k;
+        d.fr_idx_left = left;
+      }
+    }
+  }
   fn = luari_emit_build(&d, &size);
   if (fn == NULL)
     return 0;
