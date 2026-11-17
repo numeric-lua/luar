@@ -8,14 +8,21 @@ end
 
 local function same (name, f, ...)
   local args = table.pack(...)
-  jit.off()
-  local want = f(table.unpack(args, 1, args.n))
   jit.flush()
   jit.on()
-  local got = f(table.unpack(args, 1, args.n))
-  if got ~= want and not (got ~= got and want ~= want) then
-    error(string.format("%s: jit %s ~= interpreter %s", name,
-                        tostring(got), tostring(want)), 2)
+  local got = table.pack(f(table.unpack(args, 1, args.n)))
+  jit.off()
+  local want = table.pack(f(table.unpack(args, 1, args.n)))
+  jit.on()
+  if got.n ~= want.n then
+    error(string.format("%s: result count %d ~= %d", name, got.n, want.n), 2)
+  end
+  for i = 1, got.n do
+    local a, b = got[i], want[i]
+    if a ~= b and not (a ~= a and b ~= b) then
+      error(string.format("%s[%d]: jit %s ~= interpreter %s", name, i,
+                          tostring(a), tostring(b)), 2)
+    end
   end
 end
 
@@ -183,6 +190,47 @@ same("if ne", function ()
   local s = 0
   for i = 1, 5000 do if i ~= 5000 then s = s + 1 end end
   return s
+end)
+
+same("nan lt", function ()
+  local x = 0 / 0
+  local c = 0
+  for i = 1, 100 do if x < 1 then c = c + 1 end end
+  return c
+end)
+
+same("nan eq", function ()
+  local x = 0 / 0
+  local c = 0
+  for i = 1, 100 do if x == x then c = c + 1 end end
+  return c
+end)
+
+same("float if", function ()
+  local s = 0.0
+  for i = 1, 5000 do if i * 0.5 < 1000 then s = s + i * 0.25 end end
+  return s
+end)
+
+same("while float", function ()
+  local x = 0.0
+  local n = 0
+  while x < 100.0 do x = x + 0.1; n = n + 1 end
+  return x, n
+end)
+
+same("float eqk", function ()
+  local x = 0.0
+  local c = 0
+  for i = 1, 5000 do if x == 1.5 then c = c + 1 end; x = x + 0.5 end
+  return c
+end)
+
+same("nan ne", function ()
+  local x = 0 / 0
+  local c = 0
+  for i = 1, 100 do if x ~= x then c = c + 1 end end
+  return c
 end)
 
 same("break", function ()

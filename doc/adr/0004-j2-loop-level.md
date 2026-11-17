@@ -29,10 +29,10 @@ whitelisted body with DynASM and runs the *remaining* iterations natively:
   stops using it, and state close frees it.
 
 The whitelist is numeric only: MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV,
-the K variants, MMBIN, and integer comparisons with forward `JMP` branches
+the K variants, MMBIN, and numeric comparisons with forward `JMP` branches
 (an `if`/`else` whose targets stay inside the loop).  Both `for` loops and
-simple `while` loops (ending in a backward JMP) are eligible.  No calls,
-tables, strings, closures, float comparisons or backward inner loops.
+simple `while` loops (ending in an unconditional backward JMP) are
+eligible.  No calls, tables, strings, closures or backward inner loops.
 
 ## Consequences
 

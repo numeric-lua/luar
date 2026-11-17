@@ -47,6 +47,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J2 `while` support: simple integer-conditioned `while` loops (body without
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
+- J2 float/double comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`, including
+  NaN-false semantics) work in native `if` branches and `while` conditions.
 - J2 branch support: integer comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`)
   and forward `if`/`else` jumps inside a whitelisted loop body are emitted as
   guarded native branches; float comparisons and backward inner loops fall

@@ -13,7 +13,7 @@ is provably observationally equivalent to that interpreter.
 - **J2 partially implemented (x86-64 only).**  This is a loop-level native
   continuation rather than a general trace: when an integer-controlled
   `for` loop becomes hot, the whitelisted body (numeric MOVE/LOADI/LOADF/
-  LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, `MMBIN`, integer comparisons
+  LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, `MMBIN`, numeric comparisons
   and forward `JMP` branches) is emitted with DynASM for `for` and simple
   `while` loops.  Entry tag guards check every register read initially; the native
   code runs the remaining iterations on the Lua stack slots and returns to
@@ -23,8 +23,8 @@ is provably observationally equivalent to that interpreter.
 - **Deviations from this design.**  There is no general trace recorder, no
   exit stub/side-exit chain, no safepoint or GC barrier machinery (the
   compiled loop cannot allocate, call, or raise), no table/string/closure
-  operations, and only integer comparisons/forward branches are compiled
-  (float conditions and backward inner loops fall back).  There is one compiled loop per
+  operations; comparisons/forward branches are compiled for int and double
+  operands (backward inner loops still fall back).  There is one compiled loop per
   `Proto` (the latest); the code cache is capped at 64 mappings and released
   by `jit.flush`/state close.
 - **Gate status.**  `numeric/int_sum` is ~6x faster than the interpreter

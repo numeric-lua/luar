@@ -191,6 +191,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       ptrdiff_t j = i + 1, tgt;
       int aa = GETARG_A(ins), bb = -1, kk = GETARG_k(ins);
       int64_t imm = 0;
+      double cnum = 0.0;
+      int at, bt = LUAR_T_INT;
       LuaR_OpKind ck;
       if (j >= n - 1) return 0;
       jins = p->code[start + j];
@@ -204,9 +206,17 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           TValue *kkv;
           if (idx < 0 || idx >= p->sizek) return 0;
           kkv = &p->k[idx];
-          if (!ttisinteger(kkv)) return 0;
           ck = LUAR_OP_EQ;
-          imm = (int64_t)ivalue(kkv);
+          if (ttisinteger(kkv)) {
+            imm = (int64_t)ivalue(kkv);
+            bt = LUAR_T_INT;
+          }
+          else if (ttisfloat(kkv)) {
+            cnum = (double)fltvalue(kkv);
+            bt = LUAR_T_FLOAT;
+          }
+          else
+            return 0;
           break;
         }
         case OP_EQI: ck = LUAR_OP_EQ; imm = GETARG_sB(ins); break;
@@ -216,8 +226,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         case OP_GEI: ck = LUAR_OP_GE; imm = GETARG_sB(ins); break;
         default: return 0;
       }
-      if (slot_type(b, cur, def, aa) != LUAR_T_INT) return 0;
-      if (bb >= 0 && slot_type(b, cur, def, bb) != LUAR_T_INT) return 0;
+      at = slot_type(b, cur, def, aa);
+      if (at == 0) return 0;
+      if (bb >= 0) {
+        bt = slot_type(b, cur, def, bb);
+        if (bt == 0) return 0;
+      }
       tgt = (start + j) + 1 + GETARG_sJ(jins);
       if (tgt < start || tgt == start + j ||
           (tgt <= start + i && tgt != start))
@@ -229,7 +243,10 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       op->kind = ck;
       op->a = (uint8_t)aa;
       op->b = (uint8_t)bb;
+      op->ta = (uint8_t)at;
+      op->tb = (uint8_t)bt;
       op->imm = imm;
+      op->num = cnum;
       op->k = (uint8_t)(kk != 0);
       op->target = (int32_t)(tgt - start);
       memset(&ops[j], 0, sizeof(ops[j]));
@@ -407,39 +424,41 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
   }
   if (has_branch) {
-    /* Only integer loops: every value written must stay an integer, and
-    ** every register read gets an entry guard (a skipped write must not be
-    ** mistaken for a value that exists on all paths). */
+    /* Numeric branch loops: guard every register read with the flavour the
+    ** emitted code expects (a skipped write must not be mistaken for a
+    ** value that exists on all paths). */
     memset(seen, 0, sizeof(seen));
     d.nguards = 0;
     for (i = 0; i < n - 1; i++) {
       LuaR_Op *op = &ops[i];
-      if (op->kind == LUAR_OP_LOADF || op->kind == LUAR_OP_DIV ||
-          op->kind == LUAR_OP_DIVK) {
-        return 0;
-      }
-      if (op->ta == LUAR_T_FLOAT || op->tb == LUAR_T_FLOAT ||
-          op->tc == LUAR_T_FLOAT)
-        return 0;
       switch (op->kind) {
-        case LUAR_OP_MOVE: add_guard(&d, seen, op->b, LUAR_T_INT); break;
+        case LUAR_OP_MOVE:
+          add_guard(&d, seen, op->b, op->tb);
+          break;
         case LUAR_OP_ADD:
         case LUAR_OP_SUB:
         case LUAR_OP_MUL:
-          add_guard(&d, seen, op->b, LUAR_T_INT);
-          add_guard(&d, seen, op->c, LUAR_T_INT);
+        case LUAR_OP_DIV:
+          add_guard(&d, seen, op->b, op->tb);
+          add_guard(&d, seen, op->c, op->tc);
           break;
         case LUAR_OP_ADDI:
           add_guard(&d, seen, op->b, LUAR_T_INT);
+          break;
+        case LUAR_OP_ADDK:
+        case LUAR_OP_SUBK:
+        case LUAR_OP_MULK:
+        case LUAR_OP_DIVK:
+          add_guard(&d, seen, op->b, op->tb);
           break;
         case LUAR_OP_LT:
         case LUAR_OP_LE:
         case LUAR_OP_GT:
         case LUAR_OP_GE:
         case LUAR_OP_EQ:
-          add_guard(&d, seen, op->a, LUAR_T_INT);
+          add_guard(&d, seen, op->a, op->ta);
           if (op->b != 0xFF)
-            add_guard(&d, seen, op->b, LUAR_T_INT);
+            add_guard(&d, seen, op->b, op->tb);
           break;
         default: break;
       }
