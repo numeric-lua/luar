@@ -52,10 +52,29 @@ struct PpComment { int v; };
 ]]
 H.eq(ffi.sizeof("struct PpComment"), 4)
 
+-- function-like macros substitute parameters and expand nested calls
+ffi.cdef[[
+#define LUAR_PP_FIELD(T, N) T b[N]
+#define LUAR_PP_ADD(a, b) ((a) + (b))
+#define LUAR_PP_WRAP(x) x
+struct PpFn { LUAR_PP_FIELD(int, 4); };
+enum { LUAR_PP_SUM = LUAR_PP_WRAP(LUAR_PP_ADD(2, 3)) };
+]]
+H.eq(ffi.sizeof("struct PpFn"), 16)
+H.eq(ffi.C.LUAR_PP_SUM, 5)
+ffi.cdef[[
+#define LUAR_PP_PAREN(a, b) ((a) + (b))
+enum { LUAR_PP_PAR = LUAR_PP_PAREN((1 + 2), 4) };
+]]
+H.eq(ffi.C.LUAR_PP_PAR, 7)
+
 -- unsupported forms fail clearly
 H.raises(function ()
-  return ffi.cdef("#define LUAR_PP_FN(x) (x)")
-end, "not supported")
+  return ffi.cdef("#define LUAR_PP_VAR(...) 1")
+end, "variadic")
+H.raises(function ()
+  return ffi.cdef("#define LUAR_PP_STR(x) #x")
+end, "stringification")
 H.raises(function ()
   return ffi.cdef("#include <stdio.h>")
 end, "unsupported preprocessor")

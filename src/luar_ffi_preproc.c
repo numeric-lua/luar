@@ -27,6 +27,9 @@ typedef struct Macro {
   struct Macro *next;
   char *name;
   char *body;
+  char **params;
+  int nparams;
+  int is_func;
 } Macro;
 
 #define MAX_MACRO_DEPTH 16
@@ -77,25 +80,66 @@ static Macro *macro_find (FFIState *S, const char *name, size_t n) {
   return NULL;
 }
 
+static void macro_init (lua_State *L, FFIState *S, Macro *m,
+                        const char *name, size_t n,
+                        const char *body, size_t blen) {
+  m->name = (char *)ffi_alloc(S, n + 1);
+  memcpy(m->name, name, n);
+  m->name[n] = '\0';
+  m->body = (char *)ffi_alloc(S, blen + 1);
+  memcpy(m->body, body, blen);
+  m->body[blen] = '\0';
+  m->params = NULL;
+  m->nparams = 0;
+  m->is_func = 0;
+  (void)L;
+}
+
 static void macro_set (lua_State *L, FFIState *S, const char *name, size_t n,
                        const char *body, size_t blen) {
   Macro *m = macro_find(S, name, n);
-  char *copy = (char *)ffi_alloc(S, blen + 1);
-  memcpy(copy, body, blen);
-  copy[blen] = '\0';
   if (m == NULL) {
     m = (Macro *)ffi_alloc(S, sizeof(Macro));
-    m->name = (char *)ffi_alloc(S, n + 1);
-    memcpy(m->name, name, n);
-    m->name[n] = '\0';
-    m->body = copy;
+    macro_init(L, S, m, name, n, body, blen);
     m->next = (Macro *)S->macros;
     S->macros = m;
   }
   else {
-    m->body = copy;
+    m->body = (char *)ffi_alloc(S, blen + 1);
+    memcpy(m->body, body, blen);
+    m->body[blen] = '\0';
+    m->is_func = 0;
+    m->nparams = 0;
   }
-  (void)L;
+}
+
+static void macro_set_func (lua_State *L, FFIState *S, const char *name,
+                            size_t n, char **params, int nparams,
+                            const char *body, size_t blen) {
+  Macro *m = macro_find(S, name, n);
+  if (m == NULL) {
+    m = (Macro *)ffi_alloc(S, sizeof(Macro));
+    macro_init(L, S, m, name, n, body, blen);
+    m->next = (Macro *)S->macros;
+    S->macros = m;
+  }
+  else {
+    m->body = (char *)ffi_alloc(S, blen + 1);
+    memcpy(m->body, body, blen);
+    m->body[blen] = '\0';
+  }
+  {
+    char **pcopy = NULL;
+    int i;
+    if (nparams > 0) {
+      pcopy = (char **)ffi_alloc(S, sizeof(char *) * (size_t)nparams);
+      for (i = 0; i < nparams; i++)
+        pcopy[i] = ffi_strdup(S, params[i]);
+    }
+    m->params = pcopy;
+  }
+  m->nparams = nparams;
+  m->is_func = 1;
 }
 
 static void macro_del (FFIState *S, const char *name, size_t n) {
@@ -122,18 +166,151 @@ static void expand (lua_State *L, FFIState *S, Buf *out, const char *s,
                     size_t n, int depth, int *block_comment,
                     int *in_string);
 
-static void expand_ident (lua_State *L, FFIState *S, Buf *out,
-                          const char *s, size_t n, int depth,
-                          int *block_comment, int *in_string) {
-  Macro *m = macro_find(S, s, n);
-  if (m == NULL) {
-    buf_mem(L, out, s, n);
-    return;
+typedef struct MacroArg {
+  const char *p;
+  size_t n;
+} MacroArg;
+
+static size_t skip_spaces (const char *s, size_t n, size_t i) {
+  while (i < n && (s[i] == ' ' || s[i] == '\t'))
+    i++;
+  return i;
+}
+
+static int match_close (lua_State *L, const char *s, size_t n, size_t open) {
+  int depth = 1;
+  size_t i = open + 1;
+  while (i < n) {
+    if (s[i] == '"' || s[i] == '\'') {
+      char q = s[i++];
+      while (i < n) {
+        if (s[i] == '\\' && i + 1 < n) { i += 2; continue; }
+        if (s[i++] == q) break;
+      }
+      continue;
+    }
+    if (s[i] == '/' && i + 1 < n && s[i + 1] == '/')
+      break;
+    if (s[i] == '/' && i + 1 < n && s[i + 1] == '*') {
+      i += 2;
+      while (i + 1 < n && !(s[i] == '*' && s[i + 1] == '/')) i++;
+      i = (i + 1 < n) ? i + 2 : n;
+      continue;
+    }
+    if (s[i] == '(') depth++;
+    else if (s[i] == ')') {
+      depth--;
+      if (depth == 0) return (int)i;
+    }
+    i++;
+  }
+  luaL_error(L, "ffi.cdef: unterminated macro invocation");
+  return -1;
+}
+
+static int split_args (lua_State *L, const char *s, size_t n,
+                       int open, int close, MacroArg *args, int max) {
+  (void)n;
+  int argc = 0, depth = 0;
+  size_t start = (size_t)open + 1;
+  size_t i;
+  size_t end = (size_t)close;
+  if (skip_spaces(s, end, start) >= end) {
+    args[0].p = s + start;
+    args[0].n = 0;
+    return 0;
+  }
+  for (i = start; i <= end; i++) {
+    if (i == end || (s[i] == ',' && depth == 0)) {
+      if (argc >= max)
+        luaL_error(L, "ffi.cdef: too many macro arguments");
+      args[argc].p = s + start;
+      args[argc].n = i - start;
+      while (args[argc].n > 0 &&
+             (args[argc].p[0] == ' ' || args[argc].p[0] == '\t')) {
+        args[argc].p++;
+        args[argc].n--;
+      }
+      while (args[argc].n > 0 &&
+             (args[argc].p[args[argc].n - 1] == ' ' ||
+              args[argc].p[args[argc].n - 1] == '\t'))
+        args[argc].n--;
+      argc++;
+      start = i + 1;
+      if (i == end) break;
+      continue;
+    }
+    if (s[i] == '"' || s[i] == '\'') {
+      char q = s[i++];
+      while (i < end) {
+        if (s[i] == '\\' && i + 1 < end) { i += 2; continue; }
+        if (s[i] == q) break;
+        i++;
+      }
+      continue;
+    }
+    if (s[i] == '(') depth++;
+    else if (s[i] == ')') depth--;
+  }
+  return argc;
+}
+
+static int param_index (Macro *m, const char *p, size_t n) {
+  int i;
+  for (i = 0; i < m->nparams; i++) {
+    if (strlen(m->params[i]) == n && memcmp(m->params[i], p, n) == 0)
+      return i;
+  }
+  return -1;
+}
+
+static void expand_func (lua_State *L, FFIState *S, Buf *out, Macro *m,
+                         MacroArg *args, int nargs, int depth,
+                         int *block_comment, int *in_string) {
+  Buf sub;
+  size_t i = 0, bn = strlen(m->body);
+  memset(&sub, 0, sizeof(sub));
+  if (nargs != m->nparams)
+    luaL_error(L, "ffi.cdef: macro '%s' expects %d argument(s), got %d",
+               m->name, m->nparams, nargs);
+  while (i < bn) {
+    char c = m->body[i];
+    if (c == '"' || c == '\'') {
+      char q = c;
+      buf_char(L, &sub, c);
+      i++;
+      while (i < bn) {
+        c = m->body[i++];
+        buf_char(L, &sub, c);
+        if (c == '\\' && i < bn) {
+          buf_char(L, &sub, m->body[i++]);
+          continue;
+        }
+        if (c == q) break;
+      }
+      continue;
+    }
+    if (ident_start((unsigned char)c)) {
+      size_t j = i + 1;
+      int pi;
+      while (j < bn && ident_char((unsigned char)m->body[j]))
+        j++;
+      pi = param_index(m, m->body + i, j - i);
+      if (pi >= 0)
+        buf_mem(L, &sub, args[pi].p, args[pi].n);
+      else
+        buf_mem(L, &sub, m->body + i, j - i);
+      i = j;
+      continue;
+    }
+    buf_char(L, &sub, c);
+    i++;
   }
   if (depth >= MAX_MACRO_DEPTH)
     luaL_error(L, "ffi: macro expansion is too deep");
-  expand(L, S, out, m->body, strlen(m->body), depth + 1,
+  expand(L, S, out, sub.p != NULL ? sub.p : "", sub.n, depth + 1,
          block_comment, in_string);
+  free(sub.p);
 }
 
 static void expand (lua_State *L, FFIState *S, Buf *out, const char *s,
@@ -182,10 +359,34 @@ static void expand (lua_State *L, FFIState *S, Buf *out, const char *s,
     }
     if (ident_start((unsigned char)c)) {
       size_t j = i + 1;
+      Macro *m;
       while (j < n && ident_char((unsigned char)s[j]))
         j++;
-      expand_ident(L, S, out, s + i, j - i, depth,
-                   block_comment, in_string);
+      m = macro_find(S, s + i, j - i);
+      if (m == NULL) {
+        buf_mem(L, out, s + i, j - i);
+        i = j;
+        continue;
+      }
+      if (m->is_func) {
+        size_t k = skip_spaces(s, n, j);
+        if (k < n && s[k] == '(') {
+          int close = match_close(L, s, n, k);
+          MacroArg args[16];
+          int nargs = split_args(L, s, n, (int)k, close, args, 16);
+          expand_func(L, S, out, m, args, nargs, depth,
+                      block_comment, in_string);
+          i = (size_t)close + 1;
+          continue;
+        }
+        buf_mem(L, out, s + i, j - i);
+        i = j;
+        continue;
+      }
+      if (depth >= MAX_MACRO_DEPTH)
+        luaL_error(L, "ffi: macro expansion is too deep");
+      expand(L, S, out, m->body, strlen(m->body), depth + 1,
+             block_comment, in_string);
       i = j;
       continue;
     }
@@ -298,14 +499,52 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
         nn = (size_t)(q - name);
         if (nn == 0)
           luaL_error(L, "ffi.cdef:%d: #define needs a name", line);
-        if (rn > 0 && *q == '(')
-          luaL_error(L, "ffi.cdef:%d: function-like macros are not supported",
-                     line);
-        body = q;
-        bn = rn;
-        trim(&body, &bn);
-        if (active)
-          macro_set(L, S, name, nn, body, bn);
+        if (rn > 0 && *q == '(') {
+          char *params[16];
+          int np = 0;
+          q++;
+          rn--;
+          for (;;) {
+            while (rn > 0 && is_space((unsigned char)*q)) { q++; rn--; }
+            if (rn > 0 && *q == ')') { q++; rn--; break; }
+            if (rn >= 3 && memcmp(q, "...", 3) == 0)
+              luaL_error(L, "ffi.cdef:%d: variadic macros are not supported",
+                         line);
+            if (rn == 0 || !ident_start((unsigned char)*q))
+              luaL_error(L, "ffi.cdef:%d: expected macro parameter", line);
+            {
+              const char *pn = q;
+              size_t pl;
+              while (rn > 0 && ident_char((unsigned char)*q)) { q++; rn--; }
+              pl = (size_t)(q - pn);
+              if (np >= 16)
+                luaL_error(L, "ffi.cdef:%d: too many macro parameters", line);
+              params[np] = (char *)ffi_alloc(S, pl + 1);
+              memcpy(params[np], pn, pl);
+              params[np][pl] = '\0';
+              np++;
+            }
+            while (rn > 0 && is_space((unsigned char)*q)) { q++; rn--; }
+            if (rn > 0 && *q == ',') { q++; rn--; continue; }
+            if (rn > 0 && *q == ')') { q++; rn--; break; }
+            luaL_error(L, "ffi.cdef:%d: expected ',' or ')' in macro", line);
+          }
+          body = q;
+          bn = rn;
+          trim(&body, &bn);
+          if (bn > 0 && memchr(body, '#', bn) != NULL)
+            luaL_error(L, "ffi.cdef:%d: macro stringification/pasting is not "
+                           "supported", line);
+          if (active)
+            macro_set_func(L, S, name, nn, params, np, body, bn);
+        }
+        else {
+          body = q;
+          bn = rn;
+          trim(&body, &bn);
+          if (active)
+            macro_set(L, S, name, nn, body, bn);
+        }
       }
       else if (rn >= 5 && memcmp(q, "undef", 5) == 0 &&
                (rn == 5 || is_space((unsigned char)q[5]))) {

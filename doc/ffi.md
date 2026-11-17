@@ -113,9 +113,12 @@ preprocessor subset is available.
 
 ### Parser limitations (clear errors, never silent misparses)
 
-* The C preprocessor is only partially implemented: object-like
-  `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`; function-like
-  macros, `#include`, `#pragma` and complex `#if` expressions are rejected.
+* A small C preprocessor is implemented: object- and function-like
+  `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with
+  object macros expanded outside strings/comments.  Function-like macros
+  support non-variadic parameters on a single line.  Variadic macros,
+  `#`/`##`, `#include`, `#pragma` and complex `#if` expressions are
+  rejected.
 * `__attribute__`, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline
   asm, and `_Static_assert` are rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
@@ -462,8 +465,9 @@ entry points, a qsort wrapper with a C comparator, enum/bool/64-bit call
 probes, and variadic probes.  Coverage includes:
 
 * `ffi.cdef` success and error cases, including offending-token messages;
-* object-like cdef macros, conditionals, persistence, `#undef` and
-  rejection of function-like/include/complex directives;
+* object- and function-like cdef macros, conditionals, persistence,
+  `#undef`, nested argument lists and rejection of variadic/stringifying/
+  include/complex directives;
 * sizes, alignments, and offsets compared against the C compiler's
   `sizeof`/`offsetof`;
 * `ffi.new` scalars, arrays (fixed and VLA), structs, unions, anonymous
