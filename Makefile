@@ -6,7 +6,8 @@
 PREFIX?= /usr/local
 DESTDIR?=
 WITH_FFI?= 0
-WITH_JIT?= 1
+JIT?= 1
+WITH_JIT?= $(JIT)
 
 MAKE?= make
 RM= rm -f
