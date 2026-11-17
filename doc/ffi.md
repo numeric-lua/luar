@@ -138,8 +138,10 @@ preprocessor subset is available.
 * `__attribute__((packed))`/`aligned(n)` and `#pragma pack(n)` (including
   `push`/`pop`) control layout and are field-accessible.  On x86-64 a
   packed **integer** struct with exactly one by-value argument and a scalar
-  return can be called through a MEMORY-ABI stack thunk; other packed
-  aggregate call shapes are rejected rather than mislaid.  Layout always
+  return can be called through a MEMORY-ABI stack thunk; a packed integer
+  struct can also be returned from a zero-argument function through an
+  sret thunk.  Other packed aggregate call shapes are rejected rather than
+  mislaid.  Layout always
   follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
   type and pass the length to `ffi.new`/`ffi.sizeof`.

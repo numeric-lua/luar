@@ -1021,6 +1021,68 @@ static int packed_int_type (CType *ct) {
 
 
 #if defined(__x86_64__)
+static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
+                               CType *rt) {
+  unsigned char code[64];
+  size_t n = 0, i;
+  size_t chunks = (rt->size + 7) / 8;
+  void *mem;
+  size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  ffi_type ft;
+  ffi_type *elems[3];
+  ffi_cif cif;
+  unsigned char retbuf[16];
+  CData *cd;
+  ffi_status st;
+  int saved_errno;
+  /* sub rsp,40; mov rdi,rsp; mov rax,target; call rax;
+     mov rax,[rsp]; mov rdx,[rsp+8]; add rsp,40; ret */
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x28;
+  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe7;
+  code[n++] = 0x48; code[n++] = 0xb8;
+  {
+    uint64_t target = (uint64_t)(uintptr_t)fn->v.p;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(target >> (8 * i));
+  }
+  code[n++] = 0xff; code[n++] = 0xd0;
+  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x04; code[n++] = 0x24;
+  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x54; code[n++] = 0x24;
+  code[n++] = 0x08;
+  code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x28;
+  code[n++] = 0xc3;
+  memset(&ft, 0, sizeof(ft));
+  ft.type = FFI_TYPE_STRUCT;
+  for (i = 0; i < chunks; i++)
+    elems[i] = &ffi_type_uint64;
+  elems[chunks] = NULL;
+  ft.elements = elems;
+  ft.size = 0;
+  ft.alignment = 0;
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 0, &ft, NULL);
+  if (st != FFI_OK)
+    luaL_error(L, "ffi: libffi cannot prepare a packed return");
+  mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED)
+    luaL_error(L, "ffi: cannot allocate a packed-return thunk");
+  memcpy(mem, code, n);
+  if (mprotect(mem, pagesize, PROT_READ | PROT_EXEC) != 0) {
+    munmap(mem, pagesize);
+    luaL_error(L, "ffi: cannot make the packed-return thunk executable");
+  }
+  memset(retbuf, 0, sizeof(retbuf));
+  ffi_call(&cif, FFI_FN(mem), retbuf, NULL);
+  saved_errno = errno;
+  munmap(mem, pagesize);
+  errno = saved_errno;
+  cd = ffi_push_owned(L, S, rt, rt->size);
+  memcpy(cd->v.p, retbuf, rt->size);
+  return 1;
+}
+#endif
+
+
+#if defined(__x86_64__)
 static int packed_single_call (lua_State *L, FFIState *S, CData *fn,
                                CType *at, CType *rt, int argidx) {
   CData *cd = ffi_tocdata(L, argidx);
@@ -1132,6 +1194,11 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   ntotal = provided;
 
 #if defined(__x86_64__)
+  if (!ft->vararg && nargs == 0 && provided == 0 &&
+      ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
+      ft->ret->align_override == 0 && ft->ret->size > 0 &&
+      ft->ret->size <= 16 && packed_int_type(ft->ret))
+    return packed_return_call(L, S, fn, ft->ret);
   if (!ft->vararg && nargs == 1 && provided == 1) {
     CType *at = ft->args[0];
     CType *rt0 = ft->ret;

@@ -12,6 +12,7 @@ int packed_i_ptr(const struct PackedS *p);
 int packed_by_value(struct PackedS p);
 struct PackedWide { int a; long b; char c; } __attribute__((packed));
 long packedwide_sum(struct PackedWide p);
+struct PackedS packedmake0(void);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -47,6 +48,10 @@ local pref = ffi.cast("struct PackedS *", p)[0]
 H.eq(h.packed_by_value(pref), 123456)
 local pw = ffi.new("struct PackedWide", {a = 10, b = 1000, c = 3})
 H.eq(h.packedwide_sum(pw), 1013)
+local made = h.packedmake0()
+H.eq(made.c, 5)
+H.eq(made.i, 777)
+H.eq(made.s, 9)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())

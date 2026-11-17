@@ -363,3 +363,5 @@ int big600_sum (union Big600 u) {
 }
 struct __attribute__((packed)) PackedWide { int a; long b; char c; };
 long packedwide_sum (struct PackedWide p) { return p.a + p.b + p.c; }
+struct PackedS packedmake (int i) { struct PackedS p; p.c=1; p.i=i; p.s=2; return p; }
+struct PackedS packedmake0 (void) { struct PackedS p; p.c=5; p.i=777; p.s=9; return p; }
