@@ -84,7 +84,8 @@ make correct against an unmodified VM.
   whitelisted loop body is emitted with DynASM and runs the remaining
   iterations on the stack slots, with int/double tag guards, numeric
   comparisons/forward branches, simple `while` loops, experimental
-  opt-in integer array lookups/stores, up to two compiled loops per Proto,
+  register-cached prefix-sum loops, opt-in integer array lookups/stores,
+  up to two compiled loops per Proto,
   and a fixed register ABI.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact
   bytecode PC; there is no deoptimisation of compiled frames, because

@@ -813,8 +813,68 @@ static void emit_fast_tsum (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  int is_lt = (d->fw_kind == LUAR_OP_LT);
+  | push rbx
+  | mov rbx, rdi
+  | push r12
+  | push r13
+  | push r14
+  | mov r12, qword [rbx + ((int)LUAR_SLOT(d->fw_acc))]
+  | mov r13, qword [rbx + ((int)LUAR_SLOT(d->fw_idx))]
+  if (d->fw_limit == 0xFF) {
+    | mov64 r14, d->fw_imm
+  }
+  else {
+    | mov r14, qword [rbx + ((int)LUAR_SLOT(d->fw_limit))]
+  }
+  emit_guards(Dst, d);
+  |1:
+  | cmp r13, r14
+  if (is_lt) {
+    if (d->fw_k) {
+      | jl >2
+    }
+    else {
+      | jge >2
+    }
+  }
+  else {
+    if (d->fw_k) {
+      | jle >2
+    }
+    else {
+      | jg >2
+    }
+  }
+  | add r12, r13
+  | inc r13
+  | jmp <1
+  |2:
+  | mov qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], r12
+  | mov qword [rbx + ((int)LUAR_SLOT(d->fw_idx))], r13
+  | mov eax, 1
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+  |3:
+  | xor eax, eax
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+}
+
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
+  if (d->fast_while) {
+    emit_fast_while(Dst, d);
+    return;
+  }
   if (d->fast_tsum) {
     emit_fast_tsum(Dst, d);
     return;

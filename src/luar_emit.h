@@ -76,6 +76,13 @@ typedef struct LuaR_LoopDesc {
   int ft_table;
   int ft_idx;
   int ft_acc;
+  int fast_while;		/* while idx < limit do acc += idx end */
+  int fw_acc;
+  int fw_idx;
+  int fw_limit;			/* register, or 0xFF for an immediate */
+  int fw_kind;			/* LUAR_OP_LT or LUAR_OP_LE */
+  int fw_k;
+  int64_t fw_imm;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;
