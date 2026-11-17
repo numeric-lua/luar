@@ -632,6 +632,7 @@ typedef struct Proto {
   int luar_code_base[2];
   l_uint32 luar_code_epoch[2];
   unsigned long long luar_seen;
+  l_uint32 luar_hot_limit;
 } Proto;
 
 /* }================================================================== */

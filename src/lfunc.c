@@ -21,6 +21,7 @@
 #include "lmem.h"
 #include "lobject.h"
 #include "lstate.h"
+#include "luar_jit.h"
 
 
 
@@ -263,7 +264,12 @@ Proto *luaF_newproto (lua_State *L) {
   f->linedefined = 0;
   f->lastlinedefined = 0;
   f->source = NULL;
-  f->luar_hot = 0;    /* LUAR: J1 counters */
+  {
+    LuaR_JIT *J = G(L)->luar_jit;
+    f->luar_hot = 0;    /* LUAR: J1 counters */
+    f->luar_hot_limit = (J != NULL && J->hotloop != 0) ? J->hotloop
+                                                       : LUAR_JIT_HOTCOUNT;
+  }
   f->luar_epoch = 0;
   f->luar_code[0] = NULL;     /* LUAR: J2 native loops */
   f->luar_code[1] = NULL;

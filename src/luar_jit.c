@@ -50,6 +50,7 @@ void luari_jit_init (lua_State *L) {
   memset(J, 0, sizeof(*J));
   J->epoch = 1;
   J->enabled = 1;
+  J->hotloop = LUAR_JIT_HOTCOUNT;
   G(L)->luar_jit = J;
 }
 
@@ -991,7 +992,7 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
   if (J->enabled) {
     int ok = try_compile(L, p, target, off, base);
     if (!ok || (p->luar_code[0] != NULL && p->luar_code[1] != NULL))
-      p->luar_hot = LUAR_JIT_HOTCOUNT + 1;
+      p->luar_hot = p->luar_hot_limit + 1;
   }
   return 1;
 }
@@ -1072,6 +1073,11 @@ static int jit_opt_start (lua_State *L) {
     const char *opt = luaL_checkstring(L, i);
     if (J != NULL && strncmp(opt, "table=", 6) == 0)
       J->enable_table = (opt[6] != '0');
+    else if (J != NULL && strncmp(opt, "hotloop=", 8) == 0) {
+      unsigned long v = strtoul(opt + 8, NULL, 10);
+      if (v >= 1 && v <= 100000)
+        J->hotloop = (uint32_t)v;
+    }
     lua_pushstring(L, opt);
     lua_rawseti(L, -2, i);
   }

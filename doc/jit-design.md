@@ -9,8 +9,8 @@ is provably observationally equivalent to that interpreter.
 
 - **J1 implemented.**  Hot backedges are counted per `Proto`; the bytecode
   of the loop is snapshotted into a trace; `jit.stats`/`trace`/`traces`/`ir`,
-  `jit.dump("t"/"i")`, `jit.flush`, `jit.off` and the epoch-based
-  invalidation exist.
+  `jit.dump("t"/"i")`, `jit.flush`, `jit.off`, `jit.opt.start("hotloop=N")`
+  for newly created Protos and the epoch-based invalidation exist.
 - **J2 partially implemented (x86-64 only).**  This is a loop-level native
   continuation rather than a general trace: when an integer-controlled
   `for` loop becomes hot, the whitelisted body (numeric MOVE/LOADI/LOADF/

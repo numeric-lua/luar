@@ -126,6 +126,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J1/J2 can keep two native loops per `Proto` (first and most recent),
   with a bloom of attempted backedges; functions with sequential numeric
   loops compile more than one.
+- `jit.opt.start("hotloop=N")` configures the hot threshold for newly
+  created Protos.
 - `jit.dump("t"/"i")` prints recorded bytecode snapshots and linear IR to
   stderr, matching the LuaJIT-style debugging surface without file/function
   sinks.

@@ -71,4 +71,16 @@ for i = 1, 100 do acc = acc + i end
 H.eq(acc, 5050)
 H.eq(type(jit.status()), "boolean")
 
+-- jit.opt.start("hotloop=N") applies to newly created Protos
+jit.flush()
+jit.opt.start("hotloop=5")
+local function tiny (n)
+  local acc = 0
+  for i = 1, n do acc = acc + i end
+  return acc
+end
+H.eq(tiny(100), 5050)
+H.check(jit.stats().traces >= 1, "custom hotloop threshold did not trigger")
+jit.opt.start("hotloop=56")
+
 print("jit/01_hotloop ok")

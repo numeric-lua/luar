@@ -49,6 +49,7 @@ typedef struct LuaR_JIT {
   uint32_t traces;		/* recorded bytecode snapshots */
   uint32_t aborts;		/* loops too large / not decodable */
   int enabled;			/* jit.off() clears this */
+  uint32_t hotloop;		/* jit.opt.start("hotloop=N") */
   int enable_table;		/* experimental J3 table lookups (opt-in) */
   int dump_trace;		/* jit.dump("t"): print bytecode snapshots */
   int dump_ir;			/* jit.dump("i"): print linear IR */
@@ -83,9 +84,9 @@ LUAI_FUNC int luari_jit_try_run (lua_State *L, Proto *p, int pc,
 */
 static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge, void *base) {
-  if (p->luar_hot > LUAR_JIT_HOTCOUNT)
+  if (p->luar_hot > p->luar_hot_limit)
     return 0;
-  if (p->luar_hot == LUAR_JIT_HOTCOUNT) {
+  if (p->luar_hot == p->luar_hot_limit) {
     unsigned pc;
     unsigned long long bit;
     if (p->luar_code[0] == NULL)
@@ -97,7 +98,7 @@ static inline int luari_jit_hot (lua_State *L, Proto *p,
     p->luar_seen |= bit;
     return luari_jit_hotloop(L, p, backedge, base);
   }
-  if (++p->luar_hot < LUAR_JIT_HOTCOUNT)
+  if (++p->luar_hot < p->luar_hot_limit)
     return 0;
   p->luar_seen |= 1ULL << (((unsigned)(backedge - p->code)) & 63);
   return luari_jit_hotloop(L, p, backedge, base);
