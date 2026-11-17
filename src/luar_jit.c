@@ -500,6 +500,28 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
   }
+  /* Fast subtraction: acc = acc - idx. */
+  if (!has_branch && !is_while && n == 3) {
+    LuaR_Op *sub = &ops[0];
+    int only = 1;
+    for (i = 1; i < n - 1; i++)
+      if (ops[i].kind != LUAR_OP_MMBIN) only = 0;
+    if (only && sub->kind == LUAR_OP_SUB && sub->a == sub->b &&
+        sub->c == for_a + 2 &&
+        (sub->ta == LUAR_T_INT || sub->ta == LUAR_T_FLOAT) &&
+        !is_control_reg(sub->a, for_a)) {
+      memset(seen, 0, sizeof(seen));
+      d.nguards = 0;
+      add_guard(&d, seen, sub->a, sub->ta);
+      add_guard(&d, seen, for_a, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 1, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 2, LUAR_T_INT);
+      d.fast_sub = 1;
+      d.fsb_float = (sub->ta == LUAR_T_FLOAT);
+      d.fsb_acc = sub->a;
+    }
+  }
+
   /* Fast product: acc = acc * idx. */
   if (!has_branch && !is_while && n == 3) {
     LuaR_Op *mul = &ops[0];
