@@ -402,6 +402,7 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
         | jmp =>((int)op->target)
         break;
       case LUAR_OP_MMBIN:
+      case LUAR_OP_NOP:
         break;
       default:
         emit_int_one(Dst, d, op);
@@ -426,6 +427,7 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
     | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
     | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
     | jmp =>0
+    |=>((int)(d->nops + 1)):
     |2:
     | mov eax, 1
     | pop rbx

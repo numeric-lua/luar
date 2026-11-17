@@ -36,6 +36,11 @@ the runtime, while the Lua language surface follows upstream Lua.
   compiled-loop case is compared against an interpreter run, including
   overflow, empty loops, division, negative zero, `break` and type-changing
   call sites.  `make JIT=0 test` verifies the compiled-out configuration.
+- J2 `for` loops now support native `break` exits (the compiler's `CLOSE`
+  is a no-op when the whitelisted body has no closures); conditional
+  `while` backedges remain conservative.
+- Build: `-MMD` header dependencies make `make` rebuild when `Proto`,
+  JIT or emitter headers change.
 - J2 `while` support: simple integer-conditioned `while` loops (body without
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.

@@ -77,7 +77,15 @@ while wj < 5000 do
 end
 H.eq(wv, 10000)
 
--- break keeps the loop on the interpreter but stays correct
+-- a for-loop break exits the native loop correctly
+local fbs = 0
+for i = 1, 5000 do
+  if i == 100 then break end
+  fbs = fbs + i
+end
+H.eq(fbs, 4950)
+
+-- while break is conservative (interpreter) but correct
 local wb, wbs = 0, 0
 while wb < 5000 do
   wbs = wbs + wb

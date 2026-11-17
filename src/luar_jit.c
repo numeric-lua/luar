@@ -141,6 +141,18 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 0;   /* float/non-integer loop control: not supported */
   }
   else if (GET_OPCODE(last) == OP_JMP && GETARG_sJ(last) < 0) {
+    Instruction prev;
+    /* A conditional backedge means the trace covers only the taken path
+    ** (e.g. a break/conditional continue falls outside it); reject. */
+    if (backedge <= 0)
+      return 0;
+    prev = p->code[backedge - 1];
+    if (GET_OPCODE(prev) == OP_EQ || GET_OPCODE(prev) == OP_LT ||
+        GET_OPCODE(prev) == OP_LE || GET_OPCODE(prev) == OP_EQK ||
+        GET_OPCODE(prev) == OP_EQI || GET_OPCODE(prev) == OP_LTI ||
+        GET_OPCODE(prev) == OP_LEI || GET_OPCODE(prev) == OP_GTI ||
+        GET_OPCODE(prev) == OP_GEI)
+      return 0;
     is_while = 1;
     for_a = -1;
   }
@@ -207,11 +219,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (slot_type(b, cur, def, aa) != LUAR_T_INT) return 0;
       if (bb >= 0 && slot_type(b, cur, def, bb) != LUAR_T_INT) return 0;
       tgt = (start + j) + 1 + GETARG_sJ(jins);
-      if (tgt <= start + i || tgt == start + j)
+      if (tgt < start || tgt == start + j ||
+          (tgt <= start + i && tgt != start))
         return 0;
       if (tgt > backedge) {
-        if (!is_while || tgt != backedge + 1) return 0;
-        tgt = backedge;   /* leave the loop */
+        if (tgt != backedge + 1) return 0;
+        tgt = is_while ? backedge : backedge + 1;   /* break/exit */
       }
       op->kind = ck;
       op->a = (uint8_t)aa;
@@ -229,7 +242,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
     if (opc == OP_JMP) {
       ptrdiff_t tgt = (start + i) + 1 + GETARG_sJ(ins);
-      if (tgt <= start + i || tgt > backedge) return 0;
+      if (tgt < start || (tgt <= start + i && tgt != start)) return 0;
+      if (tgt > backedge) {
+        if (tgt != backedge + 1) return 0;
+        tgt = is_while ? backedge : backedge + 1;   /* break */
+      }
       op->kind = LUAR_OP_JMP;
       op->target = (int32_t)(tgt - start);
       has_branch = 1;
@@ -366,6 +383,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_MMBINK:
         op->kind = LUAR_OP_MMBIN;
         break;
+      case OP_CLOSE:
+        /* No closure/TBC opcode is whitelisted in the body, so an
+        ** upvalue close emitted for 'break' has nothing to close. */
+        op->kind = LUAR_OP_NOP;
+        break;
       default:
         return 0;
     }
@@ -424,7 +446,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (op->kind == LUAR_OP_JMP || op->kind == LUAR_OP_LT ||
           op->kind == LUAR_OP_LE || op->kind == LUAR_OP_GT ||
           op->kind == LUAR_OP_GE || op->kind == LUAR_OP_EQ) {
-        if (op->target < 0 || op->target >= n || paired[op->target]) {
+        if (op->target < 0 || op->target > n ||
+            (op->target == n && is_while) ||
+            (op->target < n && paired[op->target])) {
           return 0;
         }
       }
