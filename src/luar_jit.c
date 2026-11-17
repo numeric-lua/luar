@@ -196,6 +196,88 @@ static void pushtrace (lua_State *L, const LuaR_Trace *t) {
 }
 
 
+static void pushir (lua_State *L, const LuaR_Trace *t) {
+  luaL_Buffer b;
+  uint32_t i;
+  luaL_buffinit(L, &b);
+  {
+    char head[96];
+    snprintf(head, sizeof(head), "; trace pc %u..%u, %u instructions\n",
+             (unsigned)t->startpc, (unsigned)t->endpc, (unsigned)t->nins);
+    luaL_addstring(&b, head);
+  }
+  for (i = 0; i < t->nins; i++) {
+    Instruction ins = t->code[i];
+    OpCode op = GET_OPCODE(ins);
+    unsigned pc = t->startpc + i;
+    char line[160];
+    int A = GETARG_A(ins);
+    int B = GETARG_B(ins);
+    int C = GETARG_C(ins);
+    switch (op) {
+      case OP_MOVE:
+        snprintf(line, sizeof(line), "%4u  R%d = R%d\n", pc, A, B);
+        break;
+      case OP_LOADI:
+        snprintf(line, sizeof(line), "%4u  R%d = int %d\n", pc, A,
+                 (int)GETARG_sBx(ins));
+        break;
+      case OP_LOADF:
+        snprintf(line, sizeof(line), "%4u  R%d = flt %d\n", pc, A,
+                 (int)GETARG_sBx(ins));
+        break;
+      case OP_ADD:
+        snprintf(line, sizeof(line), "%4u  R%d = R%d + R%d\n", pc, A, B, C);
+        break;
+      case OP_SUB:
+        snprintf(line, sizeof(line), "%4u  R%d = R%d - R%d\n", pc, A, B, C);
+        break;
+      case OP_MUL:
+        snprintf(line, sizeof(line), "%4u  R%d = R%d * R%d\n", pc, A, B, C);
+        break;
+      case OP_ADDI:
+        snprintf(line, sizeof(line), "%4u  R%d = R%d + %d\n", pc, A, B,
+                 (int)GETARG_sC(ins));
+        break;
+      case OP_MMBIN:
+        snprintf(line, sizeof(line),
+                 "%4u  ; metamethod fallback for R%d (never compiled)\n",
+                 pc, A);
+        break;
+      case OP_FORLOOP:
+        snprintf(line, sizeof(line),
+                 "%4u  if (--count(R%d) != 0) goto %u; "
+                 "R%d = R%d + R%d\n",
+                 pc, A, (unsigned)(pc - GETARG_Bx(ins) + 1),
+                 A + 2, A + 2, A + 1);
+        break;
+      case OP_JMP:
+        snprintf(line, sizeof(line), "%4u  goto %d\n", pc,
+                 (int)(pc + 1 + GETARG_sJ(ins)));
+        break;
+      default: {
+        const char *name = (op < NUM_OPCODES) ? opnames[op] : "?";
+        snprintf(line, sizeof(line), "%4u  %s A=%d B=%d C=%d\n",
+                 pc, name, A, B, C);
+        break;
+      }
+    }
+    luaL_addstring(&b, line);
+  }
+  luaL_pushresult(&b);
+}
+
+
+static int jit_ir (lua_State *L) {
+  LuaR_JIT *J = checkjit(L);
+  lua_Integer i = luaL_checkinteger(L, 1);
+  if (J == NULL || i < 1 || i > (lua_Integer)J->traces)
+    return luaL_error(L, "jit.ir: no trace %d", (int)i);
+  pushir(L, &J->trace[i - 1]);
+  return 1;
+}
+
+
 static int jit_trace (lua_State *L) {
   LuaR_JIT *J = checkjit(L);
   lua_Integer i = luaL_checkinteger(L, 1);
@@ -246,6 +328,7 @@ static const luaL_Reg jitlib[] = {
   {"status", jit_status},
   {"stats", jit_stats},
   {"trace", jit_trace},
+  {"ir", jit_ir},
   {"traces", jit_traces},
   {NULL, NULL}
 };

@@ -79,7 +79,7 @@ Lua 5.5 spelling and is left untouched.
 | `jit.security()` | not implemented | out of scope |
 | `jit.util.*` | not implemented | LuaJIT-specific bytecode introspection |
 | `jit.profile` | not implemented | candidate for 0.4 |
-| `jit.stats()`, `jit.trace()`, `jit.traces()` | LuaR extension | J1 recorder introspection; `status` stays false |
+| `jit.stats()`, `jit.trace()`, `jit.traces()`, `jit.ir()` | LuaR extension | J1 recorder introspection; `status` stays false |
 
 ### 3.3 `ffi` — core implemented (opt-in)
 

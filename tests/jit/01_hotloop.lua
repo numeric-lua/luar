@@ -19,6 +19,11 @@ H.check(t:find("FORLOOP", 1, true), "trace lacks FORLOOP:\n" .. t)
 H.check(t:find("ADD", 1, true), "trace lacks ADD:\n" .. t)
 H.check(t:find("MMBIN", 1, true), "trace lacks MMBIN:\n" .. t)
 
+local ir = jit.ir(1)
+H.check(ir:find("R%d+ = R%d+ %+ R%d+"), "IR lacks the add:\n" .. ir)
+H.check(ir:find("count%("), "IR lacks the loop counter:\n" .. ir)
+H.check(ir:find("goto %d+"), "IR lacks the loop target:\n" .. ir)
+
 local all = jit.traces()
 H.eq(#all, st.traces, "jit.traces() disagrees with stats")
 H.eq(type(all[1]), "string")

@@ -13,8 +13,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `string.format` integration for cdata: integer conversions and
   `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
 - J1 trace recorder: hot-loop counters, trace selection, bytecode
-  snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, working
-  `jit.flush()`/`jit.off()` recording control.  No machine code is
+  snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, a linear IR
+  dump (`jit.ir()`), working `jit.flush()`/`jit.off()` recording control.  No machine code is
   generated and `jit.status()` remains `false`.
 
 ## [0.1.0] — 2026-11-17

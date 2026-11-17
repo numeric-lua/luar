@@ -27,7 +27,7 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working; `jit.status()` truthfully `false` (no native engine yet) |
 | FFI | LuaJIT-compatible core behind `WITH_FFI=1` (0.2 preview) |
-| native JIT | J1 hot-loop recorder (`jit.stats`/`trace`, no codegen); design in `doc/jit-design.md` |
+| native JIT | J1 hot-loop recorder (`jit.stats`/`trace`/`ir`, no codegen); design in `doc/jit-design.md` |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for
