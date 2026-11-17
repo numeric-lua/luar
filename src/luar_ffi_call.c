@@ -522,9 +522,45 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
   if (ct->nfields == 0)
     luaL_error(L, "ffi: empty union '%s' cannot be passed by value",
                ffi_type_repr(S, ct));
-  if (ct->size > 8 && ct->size < 16)
-    luaL_error(L, "ffi: union '%s' has an unsupported size for by-value "
-                  "passing", ffi_type_repr(S, ct));
+  nchunks = ct->size > 8 ? 2 : 1;
+  cls[0] = cls[1] = 0;
+  for (i = 0; i < ct->nfields; i++)
+    classify_union(ct->fields[i].type, 0, cls, nchunks);
+  if (ct->size > 8 && ct->size < 16) {
+    ffi_type *ft;
+    ffi_type **elems;
+    size_t n = 0, k;
+    if (ct->size % ct->align != 0 ||
+        (ct->align != 1 && ct->align != 2 && ct->align != 4))
+      luaL_error(L, "ffi: union '%s' has an unsupported size for by-value "
+                    "passing", ffi_type_repr(S, ct));
+    if (ct->align == 4 && ct->size == 12) {
+      n = 3;
+      ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+      elems = (ffi_type **)ft_alloc(L, allocs,
+                                    sizeof(ffi_type *) * (n + 1));
+      elems[0] = (cls[0] == 2) ? &ffi_type_float : &ffi_type_uint32;
+      elems[1] = elems[0];
+      elems[2] = (cls[1] == 2) ? &ffi_type_float : &ffi_type_uint32;
+      elems[3] = NULL;
+    }
+    else {
+      n = ct->size / ct->align;
+      ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+      elems = (ffi_type **)ft_alloc(L, allocs,
+                                    sizeof(ffi_type *) * (n + 1));
+      for (k = 0; k < n; k++)
+        elems[k] = (ct->align == 1) ? &ffi_type_uint8 :
+                   (ct->align == 2) ? &ffi_type_uint16 : &ffi_type_uint32;
+      elems[n] = NULL;
+    }
+    memset(ft, 0, sizeof(*ft));
+    ft->type = FFI_TYPE_STRUCT;
+    ft->elements = elems;
+    ft->size = 0;
+    ft->alignment = 0;
+    return ft;
+  }
   if (ct->size > 16) {
     size_t n, k;
     ffi_type *elem;
@@ -554,10 +590,6 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
     ft->alignment = 0;
     return ft;
   }
-  nchunks = ct->size > 8 ? 2 : 1;
-  cls[0] = cls[1] = 0;
-  for (i = 0; i < ct->nfields; i++)
-    classify_union(ct->fields[i].type, 0, cls, nchunks);
   if (ct->size <= 8) {
     if (cls[0] == 2) {
       if (ct->size == 4) return &ffi_type_float;

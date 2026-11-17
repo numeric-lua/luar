@@ -295,3 +295,16 @@ double bigd_box_sum (struct BigDBox b) {
 }
 union Char32 { char c[32]; };
 int char32_sum (union Char32 u) { int i, s = 0; for (i = 0; i < 32; i++) s += u.c[i]; return s; }
+union Odd9 { char c[9]; };
+int odd9_sum (union Odd9 u) { int i, s = 0; for (i = 0; i < 9; i++) s += u.c[i]; return s; }
+union Odd10 { short s[5]; };
+int odd10_sum (union Odd10 u) { int i, s = 0; for (i = 0; i < 5; i++) s += u.s[i]; return s; }
+union Odd12 { float f[3]; };
+float odd12_sum (union Odd12 u) { return u.f[0] + u.f[1] + u.f[2]; }
+union Odd12 odd12_make (float a, float b, float c) {
+  union Odd12 u; u.f[0]=a; u.f[1]=b; u.f[2]=c; return u;
+}
+union Odd12I { int v[3]; };
+int odd12i_sum (union Odd12I u) { return u.v[0] + u.v[1] + u.v[2]; }
+struct Odd12Box { int tag; union Odd12 u; };
+float odd12_box_sum (struct Odd12Box b) { return b.tag + b.u.f[0] + b.u.f[1] + b.u.f[2]; }

@@ -21,10 +21,11 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
   closure, and `string.format` skips its cdata rewrite when no argument is
   cdata.
-- Unions up to 16 bytes, including mixed SSE/INTEGER eightbytes and
-  array/struct members, and structs containing them can be passed and
-  returned by value.  Larger unions use the memory ABI when their size is
-  a multiple of their alignment; odd-sized/oversized ones remain rejected.
+- Unions of any size up to 16 bytes, including mixed SSE/INTEGER
+  eightbytes, odd sizes (9–15) and array/struct members, and structs
+  containing them can be passed and returned by value.  Larger unions use
+  the memory ABI when their size is a multiple of their alignment;
+  oversized ones remain rejected.
 - FFI structs with fixed array members (including arrays of structs) can be
   passed and returned by value; VLA/empty arrays and bitfield structs are
   rejected.

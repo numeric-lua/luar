@@ -42,6 +42,17 @@ struct BigDBox { int tag; union BigD u; };
 double bigd_box_sum(struct BigDBox b);
 union Char32 { char c[32]; };
 int char32_sum(union Char32 u);
+union Odd9 { char c[9]; };
+int odd9_sum(union Odd9 u);
+union Odd10 { short s[5]; };
+int odd10_sum(union Odd10 u);
+union Odd12 { float f[3]; };
+float odd12_sum(union Odd12 u);
+union Odd12 odd12_make(float a, float b, float c);
+union Odd12I { int v[3]; };
+int odd12i_sum(union Odd12I u);
+struct Odd12Box { int tag; union Odd12 u; };
+float odd12_box_sum(struct Odd12Box b);
 ]]
 
 local h = S.helper()
@@ -102,5 +113,20 @@ H.eq(h.bigd_box_sum(bb), 11.0)
 local c32 = ffi.new("union Char32")
 for i = 0, 31 do c32.c[i] = 1 end
 H.eq(h.char32_sum(c32), 32)
+
+-- odd sizes 9..15 use alignment-sized fields
+local o9 = ffi.new("union Odd9")
+for i = 0, 8 do o9.c[i] = 1 end
+H.eq(h.odd9_sum(o9), 9)
+local o10 = ffi.new("union Odd10")
+for i = 0, 4 do o10.s[i] = i + 1 end
+H.eq(h.odd10_sum(o10), 15)
+local o12 = ffi.new("union Odd12", {{1.0, 2.0, 3.0}})
+H.eq(h.odd12_sum(o12), 6.0)
+H.eq(h.odd12_make(1.5, 2.5, 3.0).f[2], 3.0)
+local o12i = ffi.new("union Odd12I", {{2, 3, 4}})
+H.eq(h.odd12i_sum(o12i), 9)
+local o12b = ffi.new("struct Odd12Box", {tag = 1, u = o12})
+H.eq(h.odd12_box_sum(o12b), 7.0)
 
 print("ffi/15_union_value ok")
