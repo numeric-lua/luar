@@ -222,3 +222,20 @@ int off_BitMix_d (void) { return (int)offsetof(struct BitMix, d); }
 int bitmix_a_ptr (const struct BitMix *p) { return (int)p->a; }
 int bitmix_b_ptr (const struct BitMix *p) { return (int)p->b; }
 int bitmix_c_ptr (const struct BitMix *p) { return (int)p->c; }
+/* Structs with array members, passed and returned by value. */
+struct Named { char name[8]; int n; };
+int named_sum (struct Named x) {
+  int i = 0;
+  while (i < 8 && x.name[i] != '\0') i++;
+  return i + x.n;
+}
+struct Named named_make (const char *s, int n) {
+  struct Named x;
+  int i;
+  for (i = 0; i < 7 && s[i] != '\0'; i++) x.name[i] = s[i];
+  x.name[i] = '\0';
+  x.n = n;
+  return x;
+}
+struct PairBox { struct Named items[2]; };
+int box_sum (struct PairBox b) { return b.items[0].n + b.items[1].n; }

@@ -182,8 +182,8 @@ H.eq(tonumber(dflt.strlen("x")), 1)
 H.raises(function() return ffi.load("no-such-library-for-luar-tests") end,
          "cannot load")
 
--- Deliberate limitations: callbacks, unions/arrays by value.  (Variadic
--- calls now work; see tests/ffi/07_varargs.lua.)
+-- Deliberate limitations: union members by value (arrays now work).  See
+-- tests/ffi/07_varargs.lua and tests/ffi/14_array_struct.lua.
 H.raises(function() return ffi.C.no_such_luar_symbol end,
          "missing declaration")
 H.raises(function() return ffi.C.abs(1, 2) end, "wrong number")
@@ -192,9 +192,7 @@ H.raises(function() h.fn_apply(function() return 1 end, 1) end,
 H.raises(function() return h.val_int(ffi.new("union Val", {i = 3})) end,
          "union")
 H.raises(function() return h.val_make(3) end, "union")
-H.raises(function()
-  return h.with_array_sum(ffi.new("struct WithArray", {a = {1, 2, 3}}))
-end, "array member")
+H.eq(h.with_array_sum(ffi.new("struct WithArray", {a = {1, 2, 3}})), 6)
 H.raises(function()
   return h.with_union_sum(ffi.new("struct WithUnion", {t = 1, i = 2}))
 end, "union member")

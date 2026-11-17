@@ -312,8 +312,9 @@ Calls support:
   type is expected;
 * struct return/argument by value when the layout is representable by
   libffi and verified byte-for-byte against libffi's computed offsets.
-  Structs containing arrays or unions are rejected by value, as are unions
-  and arrays themselves;
+  Fixed array members (including arrays of structs) are supported; union
+  members and bitfield structs are rejected by value, as are unions and
+  arrays themselves;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
   conversion rules;
@@ -380,11 +381,13 @@ Deliberately unsupported call features:
   a C library that keeps a pointer after the cdata is collected has the
   usual use-after-free caveat.  Callbacks must be invoked from the Lua
   state that created them.
-* **Unions/arrays by value**, and structs whose by-value layout would
-  involve those members.
-* **C global variables** are only best-effort: non-TLS data symbols can be
-  read/written through `ffi.C`, but thread-local symbols and complex
-  relocation cases are not supported.
+* **Union members by value**, union values themselves and structs with
+  bitfields; their ABI cannot be represented safely by the current libffi
+  mapping.
+* **C global variables** are best-effort: ordinary and `__thread`/
+  `_Thread_local` data symbols can be read/written through `ffi.C` for the
+  current thread; complex relocations and cross-thread access are not
+  handled.
 
 ## Intentional deviations from LuaJIT
 
@@ -471,7 +474,8 @@ probes, and variadic probes.  Coverage includes:
   `malloc`/`free`, `strerror`, `getpid`, `chdir`, `div`) and `errno`;
 * `ffi.load` (including `"c"`), `ffi.C`, missing declarations, wrong
   arity, and callback rejection;
-* struct-by-value arguments and returns, nested structs, pointer fields,
+* struct-by-value arguments and returns, nested structs and fixed array
+  members, pointer fields,
   qsort via a C comparator, and enum/bool/64-bit call paths;
 * variadic calls through libc (`snprintf`, `printf`): mixed fixed and
   variadic arguments, integer widths, floats, runtime-built strings,

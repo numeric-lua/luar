@@ -429,6 +429,32 @@ static ffi_type *build_ffi_type (lua_State *L, FFIState *S, CType *ct,
                                  FTAlloc **allocs);
 
 
+static ffi_type *build_array_type (lua_State *L, FFIState *S, CType *ct,
+                                   FTAlloc **allocs) {
+  ffi_type *ft, *elem;
+  ffi_type **elems;
+  size_t i, n = ct->length;
+  if (ct->vla || n == 0)
+    luaL_error(L, "ffi: variable/empty array '%s' cannot be passed by value",
+               ffi_type_repr(S, ct));
+  if (n > 65535)
+    luaL_error(L, "ffi: array '%s' is too large to pass by value",
+               ffi_type_repr(S, ct));
+  elem = build_ffi_type(L, S, ct->child, allocs);
+  ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+  elems = (ffi_type **)ft_alloc(L, allocs, sizeof(ffi_type *) * (n + 1));
+  for (i = 0; i < n; i++)
+    elems[i] = elem;
+  elems[n] = NULL;
+  memset(ft, 0, sizeof(*ft));
+  ft->type = FFI_TYPE_STRUCT;
+  ft->elements = elems;
+  ft->size = 0;
+  ft->alignment = 0;
+  return ft;
+}
+
+
 static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
                                     FTAlloc **allocs) {
   ffi_type *ft;
@@ -456,9 +482,9 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
       luaL_error(L, "ffi: struct '%s' has a union member and cannot be "
                     "passed by value", ffi_type_repr(S, ct));
     if (f->type->kind == CT_ARRAY)
-      luaL_error(L, "ffi: struct '%s' has an array member and cannot be "
-                    "passed by value", ffi_type_repr(S, ct));
-    elems[i] = build_ffi_type(L, S, f->type, allocs);
+      elems[i] = build_array_type(L, S, f->type, allocs);
+    else
+      elems[i] = build_ffi_type(L, S, f->type, allocs);
   }
   elems[ct->nfields] = NULL;
   ft->elements = elems;

@@ -21,6 +21,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
   closure, and `string.format` skips its cdata rewrite when no argument is
   cdata.
+- FFI structs with fixed array members (including arrays of structs) can be
+  passed and returned by value; VLA/empty arrays and bitfield structs are
+  rejected.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC-style same-base
   packing, signed extraction, masking on set, positional/named
   initializers; mixed-size/union bitfields and by-value bitfield structs
