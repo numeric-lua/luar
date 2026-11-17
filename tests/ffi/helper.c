@@ -341,3 +341,8 @@ struct __attribute__((packed, aligned(2))) PackAligned { char c; int i; };
 int size_PackAligned (void) { return (int)sizeof(struct PackAligned); }
 int align_PackAligned (void) { return (int)_Alignof(struct PackAligned); }
 int cb_int (int (*cb)(int), int n) { return cb ? cb(n) : -1; }
+struct SzA { char c; int i; };
+struct SzB { char c[sizeof(struct SzA)]; int tail; };
+enum { SZ_ENUM = (int)sizeof(struct SzA) };
+int size_SzB (void) { return (int)sizeof(struct SzB); }
+int size_SzArr (void) { return (int)sizeof(int[4]); }

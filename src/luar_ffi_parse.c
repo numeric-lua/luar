@@ -629,6 +629,24 @@ static DNode *parse_declarator (Parser *P) {
 /* ------------------------------------------------------------------ */
 
 static int64_t parse_primary (Parser *P) {
+  if (tok_is_ident(P, "sizeof")) {
+    CType *ct;
+    DNode *node;
+    DeclSpec ds;
+    char *name = NULL;
+    size_t sz;
+    lex_next(P);		/* consume sizeof */
+    expect_punct(P, '(', "(");
+    ds = parse_declspec(P);
+    node = parse_declarator(P);
+    ct = apply_node(P, node, ds.base, &name);
+    expect_punct(P, ')', ")");
+    (void)name;
+    sz = ffi_type_size(ct);
+    if (sz == FFI_SIZE_UNKNOWN || ct->incomplete)
+      parser_error(P, "sizeof of an incomplete C type");
+    return (int64_t)sz;
+  }
   if (P->tok.kind == TK_INT) {
     int64_t v = P->tok.ival;
     lex_next(P);

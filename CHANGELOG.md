@@ -38,6 +38,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   strings and comments and persisted across cdef calls.  Function-like
   macros, `#include`, non-pack `#pragma` and complex `#if` expressions fail
   clearly.  `#pragma pack(n/push/pop)` sets byte-granular layout.
+- `ffi.cdef` constant expressions accept `sizeof(type)`, including arrays
+  and `sizeof` inside array bounds/enums.
 - `ffi.istype` follows LuaJIT pointer compatibility: a struct/union accepts
   a pointer to it and same pointer types match; `void *` has no special case.
 - `ffi.offsetof` reports the bit position and width for bitfields, matching

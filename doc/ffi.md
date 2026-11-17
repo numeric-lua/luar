@@ -106,8 +106,8 @@ by C APIs.  It supports:
   `register`, `auto`, `inline`); qualifiers are accepted and ignored;
 * `/* ... */` and `//` comments and semicolon-separated declarations;
 * array sizes and enum values built from integer literals, other enum
-  constants, parentheses, unary `+ - ~ !`, and binary `+ - * / % << >> & |
-  ^`.
+  constants, `sizeof(type)`, parentheses, unary `+ - ~ !`, and binary
+  `+ - * / % << >> & | ^`.
 
 `ffi.cdef` may be called with several strings.  Declarations must be
 complete: function definitions are not accepted, and only the documented
