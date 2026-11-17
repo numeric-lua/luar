@@ -32,11 +32,14 @@ arithmetic, int64/uint64), `string`/`copy`/`fill`/`gc`/`metatype`, `ffi.C`
 and `ffi.load` with fixed and variadic calls through libffi, `ffi.errno`.
 
 Status: implemented behind `WITH_FFI=1`: cdata bitwise/shift, variadic
-calls, callbacks (struct/scalar-union returns), structs with array members
-and small scalar unions by value, bitfields, TLS globals, ASan/UBSan/fuzz
-coverage and a real `libluatorch.so` consumer.  What remains: large or
-aggregate unions by value, stringifying/include preprocessing, and
-non-x86-64 hosts.
+calls, callbacks (including `cb:set`/`cb:free`, struct/union returns),
+structs with array members and unions of any size up to 16 bytes or larger
+memory-class shapes by value, struct/union bitfields, packed/aligned
+layouts, `#pragma pack`, object/function/variadic cdef macros,
+`sizeof`/`_Alignof`/`offsetof` constants, TLS globals, ASan/UBSan/fuzz
+coverage and a real `libluatorch.so` consumer (2.5.1).  What remains:
+stringifying/#include preprocessing, packed aggregates by value,
+oversized (>4096-field) unions, and non-x86-64 hosts.
 
 Exit criteria:
 
