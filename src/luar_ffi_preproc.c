@@ -72,6 +72,9 @@ static void buf_mem (lua_State *L, Buf *b, const char *s, size_t n) {
   b->n += n;
 }
 
+static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
+                              size_t len, size_t *outlen, int incdepth);
+
 static Macro *macro_find (FFIState *S, const char *name, size_t n) {
   Macro *m = (Macro *)S->macros;
   while (m != NULL) {
@@ -483,8 +486,8 @@ static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
   }
 }
 
-char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
-                      size_t *outlen) {
+static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
+                              size_t len, size_t *outlen, int incdepth) {
   Buf b;
   Cond cond[MAX_COND_DEPTH];
   int depth = 0, active = 1;
@@ -738,6 +741,79 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
           buf_mem(L, &b, marker, strlen(marker));
         }
       }
+      else if (rn >= 7 && memcmp(q, "include", 7) == 0 &&
+               (rn == 7 || is_space((unsigned char)q[7]))) {
+        const char *pp = q + 7;
+        size_t pn = rn - 7;
+        const char *path;
+        size_t plen;
+        FILE *f;
+        char *filebuf;
+        long fsz = 0;
+        size_t got;
+        trim(&pp, &pn);
+        if (pn < 2 || pp[0] != '"')
+          luaL_error(L, "ffi.cdef:%d: only quoted #include \"file\" is "
+                        "supported", line);
+        pp++;
+        pn--;
+        path = pp;
+        plen = 0;
+        while (plen < pn && pp[plen] != '"')
+          plen++;
+        if (plen == pn)
+          luaL_error(L, "ffi.cdef:%d: unterminated #include path", line);
+        if (active) {
+          char *fname;
+          char *incout;
+          size_t inclen = 0;
+          if (incdepth >= 16)
+            luaL_error(L, "ffi.cdef:%d: #include nesting too deep", line);
+          fname = (char *)malloc(plen + 1);
+          if (fname == NULL)
+            luaL_error(L, "ffi.cdef: out of memory");
+          memcpy(fname, path, plen);
+          fname[plen] = '\0';
+          f = fopen(fname, "rb");
+          if (f == NULL) {
+            free(fname);
+            luaL_error(L, "ffi.cdef:%d: cannot open include '%.*s'", line,
+                       (int)plen, path);
+          }
+          if (fseek(f, 0, SEEK_END) != 0 || (fsz = ftell(f)) < 0 ||
+              fsz > (1 << 20)) {
+            fclose(f);
+            free(fname);
+            luaL_error(L, "ffi.cdef:%d: include '%.*s' is too large or "
+                          "unreadable", line, (int)plen, path);
+          }
+          rewind(f);
+          filebuf = (char *)malloc((size_t)fsz + 1);
+          if (filebuf == NULL) {
+            fclose(f);
+            free(fname);
+            luaL_error(L, "ffi.cdef: out of memory");
+          }
+          got = fread(filebuf, 1, (size_t)fsz, f);
+          fclose(f);
+          if (got != (size_t)fsz) {
+            free(filebuf);
+            free(fname);
+            luaL_error(L, "ffi.cdef:%d: short read from include '%.*s'", line,
+                       (int)plen, path);
+          }
+          filebuf[got] = '\0';
+          incout = preprocess_impl(L, S, filebuf, got, &inclen,
+                                   incdepth + 1);
+          if (incout != NULL)
+            buf_mem(L, &b, incout, inclen);
+          else
+            buf_mem(L, &b, filebuf, got);
+          free(incout);
+          free(filebuf);
+          free(fname);
+        }
+      }
       else if (rn >= 5 && memcmp(q, "error", 5) == 0) {
         if (active) {
           const char *msg = q + 5;
@@ -766,4 +842,10 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
   buf_char(L, &b, '\0');
   *outlen = b.n - 1;
   return b.p;
+}
+
+
+char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
+                      size_t *outlen) {
+  return preprocess_impl(L, S, src, len, outlen, 0);
 }

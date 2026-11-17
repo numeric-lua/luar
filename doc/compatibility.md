@@ -122,7 +122,8 @@ Deliberate deviations, all documented:
   zero C return plus a stored message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
-Not supported: stringifying cdef macros, `#include`, non-pack `#pragma`,
+Not supported: stringifying cdef macros, angle-bracket `#include`,
+non-pack `#pragma`,
 oversized unions, `long double`/complex/vector
 types, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
 callback shapes.  `ffi.callback` itself is implemented, including
