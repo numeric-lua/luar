@@ -12,9 +12,10 @@
 > `make bench-compare` for current numbers.
 
 Measured on 2026-11-17 (America/Sao_Paulo) against stock Lua 5.5.1 and
-LuaJIT 2.1, on the machine described below.  LuaR 0.1 is an interpreter
-with no native JIT and (in this build) no FFI; the numbers are the honest
-starting point that the tiered JIT has to improve on.
+LuaJIT 2.1, on the machine described below.  These are the pre-J2 baseline
+numbers (interpreter, no FFI); they remain the honest starting point that
+the tiered JIT improves on, and the J2 note above records the loops that
+are now compiled.
 
 ## Conditions
 

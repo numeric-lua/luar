@@ -64,10 +64,11 @@ Estimated: 2–3 weeks.
 
 ## 0.4 — Hot loops and trace IR (recorder only)
 
-Status: started.  Hot counters, trace selection, bytecode snapshots,
+Status: J1 complete.  Hot counters, trace selection, bytecode snapshots,
 `jit.stats()`/`jit.trace()`/`jit.traces()`/`jit.ir()` and
-`jit.flush()`/`jit.off()` wiring are implemented; the SSA IR and
-differential replay are next.
+`jit.flush()`/`jit.off()` wiring are implemented, with differential tests
+and a deterministic fuzzer.  The linear IR dump is not yet an SSA IR; J2
+compiles the whitelisted numeric loops directly from the bytecode snapshot.
 
 
 * Backedge counters on `Proto` (tagged `/* LUAR */`, reset on `jit.flush`).
@@ -75,8 +76,8 @@ differential replay are next.
   feedback, trace abort/blacklist rules.
 * Linear SSA IR with typed values, guards, helper calls and exits; an IR
   dumper (`jit.dump("ir")`-style) that does not require codegen.
-* `jit.status()` still reports `false` for code generation, but
-  `luar.jit.stats()` reports loops, traces and aborts.
+* `jit.status()` reports the J2 engine truthfully; `jit.stats()` reports
+  loops, traces, aborts, compiled loops and machine-code bytes.
 * Differential harness: recorded traces are replayed on the interpreter and
   compared for thousands of generated inputs.
 

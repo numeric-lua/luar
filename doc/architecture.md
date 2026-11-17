@@ -125,7 +125,7 @@ Rules:
 * Every extension must be usable through `require()` and, where LuaJIT had
   it, as a global. `package.loaded` and `_G` agree.
 * Extensions that cannot work yet must fail loudly or report the truth:
-  `jit.status()` returns `false` until code is actually generated, and
+  `jit.status()` is `true` only where the J2 engine is enabled, and
   `luar.features.ffi` is `false` in builds without libffi.
 * There is no legacy-language compatibility layer.  Code that relies on
   pre-5.5 APIs must be updated; LuaR never emulates an older Lua.
