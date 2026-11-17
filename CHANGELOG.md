@@ -26,8 +26,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - FFI structs with fixed array members (including arrays of structs) can be
   passed and returned by value; VLA/empty arrays and bitfield structs are
   rejected.
-- `ffi.cdef` preprocessing: object-like and non-variadic function-like
-  macros, `#undef`, nested argument substitution, and
+- `ffi.cdef` preprocessing: object-like and named/variadic function-like
+  macros (`...`/`__VA_ARGS__`), `#undef`, nested argument substitution, and
   `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with macros expanded outside
   strings and comments and persisted across cdef calls.  Function-like
   macros, `#include`, `#pragma` and complex `#if` expressions fail clearly.

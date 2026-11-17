@@ -30,6 +30,7 @@ typedef struct Macro {
   char **params;
   int nparams;
   int is_func;
+  int variadic;
 } Macro;
 
 #define MAX_MACRO_DEPTH 16
@@ -92,6 +93,7 @@ static void macro_init (lua_State *L, FFIState *S, Macro *m,
   m->params = NULL;
   m->nparams = 0;
   m->is_func = 0;
+  m->variadic = 0;
   (void)L;
 }
 
@@ -110,11 +112,12 @@ static void macro_set (lua_State *L, FFIState *S, const char *name, size_t n,
     m->body[blen] = '\0';
     m->is_func = 0;
     m->nparams = 0;
+    m->variadic = 0;
   }
 }
 
 static void macro_set_func (lua_State *L, FFIState *S, const char *name,
-                            size_t n, char **params, int nparams,
+                            size_t n, char **params, int nparams, int variadic,
                             const char *body, size_t blen) {
   Macro *m = macro_find(S, name, n);
   if (m == NULL) {
@@ -140,6 +143,7 @@ static void macro_set_func (lua_State *L, FFIState *S, const char *name,
   }
   m->nparams = nparams;
   m->is_func = 1;
+  m->variadic = variadic;
 }
 
 static void macro_del (FFIState *S, const char *name, size_t n) {
@@ -267,12 +271,21 @@ static int param_index (Macro *m, const char *p, size_t n) {
 static void expand_func (lua_State *L, FFIState *S, Buf *out, Macro *m,
                          MacroArg *args, int nargs, int depth,
                          int *block_comment, int *in_string) {
-  Buf sub;
+  Buf sub, va;
   size_t i = 0, bn = strlen(m->body);
+  int k;
   memset(&sub, 0, sizeof(sub));
-  if (nargs != m->nparams)
+  memset(&va, 0, sizeof(va));
+  if ((m->variadic && nargs < m->nparams) ||
+      (!m->variadic && nargs != m->nparams))
     luaL_error(L, "ffi.cdef: macro '%s' expects %d argument(s), got %d",
                m->name, m->nparams, nargs);
+  for (k = m->nparams; k < nargs; k++) {
+    if (k > m->nparams)
+      buf_char(L, &va, ',');
+    buf_char(L, &va, ' ');
+    buf_mem(L, &va, args[k].p, args[k].n);
+  }
   while (i < bn) {
     char c = m->body[i];
     if (c == '"' || c == '\'') {
@@ -295,11 +308,17 @@ static void expand_func (lua_State *L, FFIState *S, Buf *out, Macro *m,
       int pi;
       while (j < bn && ident_char((unsigned char)m->body[j]))
         j++;
-      pi = param_index(m, m->body + i, j - i);
-      if (pi >= 0)
-        buf_mem(L, &sub, args[pi].p, args[pi].n);
-      else
-        buf_mem(L, &sub, m->body + i, j - i);
+      if (m->variadic && j - i == 11 &&
+          memcmp(m->body + i, "__VA_ARGS__", 11) == 0) {
+        buf_mem(L, &sub, va.p != NULL ? va.p : "", va.n);
+      }
+      else {
+        pi = param_index(m, m->body + i, j - i);
+        if (pi >= 0)
+          buf_mem(L, &sub, args[pi].p, args[pi].n);
+        else
+          buf_mem(L, &sub, m->body + i, j - i);
+      }
       i = j;
       continue;
     }
@@ -311,6 +330,7 @@ static void expand_func (lua_State *L, FFIState *S, Buf *out, Macro *m,
   expand(L, S, out, sub.p != NULL ? sub.p : "", sub.n, depth + 1,
          block_comment, in_string);
   free(sub.p);
+  free(va.p);
 }
 
 static void expand (lua_State *L, FFIState *S, Buf *out, const char *s,
@@ -501,15 +521,24 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
           luaL_error(L, "ffi.cdef:%d: #define needs a name", line);
         if (rn > 0 && *q == '(') {
           char *params[16];
-          int np = 0;
+          int np = 0, variadic = 0;
           q++;
           rn--;
           for (;;) {
             while (rn > 0 && is_space((unsigned char)*q)) { q++; rn--; }
             if (rn > 0 && *q == ')') { q++; rn--; break; }
-            if (rn >= 3 && memcmp(q, "...", 3) == 0)
-              luaL_error(L, "ffi.cdef:%d: variadic macros are not supported",
-                         line);
+            if (rn >= 3 && memcmp(q, "...", 3) == 0) {
+              variadic = 1;
+              q += 3;
+              rn -= 3;
+              while (rn > 0 && is_space((unsigned char)*q)) { q++; rn--; }
+              if (rn == 0 || *q != ')')
+                luaL_error(L, "ffi.cdef:%d: '...' must be the last macro "
+                               "parameter", line);
+              q++;
+              rn--;
+              break;
+            }
             if (rn == 0 || !ident_start((unsigned char)*q))
               luaL_error(L, "ffi.cdef:%d: expected macro parameter", line);
             {
@@ -536,7 +565,7 @@ char *ffi_preprocess (lua_State *L, FFIState *S, const char *src, size_t len,
             luaL_error(L, "ffi.cdef:%d: macro stringification/pasting is not "
                            "supported", line);
           if (active)
-            macro_set_func(L, S, name, nn, params, np, body, bn);
+            macro_set_func(L, S, name, nn, params, np, variadic, body, bn);
         }
         else {
           body = q;

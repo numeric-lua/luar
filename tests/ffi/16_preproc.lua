@@ -68,10 +68,20 @@ enum { LUAR_PP_PAR = LUAR_PP_PAREN((1 + 2), 4) };
 ]]
 H.eq(ffi.C.LUAR_PP_PAR, 7)
 
+-- variadic macros join the remaining arguments as __VA_ARGS__
+ffi.cdef[[
+#define LUAR_PP_ARR(...) int b[__VA_ARGS__]
+#define LUAR_PP_ADDV(a, ...) ((a) + (__VA_ARGS__))
+#define LUAR_PP_ONE(...) 1
+struct PpVa { LUAR_PP_ARR(4); };
+enum { LUAR_PP_VSUM = LUAR_PP_ADDV(2, 3) };
+enum { LUAR_PP_VZERO = LUAR_PP_ONE() };
+]]
+H.eq(ffi.sizeof("struct PpVa"), 16)
+H.eq(ffi.C.LUAR_PP_VSUM, 5)
+H.eq(ffi.C.LUAR_PP_VZERO, 1)
+
 -- unsupported forms fail clearly
-H.raises(function ()
-  return ffi.cdef("#define LUAR_PP_VAR(...) 1")
-end, "variadic")
 H.raises(function ()
   return ffi.cdef("#define LUAR_PP_STR(x) #x")
 end, "stringification")

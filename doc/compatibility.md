@@ -118,7 +118,7 @@ Deliberate deviations, all documented:
   message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
-Not supported: variadic/stringifying cdef macros, `#include`, `#pragma`,
+Not supported: stringifying cdef macros, `#include`, `#pragma`,
 union bitfields, large/aggregate
 unions by value, `long double`/complex/vector
 types, packing attributes, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
