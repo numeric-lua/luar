@@ -21,6 +21,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `ffi.gc(cb, fn)` now runs `fn` for callback cdata before releasing the
   closure, and `string.format` skips its cdata rewrite when no argument is
   cdata.
+- `__thread`/`_Thread_local` globals are supported through the existing
+  dlsym symbol path, with read/write access from Lua.
 - `ffi.callback` returns structs by value when the Lua callback returns a
   matching cdata, and also handles struct-by-value arguments reaching Lua
   (covered by the helper's `call_pair_cb`).

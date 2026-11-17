@@ -419,6 +419,9 @@ Deliberately unsupported call features:
   cdata as pointers, while LuaR rejects aggregate varargs with a clear
   error because passing them by value is not portable.  Use
   `ffi.new`/`ffi.cast` to force a particular C type.
+* `__thread`/`_Thread_local` globals resolve through `dlsym` for the
+  calling thread; LuaR does not create or migrate threads, and another C
+  thread sees its own instance.
 * `long double`, bitfields, complex numbers, vectors and packing attributes
   are not implemented, and preprocessor macros are not parsed.  `ffi.callback`
   supports non-variadic types, including struct-by-value returns when the

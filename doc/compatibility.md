@@ -104,6 +104,8 @@ Deliberate deviations, all documented:
 * A small, gated `/* LUAR */` hook in `src/lvm.c` lets the VM call `__eq`
   for cdata↔number/nil; stock Lua 5.5 never does.  It is compiled into both
   builds (`LUAR_FFI_HOOKS`) but inert without the reserved cdata marker.
+* `__thread`/`_Thread_local` globals are readable and writable through
+  `ffi.C`/`ffi.load` for the current thread.
 * `string.format` accepts integer cdata for integer conversions and uses
   `tostring` for `%s`/`%q`; float cdata is rejected by numeric conversions.
 * `ffi.callback` and `ffi.callback_error` implement C→Lua closures through

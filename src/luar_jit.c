@@ -424,41 +424,82 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
   }
   if (has_branch) {
-    /* Numeric branch loops: guard every register read with the flavour the
-    ** emitted code expects (a skipped write must not be mistaken for a
-    ** value that exists on all paths). */
+    /* Numeric branch loops: guard a read only when no earlier write is
+    ** guaranteed to dominate it.  A write in a skipped branch body does
+    ** not dominate a later read, so a branch target between the write and
+    ** the read forces a guard. */
+    uint8_t targets[256];
+    int last_write[256];
     memset(seen, 0, sizeof(seen));
+    memset(targets, 0, sizeof(targets));
+    for (i = 0; i < n - 1; i++) {
+      LuaR_Op *op = &ops[i];
+      if (op->kind == LUAR_OP_JMP || op->kind == LUAR_OP_LT ||
+          op->kind == LUAR_OP_LE || op->kind == LUAR_OP_GT ||
+          op->kind == LUAR_OP_GE || op->kind == LUAR_OP_EQ) {
+        if (op->target >= 0 && op->target < 256)
+          targets[op->target] = 1;
+      }
+    }
+    for (i = 0; i < 256; i++)
+      last_write[i] = -1;
     d.nguards = 0;
     for (i = 0; i < n - 1; i++) {
       LuaR_Op *op = &ops[i];
+      int reads[4], types[4], nr = 0, q;
       switch (op->kind) {
         case LUAR_OP_MOVE:
-          add_guard(&d, seen, op->b, op->tb);
-          break;
+          reads[nr] = op->b; types[nr++] = op->tb; break;
         case LUAR_OP_ADD:
         case LUAR_OP_SUB:
         case LUAR_OP_MUL:
         case LUAR_OP_DIV:
-          add_guard(&d, seen, op->b, op->tb);
-          add_guard(&d, seen, op->c, op->tc);
+          reads[nr] = op->b; types[nr++] = op->tb;
+          reads[nr] = op->c; types[nr++] = op->tc;
           break;
         case LUAR_OP_ADDI:
-          add_guard(&d, seen, op->b, LUAR_T_INT);
-          break;
+          reads[nr] = op->b; types[nr++] = LUAR_T_INT; break;
         case LUAR_OP_ADDK:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
-          add_guard(&d, seen, op->b, op->tb);
-          break;
+          reads[nr] = op->b; types[nr++] = op->tb; break;
         case LUAR_OP_LT:
         case LUAR_OP_LE:
         case LUAR_OP_GT:
         case LUAR_OP_GE:
         case LUAR_OP_EQ:
-          add_guard(&d, seen, op->a, op->ta);
-          if (op->b != 0xFF)
-            add_guard(&d, seen, op->b, op->tb);
+          reads[nr] = op->a; types[nr++] = op->ta;
+          if (op->b != 0xFF) {
+            reads[nr] = op->b; types[nr++] = op->tb;
+          }
+          break;
+        default: break;
+      }
+      for (q = 0; q < nr; q++) {
+        int r = reads[q], j = last_write[r], t;
+        int safe = (j >= 0);
+        for (t = j + 1; safe && t <= (int)i; t++) {
+          if (targets[t]) safe = 0;
+        }
+        if (!safe)
+          add_guard(&d, seen, r, types[q]);
+      }
+      switch (op->kind) {
+        case LUAR_OP_MOVE:
+        case LUAR_OP_LOADI:
+        case LUAR_OP_LOADF:
+        case LUAR_OP_LOADK:
+        case LUAR_OP_ADDI:
+        case LUAR_OP_ADD:
+        case LUAR_OP_SUB:
+        case LUAR_OP_MUL:
+        case LUAR_OP_DIV:
+        case LUAR_OP_ADDK:
+        case LUAR_OP_SUBK:
+        case LUAR_OP_MULK:
+        case LUAR_OP_DIVK:
+          last_write[op->a] = (int)i;
           break;
         default: break;
       }

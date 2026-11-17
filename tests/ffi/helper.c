@@ -202,3 +202,7 @@ int call_pair_cb (int (*cb)(struct Pair), struct Pair p) {
 struct Pair call_pair_ret_cb (struct Pair (*cb)(void)) {
   return cb();
 }
+/* Thread-local storage through dlsym. */
+__thread int ffi_tls_counter = 11;
+int ffi_tls_get (void) { return ffi_tls_counter; }
+void ffi_tls_set (int v) { ffi_tls_counter = v; }
