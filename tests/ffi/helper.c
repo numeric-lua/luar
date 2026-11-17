@@ -317,3 +317,9 @@ struct BitBY bitby_make (unsigned a, unsigned b, int c) {
 }
 struct BitPacked { unsigned a:3; unsigned b:5; unsigned c:3; };
 int bitpacked_sum (struct BitPacked s) { return (int)s.a + (int)s.b + (int)s.c; }
+struct __attribute__((packed)) PackedS { char c; int i; short s; };
+int size_PackedS (void) { return (int)sizeof(struct PackedS); }
+int off_PackedS_i (void) { return (int)offsetof(struct PackedS, i); }
+int off_PackedS_s (void) { return (int)offsetof(struct PackedS, s); }
+int packed_i_ptr (const struct PackedS *p) { return p->i; }
+int packed_by_value (struct PackedS p) { return p.i; }

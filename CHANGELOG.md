@@ -34,6 +34,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with macros expanded outside
   strings and comments and persisted across cdef calls.  Function-like
   macros, `#include`, `#pragma` and complex `#if` expressions fail clearly.
+- `__attribute__((packed))` structs/unions get byte-granular layout and
+  field access; packed aggregates are rejected by value rather than mislayed.
 - FFI bitfields for integer/enum/`_Bool` struct fields: GCC/x86-64
   bit-granular packing including mixed base types, byte-crossing fields,
   unnamed padding and zero-width alignment fields, signed extraction, masking on set, positional/named

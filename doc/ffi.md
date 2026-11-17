@@ -119,11 +119,15 @@ preprocessor subset is available.
   support named and variadic (`...`/`__VA_ARGS__`) parameters on a single
   line.  `#`/`##`, `#include`, `#pragma` and complex `#if` expressions are
   rejected.
-* `__attribute__`, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline
-  asm, and `_Static_assert` are rejected.
+* `__attribute__((packed))` on a struct/union is supported; other
+  attributes, `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline asm
+  and `_Static_assert` are rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
   supported.
-* Packing/alignment attributes and `#pragma pack` are unsupported; layout
+* `__attribute__((packed))` uses byte-granular layout and is field-accessible;
+  packed aggregates cannot be passed by value (libffi would mislay them), and
+  other packing/alignment attributes plus `#pragma pack` are unsupported;
+  layout
   always follows the natural C ABI of the target.
 * Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
   type and pass the length to `ffi.new`/`ffi.sizeof`.
@@ -482,6 +486,7 @@ probes, and variadic probes.  Coverage includes:
 * `ffi.string`, `ffi.copy` (including the 2-argument string form),
   `ffi.fill`, and their bounds errors;
 * bitfield layout (mixed bases, byte-crossing fields, union bitfields,
+  packed structs,
   signed extraction,
   masking),
   get/set, positional/named initializers and by-value rejection;

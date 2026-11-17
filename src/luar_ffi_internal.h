@@ -93,6 +93,7 @@ struct CType {
   uint8_t vla;		/* array with variable/unknown length */
   uint8_t incomplete;	/* forward-declared struct/union */
   uint8_t vararg;	/* function with '...' */
+  uint8_t packed;	/* __attribute__((packed)) struct/union */
   uint16_t nargs;
   uint16_t argcap;
   uint16_t nfields;

@@ -112,6 +112,8 @@ Deliberate deviations, all documented:
 * Structs with fixed array members and unions of any size up to 16 bytes
   (per-eightbyte SSE/INTEGER classification, alignment-sized fields for odd
   sizes) or larger memory-class unions can be passed and returned by value.
+* `__attribute__((packed))` structs/unions are laid out byte-granularly and
+  field-accessible; packed aggregates fail clearly by value.
 * Struct and union bitfields with integer/enum/bool bases are supported,
   including mixed base types, union overlap at offset zero and by-value
   passing/returning.
@@ -122,7 +124,7 @@ Deliberate deviations, all documented:
 
 Not supported: stringifying cdef macros, `#include`, `#pragma`,
 oversized unions, `long double`/complex/vector
-types, packing attributes, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
+types, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
 callback shapes.  `ffi.callback` itself is implemented, including
 struct-by-value arguments and returns.
 

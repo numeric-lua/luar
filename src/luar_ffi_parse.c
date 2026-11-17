@@ -963,6 +963,22 @@ static DeclSpec parse_declspec (Parser *P) {
 /* struct / union / enum definitions                                 */
 /* ------------------------------------------------------------------ */
 
+static int accept_packed_attr (Parser *P) {
+  if (!tok_is_ident(P, "__attribute__"))
+    return 0;
+  lex_next(P);
+  expect_punct(P, '(', "(");
+  expect_punct(P, '(', "(");
+  if (tok_is_ident(P, "packed"))
+    lex_next(P);
+  else
+    parser_error(P, "only __attribute__((packed)) is supported");
+  expect_punct(P, ')', ")");
+  expect_punct(P, ')', ")");
+  return 1;
+}
+
+
 static CType *parse_struct_or_union (Parser *P, int is_union) {
   const char *kind = is_union ? "union" : "struct";
   char tag[256];
@@ -1044,6 +1060,8 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
         break;
       }
     }
+    if (accept_packed_attr(P))
+      ct->packed = 1;
     ffi_type_finish_struct(P->S, ct);
     return ct;
   }
