@@ -45,6 +45,15 @@ collectgarbage()
 H.eq(keep(21), 42)
 H.eq(ffi.callback_error(), nil)
 
+-- ffi.gc finalizers still run for callback cdata
+local finalized = false
+local doomed = ffi.callback("int(void)", function () return 1 end)
+ffi.gc(doomed, function () finalized = true end)
+doomed = nil
+collectgarbage()
+collectgarbage()
+H.eq(finalized, true)
+
 -- unsupported callback shapes fail clearly
 H.raises(function ()
   return ffi.callback("struct { int a; }(void)", function () end)

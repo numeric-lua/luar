@@ -1774,10 +1774,6 @@ static int cdata_gc (lua_State *L) {
   cd = (CData *)lua_touserdata(L, 1);
   if (cd == NULL || cd->magic != LUAR_FFI_MAGIC)
     return 0;
-  if ((cd->flags & CDATA_CALLBACK) != 0) {
-    ffi_callback_free(L, cd);
-    return 0;
-  }
   lua_getiuservalue(L, 1, 2);
   if (lua_isfunction(L, -1)) {
     lua_pushnil(L);
@@ -1804,6 +1800,8 @@ static int cdata_gc (lua_State *L) {
       lua_pop(L, 1);
     }
   }
+  if ((cd->flags & CDATA_CALLBACK) != 0)
+    ffi_callback_free(L, cd);
   return 0;
 }
 
@@ -2321,6 +2319,16 @@ static int ffi_lua_format (lua_State *L) {
   int arg = 2;
   if (lua_type(L, 1) == LUA_TSTRING)
     fmt = lua_tolstring(L, 1, &len);
+  else
+    goto callorig;
+  {
+    int k, hascdata = 0;
+    for (k = 2; k <= n; k++) {
+      if (ffi_iscdata(L, k)) { hascdata = 1; break; }
+    }
+    if (!hascdata)
+      goto callorig;
+  }
   while (fmt != NULL && i < len) {
     char conv;
     if (fmt[i] != '%') { i++; continue; }
@@ -2358,6 +2366,7 @@ static int ffi_lua_format (lua_State *L) {
     }
     arg++;
   }
+callorig:
   lua_getfield(L, LUA_REGISTRYINDEX, "luar.ffi.orig_format");
   lua_insert(L, 1);
   lua_call(L, n, LUA_MULTRET);
