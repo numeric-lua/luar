@@ -26,7 +26,7 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `luar` identity, `LUAR_INIT`, `luar/5.5` module paths | working |
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working: `on/off/flush/dump/status/stats/trace/traces/ir/opt`; `status()` is true on x86-64 with J2 |
-| FFI | LuaJIT-compatible core: cdef macros/includes, cdata, struct/union bitfields, packed/aligned layouts, unions to 512 KiB by value, varargs, callbacks + `cb:set/free`, TLS, real-consumer test (`WITH_FFI=1`) |
+| FFI | LuaJIT-compatible core: cdef macros/includes, cdata, struct/union bitfields, packed/aligned layouts, packed integer calls/returns on x86-64, unions to 8 MiB by value, varargs, callbacks + `cb:set/free`, TLS, real-consumer test (`WITH_FFI=1`) |
 | native JIT | J1 recorder + J2 x86-64 numeric `for`/`while`/`repeat` codegen with guarded numeric conditions and register-cached sums/squares/products/linear/subtraction; experimental opt-in table and partial-call tiers (`jit.status()` true; ~9x `int_sum`, ~4x `float_loop`) |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 

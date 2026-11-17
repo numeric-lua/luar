@@ -35,7 +35,7 @@ Status: implemented behind `WITH_FFI=1`: cdata bitwise/shift, variadic
 calls, callbacks (including `cb:set`/`cb:free`, struct/union returns),
 structs with array members and unions of any size up to 16 bytes or larger
 memory-class shapes by value, struct/union bitfields, packed/aligned
-layouts, `#pragma pack`, object/function/variadic cdef macros,
+layouts (including packed integer calls/returns on x86-64), `#pragma pack`, object/function/variadic cdef macros,
 `sizeof`/`_Alignof`/`offsetof` constants, TLS globals, ASan/UBSan/fuzz
 coverage and a real `libluatorch.so` consumer (2.5.1).  What remains:
 packed aggregates by value (the MEMORY-class call ABI needs a custom
