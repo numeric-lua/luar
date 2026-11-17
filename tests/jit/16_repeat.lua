@@ -63,6 +63,16 @@ local function rsq_on (n)
   repeat i = i + 1; s = s + i * i until i >= n
   return s, i
 end
+local function rsqf_off (n)
+  local i, s = 0, 0.0
+  repeat i = i + 1; s = s + i * i until i >= n
+  return s, i
+end
+local function rsqf_on (n)
+  local i, s = 0, 0.0
+  repeat i = i + 1; s = s + i * i until i >= n
+  return s, i
+end
 local function rimm (n)
   local i, s = 0, 0
   repeat i = i + 1; s = s + i until i >= 100000
@@ -88,6 +98,7 @@ local wsub = rsub_off(100000)
 local wprod = rprod_off(100)
 local wf = rf_off(100000)
 local wsq = rsq_off(100000)
+local wsqf = rsqf_off(100000)
 jit.on()
 local got, gi = ron(100000)
 H.eq(got, want)
@@ -100,6 +111,7 @@ H.eq(rsub_on(100000), wsub)
 H.eq(rprod_on(100), wprod)
 H.eq(rf_on(100000), wf)
 H.eq(rsq_on(100000), wsq)
+H.eq(rsqf_on(100000), wsqf)
 H.check(jit.stats().compiled >= 1, "repeat loops did not compile")
 H.check(jit.stats().traces >= 1, "repeat trace missing")
 

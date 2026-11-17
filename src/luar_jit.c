@@ -951,7 +951,8 @@ decode_done:
       }
       else if (addi != NULL && accop == NULL && temp >= 0 &&
                op->kind == LUAR_OP_ADD && op->a == op->b &&
-               op->c == temp && op->ta == LUAR_T_INT) {
+               op->c == temp &&
+               (op->ta == LUAR_T_INT || op->ta == LUAR_T_FLOAT)) {
         accop = op;
         acc_i = (int)i;
         opkind = 3;

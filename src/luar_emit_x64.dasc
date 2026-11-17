@@ -1146,6 +1146,10 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
     else if (d->fr_op == 2) {
       | mulsd xmm0, xmm1
     }
+    else if (d->fr_op == 3) {
+      | mulsd xmm1, xmm1
+      | addsd xmm0, xmm1
+    }
     else {
       | addsd xmm0, xmm1
     }
