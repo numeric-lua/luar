@@ -95,7 +95,7 @@ semantics and the VM hand-off exist for `for` loops and simple `while`
 loops whose body is numeric register arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K
 variants and MMBIN), with int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
-`numeric/int_sum` is ~6x faster than the interpreter (LuaJIT parity) and
+`numeric/int_sum` is ~9x faster than the interpreter (ahead of LuaJIT) and
 `numeric/float_loop` ~4x.  Numeric branches and simple `while` loops are
 in; general traces/side exits, calls and table writes are still missing.  See
 `doc/adr/0004-j2-loop-level.md` for the scope decision.

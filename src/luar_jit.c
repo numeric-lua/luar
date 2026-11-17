@@ -505,6 +505,26 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   if (d.has_table && !J->enable_table)
     return 0;
 
+  /* Fast integer sum: acc = acc + idx. */
+  if (!has_branch && !is_while && n == 3) {
+    LuaR_Op *add = &ops[0];
+    int only = 1;
+    for (i = 1; i < n - 1; i++)
+      if (ops[i].kind != LUAR_OP_MMBIN) only = 0;
+    if (only && add->kind == LUAR_OP_ADD && add->a == add->b &&
+        add->c == for_a + 2 && add->ta == LUAR_T_INT &&
+        !is_control_reg(add->a, for_a)) {
+      memset(seen, 0, sizeof(seen));
+      d.nguards = 0;
+      add_guard(&d, seen, add->a, LUAR_T_INT);
+      add_guard(&d, seen, for_a, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 1, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 2, LUAR_T_INT);
+      d.fast_int = 1;
+      d.fi_acc = add->a;
+    }
+  }
+
   /* Fast float pattern: acc = acc + idx * constant (the float_loop
   ** benchmark shape).  Keep acc in xmm0 and the loop counters in GPRs. */
   if (!has_branch && !is_while && n >= 3) {

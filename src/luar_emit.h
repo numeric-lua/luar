@@ -70,6 +70,8 @@ typedef struct LuaR_LoopDesc {
   double ff_const;
   int fast_fill;		/* table[idx] = idx fast path */
   int ff_table;
+  int fast_int;			/* acc += idx fast path */
+  int fi_acc;
   uint8_t guard_reg[256];
   uint8_t guard_type[256];	/* LUAR_T_INT or LUAR_T_FLOAT */
 } LuaR_LoopDesc;

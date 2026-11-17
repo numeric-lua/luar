@@ -30,8 +30,8 @@ is provably observationally equivalent to that interpreter.
   Backward inner loops still fall back.  There is one compiled loop per
   `Proto` (the latest); the code cache is capped at 64 mappings and released
   by `jit.flush`/state close.
-- **Gate status.**  `numeric/int_sum` is ~6x faster than the interpreter
-  (LuaJIT parity) and `numeric/float_loop` ~4x; `mandel`/`fib` are
+- **Gate status.**  `numeric/int_sum` is ~9x faster than the interpreter
+  (ahead of LuaJIT) and `numeric/float_loop` ~4x; `mandel`/`fib` are
   unchanged, so the full J2 gate in section 12 is not met yet.
 
 ## 1. Goals, non-goals and the correctness contract

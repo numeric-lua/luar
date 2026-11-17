@@ -69,6 +69,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   (`t[i]`, or fused `acc = acc + t[i]`) compiles for one table at the body
   start, with bounds/tag guards that fall back before the current iteration.
   It is experimental and not yet faster than the interpreter.
+- J4 peephole: `acc = acc + i` integer loops keep the accumulator and loop
+  counters in GPRs; `numeric/int_sum` drops from ~5.9 ms to ~3.9 ms (0.11x
+  stock Lua, faster than LuaJIT).
 - J4 peephole: `acc = acc + i * const` float loops keep the accumulator in
   an XMM register and the loop counters in GPRs; `numeric/float_loop` drops
   from ~11 ms to ~6.8 ms (0.25x stock Lua).
