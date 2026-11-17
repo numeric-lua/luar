@@ -18,7 +18,7 @@ end
 
 local exprs = {
   "acc + i", "acc - i", "acc * i", "acc / i",
-  "acc + i * 2", "acc * 2", "acc + 3", "i / 2",
+  "acc + i * 2", "acc * 2", "acc + 3", "i / 2", "acc + i * i",
 }
 local inits = { "0", "1", "7", "0.0" }
 
