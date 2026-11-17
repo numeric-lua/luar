@@ -1050,14 +1050,11 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
                                CType *ft, CType *rt, int argstart) {
   unsigned char code[64];
   size_t n = 0, i;
-  size_t chunks = (rt->size + 7) / 8;
   void *mem;
   size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
-  ffi_type ftret;
-  ffi_type *elems[3];
   ffi_type *atypes[5];
   ffi_cif cif;
-  unsigned char retbuf[16];
+  unsigned char *retbuf = (unsigned char *)calloc(1, rt->size > 0 ? rt->size : 1);
   ArgSlot slots[5];
   void *values[5];
   int nargs = (int)ft->nargs;
@@ -1092,28 +1089,23 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
     code[n++] = movs[i - 1][1];
     code[n++] = movs[i - 1][2];
   }
-  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe7;
+  if (retbuf == NULL)
+    luaL_error(L, "ffi: out of memory for packed return");
+  code[n++] = 0x48; code[n++] = 0xbf; /* mov rdi,retbuf */
+  {
+    uint64_t rb = (uint64_t)(uintptr_t)retbuf;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(rb >> (8 * i));
+  }
   code[n++] = 0x48; code[n++] = 0xb8;
   {
     uint64_t target = (uint64_t)(uintptr_t)fn->v.p;
     for (i = 0; i < 8; i++) code[n++] = (unsigned char)(target >> (8 * i));
   }
   code[n++] = 0xff; code[n++] = 0xd0;
-  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x04; code[n++] = 0x24;
-  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x54; code[n++] = 0x24;
-  code[n++] = 0x08;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x28;
   code[n++] = 0xc3;
-  memset(&ftret, 0, sizeof(ftret));
-  ftret.type = FFI_TYPE_STRUCT;
-  for (i = 0; i < chunks; i++)
-    elems[i] = &ffi_type_uint64;
-  elems[chunks] = NULL;
-  ftret.elements = elems;
-  ftret.size = 0;
-  ftret.alignment = 0;
-  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)nargs, &ftret,
-                    nargs > 0 ? atypes : NULL);
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)nargs,
+                    &ffi_type_void, nargs > 0 ? atypes : NULL);
   if (st != FFI_OK)
     luaL_error(L, "ffi: libffi cannot prepare a packed return");
   mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
@@ -1125,13 +1117,13 @@ static int packed_return_call (lua_State *L, FFIState *S, CData *fn,
     munmap(mem, pagesize);
     luaL_error(L, "ffi: cannot make the packed-return thunk executable");
   }
-  memset(retbuf, 0, sizeof(retbuf));
-  ffi_call(&cif, FFI_FN(mem), retbuf, nargs > 0 ? values : NULL);
+  ffi_call(&cif, FFI_FN(mem), NULL, nargs > 0 ? values : NULL);
   saved_errno = errno;
   munmap(mem, pagesize);
   errno = saved_errno;
   cd = ffi_push_owned(L, S, rt, rt->size);
   memcpy(cd->v.p, retbuf, rt->size);
+  free(retbuf);
   return 1;
 }
 #endif
@@ -1146,11 +1138,9 @@ static int packed_multi_call (lua_State *L, FFIState *S, CData *fn,
   size_t n = 0, i, ci;
   void *mem;
   size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
-  ffi_type ftret;
-  ffi_type *elems[3];
   ffi_type *atypes[6];
   ffi_cif cif;
-  unsigned char retbuf[16];
+  unsigned char *retbuf = (unsigned char *)calloc(1, rt->size > 0 ? rt->size : 1);
   void *values[6];
   CData *out;
   ffi_status st;
@@ -1211,7 +1201,13 @@ static int packed_multi_call (lua_State *L, FFIState *S, CData *fn,
       (void)regs;
     }
   }
-  code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe7;
+  if (retbuf == NULL)
+    luaL_error(L, "ffi: out of memory for packed return");
+  code[n++] = 0x48; code[n++] = 0xbf;
+  {
+    uint64_t rb = (uint64_t)(uintptr_t)retbuf;
+    for (i = 0; i < 8; i++) code[n++] = (unsigned char)(rb >> (8 * i));
+  }
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x10;
   code[n++] = 0x48; code[n++] = 0xb8;
   {
@@ -1220,23 +1216,12 @@ static int packed_multi_call (lua_State *L, FFIState *S, CData *fn,
   }
   code[n++] = 0xff; code[n++] = 0xd0;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x10;
-  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x04; code[n++] = 0x24;
-  code[n++] = 0x48; code[n++] = 0x8b; code[n++] = 0x54; code[n++] = 0x24;
-  code[n++] = 0x08;
   code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x48;
   code[n++] = 0xc3;
-  memset(&ftret, 0, sizeof(ftret));
-  ftret.type = FFI_TYPE_STRUCT;
-  for (i = 0; i < (rt->size + 7) / 8; i++)
-    elems[i] = &ffi_type_uint64;
-  elems[(rt->size + 7) / 8] = NULL;
-  ftret.elements = elems;
-  ftret.size = 0;
-  ftret.alignment = 0;
   for (i = 0; i < chunk_count; i++)
     atypes[i] = &ffi_type_uint64;
-  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)chunk_count, &ftret,
-                    atypes);
+  st = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, (unsigned)chunk_count,
+                    &ffi_type_void, atypes);
   if (st != FFI_OK)
     luaL_error(L, "ffi: libffi cannot prepare a packed call");
   mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
@@ -1250,13 +1235,13 @@ static int packed_multi_call (lua_State *L, FFIState *S, CData *fn,
   }
   for (i = 0; i < chunk_count; i++)
     values[i] = &chunks[i];
-  memset(retbuf, 0, sizeof(retbuf));
-  ffi_call(&cif, FFI_FN(mem), retbuf, values);
+  ffi_call(&cif, FFI_FN(mem), NULL, values);
   saved_errno = errno;
   munmap(mem, pagesize);
   errno = saved_errno;
   out = ffi_push_owned(L, S, rt, rt->size);
   memcpy(out->v.p, retbuf, rt->size);
+  free(retbuf);
   return 1;
 }
 #endif
@@ -1377,7 +1362,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   if (!ft->vararg && nargs >= 1 && nargs <= 3 &&
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
-      ft->ret->size <= 8 && packed_int_type(ft->ret)) {
+      packed_int_type(ft->ret)) {
     int ok = 1, j, total = 0;
     for (j = 0; j < nargs; j++) {
       CType *at = ft->args[j];
@@ -1392,7 +1377,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   if (!ft->vararg &&
       ft->ret->kind == CT_STRUCT && ft->ret->pack == 1 &&
       ft->ret->align_override == 0 && ft->ret->size > 0 &&
-      ft->ret->size <= 8 && packed_int_type(ft->ret) &&
+      packed_int_type(ft->ret) &&
       packed_return_signature(ft))
     return packed_return_call(L, S, fn, ft, ft->ret, argstart);
   if (!ft->vararg && nargs == 1 && provided == 1) {

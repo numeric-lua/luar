@@ -90,7 +90,10 @@ local wsum = h.packedwideadd(pw, pw2)
 H.eq(wsum.c, 7)
 H.eq(wsum.i, 15)
 H.eq(wsum.s, 1200)
-H.raises(function () return h.packedwideid(pw) end, "layout")
+local wid = h.packedwideid(pw)
+H.eq(wid.a, 10)
+H.eq(wid.b, 1000)
+H.eq(wid.c, 3)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())
