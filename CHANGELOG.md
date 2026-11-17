@@ -10,6 +10,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 - FFI cdata bitwise/shift operators (`& | ~ << >>`, `__band`..`__bnot`),
   `//` and `^` with LuaJIT-compatible 64-bit promotion and masked shifts.
+- FFI parser hardening: constant-expression arithmetic wraps in 64 bits,
+  `INT64_MIN / -1` and `% -1` no longer trap, and deeply nested declarators
+  or constant expressions raise a Lua error instead of overflowing the C
+  stack.  Found by the new deterministic cdef fuzzer.
 - `string.format` integration for cdata: integer conversions and
   `%s`/`%q` follow LuaJIT; plain Lua values are unchanged.
 - A real-consumer FFI test: `tests/consumer/luatorch.lua` loads the

@@ -55,22 +55,25 @@ LUAI_FUNC int luar_jit_hotloop (lua_State *L, Proto *p,
                                 const Instruction *backedge);
 
 /*
-** Per-backedge fast path.  The epoch check makes jit.flush() reset the
-** counters of every Proto lazily without walking the heap.
+** Per-backedge fast path.  Once a Proto is hot the branch below is the only
+** cost (one load and compare); the recorder is called once, at the
+** threshold.  jit.flush() clears the trace list and stats but does not walk
+** the heap to reset already-hot prototypes (J1 limitation; J2 keeps a
+** prototype list).
 */
 static inline int luar_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge) {
-  LuaR_JIT *J = G(L)->luar_jit;
-  uint32_t epoch = (J != NULL) ? J->epoch : 0;
-  if (p->luar_epoch != epoch) {
-    p->luar_epoch = epoch;
-    p->luar_hot = 0;
-  }
   if (p->luar_hot >= LUAR_JIT_HOTCOUNT)
     return 0;
   if (++p->luar_hot < LUAR_JIT_HOTCOUNT)
     return 0;
   return luar_jit_hotloop(L, p, backedge);
 }
+
+#if defined(LUAR_JIT_DISABLE)
+#define LUAR_JIT_HOT(L, p, pc)	((void)0)
+#else
+#define LUAR_JIT_HOT(L, p, pc)	luar_jit_hot((L), (p), (pc))
+#endif
 
 #endif

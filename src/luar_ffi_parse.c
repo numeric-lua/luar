@@ -75,6 +75,7 @@ typedef struct Parser {
   const char *fname;
   int line;
   int mode;			/* 0 = cdef declarations, 1 = type expression */
+  int depth;			/* recursion guard for nested declarations */
   Token tok;
 } Parser;
 
@@ -587,7 +588,10 @@ static Suffix *parse_function_suffix (Parser *P) {
 
 
 static DNode *parse_declarator (Parser *P) {
-  DNode *n = node_new(P);
+  DNode *n;
+  if (++P->depth > 200)
+    parser_error(P, "declarator nesting too deep");
+  n = node_new(P);
   reject_unsupported(P);
   while (accept_punct(P, '*')) {
     n->nptr++;
@@ -615,6 +619,7 @@ static DNode *parse_declarator (Parser *P) {
     else
       break;
   }
+  P->depth--;
   return n;
 }
 
@@ -650,15 +655,23 @@ static int64_t parse_primary (Parser *P) {
 
 
 static int64_t parse_unary (Parser *P) {
+  int64_t v;
+  if (++P->depth > 200)
+    parser_error(P, "constant expression nested too deeply");
   if (accept_punct(P, '+'))
-    return parse_unary(P);
-  if (accept_punct(P, '-'))
-    return -parse_unary(P);
-  if (accept_punct(P, '~'))
-    return ~parse_unary(P);
-  if (accept_punct(P, '!'))
-    return !parse_unary(P);
-  return parse_primary(P);
+    v = parse_unary(P);
+  else if (accept_punct(P, '-')) {
+    v = parse_unary(P);
+    v = (int64_t)(0 - (uint64_t)v);   /* wrap, including INT64_MIN */
+  }
+  else if (accept_punct(P, '~'))
+    v = ~parse_unary(P);
+  else if (accept_punct(P, '!'))
+    v = !parse_unary(P);
+  else
+    v = parse_primary(P);
+  P->depth--;
+  return v;
 }
 
 
@@ -702,18 +715,18 @@ static int64_t parse_binary (Parser *P, int minprec) {
           parser_error(P, "shift count out of range");
         lhs = lhs >> (unsigned)rhs;
         break;
-      case '+': lhs = lhs + rhs; break;
-      case '-': lhs = lhs - rhs; break;
-      case '*': lhs = lhs * rhs; break;
+      case '+': lhs = (int64_t)((uint64_t)lhs + (uint64_t)rhs); break;
+      case '-': lhs = (int64_t)((uint64_t)lhs - (uint64_t)rhs); break;
+      case '*': lhs = (int64_t)((uint64_t)lhs * (uint64_t)rhs); break;
       case '/':
         if (rhs == 0)
           parser_error(P, "division by zero in constant expression");
-        lhs = lhs / rhs;
+        lhs = (lhs == INT64_MIN && rhs == -1) ? INT64_MIN : lhs / rhs;
         break;
       case '%':
         if (rhs == 0)
           parser_error(P, "division by zero in constant expression");
-        lhs = lhs % rhs;
+        lhs = (lhs == INT64_MIN && rhs == -1) ? 0 : lhs % rhs;
         break;
       default: break;
     }

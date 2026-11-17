@@ -19,6 +19,9 @@ UNAME_S:= $(shell uname -s)
 # LuaR FFI library is complete (see doc/roadmap.md, milestone 0.2).
 WITH_FFI?= 0
 
+# J1 trace recorder.  JIT=0 compiles the backedge hooks out entirely.
+WITH_JIT?= 1
+
 ifeq ($(UNAME_S),Linux)
 SYSCFLAGS= -DLUA_USE_LINUX
 SYSLIBS= -Wl,-E -ldl
@@ -45,6 +48,10 @@ FFI_O= luar_ffi_stub.o
 # WITH_FFI=1 build.
 ALL_FFI_O= luar_ffi_stub.o luar_ffi.o luar_ffi_type.o luar_ffi_parse.o \
 	luar_ffi_call.o
+ifeq ($(WITH_JIT),0)
+SYSCFLAGS+= -DLUAR_JIT_DISABLE
+endif
+
 ifeq ($(WITH_FFI),1)
 # The FFI is split into a type system, a C declaration parser, the cdata
 # runtime/library and the libffi call/C-library layer.  libffi itself is
@@ -114,5 +121,6 @@ echo:
 	@echo "LDFLAGS= $(LDFLAGS)"
 	@echo "LIBS= $(LIBS)"
 	@echo "WITH_FFI= $(WITH_FFI)"
+	@echo "WITH_JIT= $(WITH_JIT)"
 
 .PHONY: all default o a test clean echo
