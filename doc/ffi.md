@@ -121,8 +121,9 @@ preprocessor subset is available.
   object macros expanded outside strings/comments.  Function-like macros
   support named and variadic (`...`/`__VA_ARGS__`) parameters on a single
   line.  Quoted `#include "path"` reads a file relative to the current
-  working directory (depth/size limited); `#`/`##`, angle includes,
-  non-pack `#pragma` and complex `#if` expressions are rejected;
+  working directory (depth/size limited); token pasting (`##`) is
+  supported; stringification (`#`), angle includes, non-pack `#pragma` and
+  complex `#if` expressions are rejected;
   `#pragma pack(n/push/pop)` drives layout.
 * `__attribute__((packed))` and `__attribute__((aligned(n)))` (alone or
   combined) on a struct/union are supported; other attributes,
@@ -485,9 +486,9 @@ probes, and variadic probes.  Coverage includes:
 
 * `ffi.cdef` success and error cases, including offending-token messages;
 * object- and function-like (including variadic) cdef macros,
-  conditionals, persistence, `#undef`, nested argument lists, quoted
-  includes with include guards, and rejection of stringifying/angle/
-  complex directives;
+  conditionals, persistence, `#undef`, nested argument lists, token
+  pasting, quoted includes with include guards, and rejection of
+  stringifying/angle/complex directives;
 * sizes, alignments, and offsets compared against the C compiler's
   `sizeof`/`offsetof`;
 * `ffi.new` scalars, arrays (fixed and VLA), structs, unions, anonymous

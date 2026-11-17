@@ -292,6 +292,15 @@ static void expand_func (lua_State *L, FFIState *S, Buf *out, Macro *m,
   }
   while (i < bn) {
     char c = m->body[i];
+    if (c == '#' && i + 1 < bn && m->body[i + 1] == '#') {
+      i += 2;
+      while (i < bn && (m->body[i] == ' ' || m->body[i] == '\t'))
+        i++;
+      while (sub.n > 0 &&
+             (sub.p[sub.n - 1] == ' ' || sub.p[sub.n - 1] == '\t'))
+        sub.n--;
+      continue;
+    }
     if (c == '"' || c == '\'') {
       char q = c;
       buf_char(L, &sub, c);
@@ -585,9 +594,18 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
           body = q;
           bn = rn;
           trim(&body, &bn);
-          if (bn > 0 && memchr(body, '#', bn) != NULL)
-            luaL_error(L, "ffi.cdef:%d: macro stringification/pasting is not "
-                           "supported", line);
+          {
+            size_t bi;
+            for (bi = 0; bi < bn; bi++) {
+              if (body[bi] == '#') {
+                if (bi + 1 < bn && body[bi + 1] == '#')
+                  bi++;
+                else
+                  luaL_error(L, "ffi.cdef:%d: macro stringification is not "
+                                 "supported", line);
+              }
+            }
+          }
           if (active)
             macro_set_func(L, S, name, nn, params, np, variadic, body, bn);
         }

@@ -92,6 +92,19 @@ ffi.cdef[[
 H.eq(ffi.C.LUAR_PP_L1, 7)
 H.eq(ffi.C.LUAR_PP_L2, 7)
 
+-- token pasting concatenates substituted parameters
+ffi.cdef[[
+#define LUAR_PP_FIELD(n) int f##n;
+#define LUAR_PP_TYPE(name) struct name##_s { int v; };
+struct PpPaste { LUAR_PP_FIELD(1) LUAR_PP_FIELD(2) };
+LUAR_PP_TYPE(PpPaste)
+]]
+local pp = ffi.new("struct PpPaste")
+pp.f1 = 3
+pp.f2 = 4
+H.eq(pp.f1 + pp.f2, 7)
+H.eq(ffi.sizeof("struct PpPaste_s"), 4)
+
 -- unsupported forms fail clearly
 H.raises(function ()
   return ffi.cdef("#define LUAR_PP_STR(x) #x")
