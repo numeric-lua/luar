@@ -21,13 +21,20 @@ Delivered:
 Exit criteria (met): `make test` green; semantics suite identical under stock
 `lua` 5.5.1; `luar -v` identifies the Lua base.
 
-## 0.2 — FFI core (in progress)
+## 0.2 — FFI core (landed 2026-11-17, preview)
 
 Scope: `ffi.cdef` (typedef/struct/union/enum/pointer/array/function types),
 ctype introspection (`typeof`, `istype`, `sizeof`, `alignof`, `offsetof`),
 cdata allocation and access (`new`, `cast`, field/array access, pointer
 arithmetic, int64/uint64), `string`/`copy`/`fill`/`gc`/`metatype`, `ffi.C`
 and `ffi.load` with fixed-argument calls through libffi, `ffi.errno`.
+
+Status: this scope is implemented and covered by `tests/ffi/` (including a
+`qsort` call with a C comparator and struct-by-value arguments/returns)
+behind `WITH_FFI=1`.  What remains before the milestone closes: cdata
+bitwise/shift operators and cdata-aware `bit.*` operands, automated
+ASan/UBSan coverage, the varargs/callback/bitfield decisions, and testing on
+non-x86-64 hosts.
 
 Exit criteria:
 

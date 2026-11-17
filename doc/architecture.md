@@ -118,7 +118,7 @@ Extensions must be additive and detectable:
 | `luar` | global table | version, lua_version, os, arch, features |
 | `jit` | global table | LuaJIT control surface; `status()` is truthful |
 | `bit` | global table | 32-bit LuaJIT semantics on 5.5 integers |
-| `ffi` | global table | LuaJIT-compatible subset (milestone 0.2) |
+| `ffi` | global table | LuaJIT-compatible core, opt-in (`doc/ffi.md`) |
 | `table.new`, `table.clear` | functions | LuaJIT/OpenResty names; `table.create` is upstream |
 
 Rules:

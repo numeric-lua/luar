@@ -328,9 +328,10 @@ API. Consequences:
   without recompilation (`tests/cli.sh` checks a stock `lua5.5` module);
 * upstream bug fixes and semantic changes arrive by merging core files, not
   by translating between two runtimes;
-* the delta stays small enough to audit: five tracked core/build files
-  (`lua.c`, `luac.c`, `luaconf.h`, `lualib.h`, `Makefile`) plus a small set
-  of additive `luar_*` source/header files;
+* the delta stays small enough to audit: six tracked core/build files
+  (`lua.c`, `luac.c`, `luaconf.h`, `lualib.h`, `lvm.c`, `Makefile`) plus a
+  small set of additive `luar_*` source/header files.  `lvm.c` carries only
+  the gated `/* LUAR */` FFI equality hook;
 * when Lua 5.6 changes internals, the rebase is visible in one three-way
   report, and anything the JIT hooks is forced through the same review.
 

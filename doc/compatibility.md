@@ -68,16 +68,34 @@ Lua 5.5 spelling and is left untouched.
 | `jit.util.*` | not implemented | bytecode is 5.5, LuaJIT's util is 5.1-shaped |
 | `jit.profile` | not implemented | candidate for 0.4 |
 
-### 2.4 `ffi` — milestone 0.2
+### 2.4 `ffi` — core implemented (opt-in)
 
-See `doc/ffi.md` once the implementation lands. Planned subset: `cdef`,
-`typeof`, `istype`, `sizeof`, `alignof`, `offsetof`, `new`, `cast`,
-`metatype`, `gc`, `string`, `copy`, `fill`, `C`, `load`, `errno`, `abi`,
-`os`, `arch`, `NULL`, cdata arithmetic and field access, fixed-argument
-calls.
+Build with `WITH_FFI=1`; calls are made through libffi.  The full reference
+is `doc/ffi.md`.
 
-Not planned in 0.2: C preprocessor, bitfields, varargs calls, callbacks from
-C to Lua (`ffi.callback`), `ffi.typeinfo`, complex/vector types.
+Implemented: `cdef` (typedefs, structs/unions including anonymous and nested
+members, enums and their constants, pointers, fixed and variable-length
+arrays, function types, extern variables),
+`typeof`/`istype`/`sizeof`/`alignof`/`offsetof`, `new` (scalars, arrays,
+VLAs, structs/unions; table, string and positional initializers), `cast`,
+`string`, `copy`, `fill`, `gc` (Lua or C finalizer), `metatype`, `C`,
+`load`, `errno`, `abi`, `os`, `arch`, `NULL`, field/array access, pointer
+arithmetic, int64/uint64 wrap-around, comparisons with numbers/nil, and
+struct-by-value arguments and returns.
+
+Deliberate deviations, all documented:
+
+* cdata is full userdata; loading the FFI wraps the global `type()` and
+  `tonumber()` so `type(cdata) == "cdata"` and numeric cdata convert.
+* A small, gated `/* LUAR */` hook in `src/lvm.c` lets the VM call `__eq`
+  for cdata↔number/nil; stock Lua 5.5 never does.  It is compiled into both
+  builds (`LUAR_FFI_HOOKS`) but inert without the reserved cdata marker.
+* `string.format("%d", cdata)` is not hooked; use `tonumber(cdata)`.
+* Bounds checks for owned arrays are stricter than LuaJIT's.
+
+Not supported: C preprocessor, bitfields, `long double`/complex/vector
+types, packing attributes, variadic calls, C→Lua callbacks
+(`ffi.callback`), and `ffi.typeinfo`.
 
 ### 2.5 Other LuaJIT libraries
 

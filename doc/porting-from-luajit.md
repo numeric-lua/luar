@@ -49,6 +49,12 @@ local lo = x & 0xffff
 If the old code relied on `bit.tobit` for wraparound at 2^32, keep using
 `bit.tobit` or mask with `& 0xffffffff` and convert sign explicitly.
 
+Known 0.2-preview gap: `bit.*` does not yet accept cdata operands and cdata
+has no bitwise/shift metamethods, so LuaJIT idioms such as
+`bit.band(ffi.cast("uintptr_t", p), mask)` or `cdata & mask` do not work.
+When the value fits in 53 bits, convert with `tonumber()`; otherwise keep
+that arithmetic in C (or wait for the FFI follow-up listed in the roadmap).
+
 ## 3. FFI
 
 LuaR's FFI is a LuaJIT-compatible subset (milestone 0.2). The porting rules:
