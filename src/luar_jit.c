@@ -499,6 +499,25 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
   }
+  /* Fast product: acc = acc * idx. */
+  if (!has_branch && !is_while && n == 3) {
+    LuaR_Op *mul = &ops[0];
+    if (mul->kind == LUAR_OP_MUL && mul->a == mul->b &&
+        mul->c == for_a + 2 &&
+        (mul->ta == LUAR_T_INT || mul->ta == LUAR_T_FLOAT) &&
+        !is_control_reg(mul->a, for_a)) {
+      memset(seen, 0, sizeof(seen));
+      d.nguards = 0;
+      add_guard(&d, seen, mul->a, mul->ta);
+      add_guard(&d, seen, for_a, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 1, LUAR_T_INT);
+      add_guard(&d, seen, for_a + 2, LUAR_T_INT);
+      d.fast_prod = 1;
+      d.fp_float = (mul->ta == LUAR_T_FLOAT);
+      d.fp_acc = mul->a;
+    }
+  }
+
   /* Fast square sum: acc = acc + idx * idx. */
   if (!has_branch && !is_while && n == 5) {
     LuaR_Op *mul = &ops[0];
