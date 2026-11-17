@@ -24,7 +24,7 @@ INSTALL_CMOD= $(DESTDIR)$(PREFIX)/lib/luar/$(LUAVER)
 MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI)
 PREFIX_STAMP= src/.prefix
 
-.PHONY: all build prefix-check shared test test-semantics test-compat test-ffi bench \
+.PHONY: all build prefix-check shared test test-semantics test-compat test-ffi test-diff bench \
 	install uninstall clean distclean upstream-check sync-diff docs help
 
 all: build
@@ -52,6 +52,8 @@ test: build
 	@echo "== suites =="
 	./src/luar tests/run.lua semantics compat
 	@if [ "$(WITH_FFI)" = "1" ]; then ./src/luar tests/run.lua ffi; fi
+	@echo "== differential vs stock lua =="
+	./tests/diff/run.sh
 
 test-semantics: build
 	./src/luar tests/run.lua semantics
@@ -61,6 +63,9 @@ test-compat: build
 
 test-ffi: build
 	./src/luar tests/run.lua ffi
+
+test-diff: build
+	./tests/diff/run.sh
 
 test-all: test-semantics test-compat
 	@echo "all test suites passed"
