@@ -509,15 +509,17 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     if (only && mul->kind == LUAR_OP_MUL && mul->a != for_a + 2 &&
         mul->b == for_a + 2 && mul->c == for_a + 2 &&
         mul->ta == LUAR_T_INT && add->kind == LUAR_OP_ADD &&
-        add->a == add->b && add->c == mul->a && add->ta == LUAR_T_INT &&
+        add->a == add->b && add->c == mul->a &&
+        (add->ta == LUAR_T_INT || add->ta == LUAR_T_FLOAT) &&
         !is_control_reg(add->a, for_a)) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
-      add_guard(&d, seen, add->a, LUAR_T_INT);
+      add_guard(&d, seen, add->a, add->ta);
       add_guard(&d, seen, for_a, LUAR_T_INT);
       add_guard(&d, seen, for_a + 1, LUAR_T_INT);
       add_guard(&d, seen, for_a + 2, LUAR_T_INT);
       d.fast_sq = 1;
+      d.fs_float = (add->ta == LUAR_T_FLOAT);
       d.fs_acc = add->a;
     }
   }

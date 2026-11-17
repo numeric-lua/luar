@@ -13,7 +13,13 @@ local function sq (n)
   for i = 1, n do s = s + i * i end
   return s
 end
+local function sqf (n)
+  local s = 0.0
+  for i = 1, n do s = s + i * i end
+  return s
+end
 H.eq(sq(100000), 333338333350000)
+H.eq(sqf(100000), 333338333350000.0)
 H.check(jit.stats().compiled >= 1, "square loop did not compile")
 
 local function sqstep (n)
@@ -28,6 +34,7 @@ H.eq(sqstep(10000), want)
 
 jit.off()
 H.eq(sq(1000), 333833500)
+H.eq(sqf(1000), 333833500.0)
 H.eq(sqstep(10000), want)
 jit.on()
 
