@@ -4,6 +4,17 @@ All notable changes to LuaR are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [Unreleased]
+
+### Added
+
+- FFI cdata bitwise/shift operators (`& | ~ << >>`, `__band`..`__bnot`),
+  `//` and `^` with LuaJIT-compatible 64-bit promotion and masked shifts.
+- J1 trace recorder: hot-loop counters, trace selection, bytecode
+  snapshots, `jit.stats()`, `jit.trace()`, `jit.traces()`, working
+  `jit.flush()`/`jit.off()` recording control.  No machine code is
+  generated and `jit.status()` remains `false`.
+
 ## [0.1.0] — 2026-11-17
 
 The first LuaR release: Lua 5.5.1 only, a LuaJIT-style surface on top, and

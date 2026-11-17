@@ -1,11 +1,9 @@
 /*
-** luar_jit.c -- the 'jit' library (LuaJIT API surface).
+** luar_jit.c -- the 'jit' library plus the J1 trace recorder.
 **
-** LuaR 0.1 ships no native code generator yet: this library is the
-** stable control surface and reports its state truthfully.  jit.status()
-** returns false, and luar.features.jit is false, until the tier-1
-** engine lands.  The API is present so portable LuaJIT code can probe
-** and fall back without crashing.
+** J1 records hot loop backedges and snapshots the loop bytecode (see
+** doc/jit-design.md sections 7 and 10).  There is still no machine code:
+** the interpreter executes everything and jit.status() reports false.
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.
 */
@@ -15,7 +13,8 @@
 
 #include "lprefix.h"
 
-#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "lua.h"
@@ -24,27 +23,139 @@
 #include "lualib.h"
 #include "luar.h"
 
+#include "lopcodes.h"
+#include "lopnames.h"
+#include "luar_jit.h"
+
+
+/* ---------------------------------------------------------------- */
+/* State                                                             */
+/* ---------------------------------------------------------------- */
+
+void luar_jit_init (lua_State *L) {
+  LuaR_JIT *J;
+  if (G(L)->luar_jit != NULL)
+    return;
+  J = (LuaR_JIT *)malloc(sizeof(LuaR_JIT));
+  if (J == NULL)
+    return;
+  memset(J, 0, sizeof(*J));
+  J->epoch = 1;
+  J->enabled = 1;
+  G(L)->luar_jit = J;
+}
+
+
+void luar_jit_shutdown (lua_State *L) {
+  LuaR_JIT *J = G(L)->luar_jit;
+  if (J != NULL) {
+    G(L)->luar_jit = NULL;
+    free(J);
+  }
+}
+
+
+/* ---------------------------------------------------------------- */
+/* Recording                                                         */
+/* ---------------------------------------------------------------- */
+
+int luar_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge) {
+  LuaR_JIT *J = G(L)->luar_jit;
+  Instruction ins;
+  ptrdiff_t off, target, n;
+
+  if (J == NULL) {
+    luar_jit_init(L);
+    J = G(L)->luar_jit;
+    if (J == NULL)
+      return 0;
+  }
+  J->hotloops++;
+  if (!J->enabled)
+    return 0;
+  if (J->traces >= LUAR_JIT_MAXTRACES) {
+    J->aborts++;
+    return 0;
+  }
+  if (backedge < p->code || backedge >= p->code + p->sizecode)
+    return 0;
+  ins = *backedge;
+  off = backedge - p->code;
+  switch (GET_OPCODE(ins)) {
+    case OP_JMP:
+      target = off + 1 + GETARG_sJ(ins);
+      break;
+    case OP_FORLOOP:
+    case OP_TFORLOOP:
+      target = off + 1 - (ptrdiff_t)GETARG_Bx(ins);
+      break;
+    default:
+      J->aborts++;
+      return 0;
+  }
+  if (target < 0 || target > off) {
+    J->aborts++;
+    return 0;
+  }
+  n = off - target + 1;
+  if (n <= 0 || n > LUAR_JIT_MAXINS) {
+    J->aborts++;
+    return 0;
+  }
+  {
+    LuaR_Trace *t = &J->trace[J->traces];
+    t->startpc = (uint32_t)target + 1;
+    t->endpc = (uint32_t)off + 1;
+    t->nins = (uint32_t)n;
+    memcpy(t->code, p->code + target, (size_t)n * sizeof(Instruction));
+    J->traces++;
+  }
+  return 1;
+}
+
+
+/* ---------------------------------------------------------------- */
+/* jit.* API                                                         */
+/* ---------------------------------------------------------------- */
+
+static LuaR_JIT *checkjit (lua_State *L) {
+  LuaR_JIT *J = G(L)->luar_jit;
+  if (J == NULL) {
+    luar_jit_init(L);
+    J = G(L)->luar_jit;
+  }
+  return J;
+}
+
 
 static int jit_on (lua_State *L) {
-  (void)L;    /* no native engine yet: nothing to enable */
+  LuaR_JIT *J = checkjit(L);
+  if (J != NULL) J->enabled = 1;
   return 0;
 }
 
 
 static int jit_off (lua_State *L) {
-  (void)L;
+  LuaR_JIT *J = checkjit(L);
+  if (J != NULL) J->enabled = 0;
   return 0;
 }
 
 
 static int jit_flush (lua_State *L) {
-  (void)L;
-  return 0;   /* nothing compiled yet */
+  LuaR_JIT *J = checkjit(L);
+  if (J != NULL) {
+    J->epoch++;
+    J->hotloops = 0;
+    J->traces = 0;
+    J->aborts = 0;
+  }
+  return 0;
 }
 
 
 static int jit_status (lua_State *L) {
-  lua_pushboolean(L, 0);   /* truthful: no native code generator in 0.1 */
+  lua_pushboolean(L, 0);   /* truthful: no native code generator yet */
   return 1;
 }
 
@@ -66,11 +177,76 @@ static int jit_opt_start (lua_State *L) {
 }
 
 
+static void pushtrace (lua_State *L, const LuaR_Trace *t) {
+  luaL_Buffer b;
+  uint32_t i;
+  luaL_buffinit(L, &b);
+  for (i = 0; i < t->nins; i++) {
+    Instruction ins = t->code[i];
+    OpCode op = GET_OPCODE(ins);
+    const char *name = (op < NUM_OPCODES) ? opnames[op] : "?";
+    char line[128];
+    snprintf(line, sizeof(line), "%4u  %-12s A=%d B=%d C=%d Bx=%d\n",
+             (unsigned)(t->startpc + i), name,
+             (int)GETARG_A(ins), (int)GETARG_B(ins), (int)GETARG_C(ins),
+             (int)GETARG_Bx(ins));
+    luaL_addstring(&b, line);
+  }
+  luaL_pushresult(&b);
+}
+
+
+static int jit_trace (lua_State *L) {
+  LuaR_JIT *J = checkjit(L);
+  lua_Integer i = luaL_checkinteger(L, 1);
+  if (J == NULL || i < 1 || i > (lua_Integer)J->traces)
+    return luaL_error(L, "jit.trace: no trace %d", (int)i);
+  pushtrace(L, &J->trace[i - 1]);
+  return 1;
+}
+
+
+static int jit_traces (lua_State *L) {
+  LuaR_JIT *J = checkjit(L);
+  uint32_t i;
+  lua_createtable(L, J != NULL ? (int)J->traces : 0, 0);
+  if (J != NULL) {
+    for (i = 0; i < J->traces; i++) {
+      pushtrace(L, &J->trace[i]);
+      lua_rawseti(L, -2, (lua_Integer)i + 1);
+    }
+  }
+  return 1;
+}
+
+
+static int jit_stats (lua_State *L) {
+  LuaR_JIT *J = checkjit(L);
+  lua_createtable(L, 0, 8);
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->hotloops : 0);
+  lua_setfield(L, -2, "hotloops");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->traces : 0);
+  lua_setfield(L, -2, "traces");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->aborts : 0);
+  lua_setfield(L, -2, "aborts");
+  lua_pushboolean(L, J != NULL && J->enabled);
+  lua_setfield(L, -2, "enabled");
+  lua_pushinteger(L, 0);
+  lua_setfield(L, -2, "mcode");
+  lua_pushboolean(L, 0);
+  lua_setfield(L, -2, "status");
+  return 1;
+}
+
+
 static const luaL_Reg jitlib[] = {
   {"on", jit_on},
   {"off", jit_off},
   {"flush", jit_flush},
   {"status", jit_status},
+  {"stats", jit_stats},
+  {"trace", jit_trace},
+  {"traces", jit_traces},
   {NULL, NULL}
 };
 
@@ -83,6 +259,7 @@ static const luaL_Reg jitoptlib[] = {
 
 LUALIB_API int luaopen_jit (lua_State *L) {
   luaL_checkversion(L);
+  luar_jit_init(L);
   luaL_newlib(L, jitlib);
   lua_pushliteral(L, "LuaR " LUAR_VERSION);
   lua_setfield(L, -2, "version");

@@ -263,6 +263,8 @@ Proto *luaF_newproto (lua_State *L) {
   f->linedefined = 0;
   f->lastlinedefined = 0;
   f->source = NULL;
+  f->luar_hot = 0;    /* LUAR: J1 counters */
+  f->luar_epoch = 0;
   return f;
 }
 

@@ -23,6 +23,7 @@
 #include "llex.h"
 #include "lmem.h"
 #include "lstate.h"
+#include "luar_jit.h"
 #include "lstring.h"
 #include "ltable.h"
 #include "ltm.h"
@@ -268,6 +269,7 @@ static void close_state (lua_State *L) {
     luaC_freeallobjects(L);  /* collect all objects */
     luai_userstateclose(L);
   }
+  luar_jit_shutdown(L);  /* LUAR: free J1 trace state before the global block */
   luaM_freearray(L, G(L)->strt.hash, cast_sizet(G(L)->strt.size));
   freestack(L);
   lua_assert(gettotalbytes(g) == sizeof(global_State));
@@ -357,6 +359,7 @@ LUA_API lua_State *lua_newstate (lua_Alloc f, void *ud, unsigned seed) {
   g->warnf = NULL;
   g->ud_warn = NULL;
   g->seed = seed;
+  g->luar_jit = NULL;  /* LUAR: J1 recorder is created lazily */
   g->gcstp = GCSTPGC;  /* no GC while building state */
   g->strt.size = g->strt.nuse = 0;
   g->strt.hash = NULL;

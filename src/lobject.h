@@ -623,6 +623,9 @@ typedef struct Proto {
   LocVar *locvars;  /* information about local variables (debug information) */
   TString  *source;  /* used for debug information */
   GCObject *gclist;
+  /* LUAR: J1 hot-loop counters (not part of the bytecode dump). */
+  l_uint32 luar_hot;
+  l_uint32 luar_epoch;
 } Proto;
 
 /* }================================================================== */

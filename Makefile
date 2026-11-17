@@ -25,7 +25,7 @@ MAKE_SRC= $(MAKE) -C src PREFIX="$(PREFIX)" WITH_FFI=$(WITH_FFI)
 PREFIX_STAMP= src/.prefix
 FFI_STAMP= src/.ffi
 
-.PHONY: all build config-check shared test test-semantics test-compat test-ffi test-diff \
+.PHONY: all build config-check shared test test-semantics test-compat test-ffi test-diff test-jit \
 	test-upstream bench install uninstall clean distclean upstream-check sync-diff docs help
 
 all: build
@@ -53,7 +53,7 @@ test: build
 	@echo "== cli / abi =="
 	./tests/cli.sh
 	@echo "== suites =="
-	./src/luar tests/run.lua semantics compat
+	./src/luar tests/run.lua semantics compat jit
 	@if [ "$(WITH_FFI)" = "1" ]; then ./src/luar tests/run.lua ffi; fi
 	@echo "== differential vs stock lua =="
 	./tests/diff/run.sh
@@ -69,6 +69,9 @@ test-ffi: build
 
 test-diff: build
 	./tests/diff/run.sh
+
+test-jit: build
+	./src/luar tests/run.lua jit
 
 # Official Lua test suite under src/luar (downloads into tests/tmp/).
 test-upstream: build

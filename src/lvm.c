@@ -30,6 +30,7 @@
 #include "ltable.h"
 #include "ltm.h"
 #include "lvm.h"
+#include "luar_jit.h"
 
 
 /*
@@ -1682,7 +1683,10 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         vmbreak;
       }
       vmcase(OP_JMP) {
+        const Instruction *luarback = pc - 1;  /* LUAR: J1 backedge */
         dojump(ci, i, 0);
+        if (GETARG_sJ(i) < 0)  /* LUAR: backward jump */
+          luar_jit_hot(L, cl->p, luarback);
         vmbreak;
       }
       vmcase(OP_EQ) {
@@ -1890,10 +1894,13 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             idx = intop(+, idx, step);  /* add step to index */
             chgivalue(s2v(ra + 2), idx);  /* update control variable */
             pc -= GETARG_Bx(i);  /* jump back */
+            luar_jit_hot(L, cl->p, pc + GETARG_Bx(i) - 1);  /* LUAR */
           }
         }
-        else if (floatforloop(L, ra))  /* float loop */
+        else if (floatforloop(L, ra)) {  /* float loop */
           pc -= GETARG_Bx(i);  /* jump back */
+          luar_jit_hot(L, cl->p, pc + GETARG_Bx(i) - 1);  /* LUAR */
+        }
         updatetrap(ci);  /* allows a signal to break the loop */
         vmbreak;
       }
@@ -1945,8 +1952,10 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
       vmcase(OP_TFORLOOP) {
        l_tforloop: {
         StkId ra = RA(i);
-        if (!ttisnil(s2v(ra + 3)))  /* continue loop? */
+        if (!ttisnil(s2v(ra + 3))) {  /* continue loop? */
           pc -= GETARG_Bx(i);  /* jump back */
+          luar_jit_hot(L, cl->p, pc + GETARG_Bx(i) - 1);  /* LUAR */
+        }
         vmbreak;
       }}
       vmcase(OP_SETLIST) {

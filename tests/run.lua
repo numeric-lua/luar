@@ -23,7 +23,7 @@ end
 
 local suites = {...}
 if #suites == 0 then
-  suites = {"semantics", "compat", "ffi"}
+  suites = {"semantics", "compat", "jit", "ffi"}
 end
 
 local total, failed = 0, 0

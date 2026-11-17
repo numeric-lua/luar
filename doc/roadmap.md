@@ -61,6 +61,11 @@ Estimated: 2–3 weeks.
 
 ## 0.4 — Hot loops and trace IR (recorder only)
 
+Status: started.  Hot counters, trace selection, bytecode snapshots,
+`jit.stats()`/`jit.trace()`/`jit.traces()` and `jit.flush()`/`jit.off()`
+wiring are implemented; the SSA IR and differential replay are next.
+
+
 * Backedge counters on `Proto` (tagged `/* LUAR */`, reset on `jit.flush`).
 * Trace selection, recording of the executed bytecode path with type
   feedback, trace abort/blacklist rules.

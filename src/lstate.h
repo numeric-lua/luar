@@ -120,6 +120,7 @@ typedef struct CallInfo CallInfo;
 
 
 struct lua_longjmp;  /* defined in ldo.c */
+struct LuaR_JIT;     /* LUAR: J1 trace recorder, defined in luar_jit.h */
 
 
 /*
@@ -369,6 +370,7 @@ typedef struct global_State {
   lua_WarnFunction warnf;  /* warning function */
   void *ud_warn;         /* auxiliary data to 'warnf' */
   LX mainth;  /* main thread of this state */
+  struct LuaR_JIT *luar_jit;  /* LUAR: J1 trace recorder state (or NULL) */
 } global_State;
 
 
