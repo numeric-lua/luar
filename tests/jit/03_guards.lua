@@ -67,6 +67,30 @@ same("div", function ()
   return d
 end)
 
+same("big loadk", function ()
+  local s = 0
+  for i = 1, 5000 do
+    local x = 1099511627776
+    s = s + x
+  end
+  return s
+end)
+
+same("big mulk", function ()
+  local p = 1
+  for i = 1, 100 do p = p * 1099511627776 end
+  return p
+end)
+
+same("float loadk", function ()
+  local t = 0.0
+  for i = 1, 5000 do
+    local c = 3.5
+    t = t + c * i
+  end
+  return t
+end)
+
 same("neg zero", function ()
   local z = 0.0
   for i = 1, 5000 do z = -0.0 * i end

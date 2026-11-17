@@ -417,10 +417,10 @@ Deliberately unsupported call features:
   cdata as pointers, while LuaR rejects aggregate varargs with a clear
   error because passing them by value is not portable.  Use
   `ffi.new`/`ffi.cast` to force a particular C type.
-* `long double`, bitfields, complex numbers, vectors, packing attributes,
-  preprocessor macros, and C→Lua callbacks are not implemented.  They fail
-  with errors or are documented as unsupported; none are silently
-  emulated.
+* `long double`, bitfields, complex numbers, vectors and packing attributes
+  are not implemented, and preprocessor macros are not parsed.  `ffi.callback`
+  supports non-variadic function types without aggregate returns; other
+  shapes fail with a clear error.  None are silently emulated.
 * The implementation is little-endian-load based and has only been tested
   on Linux/x86-64.  It reports ABI facts (`ffi.os`/`ffi.arch`/`ffi.abi`)
   for the host it is built on; other targets need their own testing.
