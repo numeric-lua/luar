@@ -1,7 +1,33 @@
 # LuaR JIT design (tracing, memory-based, x86-64 first)
 
-Status: design for milestones 0.4–0.7 / J1–J5. Normative for the JIT work. `luaV_execute` remains the semantic authority; a trace may run only when it is
-provably observationally equivalent to that interpreter.
+Status: design for milestones 0.4–0.7 / J1–J5, with a partial implementation
+of J1/J2 (see the status section below).  Normative for the JIT work.
+`luaV_execute` remains the semantic authority; a trace may run only when it
+is provably observationally equivalent to that interpreter.
+
+## Implementation status (0.1)
+
+- **J1 implemented.**  Hot backedges are counted per `Proto`; the bytecode
+  of the loop is snapshotted into a trace; `jit.stats`/`trace`/`traces`/`ir`,
+  `jit.flush`, `jit.off` and the epoch-based invalidation exist.
+- **J2 partially implemented (x86-64 only).**  This is a loop-level native
+  continuation rather than a general trace: when an integer-controlled
+  `for` loop becomes hot, the whitelisted body (numeric MOVE/LOADI/LOADF/
+  LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants and `MMBIN`) is emitted with
+  DynASM.  Entry tag guards check every register read initially; the native
+  code runs the remaining iterations on the Lua stack slots and returns to
+  the VM after the loop.  Mixed int/double operands are handled with the
+  conversions Lua performs; the default 16-byte TValue, 64-bit integer and
+  double layout is checked before compiling.
+- **Deviations from this design.**  There is no general trace recorder, no
+  exit stub/side-exit chain, no safepoint or GC barrier machinery (the
+  compiled loop cannot allocate, call, or raise), no table/string/closure
+  operations and no comparison/branch ops.  There is one compiled loop per
+  `Proto` (the latest); the code cache is capped at 64 mappings and released
+  by `jit.flush`/state close.
+- **Gate status.**  `numeric/int_sum` is ~4.4x faster than the interpreter
+  and `numeric/float_loop` ~2.4x; `mandel`/`fib` are unchanged, so the full
+  J2 gate in section 12 is not met yet.
 
 ## 1. Goals, non-goals and the correctness contract
 

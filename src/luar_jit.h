@@ -67,10 +67,8 @@ LUAI_FUNC int luari_jit_hotloop (lua_State *L, Proto *p,
 
 /* Try to run the compiled loop for 'p' on the given stack base.  Returns 1
 ** if the loop was completed natively, 0 to keep interpreting. */
-LUAI_FUNC int luar_jit_run (lua_State *L, Proto *p, void *base);
+LUAI_FUNC int luari_jit_run (lua_State *L, Proto *p, void *base);
 
-/* Nonzero when the JIT tier is compiled in. */
-LUAI_FUNC int luar_has_jit (void);
 
 /*
 ** Per-backedge fast path.  Once a Proto is hot the branch below is the only

@@ -317,7 +317,7 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 #line 221 "src/luar_emit_x64.dasc"
 }
 
-LuaR_LoopFn luar_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
+LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
 {
   dasm_State *Dst;
   size_t size = 0;

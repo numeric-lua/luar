@@ -158,6 +158,9 @@ luar_emit.o: luar_emit.c luar_emit_x64.h luar_emit.h
 
 # PIC variants, used only by the shared library.  The static build keeps
 # using the plain .o files above.
+luar_emit.pic.o: luar_emit.c luar_emit_x64.h luar_emit.h
+	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) $(PICFLAGS) -I../dynasm -c -o $@ luar_emit.c
+
 %.pic.o: %.c
 	$(CC) $(STD) $(CFLAGS) $(SYSCFLAGS) $(MYCFLAGS) $(PICFLAGS) -c -o $@ $<
 

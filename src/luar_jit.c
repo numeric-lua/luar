@@ -1,9 +1,11 @@
 /*
-** luar_jit.c -- the 'jit' library plus the J1 trace recorder.
+** luar_jit.c -- the 'jit' library, the J1 trace recorder and the J2
+** native-loop compiler (x86-64 numeric for-loops).
 **
 ** J1 records hot loop backedges and snapshots the loop bytecode (see
-** doc/jit-design.md sections 7 and 10).  There is still no machine code:
-** the interpreter executes everything and jit.status() reports false.
+** doc/jit-design.md sections 7 and 10).  J2 then emits a guarded native
+** loop with DynASM and hands it the remaining iterations; everything the
+** whitelist does not cover stays in the interpreter.
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.
 */
@@ -120,12 +122,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   TValue *b = (TValue *)base;
   uint8_t cur[256], def[256], seen[256];
   int for_a;
-  if (!luar_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
+  if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
     return 0;
   /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
   ** double floats; other configurations stay on the interpreter. */
-  if (sizeof(TValue) != 16 || sizeof(lua_Integer) != 8 ||
-      sizeof(lua_Number) != sizeof(double))
+  if (sizeof(TValue) != 16 || offsetof(TValue, tt_) != 8 ||
+      sizeof(lua_Integer) != 8 || sizeof(lua_Number) != sizeof(double))
     return 0;
   last = p->code[backedge];
   if (GET_OPCODE(last) != OP_FORLOOP)
@@ -292,7 +294,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     if (op->kind != LUAR_OP_MMBIN && is_control_reg(op->a, for_a))
       return 0;
   }
-  fn = luar_emit_build(&d, &size);
+  fn = luari_emit_build(&d, &size);
   if (fn == NULL)
     return 0;
   if (J->ncode >= LUAR_JIT_MAXCODE) {
@@ -312,7 +314,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
 }
 
 
-int luar_jit_run (lua_State *L, Proto *p, void *base) {
+int luari_jit_run (lua_State *L, Proto *p, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
   if (p == NULL || p->luar_code == NULL)
     return 0;
@@ -328,11 +330,11 @@ int luar_jit_run (lua_State *L, Proto *p, void *base) {
 }
 
 
-int luar_has_jit (void) {
+LUA_API int luar_has_jit (void) {
 #if defined(LUAR_JIT_DISABLE)
   return 0;
 #else
-  return luar_emit_available();
+  return luari_emit_available();
 #endif
 }
 

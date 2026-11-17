@@ -1899,7 +1899,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             if (cl->p->luar_code != NULL &&
                 cl->p->luar_code_pc == (int)(luarb - cl->p->code) &&
                 cl->p->luar_code_base == GETARG_A(i) &&
-                luar_jit_run(L, cl->p, (void *)base))
+                luari_jit_run(L, cl->p, (void *)base))
               pc = luarb + 1;  /* LUAR: the native loop finished it */
           }
         }

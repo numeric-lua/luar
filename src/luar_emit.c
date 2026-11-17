@@ -13,17 +13,17 @@
 #if defined(__x86_64__) || defined(_M_X64)
 #include "luar_emit_x64.h"
 
-int luar_emit_available (void) {
+int luari_emit_available (void) {
   return 1;
 }
 
 #else
 
-int luar_emit_available (void) {
+int luari_emit_available (void) {
   return 0;
 }
 
-LuaR_LoopFn luar_emit_build (const LuaR_LoopDesc *d, size_t *code_size) {
+LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size) {
   (void)d;
   (void)code_size;
   return NULL;

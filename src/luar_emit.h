@@ -61,9 +61,9 @@ typedef int (*LuaR_LoopFn) (void *base);
 ** emitted (unsupported operation, mmap/mprotect failure, ...).  The caller
 ** owns the mapping and must munmap(*code_size) bytes when done.
 */
-LuaR_LoopFn luar_emit_build (const LuaR_LoopDesc *d, size_t *code_size);
+LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size);
 
 /* Nonzero when this build can emit and execute native loops on the host. */
-int luar_emit_available (void);
+int luari_emit_available (void);
 
 #endif
