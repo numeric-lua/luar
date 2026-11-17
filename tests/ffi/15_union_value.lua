@@ -53,6 +53,8 @@ union Odd12I { int v[3]; };
 int odd12i_sum(union Odd12I u);
 struct Odd12Box { int tag; union Odd12 u; };
 float odd12_box_sum(struct Odd12Box b);
+union BigCharU { char c[8192]; };
+int bigchar_sum(union BigCharU u);
 ]]
 
 local h = S.helper()
@@ -113,6 +115,13 @@ H.eq(h.bigd_box_sum(bb), 11.0)
 local c32 = ffi.new("union Char32")
 for i = 0, 31 do c32.c[i] = 1 end
 H.eq(h.char32_sum(c32), 32)
+
+-- large memory-class unions beyond the old 4096-field cap
+local bigu = ffi.new("union BigCharU")
+H.eq(ffi.sizeof("union BigCharU"), 8192)
+bigu.c[0] = 2
+bigu.c[8191] = 3
+H.eq(h.bigchar_sum(bigu), 5)
 
 -- odd sizes 9..15 use alignment-sized fields
 local o9 = ffi.new("union Odd9")

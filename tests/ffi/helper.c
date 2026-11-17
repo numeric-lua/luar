@@ -349,3 +349,9 @@ int size_SzArr (void) { return (int)sizeof(int[4]); }
 struct OffA { char c; int i; };
 int off_OffA_i (void) { return (int)offsetof(struct OffA, i); }
 int align_OffA (void) { return (int)_Alignof(struct OffA); }
+union BigCharU { char c[8192]; };
+int bigchar_sum (union BigCharU u) {
+  int i, s = 0;
+  for (i = 0; i < 8192; i++) s += (unsigned char)u.c[i];
+  return s;
+}

@@ -571,7 +571,7 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
       luaL_error(L, "ffi: union '%s' has an unsupported alignment",
                  ffi_type_repr(S, ct));
     if (ct->size % ct->align != 0 ||
-        ct->size / ct->align > 4096)
+        ct->size / ct->align > 65536)
       luaL_error(L, "ffi: union '%s' is too large for by-value passing",
                  ffi_type_repr(S, ct));
     n = ct->size / ct->align;

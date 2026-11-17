@@ -337,8 +337,9 @@ Calls support:
 * struct return/argument by value when the layout is representable by
   libffi and verified byte-for-byte against libffi's computed offsets.
   Fixed array members (including arrays of structs), all unions up to 16
-  bytes, larger memory-class unions and bitfield structs are supported;
-  oversized unions and arrays themselves are rejected by value;
+  bytes (up to 512 KiB with a supported alignment), larger memory-class
+  unions and bitfield structs are supported; arrays themselves are rejected
+  by value;
 * cdata function pointers (`ffi.C.fn`, `ffi.cast("int (*)(int)", ...)`,
   function-pointer fields/returns) are callable with the normal argument
   conversion rules;
@@ -408,8 +409,8 @@ Call features:
   without reallocating the closure; `cb:free()` releases it early and
   invalidates the function pointer (later `set`/use reports "already
   freed").
-* **Oversized unions** (>4096 alignment-sized fields); their ABI cannot
-  be represented safely by the current libffi mapping.
+* **Unyieldy unions** (>512 KiB / 65536 alignment-sized fields); they are
+  rejected before allocating an impractical libffi type.
 * **C global variables** are best-effort: ordinary and `__thread`/
   `_Thread_local` data symbols can be read/written through `ffi.C` for the
   current thread; complex relocations and cross-thread access are not
