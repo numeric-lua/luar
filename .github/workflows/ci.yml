@@ -74,6 +74,8 @@ jobs:
             pkg-config --exists luar
           PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
             pkg-config --cflags --libs luar
+          make WITH_FFI=1 PREFIX=/usr/local DESTDIR="$PWD/stage" uninstall
+          test ! -e stage/usr/local/bin/luar
 
   nojit:
     name: linux (JIT=0)

@@ -33,8 +33,9 @@ is provably observationally equivalent to that interpreter.
   hot backedges prevents retrying rejected loops.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.
 - **Gate status.**  `numeric/int_sum` is ~9x faster than the interpreter
-  (ahead of LuaJIT) and `numeric/float_loop` ~4x; `mandel`/`fib` are
-  unchanged, so the full J2 gate in section 12 is not met yet.
+  (ahead of LuaJIT), `numeric/float_loop` ~4x, and `mandel` is near parity
+  (~1.0x) after the `-O3` default.  The J2 gate asks for ≥3x on
+  `mandelbrot`, so it is still not met; `fib` remains call-bound (~1.0x).
 
 ## 1. Goals, non-goals and the correctness contract
 

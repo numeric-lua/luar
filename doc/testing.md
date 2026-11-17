@@ -171,7 +171,8 @@ allocation or calls.
 
 `.github/workflows/ci.yml` gates the Linux matrix: gcc with `WITH_FFI=0`
 and `WITH_FFI=1`, clang with `WITH_FFI=1`, a `JIT=0` build, a staged
-`make install` plus `pkg-config` check, a shared-library/FFI job, a clean
+`make install` plus `pkg-config` and uninstall checks, a shared-library/FFI
+job, a clean
 ASan/UBSan job (`tests/asan.sh`), a deterministic fuzz job
 (`make test-fuzz`), and the offline `tools/upstream-check.sh` drift check.
 shellcheck runs when available. The macOS job is optional
