@@ -41,6 +41,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `while` backedges remain conservative.
 - Build: `-MMD` header dependencies make `make` rebuild when `Proto`,
   JIT or emitter headers change.
+- J2 while-loop differential fuzzing (`tests/jit/05_while_fuzz.lua`):
+  100 generated stepped loops compare interpreter and native results.
 - J2 `while` support: simple integer-conditioned `while` loops (body without
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
