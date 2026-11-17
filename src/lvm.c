@@ -1687,10 +1687,9 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         dojump(ci, i, 0);
         if (GETARG_sJ(i) < 0) {  /* LUAR: backward jump */
           LUAR_JIT_HOT(L, cl->p, luarback, (void *)base);
-          if (cl->p->luar_code != NULL &&
-              cl->p->luar_code_pc == (int)(luarback - cl->p->code) &&
-              cl->p->luar_code_base == -1 &&
-              luari_jit_run(L, cl->p, (void *)base))
+          if (luari_jit_try_run(L, cl->p,
+                                (int)(luarback - cl->p->code),
+                                (void *)base, -1))
             pc = luarback + 1;  /* LUAR: native while loop finished */
         }
         vmbreak;
@@ -1902,10 +1901,9 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             chgivalue(s2v(ra + 2), idx);  /* update control variable */
             pc -= GETARG_Bx(i);  /* jump back */
             LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
-            if (cl->p->luar_code != NULL &&
-                cl->p->luar_code_pc == (int)(luarb - cl->p->code) &&
-                cl->p->luar_code_base == GETARG_A(i) &&
-                luari_jit_run(L, cl->p, (void *)base))
+            if (luari_jit_try_run(L, cl->p,
+                                  (int)(luarb - cl->p->code),
+                                  (void *)base, GETARG_A(i)))
               pc = luarb + 1;  /* LUAR: the native loop finished it */
           }
         }

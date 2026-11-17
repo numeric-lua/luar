@@ -68,7 +68,8 @@ LUAI_FUNC int luari_jit_hotloop (lua_State *L, Proto *p,
 
 /* Try to run the compiled loop for 'p' on the given stack base.  Returns 1
 ** if the loop was completed natively, 0 to keep interpreting. */
-LUAI_FUNC int luari_jit_run (lua_State *L, Proto *p, void *base);
+LUAI_FUNC int luari_jit_try_run (lua_State *L, Proto *p, int pc,
+                                void *base, int expected_base);
 
 
 /*
@@ -80,10 +81,21 @@ LUAI_FUNC int luari_jit_run (lua_State *L, Proto *p, void *base);
 */
 static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge, void *base) {
-  if (p->luar_hot >= LUAR_JIT_HOTCOUNT)
-    return 0;
+  if (p->luar_hot >= LUAR_JIT_HOTCOUNT) {
+    unsigned pc;
+    unsigned long long bit;
+    if (p->luar_code[0] == NULL)
+      return 0;
+    pc = (unsigned)(backedge - p->code);
+    bit = 1ULL << (pc & 63);
+    if ((p->luar_seen & bit) != 0)
+      return 0;
+    p->luar_seen |= bit;
+    return luari_jit_hotloop(L, p, backedge, base);
+  }
   if (++p->luar_hot < LUAR_JIT_HOTCOUNT)
     return 0;
+  p->luar_seen |= 1ULL << (((unsigned)(backedge - p->code)) & 63);
   return luari_jit_hotloop(L, p, backedge, base);
 }
 

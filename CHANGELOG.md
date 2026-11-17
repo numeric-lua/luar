@@ -82,6 +82,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   from ~11 ms to ~6.8 ms (0.25x stock Lua).
 - J2 float/double comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`, including
   NaN-false semantics) work in native `if` branches and `while` conditions.
+- J1/J2 can keep two native loops per `Proto` (first and most recent),
+  with a bloom of attempted backedges; functions with sequential numeric
+  loops compile more than one.
 - J2 branch support: integer comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`)
   and forward `if`/`else` jumps inside a whitelisted loop body are emitted as
   guarded native branches; float comparisons and backward inner loops fall

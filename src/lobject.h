@@ -626,11 +626,12 @@ typedef struct Proto {
   /* LUAR: J1 hot-loop counters (not part of the bytecode dump). */
   l_uint32 luar_hot;
   l_uint32 luar_epoch;
-  /* LUAR: J2 compiled numeric loop (NULL when none). */
-  void *luar_code;
-  int luar_code_pc;
-  int luar_code_base;
-  l_uint32 luar_code_epoch;
+  /* LUAR: J2 compiled numeric loops (up to two) and seen hot backedges. */
+  void *luar_code[2];
+  int luar_code_pc[2];
+  int luar_code_base[2];
+  l_uint32 luar_code_epoch[2];
+  unsigned long long luar_seen;
 } Proto;
 
 /* }================================================================== */

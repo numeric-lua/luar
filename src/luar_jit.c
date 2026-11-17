@@ -698,27 +698,46 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   J->ncode++;
   J->compiled++;
   J->mcode += size;
-  p->luar_code = (void *)fn;
-  p->luar_code_pc = (int)backedge;
-  p->luar_code_base = for_a;
-  p->luar_code_epoch = J->epoch;
+  {
+    int slot = -1, k;
+    for (k = 0; k < 2; k++) {
+      if (p->luar_code[k] == NULL || p->luar_code_pc[k] == (int)backedge) {
+        slot = k;
+        break;
+      }
+    }
+    if (slot < 0)
+      slot = 1;   /* keep the first loop, replace the most recent */
+    p->luar_code[slot] = (void *)fn;
+    p->luar_code_pc[slot] = (int)backedge;
+    p->luar_code_base[slot] = for_a;
+    p->luar_code_epoch[slot] = J->epoch;
+  }
   return 1;
 }
 
 
-int luari_jit_run (lua_State *L, Proto *p, void *base) {
+int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
+                       int expected_base) {
   LuaR_JIT *J = G(L)->luar_jit;
-  if (p == NULL || p->luar_code == NULL)
+  int i;
+  if (p == NULL)
     return 0;
   if (J == NULL || !J->enabled)
     return 0;
-  if (p->luar_code_epoch != J->epoch) {
-    p->luar_code = NULL;   /* flushed: mapping was released */
-    return 0;
-  }
   if (L->hookmask != 0)
-    return 0;              /* debug hooks need the interpreter */
-  return ((LuaR_LoopFn)p->luar_code)(base);
+    return 0;
+  for (i = 0; i < 2; i++) {
+    if (p->luar_code[i] == NULL || p->luar_code_pc[i] != pc ||
+        p->luar_code_base[i] != expected_base)
+      continue;
+    if (p->luar_code_epoch[i] != J->epoch) {
+      p->luar_code[i] = NULL;   /* flushed: mapping was released */
+      continue;
+    }
+    return ((LuaR_LoopFn)p->luar_code[i])(base);
+  }
+  return 0;
 }
 
 
