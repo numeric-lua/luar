@@ -93,8 +93,8 @@ semantics and the VM hand-off exist for `for` loops whose body is numeric
 register arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K
 variants and MMBIN), with int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
-`numeric/int_sum` is ~4x and `numeric/float_loop` ~2.4x faster than the
-interpreter.  Still missing: branch/comparison ops, general traces and side
+`numeric/int_sum` is ~6x faster than the interpreter (LuaJIT parity) and
+`numeric/float_loop` ~2.5x.  Still missing: branch/comparison ops, general traces and side
 exits, tables/calls, and trace-level optimisation.
 
 

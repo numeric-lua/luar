@@ -4,9 +4,9 @@
 > compiles hot `for` loops whose bodies are numeric register arithmetic
 > (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV and the K variants), mixing
 > int and double operands with guards.  In the same harness,
-> `numeric/int_sum` dropped from ~35 ms to **7.8 ms** (0.22x stock Lua,
-> versus LuaJIT's 5.9 ms / 0.17x), and `numeric/float_loop` from ~27 ms to
-> **11.6 ms** (0.42x).  `fib` and `mandel` are unchanged (calls and
+> `numeric/int_sum` dropped from ~35 ms to **5.9 ms** (0.17x stock Lua,
+> matching LuaJIT's 5.9 ms / 0.17x), and `numeric/float_loop` from ~27 ms
+> to **11.1 ms** (0.40x vs LuaJIT's 3.0 ms).  `fib` and `mandel` are unchanged (calls and
 > branches); the tables below are the pre-J2 baseline and remain valid for
 > everything the JIT does not compile.  Re-run
 > `make bench-compare` for current numbers.

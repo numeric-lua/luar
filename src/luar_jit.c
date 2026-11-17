@@ -242,8 +242,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         op->b = (uint8_t)GETARG_B(ins);
         op->c = (uint8_t)GETARG_C(ins);
         op->tb = (uint8_t)tb;
-        op->ta = (op->kind == LUAR_OP_DIV || tb == LUAR_T_FLOAT ||
-                  tc == LUAR_T_FLOAT) ? LUAR_T_FLOAT : LUAR_T_INT;
+        op->tc = (uint8_t)tc;
         op->ta = (op->kind == LUAR_OP_DIV || tb == LUAR_T_FLOAT ||
                   tc == LUAR_T_FLOAT) ? LUAR_T_FLOAT : LUAR_T_INT;
         cur[op->a] = op->ta;
@@ -275,10 +274,13 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         op->tb = (uint8_t)tb;
         op->ta = (op->kind == LUAR_OP_DIVK || tb == LUAR_T_FLOAT ||
                   ct == LUAR_T_FLOAT) ? LUAR_T_FLOAT : LUAR_T_INT;
-        if (ct == LUAR_T_INT)
+        if (ct == LUAR_T_INT) {
           op->imm = (int64_t)ivalue(k);
-        else
+          op->num = (double)op->imm;   /* for a float-typed result */
+        }
+        else {
           op->num = (double)fltvalue(k);
+        }
         cur[op->a] = op->ta;
         def[op->a] = 1;
         break;
@@ -293,6 +295,18 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
     if (op->kind != LUAR_OP_MMBIN && is_control_reg(op->a, for_a))
       return 0;
+    /* A loop-carried register whose result flavour differs from the
+    ** operand flavour would change type between native iterations, while
+    ** the emitted code is specialised for one flavour.  Fall back. */
+    if (op->kind == LUAR_OP_ADD || op->kind == LUAR_OP_SUB ||
+        op->kind == LUAR_OP_MUL || op->kind == LUAR_OP_DIV) {
+      if (op->a == op->b && op->ta != op->tb) return 0;
+      if (op->a == op->c && op->ta != op->tc) return 0;
+    }
+    else if (op->kind == LUAR_OP_ADDK || op->kind == LUAR_OP_SUBK ||
+             op->kind == LUAR_OP_MULK || op->kind == LUAR_OP_DIVK) {
+      if (op->a == op->b && op->ta != op->tb) return 0;
+    }
   }
   fn = luari_emit_build(&d, &size);
   if (fn == NULL)

@@ -91,10 +91,15 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
         break;
       }
       case LUAR_OP_ADDI:
-        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
-        | add rax, ((int64_t)op->imm)
-        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
-        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        if (a == b) {
+          | add qword [rbx + ((int)LUAR_SLOT(a))], ((int64_t)op->imm)
+        }
+        else {
+          | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          | add rax, ((int64_t)op->imm)
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        }
         break;
       case LUAR_OP_ADDK:
       case LUAR_OP_SUBK:
@@ -103,6 +108,30 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
         int64_t bits;
         int isdiv = op->kind == LUAR_OP_DIVK;
         memcpy(&bits, &op->num, sizeof(bits));
+        if (a == b && op->tb == LUAR_T_FLOAT &&
+            (isdiv || op->ta == LUAR_T_FLOAT)) {
+          | mov64 rax, bits
+          | movq xmm0, rax
+          if (op->kind == LUAR_OP_ADDK) {
+            | addsd xmm0, qword [rbx + ((int)LUAR_SLOT(a))]
+            | movsd qword [rbx + ((int)LUAR_SLOT(a))], xmm0
+          }
+          else if (op->kind == LUAR_OP_MULK) {
+            | mulsd xmm0, qword [rbx + ((int)LUAR_SLOT(a))]
+            | movsd qword [rbx + ((int)LUAR_SLOT(a))], xmm0
+          }
+          else {
+            | movsd xmm1, qword [rbx + ((int)LUAR_SLOT(a))]
+            if (op->kind == LUAR_OP_SUBK) {
+              | subsd xmm1, xmm0
+            }
+            else {
+              | divsd xmm1, xmm0
+            }
+            | movsd qword [rbx + ((int)LUAR_SLOT(a))], xmm1
+          }
+          break;
+        }
         load_double(Dst, b, op->tb);
         if (isdiv || op->ta == LUAR_T_FLOAT) {
           | mov64 rax, bits
@@ -144,9 +173,31 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
       case LUAR_OP_DIV: {
         int isdiv = op->kind == LUAR_OP_DIV;
         int flt = isdiv || op->ta == LUAR_T_FLOAT || op->tb == LUAR_T_FLOAT;
-        if (flt) {
-          load_double(Dst, b, op->ta);
-          if (op->tb == LUAR_T_INT) {
+        if (flt && a == b && op->tb == LUAR_T_FLOAT) {
+          /* In-place float accumulator: tag stays float. */
+          load_double(Dst, op->c, op->tc);
+          if (op->kind == LUAR_OP_ADD) {
+            | addsd xmm0, qword [rbx + ((int)LUAR_SLOT(a))]
+            | movsd qword [rbx + ((int)LUAR_SLOT(a))], xmm0
+          }
+          else if (op->kind == LUAR_OP_MUL) {
+            | mulsd xmm0, qword [rbx + ((int)LUAR_SLOT(a))]
+            | movsd qword [rbx + ((int)LUAR_SLOT(a))], xmm0
+          }
+          else {
+            | movsd xmm1, qword [rbx + ((int)LUAR_SLOT(a))]
+            if (op->kind == LUAR_OP_SUB) {
+              | subsd xmm1, xmm0
+            }
+            else {
+              | divsd xmm1, xmm0
+            }
+            | movsd qword [rbx + ((int)LUAR_SLOT(a))], xmm1
+          }
+        }
+        else if (flt) {
+          load_double(Dst, b, op->tb);
+          if (op->tc == LUAR_T_INT) {
             | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
             | cvtsi2sd xmm1, rax
           }
@@ -166,6 +217,22 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
             | divsd xmm0, xmm1
           }
           store_double(Dst, d, a);
+        }
+        else if (a == b) {
+          /* In-place integer accumulator: the tag is already correct. */
+          if (op->kind == LUAR_OP_ADD) {
+            | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            | add qword [rbx + ((int)LUAR_SLOT(a))], rax
+          }
+          else if (op->kind == LUAR_OP_SUB) {
+            | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            | sub qword [rbx + ((int)LUAR_SLOT(a))], rax
+          }
+          else {
+            | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
+            | imul rax, qword [rbx + ((int)LUAR_SLOT(a))]
+            | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          }
         }
         else {
           | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]

@@ -97,6 +97,18 @@ same("float loadk", function ()
   return t
 end)
 
+same("float * int const", function ()
+  local x = 0.5
+  for i = 1, 1000 do x = x * 3 end
+  return x
+end)
+
+same("float + int const", function ()
+  local x = 0.5
+  for i = 1, 1000 do x = x + 2 end
+  return x
+end)
+
 same("neg zero", function ()
   local z = 0.0
   for i = 1, 5000 do z = -0.0 * i end

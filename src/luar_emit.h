@@ -37,7 +37,7 @@ enum { LUAR_T_INT = 1, LUAR_T_FLOAT = 2 };
 typedef struct LuaR_Op {
   uint8_t kind;
   uint8_t a, b, c;
-  uint8_t ta, tb;	/* operand flavours (LUAR_T_*) */
+  uint8_t ta, tb, tc;	/* result and operand flavours (LUAR_T_*) */
   int64_t imm;		/* LOADI/LOADK integer or constant value */
   double num;		/* LOADF value or constant value */
 } LuaR_Op;
