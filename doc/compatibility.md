@@ -116,9 +116,9 @@ Deliberate deviations, all documented:
 * `__attribute__((packed))`/`aligned(n)` structs/unions and `#pragma pack`
   control layout.  On x86-64, packed integer structs with one by-value
   argument and a scalar return use a MEMORY-ABI thunk, as do packed returns
-  from functions with up to five scalar arguments, and a packed argument
-  can be combined with a packed return.  Other packed shapes fail clearly
-  by value.
+  from functions with up to five scalar arguments, and up to three packed
+  arguments can combine with a packed return of at most eight bytes.  Other
+  packed shapes fail clearly by value.
 * Struct and union bitfields with integer/enum/bool bases are supported,
   including mixed base types, union overlap at offset zero and by-value
   passing/returning.

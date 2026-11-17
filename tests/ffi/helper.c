@@ -369,3 +369,18 @@ struct PackedS packedmakef (double d) { struct PackedS p; p.c=2; p.i=(int)d; p.s
 struct PackedS packedmake2 (int a, int b) { struct PackedS p; p.c=(char)a; p.i=a+b; p.s=(short)b; return p; }
 struct PackedS packedmake3 (int a, double b, int c) { struct PackedS p; p.c=(char)a; p.i=a+(int)b+c; p.s=(short)c; return p; }
 struct PackedS packedswap (struct PackedS p) { struct PackedS q; q.c=p.s; q.i=p.i+1; q.s=p.c; return q; }
+struct PackedS packedadd (struct PackedS a, struct PackedS b) {
+  struct PackedS q;
+  q.c = (char)(a.c + b.c);
+  q.i = a.i + b.i;
+  q.s = (short)(a.s + b.s);
+  return q;
+}
+struct PackedS packedwideadd (struct PackedWide a, struct PackedWide b) {
+  struct PackedS q;
+  q.c = (char)(a.c + b.c);
+  q.i = (int)(a.a + b.a);
+  q.s = (short)(a.b + b.b);
+  return q;
+}
+struct PackedWide packedwideid (struct PackedWide p) { return p; }

@@ -18,6 +18,9 @@ struct PackedS packedmakef(double d);
 struct PackedS packedmake2(int a, int b);
 struct PackedS packedmake3(int a, double b, int c);
 struct PackedS packedswap(struct PackedS p);
+struct PackedS packedadd(struct PackedS a, struct PackedS b);
+struct PackedS packedwideadd(struct PackedWide a, struct PackedWide b);
+struct PackedWide packedwideid(struct PackedWide p);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -77,6 +80,17 @@ local sw = h.packedswap(p)
 H.eq(sw.c, 99)
 H.eq(sw.i, 123457)
 H.eq(sw.s, 7)
+local p2 = ffi.new("struct PackedS", {c = 2, i = 1000, s = 11})
+local sum = h.packedadd(p, p2)
+H.eq(sum.c, 9)
+H.eq(sum.i, 124456)
+H.eq(sum.s, 110)
+local pw2 = ffi.new("struct PackedWide", {a = 5, b = 200, c = 4})
+local wsum = h.packedwideadd(pw, pw2)
+H.eq(wsum.c, 7)
+H.eq(wsum.i, 15)
+H.eq(wsum.s, 1200)
+H.raises(function () return h.packedwideid(pw) end, "layout")
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())
