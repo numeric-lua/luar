@@ -118,8 +118,8 @@ Deliberate deviations, all documented:
   including mixed base types, union overlap at offset zero and by-value
   passing/returning.
 * `ffi.callback` and `ffi.callback_error` implement C→Lua closures through
-  libffi; errors in the Lua callback become a zero C return plus a stored
-  message.
+  libffi, including `cb:set`/`cb:free`; errors in the Lua callback become a
+  zero C return plus a stored message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
 
 Not supported: stringifying cdef macros, `#include`, non-pack `#pragma`,

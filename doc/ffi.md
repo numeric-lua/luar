@@ -395,7 +395,10 @@ Call features:
   extension that clears the stored message).  Callbacks are freed by the GC;
   a C library that keeps a pointer after the cdata is collected has the
   usual use-after-free caveat.  Callbacks must be invoked from the Lua
-  state that created them.
+  state that created them.  `cb:set(new_function)` swaps the Lua receiver
+  without reallocating the closure; `cb:free()` releases it early and
+  invalidates the function pointer (later `set`/use reports "already
+  freed").
 * **Oversized unions** (>4096 alignment-sized fields); their ABI cannot
   be represented safely by the current libffi mapping.
 * **C global variables** are best-effort: ordinary and `__thread`/
@@ -490,7 +493,8 @@ probes, and variadic probes.  Coverage includes:
   signed extraction,
   masking),
   get/set, positional/named initializers and by-value rejection;
-* `ffi.callback` (qsort via a real C comparator, struct-by-value arguments,
+* `ffi.callback` (`cb:set`/`cb:free`, qsort via a real C comparator,
+  struct-by-value arguments,
   direct calls, errors, GC lifetime) and `ffi.callback_error`;
 * `ffi.metatype` constructors, `__index`/`__newindex`/`__tostring`/`__call`,
   protected metatables, and `ffi.gc` with Lua and C finalizers;

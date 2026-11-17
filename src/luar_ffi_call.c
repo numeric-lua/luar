@@ -1282,6 +1282,30 @@ int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
 }
 
 
+int ffi_callback_free_mt (lua_State *L) {
+  CData *cd = ffi_checkcdata(L, 1, "free");
+  if ((cd->flags & CDATA_CALLBACK) == 0 || cd->aux == NULL)
+    return luaL_error(L, "ffi: callback is already freed");
+  ffi_callback_free(L, cd);
+  cd->v.p = NULL;
+  return 0;
+}
+
+
+int ffi_callback_set_mt (lua_State *L) {
+  CData *cd = ffi_checkcdata(L, 1, "set");
+  FCallback *cb;
+  if ((cd->flags & CDATA_CALLBACK) == 0 || cd->aux == NULL)
+    return luaL_error(L, "ffi: callback is already freed");
+  luaL_checktype(L, 2, LUA_TFUNCTION);
+  cb = (FCallback *)cd->aux;
+  luaL_unref(L, LUA_REGISTRYINDEX, cb->fnref);
+  lua_pushvalue(L, 2);
+  cb->fnref = luaL_ref(L, LUA_REGISTRYINDEX);
+  return 0;
+}
+
+
 void ffi_callback_free (lua_State *L, CData *cd) {
   FCallback *cb = (FCallback *)cd->aux;
   (void)L;

@@ -6,6 +6,7 @@ local S = dofile("tests/ffi/support.lua")
 ffi.cdef[[
 typedef int (*cmp_t)(const void *, const void *);
 void qsort(void *base, size_t n, size_t size, cmp_t cmp);
+int cb_int(int (*cb)(int), int n);
 ]]
 
 local arr = ffi.new("int[6]", {5, 1, 4, 2, 6, 3})
@@ -48,6 +49,14 @@ H.eq(ffi.callback_error(), nil)
 
 -- struct-by-value arguments reach the Lua callback intact
 local h = S.helper()
+
+-- callback methods mirror LuaJIT's cb:set/cb:free
+local cbm = ffi.callback("int(int)", function (x) return x + 1 end)
+H.eq(h.cb_int(cbm, 4), 5)
+cbm:set(function (x) return x * 3 end)
+H.eq(h.cb_int(cbm, 4), 12)
+cbm:free()
+H.raises(function () cbm:set(function () return 0 end) end, "already freed")
 ffi.cdef[[
 struct CbPair { int a, b; };
 typedef int (*pair_cb)(struct CbPair);

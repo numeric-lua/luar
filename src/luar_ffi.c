@@ -1114,6 +1114,16 @@ static int cdata_index (lua_State *L) {
     size_t n;
     const char *name = lua_tolstring(L, 2, &n);
     (void)n;
+    if ((cd->flags & CDATA_CALLBACK) != 0) {
+      if (strcmp(name, "free") == 0) {
+        lua_pushcfunction(L, ffi_callback_free_mt);
+        return 1;
+      }
+      if (strcmp(name, "set") == 0) {
+        lua_pushcfunction(L, ffi_callback_set_mt);
+        return 1;
+      }
+    }
     if (cdata_field(L, S, cd, name))
       return 1;
     {

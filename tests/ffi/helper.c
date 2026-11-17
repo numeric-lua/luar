@@ -340,3 +340,4 @@ int align_AlignedS (void) { return (int)_Alignof(struct AlignedS); }
 struct __attribute__((packed, aligned(2))) PackAligned { char c; int i; };
 int size_PackAligned (void) { return (int)sizeof(struct PackAligned); }
 int align_PackAligned (void) { return (int)_Alignof(struct PackAligned); }
+int cb_int (int (*cb)(int), int n) { return cb ? cb(n) : -1; }
