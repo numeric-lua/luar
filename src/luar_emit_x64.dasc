@@ -1133,7 +1133,15 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
   emit_guards(Dst, d);
   |1:
   | add r13, d->fr_step
-  | add r15, r13
+  if (d->fr_op == 1) {
+    | sub r15, r13
+  }
+  else if (d->fr_op == 2) {
+    | imul r15, r13
+  }
+  else {
+    | add r15, r13
+  }
   if (d->fr_idx_left) {
     | cmp r13, r14
   }

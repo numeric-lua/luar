@@ -887,22 +887,29 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     d.repeat = 1;
   if (d.repeat && d.nops >= 3) {
     LuaR_Op *cmp = &ops[d.nops - 1];
-    LuaR_Op *addi = NULL, *add = NULL;
-    int idx = -1, acc = -1, limit = -1, imm = 0, left;
+    LuaR_Op *addi = NULL, *accop = NULL;
+    int idx = -1, acc = -1, limit = -1, imm = 0, left, opkind = 0;
+    int addi_i = -1, acc_i = -1;
     for (i = 0; i < d.nops - 1; i++) {
       LuaR_Op *op = &ops[i];
       if (op->kind == LUAR_OP_ADDI && addi == NULL &&
           op->a == op->b && op->ta == LUAR_T_INT) {
         addi = op;
         idx = op->a;
+        addi_i = (int)i;
       }
-      else if (op->kind == LUAR_OP_ADD && add == NULL &&
-               op->a == op->b && op->ta == LUAR_T_INT) {
-        add = op;
+      else if (addi != NULL && accop == NULL && op->a == op->b &&
+               op->c == idx && op->ta == LUAR_T_INT &&
+               (op->kind == LUAR_OP_ADD || op->kind == LUAR_OP_SUB ||
+                op->kind == LUAR_OP_MUL)) {
+        accop = op;
+        acc_i = (int)i;
+        opkind = (op->kind == LUAR_OP_SUB) ? 1 :
+                 (op->kind == LUAR_OP_MUL) ? 2 : 0;
       }
     }
-    if (addi != NULL && add != NULL && add->c == idx && idx >= 0) {
-      acc = add->a;
+    if (addi != NULL && accop != NULL && acc_i > addi_i && idx >= 0) {
+      acc = accop->a;
       if (cmp->a == idx && cmp->b != idx) {
         left = 1;
         if (cmp->b == 0xFF) imm = 1;
@@ -925,6 +932,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         if (limit >= 0)
           add_guard(&d, seen, limit, LUAR_T_INT);
         d.fast_repeat = 1;
+        d.fr_op = opkind;
         d.fr_acc = acc;
         d.fr_idx = idx;
         d.fr_limit = limit >= 0 ? limit : 0xFF;

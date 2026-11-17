@@ -68,7 +68,8 @@ typedef struct LuaR_LoopDesc {
   int fr_step;
   int fr_kind;			/* LT/LE/GT/GE/EQ */
   int fr_k;
-  int fr_idx_left;			/* loop ends in a backward JMP, no FORLOOP */
+  int fr_idx_left;
+  int fr_op;			/* 0 add, 1 sub, 2 mul */			/* loop ends in a backward JMP, no FORLOOP */
   int has_table;		/* one raw array lookup at the body start */
   int table_reg;
   int table_array_off;

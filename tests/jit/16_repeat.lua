@@ -23,6 +23,26 @@ local function rstep (n)
   repeat i = i + 2; s = s + i until i >= n
   return s, i
 end
+local function rsub_off (n)
+  local i, s = 0, 0
+  repeat i = i + 1; s = s - i until i >= n
+  return s, i
+end
+local function rsub_on (n)
+  local i, s = 0, 0
+  repeat i = i + 1; s = s - i until i >= n
+  return s, i
+end
+local function rprod_off (n)
+  local i, s = 0, 1
+  repeat i = i + 1; s = s * i until i >= n
+  return s, i
+end
+local function rprod_on (n)
+  local i, s = 0, 1
+  repeat i = i + 1; s = s * i until i >= n
+  return s, i
+end
 local function rimm (n)
   local i, s = 0, 0
   repeat i = i + 1; s = s + i until i >= 100000
@@ -44,6 +64,8 @@ local want, wi = roff(100000)
 local wstep = rstep(100000)
 local wgt = rgt(100000)
 local wreq = req(100000)
+local wsub = rsub_off(100000)
+local wprod = rprod_off(100)
 jit.on()
 local got, gi = ron(100000)
 H.eq(got, want)
@@ -52,6 +74,8 @@ H.eq(rstep(100000), wstep)
 H.eq(rgt(100000), wgt)
 H.eq(req(100000), wreq)
 H.eq(rimm(100000), want)
+H.eq(rsub_on(100000), wsub)
+H.eq(rprod_on(100), wprod)
 H.check(jit.stats().compiled >= 1, "repeat loops did not compile")
 H.check(jit.stats().traces >= 1, "repeat trace missing")
 
