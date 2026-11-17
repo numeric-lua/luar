@@ -610,7 +610,7 @@ decode_done:
 
     int acc = -1, idx = -1, limit = -1, kind = 0, ok = 1, has_imm = 0;
     int inc_i = -1, temp = -1, square = 0, prod = 0;
-    int is_float = 0, accum_i = -1, sub = 0;
+    int is_float = 0, accum_i = -1, sub = 0, linear = 0;
     double fconst = 0.0;
     int64_t imm = 0;
     for (i = 0; i < n - 1 && ok; i++) {
@@ -644,6 +644,7 @@ decode_done:
             op->a == idx) { ok = 0; break; }
         temp = op->a;
         is_float = 1;
+        linear = 1;
         fconst = op->num;
       }
       else if (op->kind == LUAR_OP_ADD) {
@@ -652,14 +653,21 @@ decode_done:
           if (op->ta != LUAR_T_FLOAT || op->c != temp) { ok = 0; break; }
           square = 0;
         }
-        else {
-          if (op->ta != LUAR_T_INT) { ok = 0; break; }
-          if (op->c == idx && temp < 0)
-            square = 0;
-          else if (op->c == temp && temp >= 0)
-            square = 1;
-          else { ok = 0; break; }
+        else if (op->c == idx && temp < 0) {
+          if (op->ta != LUAR_T_INT && op->ta != LUAR_T_FLOAT) {
+            ok = 0; break;
+          }
+          square = 0;
+          is_float = (op->ta == LUAR_T_FLOAT);
         }
+        else if (op->c == temp && temp >= 0) {
+          if (op->ta != LUAR_T_INT && op->ta != LUAR_T_FLOAT) {
+            ok = 0; break;
+          }
+          square = 1;
+          is_float = (op->ta == LUAR_T_FLOAT);
+        }
+        else { ok = 0; break; }
         acc = op->a;
         accum_i = (int)i;
       }
@@ -692,6 +700,7 @@ decode_done:
       d.fw_square = square;
       d.fw_prod = prod;
       d.fw_sub = sub;
+      d.fw_linear = linear;
       d.fw_float = is_float;
       d.fw_const = fconst;
       d.fw_acc = acc;

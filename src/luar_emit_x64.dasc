@@ -896,8 +896,15 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
     else if (d->fw_sub) {
       | subsd xmm0, xmm1
     }
-    else {
+    else if (d->fw_square) {
+      | mulsd xmm1, xmm1
+      | addsd xmm0, xmm1
+    }
+    else if (d->fw_linear) {
       | mulsd xmm1, xmm2
+      | addsd xmm0, xmm1
+    }
+    else {
       | addsd xmm0, xmm1
     }
   }

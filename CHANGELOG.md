@@ -112,7 +112,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   than the interpreter in a direct 20M-iteration measurement; the
   increment can be any nonzero immediate (e.g. `i = i + 2`), and a float
   accumulator keeps `acc = acc + i * const` in an XMM register.  The same
-  fast path recognises `acc = acc + i * i` (~10x) and product loops
+  fast path recognises `acc = acc + i * i` (~10x), including float
+  accumulators, and product loops
   `acc = acc * i` with integer or float accumulators.
 - J4 peephole: `acc = acc + i` integer loops keep the accumulator and loop
   counters in GPRs; `numeric/int_sum` drops from ~5.9 ms to ~3.9 ms (0.11x

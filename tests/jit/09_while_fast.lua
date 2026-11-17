@@ -33,6 +33,16 @@ local function wf (n)
   while i < n do s = s + i * 0.5; i = i + 1 end
   return s, i
 end
+local function wfs (n)
+  local i, s = 0, 0.0
+  while i < n do s = s + i; i = i + 1 end
+  return s
+end
+local function wssq (n)
+  local i, s = 0, 0.0
+  while i < n do s = s + i * i; i = i + 1 end
+  return s
+end
 local function wstep (n)
   local i, s = 0, 0
   while i < n do s = s + i; i = i + 2 end
@@ -100,6 +110,8 @@ H.eq(wle(1000), 500500)
 H.eq(rev(1000), 500500)
 H.eq(wstep(1000), 249500)
 H.eq(wf(1000), 249750.0)
+H.eq(wfs(100000), 4999950000.0)
+H.eq(wssq(100000), 333328333350000.0)
 H.eq(wprod(10), 3628800)
 H.eq(wprodf(10), 3628800.0)
 H.eq(wsub(1000), -499500)
