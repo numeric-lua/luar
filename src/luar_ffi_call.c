@@ -1752,18 +1752,17 @@ static void callback_handler (ffi_cif *cif, void *ret, void **args,
 
 
 static int packed_callback_candidate (CType *ft) {
-  CType *at;
-  CType *rt;
-  int at_ok, rt_ok;
-  if (ft->nargs != 1)
+  CType *rt = ft->ret;
+  int i, rt_ok;
+  if (ft->nargs < 1 || ft->nargs > 3)
     return 0;
-  at = ft->args[0];
-  rt = ft->ret;
-  at_ok = (at->kind == CT_STRUCT && at->pack == 1 &&
-           at->align_override == 0 && at->size > 0 && at->size <= 16 &&
-           packed_int_type(at));
-  if (!at_ok)
-    return 0;
+  for (i = 0; i < (int)ft->nargs; i++) {
+    CType *at = ft->args[i];
+    if (at->kind != CT_STRUCT || at->pack != 1 ||
+        at->align_override != 0 || at->size == 0 || at->size > 16 ||
+        !packed_int_type(at))
+      return 0;
+  }
   rt_ok = (rt->kind == CT_STRUCT && rt->pack == 1 &&
            rt->align_override == 0 && rt->size > 0 && rt->size <= 16 &&
            packed_int_type(rt));
@@ -1781,21 +1780,27 @@ static int packed_callback_candidate (CType *ft) {
 
 static uint64_t packed_callback_scalar (FCallback *cb, const void *arg) {
   lua_State *L = cb->L;
-  CType *at = cb->ft->args[0];
   CType *rt = cb->ft->ret;
   int top = lua_gettop(L);
   uint64_t out = 0;
   int ok = 1;
-  if (!lua_checkstack(L, 4)) {
+  if (!lua_checkstack(L, (int)cb->ft->nargs + 4)) {
     callback_set_error(L, "packed callback stack overflow");
     return 0;
   }
   lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
   {
-    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
-    memcpy(cd->v.p, arg, at->size);
+    const char *p = (const char *)arg;
+    int ai;
+    for (ai = 0; ai < (int)cb->ft->nargs; ai++) {
+      CType *a = cb->ft->args[ai];
+      CData *cd = ffi_push_owned(L, cb->S, a, a->size);
+      memcpy(cd->v.p, p, a->size);
+      p += (a->size + 7) & ~(size_t)7;
+    }
   }
-  if (lua_pcall(L, 1, rt->kind == CT_VOID ? 0 : 1, 0) != LUA_OK) {
+  if (lua_pcall(L, (int)cb->ft->nargs,
+                rt->kind == CT_VOID ? 0 : 1, 0) != LUA_OK) {
     callback_set_error(L, lua_tostring(L, -1));
     lua_settop(L, top);
     return 0;
@@ -1833,20 +1838,25 @@ static uint64_t packed_callback_scalar (FCallback *cb, const void *arg) {
 
 static void packed_callback_ret (FCallback *cb, const void *arg, void *ret) {
   lua_State *L = cb->L;
-  CType *at = cb->ft->args[0];
   CType *rt = cb->ft->ret;
   int top = lua_gettop(L);
-  if (!lua_checkstack(L, 4)) {
+  if (!lua_checkstack(L, (int)cb->ft->nargs + 4)) {
     memset(ret, 0, rt->size);
     callback_set_error(L, "packed callback stack overflow");
     return;
   }
   lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
   {
-    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
-    memcpy(cd->v.p, arg, at->size);
+    const char *p = (const char *)arg;
+    int ai;
+    for (ai = 0; ai < (int)cb->ft->nargs; ai++) {
+      CType *a = cb->ft->args[ai];
+      CData *cd = ffi_push_owned(L, cb->S, a, a->size);
+      memcpy(cd->v.p, p, a->size);
+      p += (a->size + 7) & ~(size_t)7;
+    }
   }
-  if (lua_pcall(L, 1, 1, 0) != LUA_OK) {
+  if (lua_pcall(L, (int)cb->ft->nargs, 1, 0) != LUA_OK) {
     memset(ret, 0, rt->size);
     callback_set_error(L, lua_tostring(L, -1));
     lua_settop(L, top);

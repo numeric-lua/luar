@@ -32,6 +32,10 @@ void set_packed_ret_cb(struct PackedS (*cb)(struct PackedS));
 void set_wide_ret_cb(struct PackedWide (*cb)(struct PackedWide));
 void set_double_cb(double (*cb)(struct PackedS));
 double invoke_packed_d(struct PackedS p);
+void set_packed2_cb(int (*cb)(struct PackedS, struct PackedS));
+int invoke_stored2(void);
+void set_packed2_ret_cb(struct PackedS (*cb)(struct PackedS, struct PackedS));
+struct PackedS invoke_stored2_ret(void);
 int invoke_packed(struct PackedS p);
 struct PackedS invoke_packed_ret(struct PackedS p);
 struct PackedWide invoke_wide(struct PackedWide p);
@@ -142,6 +146,15 @@ h.set_double_cb(cbd)
 H.eq(h.invoke_packed_d(p), 123456.0)
 local cbtmp = ffi.callback("int (*)(struct PackedS)", function () return 0 end)
 cbtmp:free()
+local cb2p = ffi.callback("int (*)(struct PackedS, struct PackedS)",
+  function (a, b) return a.i + b.i end)
+h.set_packed2_cb(cb2p)
+H.eq(h.invoke_stored2(), 120)
+local cb2pr = ffi.callback("struct PackedS (*)(struct PackedS, struct PackedS)",
+  function (a, b) a.i = a.i + b.i; return a end)
+h.set_packed2_ret_cb(cb2pr)
+local c2r = h.invoke_stored2_ret()
+H.eq(c2r.i, 120)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())

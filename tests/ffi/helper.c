@@ -412,3 +412,19 @@ typedef double (*double_cb_t)(struct PackedS);
 static double_cb_t g_double_cb;
 void set_double_cb (double_cb_t cb) { g_double_cb = cb; }
 double invoke_packed_d (struct PackedS p) { return g_double_cb(p); }
+typedef int (*packed2_cb_t)(struct PackedS, struct PackedS);
+static packed2_cb_t g_packed2_cb;
+void set_packed2_cb (packed2_cb_t cb) { g_packed2_cb = cb; }
+int invoke_stored2 (void) {
+  struct PackedS a = {1, 100, 2};
+  struct PackedS b = {3, 20, 4};
+  return g_packed2_cb(a, b);
+}
+typedef struct PackedS (*packed2_ret_cb_t)(struct PackedS, struct PackedS);
+static packed2_ret_cb_t g_packed2_ret_cb;
+void set_packed2_ret_cb (packed2_ret_cb_t cb) { g_packed2_ret_cb = cb; }
+struct PackedS invoke_stored2_ret (void) {
+  struct PackedS a = {1, 100, 2};
+  struct PackedS b = {3, 20, 4};
+  return g_packed2_ret_cb(a, b);
+}
