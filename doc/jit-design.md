@@ -33,8 +33,10 @@ is provably observationally equivalent to that interpreter.
   with register-cached sum/subtraction/product/square fast paths (integer
   or float); other backward inner loops still fall back.  A `Proto` keeps the first compiled
   loop and the most recently compiled one (two slots); a 64-bit bloom of
-  hot backedges prevents retrying rejected loops.  Guard failures increment `jit.stats().exits`; a failed guarded loop can
-  now compile a second numeric variant from the live frame (for example an
+  hot backedges prevents retrying rejected loops.  Guard failures increment `jit.stats().exits` and a per-code-slot counter;
+  a failed guarded loop can compile a second numeric variant from the live
+  frame once `hotexit` (default 10, `jit.opt.start("hotexit=N")`) exits have
+  accumulated (for example an
   int loop followed by a float loop) before returning to the interpreter.
   Full side traces remain future work.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.

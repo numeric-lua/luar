@@ -51,6 +51,7 @@ void luari_jit_init (lua_State *L) {
   J->epoch = 1;
   J->enabled = 1;
   J->hotloop = LUAR_JIT_HOTCOUNT;
+  J->hotexit = 10;
   J->enable_tint = 1;
   G(L)->luar_jit = J;
 }
@@ -1245,8 +1246,11 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       if (r != 0)
         return r;
       J->exits++;
+      p->luar_code_exits[i]++;
     }
     if (any && !p->luar_variant_tried &&
+        (p->luar_code_exits[0] >= J->hotexit ||
+         p->luar_code_exits[1] >= J->hotexit) &&
         (p->luar_code[0] == NULL || p->luar_code[1] == NULL) &&
         p->luar_tint[0] == 0 && p->luar_tint[1] == 0) {
       p->luar_variant_tried = 1;
@@ -1432,6 +1436,11 @@ static int jit_opt_start (lua_State *L) {
       J->enable_tint = (opt[5] != '0');
     else if (J != NULL && strncmp(opt, "call=", 5) == 0)
       J->enable_partial = (opt[5] != '0');
+    else if (J != NULL && strncmp(opt, "hotexit=", 8) == 0) {
+      unsigned long v = strtoul(opt + 8, NULL, 10);
+      if (v >= 1 && v <= 1000000)
+        J->hotexit = (uint32_t)v;
+    }
     else if (J != NULL && strncmp(opt, "hotloop=", 8) == 0) {
       unsigned long v = strtoul(opt + 8, NULL, 10);
       if (v >= 1 && v <= 100000)

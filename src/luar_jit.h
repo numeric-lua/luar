@@ -50,6 +50,7 @@ typedef struct LuaR_JIT {
   uint32_t aborts;		/* loops too large / not decodable */
   int enabled;			/* jit.off() clears this */
   uint32_t hotloop;		/* jit.opt.start("hotloop=N") */
+  uint32_t hotexit;		/* guard exits before a variant is recorded */
   int enable_table;		/* experimental J3 table lookups (opt-in) */
   int enable_tint;		/* raw table fill/sum intrinsics (default on) */
   int enable_partial;		/* experimental numeric prefixes before CALL */

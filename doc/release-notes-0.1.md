@@ -29,7 +29,8 @@ those of upstream Lua 5.5.1.
   reference corpus.
 - Full Lua call inlining and J4 side traces are not implemented;
   `jit.stats().exits` counts guard failures, and a failed guarded loop can
-  compile a second numeric variant from the live frame.
+  compile a second numeric variant from the live frame after `hotexit`
+  guard failures.
 - Full macOS ABI verification remains; CI builds the shared library there.
 
 ## Verification
