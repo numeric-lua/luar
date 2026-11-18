@@ -185,6 +185,26 @@ static void *clib_getsym (lua_State *L, CLibrary *cl, const char *name,
 }
 
 
+#if defined(__APPLE__)
+typedef struct LuaR_TLV {
+  void *(*thunk)(struct LuaR_TLV *);
+  unsigned long key;
+  unsigned long offset;
+} LuaR_TLV;
+
+
+static void *darwin_tls_value (void *desc) {
+  LuaR_TLV *tlv = (LuaR_TLV *)desc;
+  Dl_info info;
+  if (tlv == NULL || tlv->thunk == NULL)
+    return desc;
+  if (dladdr((void *)tlv->thunk, &info) == 0)
+    return desc;  /* not a TLV descriptor: dlsym gave the value address */
+  return tlv->thunk(tlv);
+}
+#endif
+
+
 static void push_symbol (lua_State *L, FFIState *S, CLibrary *cl,
                          const char *name) {
   CType *ct = ffi_table_get_type(L, S, FFI_UV_SYMS, name);
@@ -203,6 +223,13 @@ static void push_symbol (lua_State *L, FFIState *S, CLibrary *cl,
   }
   else {
     void *p = clib_getsym(L, cl, name, 1);
+#if defined(__APPLE__)
+    {
+      int64_t istls = 0;
+      if (ffi_table_get_int(L, S, FFI_UV_TLS, name, &istls) && istls)
+        p = darwin_tls_value(p);
+    }
+#endif
     if (ct->kind == CT_STRUCT || ct->kind == CT_UNION ||
         ct->kind == CT_ARRAY) {
       size_t len = (ct->kind == CT_ARRAY && !ct->vla) ? ct->length : 0;
