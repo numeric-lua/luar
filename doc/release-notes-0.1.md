@@ -26,8 +26,9 @@ those of upstream Lua 5.5.1.
   reject unsupported packed call shapes.
 - Table JIT tiers are opt-in and not yet faster than the interpreter on the
   reference corpus.
-- Full Lua call inlining, side traces and J4 tracing are not implemented;
-  `jit.stats().exits` counts guard failures as the seed for that work.
+- Full Lua call inlining and J4 side traces are not implemented;
+  `jit.stats().exits` counts guard failures, and a failed guarded loop can
+  compile a second numeric variant from the live frame.
 - Full macOS ABI verification remains; CI builds the shared library there.
 
 ## Verification

@@ -99,6 +99,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J3 raw table fill/sum intrinsics (default, `tint=0` disables):
   `t[i]=i` and `acc=acc+t[i]` loops are executed by C helpers, making
   `table/array` ~0.14x stock Lua (and faster than LuaJIT).
+- Guard-exit driven loop variants: when a compiled numeric loop fails its
+  type guards, a second variant is compiled from the live frame if a slot
+  is free (int/float polymorphic loops); both variants are tried at each
+  backedge.  `tests/jit/25_polymorphic.lua` covers it.
 - The hot-loop hook now recognises a Proto whose first loop is an intrinsic,
   so subsequent loops in the same function can be recorded and intrinsic
   compiled too.  Generic table emission remains opt-in

@@ -1079,9 +1079,18 @@ emit_ready:
   {
     int slot = -1, k;
     for (k = 0; k < 2; k++) {
-      if (p->luar_code[k] == NULL || p->luar_code_pc[k] == (int)backedge) {
+      if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
         slot = k;
         break;
+      }
+    }
+    if (slot < 0) {
+      for (k = 0; k < 2; k++) {
+        if (p->luar_code_pc[k] == (int)backedge ||
+            (p->luar_tint[k] != 0 && p->luar_tint_pc[k] == (int)backedge)) {
+          slot = k;
+          break;
+        }
       }
     }
     if (slot < 0)
@@ -1220,19 +1229,28 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       return r;
     }
   }
-  for (i = 0; i < 2; i++) {
-    if (p->luar_code[i] == NULL || p->luar_code_pc[i] != pc ||
-        p->luar_code_base[i] != expected_base)
-      continue;
-    if (p->luar_code_epoch[i] != J->epoch) {
-      p->luar_code[i] = NULL;   /* flushed: mapping was released */
-      continue;
+  {
+    int any = 0;
+    for (i = 0; i < 2; i++) {
+      int r;
+      if (p->luar_code[i] == NULL || p->luar_code_pc[i] != pc ||
+          p->luar_code_base[i] != expected_base)
+        continue;
+      if (p->luar_code_epoch[i] != J->epoch) {
+        p->luar_code[i] = NULL;   /* flushed: mapping was released */
+        continue;
+      }
+      any = 1;
+      r = ((LuaR_LoopFn)p->luar_code[i])(base);
+      if (r != 0)
+        return r;
+      J->exits++;
     }
-    {
-      int r = ((LuaR_LoopFn)p->luar_code[i])(base);
-      if (r == 0)
-        J->exits++;
-      return r;
+    if (any && !p->luar_variant_tried &&
+        (p->luar_code[0] == NULL || p->luar_code[1] == NULL) &&
+        p->luar_tint[0] == 0 && p->luar_tint[1] == 0) {
+      p->luar_variant_tried = 1;
+      luari_jit_hotloop(L, p, &p->code[pc], base);
     }
   }
   return 0;

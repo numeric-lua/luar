@@ -149,7 +149,7 @@ register-cached fill/sum fast paths) can be emitted behind
 that bail before the current iteration.  They are correct and tested but
 default raw fill/sum intrinsics make `table/array` ~0.14x stock Lua and
 `table/hash` ~parity; generic table emission remains opt-in.  Shape guards,
-calls and side traces remain to be
+calls remain to be
 done.
 
 * Table loads/stores with shape guards and inline caches, `GETFIELD`/
