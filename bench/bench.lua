@@ -793,6 +793,17 @@ def {
 }
 
 def {
+  name = "object/leaf_threearg", group = "object",
+  run = function ()
+    local n = N(1500000)
+    local function f (a, b, c) return a * b + c end
+    local s = 0
+    for i = 1, n do s = s + f(i, 2, 3) end
+    return s
+  end,
+}
+
+def {
   name = "object/method", group = "object",
   run = function ()
     local n = N(1000000)
