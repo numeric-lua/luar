@@ -3476,6 +3476,43 @@ done:
 }
 
 
+static int jit_trace_side_fail_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  LuaR_IRExitState snap;
+  TValue base[3];
+  void *code = NULL;
+  size_t size = 0;
+  int ok = 0;
+  int (*fn)(void *);
+  extern int64_t luar_trace_tget_int (TValue *, lua_Integer, int64_t *);
+  luar_trace_ir_init(&t, NULL, 5, 3, 1);
+  t.side = 1;
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_TGET; in.a = 0; in.b = 1; in.c = 2; in.pc = 5;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_RET;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
+  if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
+  memset(base, 0, sizeof(base));
+  setivalue(&base[1], 7);       /* not a table: TGET must fail */
+  setivalue(&base[2], 1);
+  setivalue(&base[0], 99);
+  if (!luar_trace_ir_snapshot(&snap, 5, base, 3)) goto done;
+  fn = (int (*)(void *))code;
+  if (fn(base) != -1) goto done;
+  setivalue(&base[0], 1234);
+  if (!luar_trace_ir_restore(&snap, base)) goto done;
+  if (ivalue(&base[0]) != 99) goto done;
+  ok = 1;
+done:
+  if (code != NULL) munmap(code, size);
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_loop_exec_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3625,6 +3662,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "guard_selftest");
   lua_pushcfunction(L, jit_trace_side_link_selftest);
   lua_setfield(L, -2, "side_link_selftest");
+  lua_pushcfunction(L, jit_trace_side_fail_selftest);
+  lua_setfield(L, -2, "side_fail_selftest");
   lua_pushcfunction(L, jit_trace_tget_selftest);
   lua_setfield(L, -2, "tget_selftest");
   lua_pushcfunction(L, jit_trace_loop_exec_selftest);
