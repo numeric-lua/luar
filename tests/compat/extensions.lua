@@ -6,8 +6,9 @@ local H = dofile("tests/helpers.lua")
 H.eq(type(luar), "table")
 H.eq(luar.version, "0.1.0")
 H.eq(luar.lua_version, "Lua 5.5.1")
-H.eq(luar.os, "Linux")
-H.eq(luar.arch, "x64")
+H.check(luar.os == "Linux" or luar.os == "OSX", "unexpected os " .. tostring(luar.os))
+H.check(luar.arch == "x64" or luar.arch == "arm64",
+        "unexpected arch " .. tostring(luar.arch))
 H.eq(luar.features.table, true)
 
 -- require() and globals agree
