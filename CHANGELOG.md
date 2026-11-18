@@ -120,6 +120,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Inline two-parameter straight-line integer leaves feeding a numeric
+  accumulator, including `a*b+b`, `a*b`, `a+b` and `a-b`; the second argument
+  is read from its loop-body slot and guarded as an integer.
 - Inline one-parameter leaf arithmetic calls feeding a numeric accumulator
   (`s = s + f(i)`), including straight-line integer chains with affine
   `x*K+C` fast folding and a bounded general evaluator for

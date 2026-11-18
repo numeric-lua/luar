@@ -769,6 +769,17 @@ def {
 }
 
 def {
+  name = "object/leaf_twoarg", group = "object",
+  run = function ()
+    local n = N(1500000)
+    local function f (a, b) return a * b + b end
+    local s = 0
+    for i = 1, n do s = s + f(i, 2) end
+    return s
+  end,
+}
+
+def {
   name = "object/method", group = "object",
   run = function ()
     local n = N(1000000)
