@@ -175,8 +175,8 @@ and `WITH_FFI=1`, clang with `WITH_FFI=1`, a `JIT=0` build, a staged
 job, a clean
 ASan/UBSan job (`tests/asan.sh`), a deterministic fuzz job
 (`make test-fuzz`), and the offline `tools/upstream-check.sh` drift check.
-shellcheck runs when available. The macOS job is optional (`continue-on-error`) and also builds the shared
-library; the latter downloads its inputs from
+shellcheck runs when available. The macOS job is optional (`continue-on-error`) and builds the shared
+library, then builds and runs the full `WITH_FFI=1` suite; the latter downloads its inputs from
 lua.org. Run `tests/upstream/run.sh --offline` locally for the vendored/cached
 path.
 

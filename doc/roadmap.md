@@ -60,8 +60,8 @@ Estimated: 2–4 weeks.
   `pkg-config` file; static and shared installs tested on Linux and macOS.
   Shared build, `libluar.so.0` soname, export map and the `luar.pc` shared/
   static recipes are in place and tested on Linux (`make test-shared`);
-  macOS shared build is exercised in the optional CI job; full macOS ABI
-  verification remains.
+  macOS shared build and the full FFI suite are exercised in the optional CI
+  job; x86-64-specific by-value union/packed ABIs remain unported.
 * CI matrix: gcc/clang, WITH_FFI on/off, JIT=0, staged install with
   `pkg-config`, shared-library FFI, ASan/UBSan and fuzz jobs.  The official
   Lua suite job is optional because CI downloads its inputs.

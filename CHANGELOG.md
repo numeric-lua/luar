@@ -96,6 +96,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J2 `while` support: simple integer-conditioned `while` loops (body without
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
+- The macOS CI job now builds and tests the full FFI suite; `ffi.load`
+  resolves `lib*.dylib`, and x86-64-only union/packed/TLS tests are gated
+  behind the architecture.
 - J3 raw table fill/sum intrinsics (default, `tint=0` disables):
   `t[i]=i` and `acc=acc+t[i]` loops are executed by C helpers, making
   `table/array` ~0.14x stock Lua (and faster than LuaJIT).
