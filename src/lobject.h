@@ -635,6 +635,8 @@ typedef struct Proto {
   int luar_tint[2];	/* 1 = table fill intrinsic */
   int luar_tint_pc[2];
   int luar_tint_table[2];
+  int luar_tint_keys[2];
+  int luar_tint_upval[2];
   int luar_tint_acc[2];
   int luar_tint_base[2];
   l_uint32 luar_tint_epoch[2];

@@ -283,6 +283,8 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_tint[0] = f->luar_tint[1] = 0;
   f->luar_tint_pc[0] = f->luar_tint_pc[1] = 0;
   f->luar_tint_table[0] = f->luar_tint_table[1] = 0;
+  f->luar_tint_keys[0] = f->luar_tint_keys[1] = 0;
+  f->luar_tint_upval[0] = f->luar_tint_upval[1] = -1;
   f->luar_tint_acc[0] = f->luar_tint_acc[1] = 0;
   f->luar_tint_base[0] = f->luar_tint_base[1] = 0;
   f->luar_tint_epoch[0] = f->luar_tint_epoch[1] = 0;

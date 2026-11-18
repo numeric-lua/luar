@@ -107,6 +107,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   is free and `hotexit` exits have accumulated (`jit.opt.start("hotexit=N")`,
   default 10) (int/float polymorphic loops); both variants are tried at each
   backedge.  `tests/jit/25_polymorphic.lua` covers it.
+- Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,
+  `s = s + t[keys[i]]`) with hash presizing: `table/hash` drops to ~0.43x
+  stock Lua.  Keys may be function parameters or closure upvalues.
 - The hot-loop hook now recognises a Proto whose first loop is an intrinsic,
   so subsequent loops in the same function can be recorded and intrinsic
   compiled too.  Generic table emission remains opt-in

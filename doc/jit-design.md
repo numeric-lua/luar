@@ -25,7 +25,8 @@ is provably observationally equivalent to that interpreter.
   exit stub/side-exit chain, no safepoint or GC barrier machinery (the
   compiled loop cannot allocate, call, or raise), no table/string/closure
   operations; comparisons/forward branches are compiled for int and double
-  operands; an early J3 experiment (raw fill/sum intrinsics are on by default; generic
+  operands; an early J3 experiment (raw array and keyed-hash fill/sum intrinsics are on
+  by default; generic
   table emission is behind `jit.opt.start("table=1")`)
   compiles a leading integer array lookup/store, the accumulating ADD and
   register-cached fill/sum loops.
