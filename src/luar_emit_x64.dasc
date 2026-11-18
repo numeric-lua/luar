@@ -714,10 +714,21 @@ static void emit_fast_int (dasm_State **Dst, const LuaR_LoopDesc *d)
   | mov r12, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
   | mov r13, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
   | mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
-  | mov r15, qword [rbx + ((int)LUAR_SLOT(d->fi_acc))]
+  if (d->fi_float) {
+    | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->fi_acc))]
+  }
+  else {
+    | mov r15, qword [rbx + ((int)LUAR_SLOT(d->fi_acc))]
+  }
   emit_guards(Dst, d);
   |1:
-  | add r15, r13
+  if (d->fi_float) {
+    | cvtsi2sd xmm1, r13
+    | addsd xmm0, xmm1
+  }
+  else {
+    | add r15, r13
+  }
   | test r12, r12
   | jz >2
   | dec r12
@@ -726,7 +737,12 @@ static void emit_fast_int (dasm_State **Dst, const LuaR_LoopDesc *d)
   |2:
   | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
   | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
-  | mov qword [rbx + ((int)LUAR_SLOT(d->fi_acc))], r15
+  if (d->fi_float) {
+    | movsd qword [rbx + ((int)LUAR_SLOT(d->fi_acc))], xmm0
+  }
+  else {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->fi_acc))], r15
+  }
   | mov eax, 1
   | pop r15
   | pop r14

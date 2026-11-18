@@ -88,6 +88,7 @@ typedef struct LuaR_LoopDesc {
   int fast_fill;		/* table[idx] = idx fast path */
   int ff_table;
   int fast_int;			/* acc += idx fast path */
+  int fi_float;			/* float accumulator */
   int fi_acc;
   int fast_tsum;		/* acc += table[idx] fast path */
   int ft_table;

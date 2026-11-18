@@ -753,15 +753,17 @@ decode_done:
     for (i = 1; i < n - 1; i++)
       if (ops[i].kind != LUAR_OP_MMBIN) only = 0;
     if (only && add->kind == LUAR_OP_ADD && add->a == add->b &&
-        add->c == for_a + 2 && add->ta == LUAR_T_INT &&
+        add->c == for_a + 2 &&
+        (add->ta == LUAR_T_INT || add->ta == LUAR_T_FLOAT) &&
         !is_control_reg(add->a, for_a)) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
-      add_guard(&d, seen, add->a, LUAR_T_INT);
+      add_guard(&d, seen, add->a, add->ta);
       add_guard(&d, seen, for_a, LUAR_T_INT);
       add_guard(&d, seen, for_a + 1, LUAR_T_INT);
       add_guard(&d, seen, for_a + 2, LUAR_T_INT);
       d.fast_int = 1;
+      d.fi_float = (add->ta == LUAR_T_FLOAT);
       d.fi_acc = add->a;
     }
   }
