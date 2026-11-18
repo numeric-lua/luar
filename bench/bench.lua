@@ -804,6 +804,19 @@ def {
 }
 
 def {
+  name = "object/leaf_twoarg_branch", group = "object",
+  run = function ()
+    local n = N(1500000)
+    local function f (a, b)
+      if a > b then return a - b else return b - a end
+    end
+    local s = 0
+    for i = 1, n do s = s + f(i, 500000) end
+    return s
+  end,
+}
+
+def {
   name = "object/method", group = "object",
   run = function ()
     local n = N(1000000)

@@ -46,8 +46,9 @@
 > one-field `self:add` methods and `__index` multiplier loops are inlined.
 > `object/closures`, `object/method`, `object/metatable`,
 > `object/leaf_call`, `object/leaf_chain`, `object/leaf_twoarg`,
-> `object/leaf_threearg` and `object/leaf_branch` are all faster than stock
-> Lua; the first four also beat LuaJIT.  Generic table JIT remains
+> `object/leaf_threearg`, `object/leaf_branch` and
+> `object/leaf_twoarg_branch` are all faster than stock Lua; the first four
+> also beat LuaJIT.  Generic table JIT remains
 > opt-in; arbitrary method dispatch and general calls still interpret.  Preallocating the fill array from the loop's
 > remaining count was also tested; it did not make the native fill faster than
 > the interpreter, so it was not kept.  `-O3` (the default from this build)

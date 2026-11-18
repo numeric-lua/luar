@@ -123,6 +123,7 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Inline branchy two-parameter leaves through the generic integer evaluator.
 - Inline three-parameter leaf calls (`a*b+c`, `a*b*c`, `a+b+c`, `a-b-c`)
   whose result feeds a numeric accumulator; second and third arguments are
   read from their loop-body slots and guarded as integers.

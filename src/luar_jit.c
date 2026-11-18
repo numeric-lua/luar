@@ -2424,20 +2424,32 @@ static int leaf2_call_intrinsic (lua_State *L, TValue *base,
       !ttisinteger(at) || !ttisinteger(av) || !ttisLclosure(fv))
     return 0;
   cl = clLvalue(fv);
-  if (!leaf2_plan(cl->p, &op))
-    return 0;
   arg2 = ivalue(av);
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
   if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
     return 0;
+  if (!leaf2_plan(cl->p, &op)) {
+    lua_Integer dummy;
+    if (!leaf_eval(cl->p, idx, arg2, 2, &dummy))
+      return 0;
+    op = 0;  /* generic two-parameter evaluator */
+  }
   if (idx > LUA_MAXINTEGER - count)
     return 0;
   last = idx + count;
   sum = l_castS2U(ivalue(at));
-  for (k = 0; k <= count; k++)
-    sum += l_castS2U(leaf2_apply(op, idx + k, arg2));
+  for (k = 0; k <= count; k++) {
+    if (op == 0) {
+      lua_Integer v;
+      if (!leaf_eval(cl->p, idx + k, arg2, 2, &v))
+        return 0;
+      sum += l_castS2U(v);
+    }
+    else
+      sum += l_castS2U(leaf2_apply(op, idx + k, arg2));
+  }
   chgivalue(at, l_castU2S(sum));
   setivalue(ct, 0);
   setivalue(it, last);
