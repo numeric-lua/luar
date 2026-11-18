@@ -128,6 +128,7 @@ the runtime, while the Lua language surface follows upstream Lua.
   preserving prior iteration state.  This is side-exit state capture, not a
   recorded side trace.
 - Inline branchy two-parameter leaves through the generic integer evaluator.
+- Inline branchy three-parameter leaves through the generic evaluator.
 - Inline three-parameter leaf calls (`a*b+c`, `a*b*c`, `a+b+c`, `a-b-c`)
   whose result feeds a numeric accumulator; second and third arguments are
   read from their loop-body slots and guarded as integers.

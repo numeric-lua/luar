@@ -2076,7 +2076,7 @@ static lua_Integer jit_idiv (lua_Integer a, lua_Integer b, int wantmod) {
 
 
 static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
-                      int nargs, lua_Integer *out) {
+                      lua_Integer arg3, int nargs, lua_Integer *out) {
   lua_Integer r[32];
   lu_byte kind[32];
   int pc, steps;
@@ -2086,9 +2086,13 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
   memset(kind, 0, sizeof(kind));
   r[0] = arg;
   kind[0] = 1;
-  if (nargs == 2) {
+  if (nargs >= 2) {
     r[1] = arg2;
     kind[1] = 1;
+  }
+  if (nargs == 3) {
+    r[2] = arg3;
+    kind[2] = 1;
   }
   for (pc = 0, steps = 0; pc < fp->sizecode; pc++, steps++) {
     Instruction ins = fp->code[pc];
@@ -2387,8 +2391,6 @@ static int leaf3_call_intrinsic (lua_State *L, TValue *base,
       !ttisLclosure(fv))
     return 0;
   cl = clLvalue(fv);
-  if (!leaf3_plan(cl->p, &op))
-    return 0;
   arg2 = ivalue(a2);
   arg3 = ivalue(a3);
   count = ivalue(ct);
@@ -2398,10 +2400,24 @@ static int leaf3_call_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (idx > LUA_MAXINTEGER - count)
     return 0;
+  if (!leaf3_plan(cl->p, &op)) {
+    lua_Integer dummy;
+    if (!leaf_eval(cl->p, idx, arg2, arg3, 3, &dummy))
+      return 0;
+    op = 0;
+  }
   last = idx + count;
   sum = l_castS2U(ivalue(at));
-  for (k = 0; k <= count; k++)
-    sum += l_castS2U(leaf3_apply(op, idx + k, arg2, arg3));
+  for (k = 0; k <= count; k++) {
+    if (op == 0) {
+      lua_Integer v;
+      if (!leaf_eval(cl->p, idx + k, arg2, arg3, 3, &v))
+        return 0;
+      sum += l_castS2U(v);
+    }
+    else
+      sum += l_castS2U(leaf3_apply(op, idx + k, arg2, arg3));
+  }
   chgivalue(at, l_castU2S(sum));
   setivalue(ct, 0);
   setivalue(it, last);
@@ -2435,7 +2451,7 @@ static int leaf2_call_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (!leaf2_plan(cl->p, &op)) {
     lua_Integer dummy;
-    if (!leaf_eval(cl->p, idx, arg2, 2, &dummy))
+    if (!leaf_eval(cl->p, idx, arg2, 0, 2, &dummy))
       return 0;
     op = 0;  /* generic two-parameter evaluator */
   }
@@ -2446,7 +2462,7 @@ static int leaf2_call_intrinsic (lua_State *L, TValue *base,
   for (k = 0; k <= count; k++) {
     if (op == 0) {
       lua_Integer v;
-      if (!leaf_eval(cl->p, idx + k, arg2, 2, &v))
+      if (!leaf_eval(cl->p, idx + k, arg2, 0, 2, &v))
         return 0;
       sum += l_castS2U(v);
     }
@@ -2511,12 +2527,12 @@ static int leaf_call_intrinsic (lua_State *L, TValue *base,
       sum += l_castS2U(leaf_single_apply(sop, idx + k, simm));
   }
   else {
-    if (!leaf_eval(cl->p, idx, 0, 1, &val))
+    if (!leaf_eval(cl->p, idx, 0, 0, 1, &val))
       return 0;
     last = idx + count;
     sum = l_castS2U(ivalue(at));
     for (k = 0; k <= count; k++) {
-      if (!leaf_eval(cl->p, idx + k, 0, 1, &val))
+      if (!leaf_eval(cl->p, idx + k, 0, 0, 1, &val))
         return 0;
       sum += l_castS2U(val);
     }
