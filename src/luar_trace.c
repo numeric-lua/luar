@@ -9,6 +9,7 @@
 #include "lua.h"
 #include "lobject.h"
 #include "lopcodes.h"
+#include "ltable.h"
 #include "luar_trace.h"
 
 void luar_trace_ir_init (LuaR_TraceIR *t, Proto *proto, int32_t startpc,
@@ -169,6 +170,16 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   }
   return 1;
 }
+
+int64_t luar_trace_tget_int (Table *t, lua_Integer key, int64_t *out) {
+  if (t == NULL || key < 1 || (lua_Unsigned)key > t->asize)
+    return 0;
+  if (*getArrTag(t, (unsigned)(key - 1)) != LUA_VNUMINT)
+    return 0;
+  *out = getArrVal(t, (unsigned)(key - 1))->i;
+  return 1;
+}
+
 
 static int abstract_tag (const TValue *v) {
   if (ttisinteger(v)) return LUAR_IR_TAG_INT;

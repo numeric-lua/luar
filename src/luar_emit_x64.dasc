@@ -1507,6 +1507,16 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         break;
+      case LUAR_IR_TGET:
+        | mov rdi, qword [rbx + ((int)LUAR_SLOT(in->b))]
+        | mov rsi, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        | lea rdx, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov64 rax, (int64_t)(intptr_t)&luar_trace_tget_int
+        | call rax
+        | test eax, eax
+        | jz >2
+        | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
+        break;
       case LUAR_IR_FORLOOP:
         if (forslot >= 0)
           return 0;

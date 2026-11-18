@@ -123,6 +123,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Added table-read IR codegen (`TGET`) with a bounded helper and selftest;
+  table traces remain excluded from the live path.
 - Added IR fallback coverage for table loops and reset `ir_executed` on
   `jit.flush()`.
 - Added opt-in live execution of generated root traces (`ir=1`) and fixed the
