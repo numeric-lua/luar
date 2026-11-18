@@ -712,6 +712,33 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
 
 
 
+#if defined(__aarch64__)
+/* Packed aggregate arguments are byte-addressed on AAPCS64.  A byte-array
+** struct preserves the exact memory image for argument-only calls. */
+static ffi_type *build_packed_bytes (lua_State *L, CType *ct,
+                                     FTAlloc **allocs) {
+  ffi_type *ft;
+  ffi_type **elems;
+  size_t n, i;
+  if (ct->size == 0 || ct->size > 65535)
+    luaL_error(L, "ffi: packed struct is too large to pass by value");
+  n = ct->size;
+  ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+  elems = (ffi_type **)ft_alloc(L, allocs,
+                                sizeof(ffi_type *) * (n + 1));
+  for (i = 0; i < n; i++)
+    elems[i] = &ffi_type_uint8;
+  elems[n] = NULL;
+  memset(ft, 0, sizeof(*ft));
+  ft->type = FFI_TYPE_STRUCT;
+  ft->elements = elems;
+  ft->size = 0;
+  ft->alignment = 0;
+  return ft;
+}
+#endif
+
+
 static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
                                     FTAlloc **allocs) {
   ffi_type *ft;
@@ -727,6 +754,10 @@ static ffi_type *build_struct_type (lua_State *L, FFIState *S, CType *ct,
   if (ct->nfields == 0)
     luaL_error(L, "ffi: empty struct '%s' cannot be passed by value",
                ffi_type_repr(S, ct));
+#if defined(__aarch64__)
+  if (ct->pack == 1 && ct->align_override == 0)
+    return build_packed_bytes(L, ct, allocs);
+#endif
   ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
   elems = (ffi_type **)ft_alloc(L, allocs,
                                 sizeof(ffi_type *) * (ct->nfields + 1));

@@ -76,17 +76,19 @@ H.eq(p.c, 7)
 H.eq(p.i, 123456)
 H.eq(h.packed_i_ptr(p), 123456)
 
-if ffi.arch ~= "x64" then
-  print("ffi/17_packed: skipped (x86-64 packed-by-value ABI)")
-  return
-end
-
 -- single packed integer arguments are passed through a MEMORY-ABI thunk
 H.eq(h.packed_by_value(p), 123456)
 local pref = ffi.cast("struct PackedS *", p)[0]
 H.eq(h.packed_by_value(pref), 123456)
 local pw = ffi.new("struct PackedWide", {a = 10, b = 1000, c = 3})
 H.eq(h.packedwide_sum(pw), 1013)
+
+-- packed returns and callbacks are x86-64-only
+if ffi.arch ~= "x64" then
+  print("ffi/17_packed: argument-only arm64 checks ok")
+  return
+end
+
 local made = h.packedmake0()
 H.eq(made.c, 5)
 H.eq(made.i, 777)
