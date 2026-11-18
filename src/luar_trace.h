@@ -72,6 +72,7 @@ typedef struct LuaR_TraceIR {
   int32_t startpc;
   int32_t maxslots;
   int depth;		/* side-trace depth, 0 for a root trace */
+  int side;		/* 1 = interior side segment */
   int nins;
   LuaR_IRIns ins[LUAR_IR_MAX_INS];
   int nexits;

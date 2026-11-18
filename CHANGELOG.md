@@ -123,6 +123,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Added the side-continuation emitter contract: interior segment + FORLOOP
+  update returning continue/done/failure, with a selftest.
 - Added live table-read and table-write IR execution (`TGET`/`TSET`) with
   table/key validation; array growth and float arithmetic fall back.
 - Added IR fallback coverage for table loops and reset `ir_executed` on

@@ -1457,6 +1457,7 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 
 static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   int i, forslot = -1, hastget = 0, hastset = 0;
+  int side = t->side;
   for (i = 0; i < t->nins; i++) {
     if (t->ins[i].kind == LUAR_IR_TGET)
       hastget = 1;
@@ -1538,6 +1539,24 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         if (forslot >= 0)
           return 0;
         forslot = in->a;
+        if (side) {
+          | mov rax, qword [rbx + ((int)LUAR_SLOT(forslot))]
+          | test rax, rax
+          | jz >5
+          | dec rax
+          | mov qword [rbx + ((int)LUAR_SLOT(forslot))], rax
+          | mov rcx, qword [rbx + ((int)LUAR_SLOT(forslot + 2))]
+          | add rcx, qword [rbx + ((int)LUAR_SLOT(forslot + 1))]
+          | mov qword [rbx + ((int)LUAR_SLOT(forslot + 2))], rcx
+          | xor eax, eax
+          | pop rbx
+          | ret
+          |5:
+          | mov eax, 1
+          | pop rbx
+          | ret
+          break;
+        }
         | mov rax, qword [rbx + ((int)LUAR_SLOT(forslot))]
         | test rax, rax
         | jz >3
@@ -1560,7 +1579,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   | pop rbx
   | ret
   |2:
-  | xor eax, eax
+  | mov eax, side ? -1 : 0
   | pop rbx
   | ret
   return 1;

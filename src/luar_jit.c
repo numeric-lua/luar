@@ -3550,6 +3550,41 @@ done:
 }
 
 
+static int jit_trace_side_link_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  TValue base[4];
+  void *code = NULL;
+  size_t size = 0;
+  int ok = 0;
+  int (*fn)(void *);
+  luar_trace_ir_init(&t, NULL, 5, 4, 1);
+  t.side = 1;
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_ADD; in.a = 0; in.b = 0; in.c = 3; in.pc = 5;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_FORLOOP; in.a = 1; in.pc = 6;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_RET; in.pc = 7;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
+  if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
+  memset(base, 0, sizeof(base));
+  setivalue(&base[0], 0);
+  setivalue(&base[1], 3);
+  setivalue(&base[2], 1);
+  setivalue(&base[3], 0);
+  fn = (int (*)(void *))code;
+  if (fn(base) != 0) goto done;
+  if (ivalue(&base[1]) != 2 || ivalue(&base[3]) != 1) goto done;
+  ok = 1;
+done:
+  if (code != NULL) munmap(code, size);
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_guard_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3588,6 +3623,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "side_exec_selftest");
   lua_pushcfunction(L, jit_trace_guard_selftest);
   lua_setfield(L, -2, "guard_selftest");
+  lua_pushcfunction(L, jit_trace_side_link_selftest);
+  lua_setfield(L, -2, "side_link_selftest");
   lua_pushcfunction(L, jit_trace_tget_selftest);
   lua_setfield(L, -2, "tget_selftest");
   lua_pushcfunction(L, jit_trace_loop_exec_selftest);
