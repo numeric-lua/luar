@@ -73,6 +73,7 @@ static void free_code (LuaR_JIT *J) {
   J->exits = 0;
   J->side_traces = 0;
   J->last_exit_pc = -1;
+  J->sig_hits = 0;
   J->mcode = 0;
 }
 
@@ -1604,6 +1605,19 @@ emit_ready:
     p->luar_code_pc[slot] = (int)backedge;
     p->luar_code_base[slot] = for_a;
     p->luar_code_epoch[slot] = J->epoch;
+    {
+      int gi;
+      p->luar_ngrd[slot] = (uint8_t)(d.nguards <= 8 ? d.nguards : 0);
+      p->luar_sig[slot] = 1469598103934665603ull;
+      for (gi = 0; gi < p->luar_ngrd[slot]; gi++) {
+        p->luar_grd_reg[slot][gi] = d.guard_reg[gi];
+        p->luar_grd_typ[slot][gi] = d.guard_type[gi];
+        p->luar_sig[slot] = (p->luar_sig[slot] ^ d.guard_reg[gi]) *
+                            1099511628211ull;
+        p->luar_sig[slot] = (p->luar_sig[slot] ^ d.guard_type[gi]) *
+                            1099511628211ull;
+      }
+    }
     p->luar_fc_closure[slot] = d.fc_closure;
     p->luar_fc_func[slot] = d.fc_func_slot;
     p->luar_fc_upval[slot] = d.fc_upval_slot;
@@ -2565,6 +2579,23 @@ static Table *tint_keys_table (Proto *p, TValue *base, int slot) {
 }
 
 
+static int entry_sig_matches (Proto *p, int slot, TValue *base) {
+  int k;
+  uint64_t h = 1469598103934665603ull;
+  if (p->luar_ngrd[slot] == 0)
+    return 0;
+  for (k = 0; k < p->luar_ngrd[slot]; k++) {
+    int reg = p->luar_grd_reg[slot][k];
+    int ty = ttisinteger(&base[reg]) ? LUAR_T_INT
+             : ttisfloat(&base[reg]) ? LUAR_T_FLOAT
+             : ttistable(&base[reg]) ? LUAR_T_TABLE : 0;
+    h = (h ^ (uint64_t)reg) * 1099511628211ull;
+    h = (h ^ (uint64_t)ty) * 1099511628211ull;
+  }
+  return h == p->luar_sig[slot];
+}
+
+
 int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                        int expected_base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -2658,8 +2689,27 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
   }
   {
     int any = 0;
+    int order[2], nord = 0, first, pref = -1;
     for (i = 0; i < 2; i++) {
+      if (p->luar_code[i] != NULL && p->luar_code_pc[i] == pc &&
+          p->luar_code_base[i] == expected_base &&
+          p->luar_code_epoch[i] == J->epoch &&
+          entry_sig_matches(p, i, (TValue *)base)) {
+        pref = i;
+        break;
+      }
+    }
+    first = (pref >= 0) ? pref : 0;
+    order[nord++] = first;
+    if (first == 0)
+      order[nord++] = 1;
+    else
+      order[nord++] = 0;
+    if (pref >= 0)
+      J->sig_hits++;
+    for (first = 0; first < nord; first++) {
       int r;
+      i = order[first];
       if (p->luar_code[i] == NULL || p->luar_code_pc[i] != pc ||
           p->luar_code_base[i] != expected_base)
         continue;
@@ -3068,6 +3118,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "side_traces");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->last_exit_pc : -1);
   lua_setfield(L, -2, "last_exit_pc");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->sig_hits : 0);
+  lua_setfield(L, -2, "sig_hits");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;

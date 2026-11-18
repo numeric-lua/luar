@@ -123,6 +123,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Code slots record their entry guard tags and dispatch to the matching
+  variant (`jit.stats().sig_hits`), avoiding calls into a known-mismatched
+  variant.
 - Mid-loop table guards now return the exact failing bytecode PC (reported as
   `jit.stats().last_exit_pc`) and resume the interpreter at that instruction,
   preserving prior iteration state.  This is side-exit state capture, not a

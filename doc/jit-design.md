@@ -182,6 +182,8 @@ E_END:                              ; pc=9, RETURN1
   EXIT pc=9, ntop=0
 ```
 
+Each code slot stores its entry guard signature; `try_run` dispatches to
+the matching variant first and reports hits via `jit.stats().sig_hits`.
 Mid-loop table guards now return the exact failing instruction PC to the
 interpreter and record it in `jit.stats().last_exit_pc`; entry guards resume
 at the loop target.  This is the state-capture half of J4 side exits; no
