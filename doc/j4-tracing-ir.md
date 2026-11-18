@@ -27,8 +27,8 @@ the working JIT can keep shipping while a trace compiler is built.
 - Machine-code emission from the IR: **implemented for integer root and
   interior segments**.
 - Table-read IR codegen and helper: **implemented and covered by
-  `jit.trace_ir().tget_selftest()`**; table traces are still excluded from
-  the live `ir=1` path.
+  `jit.trace_ir().tget_selftest()`**, and table-read traces execute live
+  under `ir=1`.  Table writes (`TSET`) remain excluded.
 - Live root-trace execution: **implemented behind `jit.opt.start("ir=1")`**;
   legacy JIT compilation is disabled for that loop while IR execution is
   enabled.  `ir_executed` counts successful entries, and unsupported

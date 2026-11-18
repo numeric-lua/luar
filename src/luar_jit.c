@@ -2971,9 +2971,10 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
   int i;
   for (i = 0; i < ir->nins; i++) {
     const LuaR_IRIns *in = &ir->ins[i];
-    if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT)
+    if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT &&
+        in->b != LUAR_IR_TAG_TABLE)
       return 0;
-    if (in->kind == LUAR_IR_TGET || in->kind == LUAR_IR_TSET)
+    if (in->kind == LUAR_IR_TSET)
       return 0;
   }
   return 1;
@@ -3514,7 +3515,6 @@ static int jit_trace_tget_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
   TValue base[3];
-  Table *tab;
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
@@ -3522,7 +3522,6 @@ static int jit_trace_tget_selftest (lua_State *L) {
   lua_createtable(L, 1, 0);
   lua_pushinteger(L, 42);
   lua_seti(L, -2, 1);
-  tab = (Table *)lua_topointer(L, -1);
   luar_trace_ir_init(&t, NULL, 0, 3, 0);
   memset(&in, 0, sizeof(in));
   in.kind = LUAR_IR_GUARD; in.a = 1; in.b = LUAR_IR_TAG_TABLE;
@@ -3536,8 +3535,9 @@ static int jit_trace_tget_selftest (lua_State *L) {
   if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
   if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
   memset(base, 0, sizeof(base));
-  base[1].tt_ = LUA_VTABLE;
-  base[1].value_.gc = obj2gco(tab);
+  lua_pushvalue(L, -1);
+  base[1] = *s2v(L->top.p - 1);
+  lua_pop(L, 1);
   setivalue(&base[2], 1);
   fn = (int (*)(void *))code;
   if (fn(base) != 1) goto done;

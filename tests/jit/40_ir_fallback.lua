@@ -10,17 +10,13 @@ jit.flush()
 jit.opt.start("ir=1")
 jit.on()
 
--- table reads are not emitted by the current integer IR compiler
+-- table writes are not emitted by the current IR compiler
 local t = {}
-jit.off()
-for i = 1, 1000 do t[i] = i end
-jit.on()
-local function read (t, n)
-  local s = 0
-  for i = 1, n do s = s + t[i] end
-  return s
+local function fill (t, n)
+  for i = 1, n do t[i] = i end
 end
-H.eq(read(t, 1000), 500500)
+fill(t, 1000)
+H.eq(t[1000], 1000)
 H.eq(jit.stats().ir_executed, 0)
 
 -- a fresh integer loop in the same mode still compiles and executes
