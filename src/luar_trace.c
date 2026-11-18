@@ -170,6 +170,28 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   return 1;
 }
 
+static int abstract_tag (const TValue *v) {
+  if (ttisinteger(v)) return LUAR_IR_TAG_INT;
+  if (ttisfloat(v)) return LUAR_IR_TAG_FLOAT;
+  if (ttistable(v)) return LUAR_IR_TAG_TABLE;
+  return LUAR_IR_TAG_OTHER;
+}
+
+
+int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base) {
+  int i;
+  if (t == NULL || base == NULL)
+    return 0;
+  for (i = 0; i < t->nins; i++) {
+    const LuaR_IRIns *in = &t->ins[i];
+    if (in->kind == LUAR_IR_GUARD &&
+        abstract_tag(&base[in->a]) != in->b)
+      return 0;
+  }
+  return 1;
+}
+
+
 int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
   uint8_t kind[LUAR_IR_MAX_SLOTS];
   int i;

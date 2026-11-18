@@ -59,11 +59,27 @@ The existing J2/J3 emitter already reports an exact interior PC in
 `jit.stats().last_exit_pc`; the tracing recorder will use the same resume PC
 and this snapshot format for side exits.
 
+## Trace-entry state contract
+
+A root trace entry receives the live stack after the interpreter's FORLOOP
+has prepared the next body execution.  The trace starts at the loop body,
+does not reinitialize count/step/index, and its first action is the recorded
+guard set.  `luar_trace_ir_guards_match()` checks those guards against the
+live slots; failing guards must fall back to the interpreter before any
+mutation.  An interior side segment starts at its recorded resume PC with
+the accumulator/control state already advanced by the parent trace.
+
+A first live-entry experiment produced an incorrect loop result because the
+entry/loop-control contract was not enforced; it was reverted.  The guard
+contract and the interior/root execution selftests are the prerequisites for
+retrying live linking.
+
 ## Next milestones
 
 1. Extend interior recording to table/call-heavy exits and compile the
    recorded IR (basic table and K-op recording is already present).
-2. Add exit-stub state spilling to the native ABI.
+2. Enforce the entry guard contract in the live hook, then add exit-stub
+   state spilling to the native ABI.
 3. Compile the IR and link side traces with the recorded depth/cycle metadata.
 4. Add differential tests against the interpreter and the existing J2/J3
    paths.

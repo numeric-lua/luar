@@ -3398,6 +3398,28 @@ done:
 }
 
 
+static int jit_trace_guard_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  TValue base[2];
+  int ok;
+  luar_trace_ir_init(&t, NULL, 0, 2, 0);
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_GUARD; in.a = 0; in.b = LUAR_IR_TAG_INT;
+  if (!luar_trace_ir_emit(&t, &in)) ok = 0;
+  else {
+    memset(base, 0, sizeof(base));
+    setivalue(&base[0], 1);
+    ok = luar_trace_ir_guards_match(&t, base);
+    setfltvalue(&base[0], 1.5);
+    if (luar_trace_ir_guards_match(&t, base))
+      ok = 0;
+  }
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_ir (lua_State *L) {
   lua_newtable(L);
   lua_pushinteger(L, LUAR_IR_VERSION);
@@ -3412,6 +3434,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "exec_selftest");
   lua_pushcfunction(L, jit_trace_side_exec_selftest);
   lua_setfield(L, -2, "side_exec_selftest");
+  lua_pushcfunction(L, jit_trace_guard_selftest);
+  lua_setfield(L, -2, "guard_selftest");
   return 1;
 }
 

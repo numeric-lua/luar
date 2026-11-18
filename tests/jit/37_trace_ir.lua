@@ -7,6 +7,7 @@ H.eq(ir.version, 1)
 H.eq(ir.max_ops, 64)
 H.eq(ir.max_exits, 4)
 H.eq(ir.selftest(), true)
+H.eq(ir.guard_selftest(), true)
 if jit.status() then
   H.eq(ir.exec_selftest(), true)
   H.eq(ir.side_exec_selftest(), true)
