@@ -116,6 +116,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   `__index` function returning `k * N` is compiled to `acc += idx * N`,
   re-validating the table/metatable/function body at every native entry.
   `object/metatable` drops to ~0.01x stock Lua and beats LuaJIT.
+- Inline a one-field method shape: `obj:add(i)` where the method body is
+  `self.v = self.v + x` is executed by a C loop that computes the final field
+  value and stores it once.  Handles table registers and upvalues;
+  `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
 - Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,
   `s = s + t[keys[i]]`) with hash presizing: `table/hash` drops to ~0.43x
   stock Lua.  Keys may be function parameters or closure upvalues.

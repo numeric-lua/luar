@@ -149,6 +149,32 @@ static int install_keyed_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+static int install_method_intrinsic (Proto *p, LuaR_JIT *J,
+                                    ptrdiff_t backedge, int for_a,
+                                    int table, int method_key, int upval) {
+  int slot = -1, k;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = 5;
+  p->luar_tint_pc[slot] = (int)backedge;
+  p->luar_tint_table[slot] = table;
+  p->luar_tint_keys[slot] = method_key;
+  p->luar_tint_upval[slot] = upval;
+  p->luar_tint_acc[slot] = 0;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
 static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
                               int for_a, int table, int keys, int upval) {
   int slot = -1, k;
@@ -442,6 +468,37 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_C(i3) == GETARG_A(i2))
         return install_keyed_sum(p, J, backedge, for_a,
                                  GETARG_B(i2), 0, GETARG_B(i0), GETARG_A(i3));
+    }
+    if (n >= 5 && GET_OPCODE(i0) == OP_GETUPVAL &&
+        GET_OPCODE(p->code[start + 1]) == OP_SELF &&
+        GET_OPCODE(p->code[start + 2]) == OP_MOVE &&
+        GET_OPCODE(p->code[start + 3]) == OP_CALL &&
+        backedge == start + 4) {
+      Instruction i1 = p->code[start + 1];
+      Instruction i2 = p->code[start + 2];
+      Instruction i3 = p->code[start + 3];
+      if (GETARG_A(i0) == GETARG_B(i1) &&
+          GETARG_A(i1) == GETARG_A(i0) &&
+          GETARG_A(i2) == GETARG_A(i1) + 2 &&
+          GETARG_B(i2) == for_a + 2 &&
+          GETARG_A(i3) == GETARG_A(i1) &&
+          GETARG_B(i3) == 3 && GETARG_C(i3) == 1)
+        return install_method_intrinsic(p, J, backedge, for_a,
+                                        0, GETARG_C(i1), GETARG_B(i0));
+    }
+    if (n >= 4 && GET_OPCODE(i0) == OP_SELF &&
+        GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
+        GET_OPCODE(p->code[start + 2]) == OP_CALL &&
+        backedge == start + 3) {
+      Instruction i1 = p->code[start + 1];
+      Instruction i2 = p->code[start + 2];
+      if (GETARG_A(i1) == GETARG_A(i0) + 2 &&
+          GETARG_B(i1) == for_a + 2 &&
+          GETARG_A(i2) == GETARG_A(i0) &&
+          GETARG_B(i2) == 3 && GETARG_C(i2) == 1) {
+        return install_method_intrinsic(p, J, backedge, for_a,
+                                        GETARG_B(i0), GETARG_C(i0), -1);
+      }
     }
   }
   for (i = 0; i < n - 1; i++) {
@@ -1601,6 +1658,65 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
 }
 
 
+static int method_add_intrinsic (lua_State *L, Proto *caller, TValue *base,
+                                int for_a, TValue *tt, int method_key) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue mval, fval, newv;
+  Table *t;
+  LClosure *cl;
+  TValue *field_key;
+  lua_Integer count, step, idx, last, k;
+  lua_Unsigned sum;
+  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  t = hvalue(tt);
+  if (t->metatable != NULL)
+    return 0;
+  if (method_key < 0 || method_key >= caller->sizek)
+    return 0;
+  if (luaH_get(t, &caller->k[method_key], &mval) != LUA_VLCL)
+    return 0;
+  cl = clLvalue(&mval);
+  if (cl->p->numparams != 2 || cl->p->sizeupvalues != 0 ||
+      cl->p->sizecode < 5 || cl->p->maxstacksize < 3)
+    return 0;
+  if (GET_OPCODE(cl->p->code[0]) != OP_GETFIELD ||
+      GETARG_A(cl->p->code[0]) != 2 ||
+      GET_OPCODE(cl->p->code[1]) != OP_ADD ||
+      GETARG_A(cl->p->code[1]) != 2 ||
+      GETARG_B(cl->p->code[1]) != 2 ||
+      GETARG_C(cl->p->code[1]) != 1 ||
+      GET_OPCODE(cl->p->code[2]) != OP_MMBIN ||
+      GET_OPCODE(cl->p->code[3]) != OP_SETFIELD ||
+      GETARG_A(cl->p->code[3]) != 0 ||
+      GETARG_C(cl->p->code[3]) != 2 ||
+      GET_OPCODE(cl->p->code[4]) != OP_RETURN0)
+    return 0;
+  field_key = &cl->p->k[GETARG_C(cl->p->code[0])];
+  if (luaH_get(t, field_key, &fval) != LUA_VNUMINT)
+    return 0;
+  sum = l_castS2U(ivalue(&fval));
+  for (k = 0; k <= count; k++)
+    sum += l_castS2U(idx + k);
+  setivalue(&newv, l_castU2S(sum));
+  luaH_set(L, t, field_key, &newv);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 static Table *tint_keys_table (Proto *p, TValue *base, int slot) {
   TValue *kt;
   if (p->luar_tint_upval[slot] >= 0) {
@@ -1655,6 +1771,30 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           r = (keys == NULL) ? 0
               : keyed_fill_intrinsic(L, (TValue *)base, expected_base,
                                      p->luar_tint_table[i], keys);
+          break;
+        }
+        case 5: {
+          TValue *tt;
+          if (p->luar_tint_upval[i] >= 0) {
+            TValue *fv = &((TValue *)base)[-1];
+            LClosure *cl;
+            if (!ttisLclosure(fv))
+              r = 0;
+            else {
+              cl = clLvalue(fv);
+              if (p->luar_tint_upval[i] >= cl->p->sizeupvalues)
+                r = 0;
+              else {
+                tt = cl->upvals[p->luar_tint_upval[i]]->v.p;
+                r = method_add_intrinsic(L, p, (TValue *)base, expected_base,
+                                         tt, p->luar_tint_keys[i]);
+              }
+            }
+          }
+          else
+            r = method_add_intrinsic(L, p, (TValue *)base, expected_base,
+                                     &((TValue *)base)[p->luar_tint_table[i]],
+                                     p->luar_tint_keys[i]);
           break;
         }
         default: {
