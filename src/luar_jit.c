@@ -1771,40 +1771,22 @@ static lua_Integer jit_wrap_mul (lua_Integer a, lua_Integer b) {
 }
 
 
-static int leaf_call_intrinsic (lua_State *L, TValue *base,
-                               int for_a, int func_slot, int acc_slot) {
-  TValue *ct = &base[for_a];
-  TValue *st = &base[for_a + 1];
-  TValue *it = &base[for_a + 2];
-  TValue *at = &base[acc_slot];
-  TValue *fv = &base[func_slot];
-  LClosure *cl;
-  Proto *fp;
-  lua_Integer count, step, idx, last, k;
-  lua_Unsigned sum;
-  int op;
-  lua_Integer imm = 0;
-  (void)L;
-  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
-      !ttisinteger(at) || !ttisLclosure(fv))
-    return 0;
-  cl = clLvalue(fv);
-  fp = cl->p;
+static int leaf_single_plan (Proto *fp, int *op, lua_Integer *imm) {
   if (fp->numparams != 1 || fp->sizeupvalues != 0 ||
       fp->sizecode < 4 || fp->maxstacksize < 2)
     return 0;
   if (GET_OPCODE(fp->code[0]) == OP_MULK &&
       GETARG_A(fp->code[0]) == 1 && GETARG_B(fp->code[0]) == 0 &&
       ttisinteger(&fp->k[GETARG_C(fp->code[0])])) {
-    op = 1;
-    imm = ivalue(&fp->k[GETARG_C(fp->code[0])]);
+    *op = 1;
+    *imm = ivalue(&fp->k[GETARG_C(fp->code[0])]);
     if (GET_OPCODE(fp->code[1]) != OP_MMBINK)
       return 0;
   }
   else if (GET_OPCODE(fp->code[0]) == OP_ADDI &&
            GETARG_A(fp->code[0]) == 1 && GETARG_B(fp->code[0]) == 0) {
-    op = 2;
-    imm = GETARG_sC(fp->code[0]);
+    *op = 2;
+    *imm = GETARG_sC(fp->code[0]);
     if (GET_OPCODE(fp->code[1]) != OP_MMBINI &&
         GET_OPCODE(fp->code[1]) != OP_MMBIN)
       return 0;
@@ -1812,14 +1794,14 @@ static int leaf_call_intrinsic (lua_State *L, TValue *base,
   else if (GET_OPCODE(fp->code[0]) == OP_MUL &&
            GETARG_A(fp->code[0]) == 1 && GETARG_B(fp->code[0]) == 0 &&
            GETARG_C(fp->code[0]) == 0) {
-    op = 3;
+    *op = 3;
     if (GET_OPCODE(fp->code[1]) != OP_MMBIN)
       return 0;
   }
   else if (GET_OPCODE(fp->code[0]) == OP_ADD &&
            GETARG_A(fp->code[0]) == 1 && GETARG_B(fp->code[0]) == 0 &&
            GETARG_C(fp->code[0]) == 0) {
-    op = 4;
+    *op = 4;
     if (GET_OPCODE(fp->code[1]) != OP_MMBIN)
       return 0;
   }
@@ -1829,6 +1811,195 @@ static int leaf_call_intrinsic (lua_State *L, TValue *base,
       GETARG_A(fp->code[2]) != 1 ||
       GET_OPCODE(fp->code[3]) != OP_RETURN0)
     return 0;
+  return 1;
+}
+
+
+static int leaf_affine_plan (Proto *fp, lua_Integer *mul, lua_Integer *add) {
+  if (fp->numparams != 1 || fp->sizeupvalues != 0 ||
+      fp->sizecode < 6 || fp->maxstacksize < 2)
+    return 0;
+  if (GET_OPCODE(fp->code[0]) == OP_MULK &&
+      GETARG_A(fp->code[0]) == 1 && GETARG_B(fp->code[0]) == 0 &&
+      ttisinteger(&fp->k[GETARG_C(fp->code[0])]) &&
+      GET_OPCODE(fp->code[1]) == OP_MMBINK &&
+      GET_OPCODE(fp->code[2]) == OP_ADDI &&
+      GETARG_A(fp->code[2]) == 1 && GETARG_B(fp->code[2]) == 1 &&
+      (GET_OPCODE(fp->code[3]) == OP_MMBINI ||
+       GET_OPCODE(fp->code[3]) == OP_MMBIN) &&
+      GET_OPCODE(fp->code[4]) == OP_RETURN1 &&
+      GETARG_A(fp->code[4]) == 1 &&
+      GET_OPCODE(fp->code[5]) == OP_RETURN0) {
+    *mul = ivalue(&fp->k[GETARG_C(fp->code[0])]);
+    *add = GETARG_sC(fp->code[2]);
+    return 1;
+  }
+  if (GET_OPCODE(fp->code[0]) == OP_ADDI &&
+      GETARG_A(fp->code[0]) == 1 && GETARG_B(fp->code[0]) == 0 &&
+      (GET_OPCODE(fp->code[1]) == OP_MMBINI ||
+       GET_OPCODE(fp->code[1]) == OP_MMBIN) &&
+      GET_OPCODE(fp->code[2]) == OP_MULK &&
+      GETARG_A(fp->code[2]) == 1 && GETARG_B(fp->code[2]) == 1 &&
+      ttisinteger(&fp->k[GETARG_C(fp->code[2])]) &&
+      GET_OPCODE(fp->code[3]) == OP_MMBINK &&
+      GET_OPCODE(fp->code[4]) == OP_RETURN1 &&
+      GETARG_A(fp->code[4]) == 1 &&
+      GET_OPCODE(fp->code[5]) == OP_RETURN0) {
+    *mul = ivalue(&fp->k[GETARG_C(fp->code[2])]);
+    *add = jit_wrap_mul(GETARG_sC(fp->code[0]), *mul);
+    return 1;
+  }
+  return 0;
+}
+
+
+static lua_Integer leaf_single_apply (int op, lua_Integer v, lua_Integer imm) {
+  switch (op) {
+    case 1: return jit_wrap_mul(v, imm);
+    case 2: return jit_wrap_add(v, imm);
+    case 3: return jit_wrap_mul(v, v);
+    default: return jit_wrap_add(v, v);
+  }
+}
+
+
+static lua_Integer jit_idiv (lua_Integer a, lua_Integer b, int wantmod) {
+  lua_Integer q;
+  if (b == 0)
+    return 0;
+  if (b == -1) {
+    q = (wantmod) ? 0 : l_castU2S(0u - l_castS2U(a));
+    return q;
+  }
+  q = a / b;
+  if ((a ^ b) < 0 && a % b != 0)
+    q--;
+  return wantmod ? (lua_Integer)(a - q * b) : q;
+}
+
+
+static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer *out) {
+  lua_Integer r[32];
+  lu_byte defined[32];
+  int pc, i;
+  if (fp->numparams != 1 || fp->sizeupvalues != 0 ||
+      fp->maxstacksize > 32 || fp->sizecode > 32)
+    return 0;
+  memset(defined, 0, sizeof(defined));
+  r[0] = arg;
+  defined[0] = 1;
+  for (pc = 0; pc < fp->sizecode; pc++) {
+    Instruction ins = fp->code[pc];
+    OpCode op = GET_OPCODE(ins);
+    int a = GETARG_A(ins);
+    int b = GETARG_B(ins);
+    int c = GETARG_C(ins);
+    switch (op) {
+      case OP_MOVE:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            !defined[b]) return 0;
+        r[a] = r[b];
+        defined[a] = 1;
+        break;
+      case OP_LOADI:
+        if (a >= fp->maxstacksize) return 0;
+        r[a] = GETARG_sBx(ins);
+        defined[a] = 1;
+        break;
+      case OP_LOADK:
+        if (a >= fp->maxstacksize ||
+            GETARG_Bx(ins) >= fp->sizek ||
+            !ttisinteger(&fp->k[GETARG_Bx(ins)]))
+          return 0;
+        r[a] = ivalue(&fp->k[GETARG_Bx(ins)]);
+        defined[a] = 1;
+        break;
+      case OP_ADDI:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            !defined[b]) return 0;
+        r[a] = jit_wrap_add(r[b], GETARG_sC(ins));
+        defined[a] = 1;
+        break;
+      case OP_ADD:
+      case OP_SUB:
+      case OP_MUL:
+      case OP_MOD:
+      case OP_IDIV:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            c >= fp->maxstacksize || !defined[b] || !defined[c])
+          return 0;
+        if (op == OP_ADD) r[a] = jit_wrap_add(r[b], r[c]);
+        else if (op == OP_SUB)
+          r[a] = l_castU2S(l_castS2U(r[b]) - l_castS2U(r[c]));
+        else if (op == OP_MUL) r[a] = jit_wrap_mul(r[b], r[c]);
+        else if (op == OP_MOD) r[a] = jit_idiv(r[b], r[c], 1);
+        else r[a] = jit_idiv(r[b], r[c], 0);
+        defined[a] = 1;
+        break;
+      case OP_ADDK:
+      case OP_SUBK:
+      case OP_MULK:
+      case OP_MODK:
+      case OP_IDIVK: {
+        TValue *k;
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            !defined[b] || c >= fp->sizek)
+          return 0;
+        k = &fp->k[c];
+        if (!ttisinteger(k)) return 0;
+        if (op == OP_ADDK) r[a] = jit_wrap_add(r[b], ivalue(k));
+        else if (op == OP_SUBK)
+          r[a] = jit_wrap_add(r[b], -ivalue(k));
+        else if (op == OP_MULK) r[a] = jit_wrap_mul(r[b], ivalue(k));
+        else if (op == OP_MODK) r[a] = jit_idiv(r[b], ivalue(k), 1);
+        else r[a] = jit_idiv(r[b], ivalue(k), 0);
+        defined[a] = 1;
+        break;
+      }
+      case OP_UNM:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            !defined[b]) return 0;
+        r[a] = (lua_Integer)(0u - l_castS2U(r[b]));
+        defined[a] = 1;
+        break;
+      case OP_MMBIN:
+      case OP_MMBINI:
+      case OP_MMBINK:
+        break;
+      case OP_RETURN1:
+        if (a >= fp->maxstacksize || !defined[a]) return 0;
+        *out = r[a];
+        return 1;
+      case OP_RETURN0:
+        return 0;
+      default:
+        return 0;
+    }
+  }
+  (void)i;
+  return 0;
+}
+
+
+static int leaf_call_intrinsic (lua_State *L, TValue *base,
+                               int for_a, int func_slot, int acc_slot) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *at = &base[acc_slot];
+  TValue *fv = &base[func_slot];
+  LClosure *cl;
+  lua_Integer count, step, idx, last, k, val;
+  lua_Unsigned sum;
+  int sop = 0;
+  lua_Integer simm = 0;
+  lua_Integer amul = 0, aadd = 0;
+  int affine = 0;
+  (void)L;
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      !ttisinteger(at) || !ttisLclosure(fv))
+    return 0;
+  cl = clLvalue(fv);
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
@@ -1836,17 +2007,29 @@ static int leaf_call_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (idx > LUA_MAXINTEGER - count)
     return 0;
-  last = idx + count;
-  sum = l_castS2U(ivalue(at));
-  for (k = 0; k <= count; k++) {
-    lua_Integer v = idx + k, r;
-    switch (op) {
-      case 1: r = jit_wrap_mul(v, imm); break;
-      case 2: r = jit_wrap_add(v, imm); break;
-      case 3: r = jit_wrap_mul(v, v); break;
-      default: r = jit_wrap_add(v, v); break;
+  affine = leaf_affine_plan(cl->p, &amul, &aadd);
+  if (affine) {
+    last = idx + count;
+    sum = l_castS2U(ivalue(at));
+    for (k = 0; k <= count; k++)
+      sum += l_castS2U(jit_wrap_add(jit_wrap_mul(idx + k, amul), aadd));
+  }
+  else if (leaf_single_plan(cl->p, &sop, &simm)) {
+    last = idx + count;
+    sum = l_castS2U(ivalue(at));
+    for (k = 0; k <= count; k++)
+      sum += l_castS2U(leaf_single_apply(sop, idx + k, simm));
+  }
+  else {
+    if (!leaf_eval(cl->p, idx, &val))
+      return 0;
+    last = idx + count;
+    sum = l_castS2U(ivalue(at));
+    for (k = 0; k <= count; k++) {
+      if (!leaf_eval(cl->p, idx + k, &val))
+        return 0;
+      sum += l_castS2U(val);
     }
-    sum += l_castS2U(r);
   }
   chgivalue(at, l_castU2S(sum));
   setivalue(ct, 0);

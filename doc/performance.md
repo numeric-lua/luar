@@ -44,8 +44,8 @@
 > make `table/array` about 0.18x stock Lua and `table/hash` about 0.44x.
 > Simple upvalue-accumulator calls, one-parameter leaf arithmetic calls,
 > one-field `self:add` methods and `__index` multiplier loops are inlined.
-> `object/closures`, `object/method`, `object/metatable` and
-> `object/leaf_call` are all faster than LuaJIT.  Generic table JIT remains
+> `object/closures`, `object/method`, `object/metatable`,
+> `object/leaf_call` and `object/leaf_chain` are all faster than LuaJIT.  Generic table JIT remains
 > opt-in; arbitrary method dispatch and general calls still interpret.  Preallocating the fill array from the loop's
 > remaining count was also tested; it did not make the native fill faster than
 > the interpreter, so it was not kept.  `-O3` (the default from this build)

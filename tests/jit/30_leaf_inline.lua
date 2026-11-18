@@ -17,6 +17,8 @@ local function plus3 (x) return x + 3 end
 local function square (x) return x * x end
 local function dbl (x) return x + x end
 local function other (x) return x * 2 + 1 end
+local function chain (x) return (x + 3) * 2 end
+local function poly (x) return x * x + 5 end
 
 jit.flush()
 jit.on()
@@ -25,6 +27,8 @@ H.eq(sum_call(plus3, 10000), 50035000)
 H.eq(sum_call(square, 10000), 333383335000)
 H.eq(sum_call(dbl, 10000), 100010000)
 H.eq(sum_call(other, 1000), 1002000)
+H.eq(sum_call(chain, 1000), 1007000)
+H.eq(sum_call(poly, 1000), 333838500)
 H.check(jit.stats().compiled >= 1, "leaf call did not compile")
 
 jit.off()

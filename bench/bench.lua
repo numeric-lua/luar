@@ -758,6 +758,17 @@ def {
 }
 
 def {
+  name = "object/leaf_chain", group = "object",
+  run = function ()
+    local n = N(1500000)
+    local function f (x) return x * 2 + 1 end
+    local s = 0
+    for i = 1, n do s = s + f(i) end
+    return s
+  end,
+}
+
+def {
   name = "object/method", group = "object",
   run = function ()
     local n = N(1000000)

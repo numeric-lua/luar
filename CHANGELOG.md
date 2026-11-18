@@ -121,7 +121,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
 - Inline one-parameter leaf arithmetic calls feeding a numeric accumulator
-  (`s = s + f(i)` for `f(x)=x*K`, `x+K`, `x*x`, `x+x`).  The closure Proto
+  (`s = s + f(i)`), including straight-line integer chains with affine
+  `x*K+C` fast folding and a bounded general evaluator for
+  `x*K`, `x+K`, `x*x`, `x+x`, `(x+K)*K`, squares plus offsets and similar
+  leaf bodies.  The closure Proto
   and bytecode are revalidated each entry; `object/leaf_call` runs at ~0.04x
   stock Lua and beats LuaJIT.
 - Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,
