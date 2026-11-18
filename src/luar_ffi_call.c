@@ -25,6 +25,13 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#ifndef RTLD_DEFAULT
+#define RTLD_DEFAULT	((void *)-2)
+#endif
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS	MAP_ANON
+#endif
+
 #include "lua.h"
 
 #include "lauxlib.h"
