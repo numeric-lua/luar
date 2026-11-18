@@ -96,6 +96,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J2 `while` support: simple integer-conditioned `while` loops (body without
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
+- Small, HFA and mixed 1–16 byte by-value unions are enabled and tested on
+  arm64; only large memory-class unions, packed by-value and ELF TLS remain
+  x86-64-specific.
 - The macOS CI job now builds and tests the full FFI suite; `ffi.load`
   resolves `lib*.dylib`, and x86-64-only union/packed/TLS tests are gated
   behind the architecture.
