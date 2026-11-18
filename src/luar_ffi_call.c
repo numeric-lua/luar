@@ -1762,8 +1762,9 @@ static int packed_callback_mixed_candidate (CType *ft) {
         at->align_override == 0 && at->size > 0 && at->size <= 8 &&
         packed_int_type(at))
       packed++;
-    else if ((at->kind == CT_INT || at->kind == CT_BOOL ||
-              at->kind == CT_ENUM) && at->size > 0 && at->size <= 8)
+    else if (((at->kind == CT_INT || at->kind == CT_BOOL ||
+               at->kind == CT_ENUM) && at->size > 0 && at->size <= 8) ||
+             ((at->kind == CT_FLOAT) && (at->size == 4 || at->size == 8)))
       scalars++;
     else
       return 0;
@@ -1851,6 +1852,18 @@ static uint64_t packed_callback_mixed_scalar (FCallback *cb, const void *buf) {
         memcpy(cd->v.p, p, a->size);
         p += 8;
       }
+      else if (a->kind == CT_FLOAT) {
+        if (a->size == 4) {
+          float f;
+          memcpy(&f, buf, sizeof(f));
+          lua_pushnumber(L, (lua_Number)f);
+        }
+        else {
+          double d;
+          memcpy(&d, buf, sizeof(d));
+          lua_pushnumber(L, (lua_Number)d);
+        }
+      }
       else
         lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(a, buf));
     }
@@ -1887,6 +1900,18 @@ static void packed_callback_mixed_ret (FCallback *cb, const void *buf,
         CData *cd = ffi_push_owned(L, cb->S, a, a->size);
         memcpy(cd->v.p, p, a->size);
         p += 8;
+      }
+      else if (a->kind == CT_FLOAT) {
+        if (a->size == 4) {
+          float f;
+          memcpy(&f, buf, sizeof(f));
+          lua_pushnumber(L, (lua_Number)f);
+        }
+        else {
+          double d;
+          memcpy(&d, buf, sizeof(d));
+          lua_pushnumber(L, (lua_Number)d);
+        }
       }
       else
         lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(a, buf));
@@ -1927,7 +1952,25 @@ static void *packed_callback_mixed_thunk (FCallback *cb, int packed_ret) {
        mov [rsp+8],rax; mov rdi,cb; mov rsi,rsp; mov rax,dispatcher;
        call rax; add rsp,72; [movq xmm0,rax]; ret */
     code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x48;
-    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x3c; code[n++] = 0x24;
+    {
+      CType *sc = NULL;
+      int ai;
+      for (ai = 0; ai < (int)cb->ft->nargs; ai++)
+        if (cb->ft->args[ai]->kind != CT_STRUCT) sc = cb->ft->args[ai];
+      if (sc != NULL && sc->kind == CT_FLOAT) {
+        if (sc->size == 4) {
+          code[n++] = 0xf3; code[n++] = 0x0f; code[n++] = 0x11;
+          code[n++] = 0x04; code[n++] = 0x24;
+        }
+        else {
+          code[n++] = 0xf2; code[n++] = 0x0f; code[n++] = 0x11;
+          code[n++] = 0x04; code[n++] = 0x24;
+        }
+      }
+      else {
+        code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x3c; code[n++] = 0x24;
+      }
+    }
     code[n++] = 0x4c; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
     code[n++] = 0x50;
     for (i = 0; i < (size_t)packed_n; i++) {
@@ -1969,7 +2012,25 @@ static void *packed_callback_mixed_thunk (FCallback *cb, int packed_ret) {
     code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x58;
     code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x7c; code[n++] = 0x24;
     code[n++] = 0x20;
-    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x34; code[n++] = 0x24;
+    {
+      CType *sc = NULL;
+      int ai;
+      for (ai = 0; ai < (int)cb->ft->nargs; ai++)
+        if (cb->ft->args[ai]->kind != CT_STRUCT) sc = cb->ft->args[ai];
+      if (sc != NULL && sc->kind == CT_FLOAT) {
+        if (sc->size == 4) {
+          code[n++] = 0xf3; code[n++] = 0x0f; code[n++] = 0x11;
+          code[n++] = 0x04; code[n++] = 0x24;
+        }
+        else {
+          code[n++] = 0xf2; code[n++] = 0x0f; code[n++] = 0x11;
+          code[n++] = 0x04; code[n++] = 0x24;
+        }
+      }
+      else {
+        code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x34; code[n++] = 0x24;
+      }
+    }
     code[n++] = 0x4c; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
     code[n++] = 0x60;
     for (i = 0; i < (size_t)packed_n; i++) {
