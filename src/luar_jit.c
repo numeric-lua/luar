@@ -32,6 +32,7 @@
 #include "lopnames.h"
 #include "luar_emit.h"
 #include "luar_jit.h"
+#include "luar_trace.h"
 
 static void pushtrace (lua_State *L, const LuaR_Trace *t);
 static void pushir (lua_State *L, const LuaR_Trace *t);
@@ -3249,6 +3250,26 @@ static int jit_stats (lua_State *L) {
 }
 
 
+static int jit_trace_ir_selftest (lua_State *L) {
+  lua_pushboolean(L, luar_trace_ir_selftest());
+  return 1;
+}
+
+
+static int jit_trace_ir (lua_State *L) {
+  lua_newtable(L);
+  lua_pushinteger(L, LUAR_IR_VERSION);
+  lua_setfield(L, -2, "version");
+  lua_pushinteger(L, LUAR_IR_MAX_INS);
+  lua_setfield(L, -2, "max_ops");
+  lua_pushinteger(L, LUAR_IR_MAX_EXITS);
+  lua_setfield(L, -2, "max_exits");
+  lua_pushcfunction(L, jit_trace_ir_selftest);
+  lua_setfield(L, -2, "selftest");
+  return 1;
+}
+
+
 static const luaL_Reg jitlib[] = {
   {"on", jit_on},
   {"off", jit_off},
@@ -3259,6 +3280,7 @@ static const luaL_Reg jitlib[] = {
   {"trace", jit_trace},
   {"ir", jit_ir},
   {"traces", jit_traces},
+  {"trace_ir", jit_trace_ir},
   {NULL, NULL}
 };
 

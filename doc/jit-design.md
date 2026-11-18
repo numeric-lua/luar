@@ -184,6 +184,9 @@ E_END:                              ; pc=9, RETURN1
 
 Each code slot stores its entry guard signature; `try_run` dispatches to
 the matching variant first and reports hits via `jit.stats().sig_hits`.
+The tracing-IR foundation (`src/luar_trace.c`, `doc/j4-tracing-ir.md`) now
+defines IR ops, guards, exits and live-slot snapshots, with a verifier and
+selftest; the interpreter recorder and side-trace linker are still to come.
 Mid-loop table guards now return the exact failing instruction PC to the
 interpreter and record it in `jit.stats().last_exit_pc`; entry guards resume
 at the loop target.  This is the state-capture half of J4 side exits; no

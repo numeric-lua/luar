@@ -76,7 +76,7 @@ CORE_O=	lapi.o lcode.o lctype.o ldebug.o ldo.o ldump.o lfunc.o lgc.o llex.o \
 	lundump.o lvm.o lzio.o
 LIB_O=	lauxlib.o lbaselib.o lcorolib.o ldblib.o liolib.o lmathlib.o \
 	loadlib.o loslib.o lstrlib.o ltablib.o lutf8lib.o linit.o
-LUAR_O=	luar_lib.o luar_jit.o luar_emit.o $(FFI_O)
+LUAR_O=	luar_lib.o luar_jit.o luar_emit.o luar_trace.o $(FFI_O)
 BASE_O= $(CORE_O) $(LIB_O) $(LUAR_O)
 
 LUA_T=	luar

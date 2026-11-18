@@ -123,6 +123,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Added the independent J4 tracing-IR foundation (`luar_trace.c`): typed
+  values, guards, exits, a verifier, live-slot exit snapshots/restore and a
+  selftest exposed as `jit.trace_ir()`.
 - Code slots record their entry guard tags and dispatch to the matching
   variant (`jit.stats().sig_hits`), avoiding calls into a known-mismatched
   variant.
