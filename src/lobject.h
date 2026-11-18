@@ -642,6 +642,7 @@ typedef struct Proto {
   int luar_tint_keys[2];
   int luar_tint_upval[2];
   int luar_tint_acc[2];
+  int luar_tint_arg4[2];
   int luar_tint_base[2];
   l_uint32 luar_tint_epoch[2];
   void *luar_fc_closure[2];
