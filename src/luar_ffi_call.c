@@ -359,7 +359,11 @@ static void *load_library (lua_State *L, const char *name, int global) {
     const char *base = name;
     if (strncmp(name, "lib", 3) == 0)
       base = name + 3;
+#if defined(__APPLE__)
+    snprintf(candidate, sizeof(candidate), "lib%s.dylib", base);
+#else
     snprintf(candidate, sizeof(candidate), "lib%s.so", base);
+#endif
   }
   h = try_dlopen(candidate, global);
   if (h != NULL)

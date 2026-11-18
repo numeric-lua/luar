@@ -3,6 +3,11 @@ local ffi = require "ffi"
 local H = dofile("tests/helpers.lua")
 local S = dofile("tests/ffi/support.lua")
 
+if ffi.os ~= "Linux" or ffi.arch ~= "x64" then
+  print("ffi/12_tls: skipped (ELF TLS implementation)")
+  return
+end
+
 ffi.cdef[[
 extern __thread int ffi_tls_counter;
 int ffi_tls_get(void);

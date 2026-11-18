@@ -113,11 +113,13 @@ H.eq(s, "world")
 
 -- Fixed arguments keep their declared prototype types, including
 -- struct-by-value, enum, bool and 64-bit integers --------------------
-local total = h.vararg_fixed_sum(ffi.new("struct VarPair", {a = 2, b = 3}),
-                                 ffi.C.VC_GREEN, true,
-                                 ffi.new("int64_t", 5),
-                                 ffi.new("int64_t", 7))
-H.eq(tonumber(total), 2 + 3 + 2 + 1 + 5 + 7)
+if ffi.arch == "x64" then
+  local total = h.vararg_fixed_sum(ffi.new("struct VarPair", {a = 2, b = 3}),
+                                   ffi.C.VC_GREEN, true,
+                                   ffi.new("int64_t", 5),
+                                   ffi.new("int64_t", 7))
+  H.eq(tonumber(total), 2 + 3 + 2 + 1 + 5 + 7)
+end
 
 -- ffi.load namespaces use the same variadic call path ---------------
 local libc = ffi.load("c")

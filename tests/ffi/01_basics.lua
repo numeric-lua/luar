@@ -4,8 +4,9 @@ local H = dofile("tests/helpers.lua")
 local ffi = require "ffi"
 
 H.eq(type(ffi), "table")
-H.eq(ffi.os, "Linux")
-H.eq(ffi.arch, "x64")
+H.check(ffi.os == "Linux" or ffi.os == "OSX", "unexpected ffi.os " .. tostring(ffi.os))
+H.check(ffi.arch == "x64" or ffi.arch == "arm64",
+        "unexpected ffi.arch " .. tostring(ffi.arch))
 
 -- ffi.abi: values relevant to a 64-bit little-endian Linux/x64 build.
 H.eq(ffi.abi("64bit"), true)

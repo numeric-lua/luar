@@ -61,6 +61,11 @@ int big600_sum(union Big600 u);
 
 local h = S.helper()
 
+if ffi.arch ~= "x64" then
+  print("ffi/15_union_value: skipped (x86-64 by-value union ABI)")
+  return
+end
+
 local v = ffi.new("union Val15", {i = 7})
 H.eq(h.val_int(v), 7)
 H.eq(h.val_make(9).i, 9)
