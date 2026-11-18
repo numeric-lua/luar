@@ -1324,7 +1324,9 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
   }
   if (J->enabled) {
     int ok = try_compile(L, p, target, off, base);
-    if (!ok || (p->luar_code[0] != NULL && p->luar_code[1] != NULL))
+    int full = (p->luar_code[0] != NULL || p->luar_tint[0] != 0) &&
+               (p->luar_code[1] != NULL || p->luar_tint[1] != 0);
+    if (!ok || full)
       p->luar_hot = p->luar_hot_limit + 1;
   }
   return 1;

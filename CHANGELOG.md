@@ -98,7 +98,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   `break` and float conditions fall back.
 - J3 raw table fill/sum intrinsics (default, `tint=0` disables):
   `t[i]=i` and `acc=acc+t[i]` loops are executed by C helpers, making
-  `table/array` ~0.69x stock Lua.  Generic table emission remains opt-in
+  `table/array` ~0.14x stock Lua (and faster than LuaJIT).
+- The hot-loop hook now recognises a Proto whose first loop is an intrinsic,
+  so subsequent loops in the same function can be recorded and intrinsic
+  compiled too.  Generic table emission remains opt-in
   (`jit.opt.start("table=1")`): raw integer array
   stores (`t[i] = i`) and accumulation (`acc = acc + t[i]`), including
   register-cached fill/sum fast paths,, with metatable/bounds/tag guards

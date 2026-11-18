@@ -92,7 +92,8 @@ static inline int luari_jit_hot (lua_State *L, Proto *p,
   if (p->luar_hot == p->luar_hot_limit) {
     unsigned pc;
     unsigned long long bit;
-    if (p->luar_code[0] == NULL)
+    if (p->luar_code[0] == NULL && p->luar_tint[0] == 0 &&
+        p->luar_tint[1] == 0)
       return 0;
     pc = (unsigned)(backedge - p->code);
     bit = 1ULL << (pc & 63);

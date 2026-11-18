@@ -147,8 +147,9 @@ stores/accumulation (`t[i]`, `acc = acc + t[i]`, `t[i] = i`, with
 register-cached fill/sum fast paths) can be emitted behind
 `jit.opt.start("table=1")`, with per-element tag/bounds/metatable guards
 that bail before the current iteration.  They are correct and tested but
-default raw fill/sum intrinsics make `table/array` ~0.69x stock Lua; generic
-table emission remains opt-in.  Shape guards, calls and side traces remain to be
+default raw fill/sum intrinsics make `table/array` ~0.14x stock Lua and
+`table/hash` ~parity; generic table emission remains opt-in.  Shape guards,
+calls and side traces remain to be
 done.
 
 * Table loads/stores with shape guards and inline caches, `GETFIELD`/
