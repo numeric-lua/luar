@@ -144,8 +144,8 @@ preprocessor subset is available.
   by-value unions and large HFA/memory-class unions now work on arm64 and
   are exercised in macOS CI.  Packed aggregate arguments, returns and
   callbacks also work on arm64 through the generic libffi closure path
-  (x86-64 keeps the custom packed thunks); TLS resolution remains
-  x86-64-specific.  The core FFI (cdef, cdata, scalar
+  (x86-64 keeps the custom packed thunks).  Darwin thread-local symbols are
+  resolved through their TLV descriptor on both reads and writes.  The core FFI (cdef, cdata, scalar
   calls, varargs, callbacks without packed aggregates) is also exercised
   on macOS arm64 in CI; on x86-64 a callback taking one packed
   integer argument can return a scalar (including float) or another packed

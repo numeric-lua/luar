@@ -62,8 +62,7 @@ Estimated: 2–4 weeks.
   static recipes are in place and tested on Linux (`make test-shared`);
   macOS shared build and the full FFI suite are exercised in the optional CI
   job; small/HFA/mixed and large by-value unions plus packed aggregate
-  arguments/returns/callbacks now run on arm64, while TLS remains
-  x86-64-specific.
+  arguments/returns/callbacks and TLS now run on arm64.
 * CI matrix: gcc/clang, WITH_FFI on/off, JIT=0, staged install with
   `pkg-config`, shared-library FFI, ASan/UBSan and fuzz jobs.  The official
   Lua suite job is optional because CI downloads its inputs.
