@@ -199,6 +199,6 @@ jobs:
       - name: Build and test FFI
         run: |
           make clean
-          make WITH_FFI=1 -j"$(sysctl -n hw.ncpu)"
-          make WITH_FFI=1 test
-          make WITH_FFI=1 shared
+          make WITH_FFI=1 MYLIBS=-lreadline -j"$(sysctl -n hw.ncpu)"
+          make WITH_FFI=1 MYLIBS=-lreadline test
+          make WITH_FFI=1 MYLIBS=-lreadline shared
