@@ -1044,7 +1044,10 @@ static void emit_fast_prod (dasm_State **Dst, const LuaR_LoopDesc *d)
   |1:
   if (d->fp_float) {
     | cvtsi2sd xmm1, r13
-    | mulsd xmm0, xmm1
+    if (d->fp_div)
+      | divsd xmm0, xmm1
+    else
+      | mulsd xmm0, xmm1
   }
   else {
     | imul r15, r13

@@ -565,9 +565,10 @@ decode_done:
   /* Fast product: acc = acc * idx. */
   if (!has_branch && !is_while && n == 3) {
     LuaR_Op *mul = &ops[0];
-    if (mul->kind == LUAR_OP_MUL && mul->a == mul->b &&
-        mul->c == for_a + 2 &&
-        (mul->ta == LUAR_T_INT || mul->ta == LUAR_T_FLOAT) &&
+    if (((mul->kind == LUAR_OP_MUL &&
+          (mul->ta == LUAR_T_INT || mul->ta == LUAR_T_FLOAT)) ||
+         (mul->kind == LUAR_OP_DIV && mul->ta == LUAR_T_FLOAT)) &&
+        mul->a == mul->b && mul->c == for_a + 2 &&
         !is_control_reg(mul->a, for_a)) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
@@ -577,6 +578,7 @@ decode_done:
       add_guard(&d, seen, for_a + 2, LUAR_T_INT);
       d.fast_prod = 1;
       d.fp_float = (mul->ta == LUAR_T_FLOAT);
+      d.fp_div = (mul->kind == LUAR_OP_DIV);
       d.fp_acc = mul->a;
     }
   }

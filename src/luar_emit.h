@@ -100,6 +100,7 @@ typedef struct LuaR_LoopDesc {
   int fast_prod;		/* acc = acc * idx fast path */
   int fp_acc;
   int fp_float;
+  int fp_div;
   int fast_sq;			/* acc += idx * idx fast path */
   int fs_acc;
   int fs_float;
