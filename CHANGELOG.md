@@ -123,6 +123,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Added integer trace-IR execution coverage via
+  `jit.trace_ir().exec_selftest()`.
 - Added integer trace-IR to x86-64 machine-code emission, compiled as a
   validation shadow (`jit.stats().ir_compiled/ir_code_bytes`).
 - Added J4 side-link metadata: depth cap 4, root-cycle detection and IR
