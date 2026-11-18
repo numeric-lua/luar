@@ -65,6 +65,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         }
         break;
       case LUAR_IR_ADDI:
+      case LUAR_IR_ADDK:
+      case LUAR_IR_SUBK:
+      case LUAR_IR_MULK:
+      case LUAR_IR_DIVK:
+      case LUAR_IR_MODK:
+      case LUAR_IR_IDIVK:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad addi");
           return 0;
@@ -91,6 +97,20 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad arith");
+          return 0;
+        }
+        break;
+      case LUAR_IR_TGET:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tget");
+          return 0;
+        }
+        break;
+      case LUAR_IR_TSET:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tset");
           return 0;
         }
         break;
@@ -222,6 +242,69 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                   (GET_OPCODE(ins) == OP_MUL) ? LUAR_IR_MUL : LUAR_IR_DIV;
         in.a = (uint8_t)a; in.b = (uint8_t)b; in.c = (uint8_t)c;
         in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_ADDK:
+      case OP_SUBK:
+      case OP_MULK:
+      case OP_DIVK:
+      case OP_MODK:
+      case OP_IDIVK:
+        if (!seen[b]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+          in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[b] = 1;
+        }
+        in.kind = (GET_OPCODE(ins) == OP_ADDK) ? LUAR_IR_ADDK :
+                  (GET_OPCODE(ins) == OP_SUBK) ? LUAR_IR_SUBK :
+                  (GET_OPCODE(ins) == OP_MULK) ? LUAR_IR_MULK :
+                  (GET_OPCODE(ins) == OP_DIVK) ? LUAR_IR_DIVK :
+                  (GET_OPCODE(ins) == OP_MODK) ? LUAR_IR_MODK :
+                                                  LUAR_IR_IDIVK;
+        in.a = (uint8_t)a; in.b = (uint8_t)b; in.c = (uint8_t)c;
+        in.ival = ttisinteger(&p->k[c]) ? ivalue(&p->k[c]) : 0;
+        in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_GETTABLE:
+        if (!seen[b]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+          in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[b] = 1;
+        }
+        if (!seen[c]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
+          in.b = (uint8_t)ir_tag(&base[c]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[c] = 1;
+        }
+        in.kind = LUAR_IR_TGET; in.a = (uint8_t)a; in.b = (uint8_t)b;
+        in.c = (uint8_t)c; in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_SETTABLE:
+        if (!seen[a]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
+          in.b = (uint8_t)ir_tag(&base[a]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[a] = 1;
+        }
+        if (!seen[b]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+          in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[b] = 1;
+        }
+        if (!seen[c]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
+          in.b = (uint8_t)ir_tag(&base[c]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[c] = 1;
+        }
+        in.kind = LUAR_IR_TSET; in.a = (uint8_t)a; in.b = (uint8_t)b;
+        in.c = (uint8_t)c; in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
       case OP_MMBIN:

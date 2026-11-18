@@ -78,6 +78,9 @@ static void free_code (LuaR_JIT *J) {
   J->ir_traces = 0;
   J->ir_ops = 0;
   J->ir_aborts = 0;
+  J->ir_side_traces = 0;
+  J->ir_side_ops = 0;
+  J->ir_side_aborts = 0;
   J->mcode = 0;
 }
 
@@ -2881,8 +2884,22 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       any = 1;
       r = ((LuaR_LoopFn)p->luar_code[i])(base);
       if (r != 0) {
-        if (r < -1)
-          J->last_exit_pc = -r - 2;
+        if (r < -1) {
+          int expc = -r - 2;
+          J->last_exit_pc = expc;
+          if (!p->luar_ir_side_done) {
+            LuaR_TraceIR ir;
+            p->luar_ir_side_done = 1;
+            if (expc >= 0 && expc <= pc &&
+                luar_trace_record_loop(p, expc, pc, (TValue *)base, &ir)) {
+              ir.depth = 1;
+              J->ir_side_traces++;
+              J->ir_side_ops += (uint32_t)ir.nins;
+            }
+            else
+              J->ir_side_aborts++;
+          }
+        }
         return r;
       }
       J->exits++;
@@ -3266,6 +3283,12 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_ops");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_aborts : 0);
   lua_setfield(L, -2, "ir_aborts");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_traces : 0);
+  lua_setfield(L, -2, "ir_side_traces");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_ops : 0);
+  lua_setfield(L, -2, "ir_side_ops");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_aborts : 0);
+  lua_setfield(L, -2, "ir_side_aborts");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;

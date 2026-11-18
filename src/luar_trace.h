@@ -26,11 +26,19 @@ typedef enum {
   LUAR_IR_SSTORE,	/* a = slot, b = source slot */
   LUAR_IR_LOADI,	/* a = destination slot, ival = constant */
   LUAR_IR_ADDI,		/* a = destination, b = source, ival = immediate */
+  LUAR_IR_ADDK,
+  LUAR_IR_SUBK,
+  LUAR_IR_MULK,
+  LUAR_IR_DIVK,
+  LUAR_IR_MODK,
+  LUAR_IR_IDIVK,
   LUAR_IR_GUARD,	/* a = slot, b = LUAR_IR_TAG_* expected */
   LUAR_IR_ADD,		/* a = dest, b/c = operands */
   LUAR_IR_SUB,
   LUAR_IR_MUL,
   LUAR_IR_DIV,
+  LUAR_IR_TGET,		/* a = dest, b = table, c = key */
+  LUAR_IR_TSET,		/* a = table, b = key, c = value */
   LUAR_IR_FORLOOP,	/* a = control base slot */
   LUAR_IR_EXIT,		/* a = exit index */
   LUAR_IR_RET

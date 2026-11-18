@@ -64,6 +64,9 @@ typedef struct LuaR_JIT {
   uint32_t ir_traces;		/* J4 IR traces recorded */
   uint32_t ir_ops;		/* J4 IR instructions recorded */
   uint32_t ir_aborts;		/* loops the J4 recorder rejected */
+  uint32_t ir_side_traces;	/* IR segments recorded from guard exits */
+  uint32_t ir_side_ops;
+  uint32_t ir_side_aborts;
   size_t mcode;			/* executable bytes */
   int ncode;
   LuaR_Code code[LUAR_JIT_MAXCODE];

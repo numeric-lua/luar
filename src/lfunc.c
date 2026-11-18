@@ -282,6 +282,7 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_code_exits[0] = f->luar_code_exits[1] = 0;
   f->luar_ngrd[0] = f->luar_ngrd[1] = 0;
   f->luar_sig[0] = f->luar_sig[1] = 0;
+  f->luar_ir_side_done = 0;
   f->luar_tint[0] = f->luar_tint[1] = 0;
   f->luar_tint_pc[0] = f->luar_tint_pc[1] = 0;
   f->luar_tint_table[0] = f->luar_tint_table[1] = 0;
