@@ -48,7 +48,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
     if (err != NULL && errlen > 0) snprintf(err, errlen, "bad slot count");
     return 0;
   }
-  if (t->depth < 0 || t->depth > 8) {
+  if (t->depth < 0 || t->depth > LUAR_IR_MAX_DEPTH) {
     if (err != NULL && errlen > 0) snprintf(err, errlen, "bad depth");
     return 0;
   }
@@ -169,6 +169,61 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   }
   return 1;
 }
+
+int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
+  uint8_t kind[LUAR_IR_MAX_SLOTS];
+  int i;
+  if (t == NULL || !luar_trace_ir_verify(t, err, errlen))
+    return 0;
+  memset(kind, 0, sizeof(kind));
+  for (i = 0; i < t->nins; i++) {
+    const LuaR_IRIns *in = &t->ins[i];
+    switch (in->kind) {
+      case LUAR_IR_KINT:
+      case LUAR_IR_LOADI:
+        kind[in->a] = 1;
+        break;
+      case LUAR_IR_SLOAD:
+        kind[in->a] = kind[in->b];
+        break;
+      case LUAR_IR_ADDI:
+      case LUAR_IR_ADDK:
+      case LUAR_IR_SUBK:
+      case LUAR_IR_MULK:
+      case LUAR_IR_DIVK:
+      case LUAR_IR_MODK:
+      case LUAR_IR_IDIVK:
+      case LUAR_IR_ADD:
+      case LUAR_IR_SUB:
+      case LUAR_IR_MUL:
+      case LUAR_IR_DIV:
+        kind[in->a] = 1;
+        break;
+      case LUAR_IR_TGET:
+      case LUAR_IR_TSET:
+        kind[in->a] = 0;
+        break;
+      default:
+        break;
+    }
+  }
+  return 1;
+}
+
+
+int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start) {
+  int depth;
+  if (t == NULL || root_start < 0)
+    return 0;
+  depth = parent_depth + 1;
+  if (depth > LUAR_IR_MAX_DEPTH)
+    return 0;
+  t->depth = depth;
+  /* A side trace that resumes exactly at the loop target is a cycle; the
+  ** linker may reuse the root trace instead of compiling another level. */
+  return (t->startpc == root_start) ? 2 : 1;
+}
+
 
 static int ir_tag (const TValue *v) {
   if (ttisinteger(v)) return LUAR_IR_TAG_INT;

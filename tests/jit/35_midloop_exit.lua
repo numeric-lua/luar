@@ -28,6 +28,7 @@ H.eq(ok, false)
 H.check(jit.stats().last_exit_pc >= 0, "mid-loop exit PC was not recorded")
 H.check(jit.stats().ir_side_traces >= 1, "no side-trace IR segment was recorded")
 H.check(jit.stats().ir_side_ops >= 1, "side-trace IR segment is empty")
+H.check(jit.stats().ir_max_depth >= 1, "side-trace depth was not tracked")
 
 -- repair the table; the exact exit must not corrupt later iterations
 t[15000] = 15000

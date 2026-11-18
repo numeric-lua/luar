@@ -277,6 +277,9 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_code_pc[1] = -1;
   f->luar_code_base[0] = -1;
   f->luar_code_base[1] = -1;
+  f->luar_code_start[0] = -1;
+  f->luar_code_start[1] = -1;
+  f->luar_ir_depth[0] = f->luar_ir_depth[1] = 0;
   f->luar_code_epoch[0] = 0;
   f->luar_code_epoch[1] = 0;
   f->luar_code_exits[0] = f->luar_code_exits[1] = 0;

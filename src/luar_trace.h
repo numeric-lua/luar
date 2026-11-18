@@ -18,6 +18,7 @@
 #define LUAR_IR_MAX_EXITS	4
 #define LUAR_IR_MAX_SLOTS	16
 #define LUAR_IR_VERSION		1
+#define LUAR_IR_MAX_DEPTH	4
 
 typedef enum {
   LUAR_IR_KINT = 1,	/* value = signed integer constant */
@@ -90,6 +91,8 @@ int luar_trace_ir_snapshot (LuaR_IRExitState *ex, int32_t pc, TValue *base,
                             int nslots);
 int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base);
 
+int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen);
+int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start);
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                             LuaR_TraceIR *t);
 int luar_trace_ir_selftest (void);

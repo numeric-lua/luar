@@ -14,6 +14,9 @@ the working JIT can keep shipping while a trace compiler is built.
   (`ir_traces`, `ir_ops`, `ir_aborts`), including table/K-op loops.
 - Interior guard-exit recording: **implemented** for the first exit of a
   Proto, counted by `jit.stats().ir_side_traces/ir_side_ops/ir_side_aborts`.
+- Side-link metadata: depth cap 4, cycle detection against the root loop
+  target, reported by `ir_max_depth`/`ir_cycles`.
+- IR type/liveness analysis: **implemented** for integer and table ops.
 - Side-trace linker/depth caps/cycle handling: **not implemented**.
 - Machine-code emission from the IR: **not implemented**.
 
@@ -52,6 +55,6 @@ and this snapshot format for side exits.
 1. Extend interior recording to table/call-heavy exits and compile the
    recorded IR (basic table and K-op recording is already present).
 2. Add exit-stub state spilling to the native ABI.
-3. Compile the IR and link side traces with a depth cap.
+3. Compile the IR and link side traces with the recorded depth/cycle metadata.
 4. Add differential tests against the interpreter and the existing J2/J3
    paths.
