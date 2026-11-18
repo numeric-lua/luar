@@ -182,6 +182,11 @@ E_END:                              ; pc=9, RETURN1
   EXIT pc=9, ntop=0
 ```
 
+Mid-loop table guards now return the exact failing instruction PC to the
+interpreter and record it in `jit.stats().last_exit_pc`; entry guards resume
+at the loop target.  This is the state-capture half of J4 side exits; no
+side-trace recording/linking is implemented yet.
+
 Guards: (1) entry tags `R1..R4` integer; if `n` is float, `FORPREP` made a float loop, so record a separate signature or fall back. (2) loop condition `cnt0 != 0` unsigned, the only data-dependent guard; if it fails, the body has already run and `s1` is the result, while count/index are unchanged, matching `FORLOOP`.
 (3) no overflow guard: `ADD`/`SUB` wrap, as `intop` (`src/lvm.c:933-938`) does. (4) no metamethod guard: both operands are ints, the following `MMBIN` is
 unreachable, and the recorder verifies PC 7 is skipped. On an entry tag failure the trace exits at PC 6; the interpreter runs `ADD`, may execute `MMBIN` at 7,

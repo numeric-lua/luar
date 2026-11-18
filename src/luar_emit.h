@@ -44,6 +44,7 @@ typedef struct LuaR_Op {
   uint8_t ta, tb, tc;	/* result and operand flavours (LUAR_T_*) */
   uint8_t k;		/* comparison jump condition */
   int32_t target;	/* branch target instruction index */
+  int pc;		/* Proto instruction index */
   int64_t imm;		/* LOADI/LOADK integer or constant value */
   double num;		/* LOADF value or constant value */
 } LuaR_Op;
@@ -61,6 +62,7 @@ typedef struct LuaR_LoopDesc {
   int repeat;
   int partial;			/* numeric prefix ending at CALL */
   int exit_pc;
+  int entry_pc;			/* loop target instruction index */
   int fast_repeat;
   int fr_acc;
   int fr_idx;

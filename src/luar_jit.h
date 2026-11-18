@@ -59,6 +59,7 @@ typedef struct LuaR_JIT {
   uint32_t compiled;		/* native loops emitted */
   unsigned long long exits;	/* native guard failures (side-exit seeds) */
   uint32_t side_traces;		/* variants recorded from guard exits */
+  int last_exit_pc;		/* exact mid-loop exit instruction, -1 if none */
   size_t mcode;			/* executable bytes */
   int ncode;
   LuaR_Code code[LUAR_JIT_MAXCODE];

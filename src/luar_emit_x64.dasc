@@ -485,6 +485,7 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
     | push r13
     | push r14
   }
+  | mov r11d, ((int)d->entry_pc)
   emit_guards(Dst, d);
   if (d->has_table) {
     | mov r12, qword [rbx + ((int)LUAR_SLOT(d->table_reg))]
@@ -497,6 +498,9 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   for (i = 0; i < d->nops; i++) {
     const LuaR_Op *op = &d->ops[i];
     |=>((int)i):
+    if (op->kind == LUAR_OP_GETTABLE || op->kind == LUAR_OP_TABLE_ADD ||
+        op->kind == LUAR_OP_SETTABLE)
+      | mov r11d, ((int)op->pc)
     switch (op->kind) {
       case LUAR_OP_LT:
       case LUAR_OP_LE:
@@ -570,7 +574,9 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
     | ret
   }
   |3:
-  | xor eax, eax
+  | mov eax, r11d
+  | add eax, 2
+  | neg eax
   if (d->has_table) {
     | pop r14
     | pop r13

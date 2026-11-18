@@ -72,6 +72,7 @@ static void free_code (LuaR_JIT *J) {
   J->compiled = 0;
   J->exits = 0;
   J->side_traces = 0;
+  J->last_exit_pc = -1;
   J->mcode = 0;
 }
 
@@ -659,6 +660,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
   }
   memset(&d, 0, sizeof(d));
+  d.entry_pc = (int)start;
   memset(cur, 0, sizeof(cur));
   memset(def, 0, sizeof(def));
   memset(seen, 0, sizeof(seen));
@@ -693,6 +695,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   for (i = 0; i < n - 1; i++) {
     Instruction ins = p->code[start + i];
     LuaR_Op *op = &ops[i];
+    op->pc = (int)(start + i);
     int tb, tc;
     OpCode opc = GET_OPCODE(ins);
     memset(op, 0, sizeof(*op));
@@ -2684,8 +2687,11 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       }
       any = 1;
       r = ((LuaR_LoopFn)p->luar_code[i])(base);
-      if (r != 0)
+      if (r != 0) {
+        if (r < -1)
+          J->last_exit_pc = -r - 2;
         return r;
+      }
       J->exits++;
       p->luar_code_exits[i]++;
     }
@@ -3044,6 +3050,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "exits");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->side_traces : 0);
   lua_setfield(L, -2, "side_traces");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->last_exit_pc : -1);
+  lua_setfield(L, -2, "last_exit_pc");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;
