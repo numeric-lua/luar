@@ -23,8 +23,8 @@ those of upstream Lua 5.5.1.
 
 ## Known limitations
 
-- Packed by-value arguments and returns work on arm64; packed callbacks
-  remain x86-64 ABI thunks.  Small, HFA,
+- Packed by-value arguments, returns and callbacks work on arm64; x86-64
+  keeps the custom packed thunks.  Small, HFA,
   mixed and large memory-class unions now work on arm64 and are exercised in
   macOS CI; TLS resolution remains x86-64 only.
 - Table JIT tiers are opt-in and not yet faster than the interpreter on the

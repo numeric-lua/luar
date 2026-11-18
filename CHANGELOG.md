@@ -97,8 +97,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
 - Small, HFA, mixed and large by-value unions plus packed aggregate
-  arguments/returns are enabled and tested on arm64; packed callbacks and
-  TLS remain x86-64-specific.
+  arguments/returns/callbacks are enabled and tested on arm64; only TLS
+  remains x86-64-specific.
 - The macOS CI job now builds and tests the full FFI suite; `ffi.load`
   resolves `lib*.dylib`, and x86-64-only union/packed/TLS tests are gated
   behind the architecture.
