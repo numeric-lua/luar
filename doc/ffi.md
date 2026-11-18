@@ -141,8 +141,8 @@ preprocessor subset is available.
   return can be called through a MEMORY-ABI stack thunk; a packed integer
   struct can also be returned from functions taking up to five scalar
   arguments through an sret thunk.  Small (1–16 byte), HFA and mixed
-  by-value unions now work on arm64 and are exercised in macOS CI; the
-  large memory-class union path, packed by-value aggregates and ELF TLS
+  by-value unions and large HFA/memory-class unions now work on arm64 and
+  are exercised in macOS CI; packed by-value aggregates and ELF TLS
   resolution remain x86-64-specific.  The core FFI (cdef, cdata, scalar
   calls, varargs, callbacks without packed aggregates) is also exercised
   on macOS arm64 in CI; on x86-64 a callback taking one packed
