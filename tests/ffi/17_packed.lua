@@ -83,12 +83,6 @@ H.eq(h.packed_by_value(pref), 123456)
 local pw = ffi.new("struct PackedWide", {a = 10, b = 1000, c = 3})
 H.eq(h.packedwide_sum(pw), 1013)
 
--- packed returns and callbacks are x86-64-only
-if ffi.arch ~= "x64" then
-  print("ffi/17_packed: argument-only arm64 checks ok")
-  return
-end
-
 local made = h.packedmake0()
 H.eq(made.c, 5)
 H.eq(made.i, 777)
@@ -139,6 +133,13 @@ local mm2 = h.packedmixmulti2(p, 2.5, p2, 100)
 H.eq(mm2.i, 123456 + 1000 + 100 + 2)
 local pa = h.packedadd4(p, p2, p2, p)
 H.eq(pa.i, 123456 + 1000 + 1000 + 123456)
+
+-- packed callbacks are x86-64-only
+if ffi.arch ~= "x64" then
+  print("ffi/17_packed: arm64 calls/returns ok")
+  return
+end
+
 local cb = ffi.callback("int (*)(struct PackedS)",
   function (x) return x.i end)
 h.set_packed_cb(cb)
