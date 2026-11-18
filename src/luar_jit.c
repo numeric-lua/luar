@@ -984,11 +984,13 @@ decode_done:
                op->c == idx &&
                (op->ta == LUAR_T_INT || op->ta == LUAR_T_FLOAT) &&
                (op->kind == LUAR_OP_ADD || op->kind == LUAR_OP_SUB ||
-                op->kind == LUAR_OP_MUL)) {
+                op->kind == LUAR_OP_MUL ||
+                (op->kind == LUAR_OP_DIV && op->ta == LUAR_T_FLOAT))) {
         accop = op;
         acc_i = (int)i;
         opkind = (op->kind == LUAR_OP_SUB) ? 1 :
-                 (op->kind == LUAR_OP_MUL) ? 2 : 0;
+                 (op->kind == LUAR_OP_MUL) ? 2 :
+                 (op->kind == LUAR_OP_DIV) ? 4 : 0;
       }
     }
     if (addi != NULL && accop != NULL && acc_i > addi_i &&
