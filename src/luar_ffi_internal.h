@@ -45,7 +45,6 @@
 #define FFI_UV_TAGS		4
 #define FFI_UV_CONSTS		5
 #define FFI_UV_LIB		6
-#define FFI_UV_TLS		7
 #define FFI_NUV			6
 
 /* Unknown / not computable size. */

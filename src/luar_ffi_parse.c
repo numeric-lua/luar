@@ -495,7 +495,6 @@ typedef struct DeclSpec {
   int is_typedef;
   int is_extern;
   int is_static;
-  int is_tls;
 } DeclSpec;
 
 static DeclSpec parse_declspec (Parser *P);
@@ -874,9 +873,6 @@ static DeclSpec parse_declspec (Parser *P) {
         ds.is_extern = 1;
       else if (tok_is_ident(P, "static"))
         ds.is_static = 1;
-      else if (tok_is_ident(P, "_Thread_local") ||
-               tok_is_ident(P, "__thread"))
-        ds.is_tls = 1;
       lex_next(P);
       continue;
     }
@@ -1251,11 +1247,8 @@ static void parse_external (Parser *P) {
     reject_unsupported(P);
     if (ds.is_typedef)
       ffi_table_set_type(P->L, P->S, FFI_UV_TYPEDEFS, name, type);
-    else {
+    else
       ffi_table_set_type(P->L, P->S, FFI_UV_SYMS, name, type);
-      if (ds.is_tls)
-        ffi_table_set_int(P->L, P->S, FFI_UV_TLS, name, 1);
-    }
     if (accept_punct(P, ','))
       continue;
     expect_punct(P, ';', ";");
