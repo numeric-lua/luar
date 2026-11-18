@@ -110,7 +110,7 @@ is_luar_added() {
 is_ignored_artifact() {
   case $1 in
     *.o|*.a|*.so|*.so.*|*.dylib|*.dll|*.obj|*.lib|*.exp|*.pdb|*.dSYM) return 0 ;;
-    *.gcda|*.gcno|*.profraw|*.out|luar|luarc|.prefix|.ffi|.jit|*.d|*.pic.d|.DS_Store) return 0 ;;
+    *.gcda|*.gcno|*.profraw|*.out|luar|luarc|.prefix|.ffi|.jit|*.d|.DS_Store) return 0 ;;
   esac
   return 1
 }

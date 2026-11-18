@@ -178,8 +178,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install readline
+        run: |
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install readline
+          prefix="$(brew --prefix readline)"
+          echo "CPATH=$prefix/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$prefix/lib" >> "$GITHUB_ENV"
+
       - name: Build
-        run: make -j"$(sysctl -n hw.ncpu)"
+        run: make -j"$(sysctl -n hw.ncpu)" MYLIBS=-lreadline
 
       - name: Build shared library
         run: make shared
