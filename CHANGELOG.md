@@ -120,6 +120,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Inline one-parameter leaf arithmetic calls feeding a numeric accumulator
+  (`s = s + f(i)` for `f(x)=x*K`, `x+K`, `x*x`, `x+x`).  The closure Proto
+  and bytecode are revalidated each entry; `object/leaf_call` runs at ~0.04x
+  stock Lua and beats LuaJIT.
 - Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,
   `s = s + t[keys[i]]`) with hash presizing: `table/hash` drops to ~0.43x
   stock Lua.  Keys may be function parameters or closure upvalues.
