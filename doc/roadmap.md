@@ -140,7 +140,7 @@ than the interpreter; the 1.5–3× table/object target is not met.  Full call
 inlining and side traces are not implemented (side-trace accounting exists
 via `jit.stats().exits`).
 
-## 0.6 — Trace coverage
+## 0.6 — Trace coverage (partial)
 
 Status: early J3, opt-in.  Read-only raw-array lookups and raw integer
 stores/accumulation (`t[i]`, `acc = acc + t[i]`, `t[i] = i`, with
