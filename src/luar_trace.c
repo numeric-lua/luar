@@ -8,6 +8,7 @@
 
 #include "lua.h"
 #include "lobject.h"
+#include "lopcodes.h"
 #include "luar_trace.h"
 
 void luar_trace_ir_init (LuaR_TraceIR *t, Proto *proto, int32_t startpc,
@@ -56,6 +57,18 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
     switch (in->kind) {
       case LUAR_IR_KINT:
       case LUAR_IR_KFLOAT:
+        break;
+      case LUAR_IR_LOADI:
+        if (!valid_slot(t, in->a)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad loadi");
+          return 0;
+        }
+        break;
+      case LUAR_IR_ADDI:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad addi");
+          return 0;
+        }
         break;
       case LUAR_IR_SLOAD:
       case LUAR_IR_SSTORE:
@@ -136,6 +149,111 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   }
   return 1;
 }
+
+static int ir_tag (const TValue *v) {
+  if (ttisinteger(v)) return LUAR_IR_TAG_INT;
+  if (ttisfloat(v)) return LUAR_IR_TAG_FLOAT;
+  if (ttistable(v)) return LUAR_IR_TAG_TABLE;
+  return LUAR_IR_TAG_OTHER;
+}
+
+
+int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
+                            LuaR_TraceIR *t) {
+  int pc, ns = p->maxstacksize;
+  int seen[LUAR_IR_MAX_SLOTS];
+  LuaR_IRIns in;
+  LuaR_IRExitState ex;
+  int sawloop = 0;
+  if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
+  luar_trace_ir_init(t, p, start, ns, 0);
+  memset(seen, 0, sizeof(seen));
+  memset(&in, 0, sizeof(in));
+  for (pc = start; pc <= backedge; pc++) {
+    Instruction ins = p->code[pc];
+    int a = GETARG_A(ins), b = GETARG_B(ins), c = GETARG_C(ins);
+    int r;
+    if (a >= ns || (b >= ns && GET_OPCODE(ins) != OP_MMBINK) ||
+        (c >= ns && (GET_OPCODE(ins) == OP_ADD ||
+                     GET_OPCODE(ins) == OP_SUB ||
+                     GET_OPCODE(ins) == OP_MUL ||
+                     GET_OPCODE(ins) == OP_DIV)))
+      return 0;
+    switch (GET_OPCODE(ins)) {
+      case OP_MOVE:
+        if (!seen[b] && b < ns) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+          in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[b] = 1;
+        }
+        in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
+        in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_LOADI:
+        in.kind = LUAR_IR_LOADI; in.a = (uint8_t)a;
+        in.ival = GETARG_sBx(ins); in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_ADDI:
+        in.kind = LUAR_IR_ADDI; in.a = (uint8_t)a; in.b = (uint8_t)b;
+        in.ival = GETARG_sC(ins); in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_ADD:
+      case OP_SUB:
+      case OP_MUL:
+      case OP_DIV:
+        if (!seen[b]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+          in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[b] = 1;
+        }
+        if (!seen[c]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
+          in.b = (uint8_t)ir_tag(&base[c]); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[c] = 1;
+        }
+        in.kind = (GET_OPCODE(ins) == OP_ADD) ? LUAR_IR_ADD :
+                  (GET_OPCODE(ins) == OP_SUB) ? LUAR_IR_SUB :
+                  (GET_OPCODE(ins) == OP_MUL) ? LUAR_IR_MUL : LUAR_IR_DIV;
+        in.a = (uint8_t)a; in.b = (uint8_t)b; in.c = (uint8_t)c;
+        in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_MMBIN:
+      case OP_MMBINI:
+      case OP_MMBINK:
+        r = 1;
+        break;
+      case OP_FORLOOP:
+        in.kind = LUAR_IR_FORLOOP; in.a = (uint8_t)a; in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        sawloop = 1;
+        break;
+      default:
+        return 0;
+    }
+    if (!r) return 0;
+    if (GET_OPCODE(ins) == OP_FORLOOP)
+      break;
+  }
+  if (!sawloop)
+    return 0;
+  if (!luar_trace_ir_snapshot(&ex, backedge + 1, base, ns))
+    return 0;
+  if (!luar_trace_ir_add_exit(t, &ex))
+    return 0;
+  in.kind = LUAR_IR_EXIT; in.a = 0; in.pc = backedge + 1;
+  if (!luar_trace_ir_emit(t, &in)) return 0;
+  in.kind = LUAR_IR_RET; in.pc = backedge + 1;
+  if (!luar_trace_ir_emit(t, &in)) return 0;
+  return luar_trace_ir_verify(t, NULL, 0);
+}
+
 
 int luar_trace_ir_selftest (void) {
   LuaR_TraceIR t;

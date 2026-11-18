@@ -123,6 +123,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Added a J4 numeric-loop IR recorder wired into the hot hook, counted by
+  `jit.stats().ir_traces`, `ir_ops` and `ir_aborts`.
 - Added the independent J4 tracing-IR foundation (`luar_trace.c`): typed
   values, guards, exits, a verifier, live-slot exit snapshots/restore and a
   selftest exposed as `jit.trace_ir()`.

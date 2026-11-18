@@ -9,7 +9,9 @@ the working JIT can keep shipping while a trace compiler is built.
 - Trace IR value/guard/exit model: **implemented** (`src/luar_trace.h`).
 - Explicit verifier for ops, slots and exits: **implemented**.
 - Exit-state snapshot/restore for live stack slots: **implemented**.
-- Interpreter-side recorder: **not implemented**.
+- Interpreter-side recorder for simple numeric loops: **implemented**
+  (`luar_trace_record_loop`), with counters in `jit.stats()`
+  (`ir_traces`, `ir_ops`, `ir_aborts`).
 - Side-trace linker/depth caps/cycle handling: **not implemented**.
 - Machine-code emission from the IR: **not implemented**.
 
@@ -45,8 +47,8 @@ and this snapshot format for side exits.
 
 ## Next milestones
 
-1. Record IR from the interpreter at a hot loop and from an interior guard
-   exit.
+1. Extend the recorder to interior guard exits and table/call operations
+   (the numeric-loop recorder is already wired into the hot hook).
 2. Add exit-stub state spilling to the native ABI.
 3. Compile the IR and link side traces with a depth cap.
 4. Add differential tests against the interpreter and the existing J2/J3

@@ -24,6 +24,8 @@ typedef enum {
   LUAR_IR_KFLOAT,	/* value = IEEE double constant */
   LUAR_IR_SLOAD,	/* a = destination slot, b = source slot */
   LUAR_IR_SSTORE,	/* a = slot, b = source slot */
+  LUAR_IR_LOADI,	/* a = destination slot, ival = constant */
+  LUAR_IR_ADDI,		/* a = destination, b = source, ival = immediate */
   LUAR_IR_GUARD,	/* a = slot, b = LUAR_IR_TAG_* expected */
   LUAR_IR_ADD,		/* a = dest, b/c = operands */
   LUAR_IR_SUB,
@@ -80,6 +82,8 @@ int luar_trace_ir_snapshot (LuaR_IRExitState *ex, int32_t pc, TValue *base,
                             int nslots);
 int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base);
 
+int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
+                            LuaR_TraceIR *t);
 int luar_trace_ir_selftest (void);
 
 #endif
