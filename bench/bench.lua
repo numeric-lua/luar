@@ -780,6 +780,19 @@ def {
 }
 
 def {
+  name = "object/leaf_branch", group = "object",
+  run = function ()
+    local n = N(1500000)
+    local function f (x)
+      if x > 5 then return x * 2 else return x + 1 end
+    end
+    local s = 0
+    for i = 1, n do s = s + f(i) end
+    return s
+  end,
+}
+
+def {
   name = "object/method", group = "object",
   run = function ()
     local n = N(1000000)

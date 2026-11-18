@@ -120,6 +120,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Inline simple branch-containing integer leaves: comparison + JMP arms
+  (`if x > K then return x*2 else return x+1`), plus a bounded evaluator for
+  short branchy bodies with comparisons, JMP, booleans and arithmetic.
 - Inline two-parameter straight-line integer leaves feeding a numeric
   accumulator, including `a*b+b`, `a*b`, `a+b` and `a-b`; the second argument
   is read from its loop-body slot and guarded as an integer.

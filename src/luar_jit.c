@@ -1866,6 +1866,93 @@ static int leaf_single_plan (Proto *fp, int *op, lua_Integer *imm) {
 }
 
 
+static int leaf_arm (Proto *fp, int at, int *op, lua_Integer *imm) {
+  Instruction i = fp->code[at];
+  if (at + 3 >= fp->sizecode)
+    return 0;
+  if (GET_OPCODE(i) == OP_MULK && GETARG_A(i) == 1 &&
+      GETARG_B(i) == 0 && ttisinteger(&fp->k[GETARG_C(i)]) &&
+      GET_OPCODE(fp->code[at + 1]) == OP_MMBINK &&
+      GET_OPCODE(fp->code[at + 2]) == OP_RETURN1 &&
+      GETARG_A(fp->code[at + 2]) == 1) {
+    *op = 1;
+    *imm = ivalue(&fp->k[GETARG_C(i)]);
+    return 1;
+  }
+  if (GET_OPCODE(i) == OP_ADDI && GETARG_A(i) == 1 &&
+      GETARG_B(i) == 0 &&
+      (GET_OPCODE(fp->code[at + 1]) == OP_MMBINI ||
+       GET_OPCODE(fp->code[at + 1]) == OP_MMBIN) &&
+      GET_OPCODE(fp->code[at + 2]) == OP_RETURN1 &&
+      GETARG_A(fp->code[at + 2]) == 1) {
+    *op = 2;
+    *imm = GETARG_sC(i);
+    return 1;
+  }
+  if (GET_OPCODE(i) == OP_MUL && GETARG_A(i) == 1 &&
+      GETARG_B(i) == 0 && GETARG_C(i) == 0 &&
+      GET_OPCODE(fp->code[at + 1]) == OP_MMBIN &&
+      GET_OPCODE(fp->code[at + 2]) == OP_RETURN1 &&
+      GETARG_A(fp->code[at + 2]) == 1) {
+    *op = 3;
+    *imm = 0;
+    return 1;
+  }
+  return 0;
+}
+
+
+static int leaf_branch_plan (Proto *fp, int *cmp, lua_Integer *threshold,
+                             int *op1, lua_Integer *imm1,
+                             int *op2, lua_Integer *imm2) {
+  Instruction c;
+  int j1, j2;
+  if (fp->numparams != 1 || fp->sizeupvalues != 0 ||
+      fp->sizecode != 10 || fp->maxstacksize < 2)
+    return 0;
+  c = fp->code[0];
+  if ((GET_OPCODE(c) != OP_LTI && GET_OPCODE(c) != OP_LEI &&
+       GET_OPCODE(c) != OP_GTI && GET_OPCODE(c) != OP_GEI &&
+       GET_OPCODE(c) != OP_EQI) ||
+      GETARG_A(c) != 0 || GETARG_k(c) != 0)
+    return 0;
+  if (GET_OPCODE(fp->code[1]) != OP_JMP ||
+      GET_OPCODE(fp->code[5]) != OP_JMP ||
+      GET_OPCODE(fp->code[9]) != OP_RETURN0)
+    return 0;
+  j1 = GETARG_sJ(fp->code[1]);
+  j2 = GETARG_sJ(fp->code[5]);
+  if (j1 != 4 || j2 != 3)
+    return 0;
+  if (!leaf_arm(fp, 2, op1, imm1) || !leaf_arm(fp, 6, op2, imm2))
+    return 0;
+  *cmp = GET_OPCODE(c);
+  *threshold = GETARG_sB(c);
+  return 1;
+}
+
+
+static lua_Integer leaf_branch_apply (int cmp, lua_Integer v, lua_Integer c,
+                                      int op1, lua_Integer imm1,
+                                      int op2, lua_Integer imm2) {
+  int cond;
+  int op;
+  lua_Integer imm;
+  switch (cmp) {
+    case OP_LTI: cond = (v < c); break;
+    case OP_LEI: cond = (v <= c); break;
+    case OP_GTI: cond = (v > c); break;
+    case OP_GEI: cond = (v >= c); break;
+    default: cond = (v == c); break;
+  }
+  op = cond ? op1 : op2;
+  imm = cond ? imm1 : imm2;
+  if (op == 1) return jit_wrap_mul(v, imm);
+  if (op == 2) return jit_wrap_add(v, imm);
+  return jit_wrap_mul(v, v);
+}
+
+
 static int leaf_affine_plan (Proto *fp, lua_Integer *mul, lua_Integer *add) {
   if (fp->numparams != 1 || fp->sizeupvalues != 0 ||
       fp->sizecode < 6 || fp->maxstacksize < 2)
@@ -1932,35 +2019,38 @@ static lua_Integer jit_idiv (lua_Integer a, lua_Integer b, int wantmod) {
 static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
                       int nargs, lua_Integer *out) {
   lua_Integer r[32];
-  lu_byte defined[32];
-  int pc, i;
+  lu_byte kind[32];
+  int pc, steps;
   if (fp->numparams != nargs || fp->sizeupvalues != 0 ||
       fp->maxstacksize > 32 || fp->sizecode > 32)
     return 0;
-  memset(defined, 0, sizeof(defined));
+  memset(kind, 0, sizeof(kind));
   r[0] = arg;
-  defined[0] = 1;
+  kind[0] = 1;
   if (nargs == 2) {
     r[1] = arg2;
-    defined[1] = 1;
+    kind[1] = 1;
   }
-  for (pc = 0; pc < fp->sizecode; pc++) {
+  for (pc = 0, steps = 0; pc < fp->sizecode; pc++, steps++) {
     Instruction ins = fp->code[pc];
     OpCode op = GET_OPCODE(ins);
     int a = GETARG_A(ins);
     int b = GETARG_B(ins);
     int c = GETARG_C(ins);
+    int cond;
+    if (steps > 64)
+      return 0;
     switch (op) {
       case OP_MOVE:
         if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
-            !defined[b]) return 0;
+            kind[b] == 0) return 0;
         r[a] = r[b];
-        defined[a] = 1;
+        kind[a] = kind[b];
         break;
       case OP_LOADI:
         if (a >= fp->maxstacksize) return 0;
         r[a] = GETARG_sBx(ins);
-        defined[a] = 1;
+        kind[a] = 1;
         break;
       case OP_LOADK:
         if (a >= fp->maxstacksize ||
@@ -1968,13 +2058,31 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
             !ttisinteger(&fp->k[GETARG_Bx(ins)]))
           return 0;
         r[a] = ivalue(&fp->k[GETARG_Bx(ins)]);
-        defined[a] = 1;
+        kind[a] = 1;
+        break;
+      case OP_LOADFALSE:
+      case OP_LOADTRUE:
+        if (a >= fp->maxstacksize) return 0;
+        r[a] = (op == OP_LOADTRUE);
+        kind[a] = 2;
+        break;
+      case OP_LOADNIL:
+        if (a + b >= fp->maxstacksize) return 0;
+        for (c = 0; c <= b; c++)
+          kind[a + c] = 0;
+        break;
+      case OP_NOT:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            kind[b] == 0) return 0;
+        cond = (kind[b] == 2) ? (r[b] == 0) : 0;
+        r[a] = cond;
+        kind[a] = 2;
         break;
       case OP_ADDI:
         if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
-            !defined[b]) return 0;
+            kind[b] != 1) return 0;
         r[a] = jit_wrap_add(r[b], GETARG_sC(ins));
-        defined[a] = 1;
+        kind[a] = 1;
         break;
       case OP_ADD:
       case OP_SUB:
@@ -1982,7 +2090,7 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
       case OP_MOD:
       case OP_IDIV:
         if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
-            c >= fp->maxstacksize || !defined[b] || !defined[c])
+            c >= fp->maxstacksize || kind[b] != 1 || kind[c] != 1)
           return 0;
         if (op == OP_ADD) r[a] = jit_wrap_add(r[b], r[c]);
         else if (op == OP_SUB)
@@ -1990,7 +2098,7 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
         else if (op == OP_MUL) r[a] = jit_wrap_mul(r[b], r[c]);
         else if (op == OP_MOD) r[a] = jit_idiv(r[b], r[c], 1);
         else r[a] = jit_idiv(r[b], r[c], 0);
-        defined[a] = 1;
+        kind[a] = 1;
         break;
       case OP_ADDK:
       case OP_SUBK:
@@ -1999,7 +2107,7 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
       case OP_IDIVK: {
         TValue *k;
         if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
-            !defined[b] || c >= fp->sizek)
+            kind[b] != 1 || c >= fp->sizek)
           return 0;
         k = &fp->k[c];
         if (!ttisinteger(k)) return 0;
@@ -2009,21 +2117,80 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
         else if (op == OP_MULK) r[a] = jit_wrap_mul(r[b], ivalue(k));
         else if (op == OP_MODK) r[a] = jit_idiv(r[b], ivalue(k), 1);
         else r[a] = jit_idiv(r[b], ivalue(k), 0);
-        defined[a] = 1;
+        kind[a] = 1;
         break;
       }
       case OP_UNM:
         if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
-            !defined[b]) return 0;
+            kind[b] != 1) return 0;
         r[a] = (lua_Integer)(0u - l_castS2U(r[b]));
-        defined[a] = 1;
+        kind[a] = 1;
+        break;
+      case OP_EQ:
+      case OP_LT:
+      case OP_LE:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            kind[a] == 0 || kind[a] != kind[b])
+          return 0;
+        if (kind[a] == 1)
+          cond = (op == OP_EQ) ? (r[a] == r[b])
+                 : (op == OP_LT) ? (r[a] < r[b]) : (r[a] <= r[b]);
+        else if (op == OP_EQ)
+          cond = (r[a] == r[b]);
+        else
+          return 0;
+        if (cond != GETARG_k(ins)) pc++;
+        break;
+      case OP_EQK: {
+        TValue *k;
+        if (a >= fp->maxstacksize || b >= fp->sizek || kind[a] != 1)
+          return 0;
+        k = &fp->k[b];
+        if (!ttisinteger(k)) return 0;
+        cond = (r[a] == ivalue(k));
+        if (cond != GETARG_k(ins)) pc++;
+        break;
+      }
+      case OP_EQI:
+      case OP_LTI:
+      case OP_LEI:
+      case OP_GTI:
+      case OP_GEI:
+        if (a >= fp->maxstacksize || kind[a] != 1)
+          return 0;
+        b = GETARG_sB(ins);
+        cond = (op == OP_EQI) ? (r[a] == b)
+               : (op == OP_LTI) ? (r[a] < b)
+               : (op == OP_LEI) ? (r[a] <= b)
+               : (op == OP_GTI) ? (r[a] > b) : (r[a] >= b);
+        if (cond != GETARG_k(ins)) pc++;
+        break;
+      case OP_TEST:
+        if (a >= fp->maxstacksize || kind[a] == 0) return 0;
+        cond = (kind[a] == 2) ? (r[a] != 0) : 1;
+        if (cond != GETARG_k(ins)) pc++;
+        break;
+      case OP_TESTSET:
+        if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
+            kind[b] == 0) return 0;
+        cond = (kind[b] == 2) ? (r[b] != 0) : 1;
+        if ((!cond) == GETARG_k(ins))
+          pc++;
+        else {
+          r[a] = r[b];
+          kind[a] = kind[b];
+        }
+        break;
+      case OP_JMP:
+        pc += GETARG_sJ(ins);
+        if (pc < -1 || pc >= fp->sizecode) return 0;
         break;
       case OP_MMBIN:
       case OP_MMBINI:
       case OP_MMBINK:
         break;
       case OP_RETURN1:
-        if (a >= fp->maxstacksize || !defined[a]) return 0;
+        if (a >= fp->maxstacksize || kind[a] != 1) return 0;
         *out = r[a];
         return 1;
       case OP_RETURN0:
@@ -2032,7 +2199,7 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
         return 0;
     }
   }
-  (void)i;
+  (void)steps;
   return 0;
 }
 
@@ -2133,6 +2300,9 @@ static int leaf_call_intrinsic (lua_State *L, TValue *base,
   lua_Integer simm = 0;
   lua_Integer amul = 0, aadd = 0;
   int affine = 0;
+  int bcmp = 0, bop1 = 0, bop2 = 0;
+  lua_Integer bc = 0, bimm1 = 0, bimm2 = 0;
+  int branchy = 0;
   (void)L;
   if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
       !ttisinteger(at) || !ttisLclosure(fv))
@@ -2145,8 +2315,16 @@ static int leaf_call_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (idx > LUA_MAXINTEGER - count)
     return 0;
-  affine = leaf_affine_plan(cl->p, &amul, &aadd);
-  if (affine) {
+  branchy = leaf_branch_plan(cl->p, &bcmp, &bc, &bop1, &bimm1,
+                             &bop2, &bimm2);
+  if (branchy) {
+    last = idx + count;
+    sum = l_castS2U(ivalue(at));
+    for (k = 0; k <= count; k++)
+      sum += l_castS2U(leaf_branch_apply(bcmp, idx + k, bc,
+                                         bop1, bimm1, bop2, bimm2));
+  }
+  else if ((affine = leaf_affine_plan(cl->p, &amul, &aadd))) {
     last = idx + count;
     sum = l_castS2U(ivalue(at));
     for (k = 0; k <= count; k++)
