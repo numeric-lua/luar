@@ -28,7 +28,9 @@ the working JIT can keep shipping while a trace compiler is built.
   interior segments**.
 - Live root-trace execution: **implemented behind `jit.opt.start("ir=1")`**;
   legacy JIT compilation is disabled for that loop while IR execution is
-  enabled.  `ir_executed` counts successful entries.
+  enabled.  `ir_executed` counts successful entries, and unsupported
+  traces (float/table ops) fall back to the existing JIT/interpreter;
+  `jit.flush()` resets the counter.
 
 `jit.trace_ir().selftest()` exercises IR construction, verification, exit
 snapshotting and restore.  `jit.trace_ir().exec_selftest()` compiles and

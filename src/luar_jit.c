@@ -76,6 +76,7 @@ static void free_code (LuaR_JIT *J) {
   J->side_traces = 0;
   J->last_exit_pc = -1;
   J->sig_hits = 0;
+  J->ir_executed = 0;
   J->ir_traces = 0;
   J->ir_ops = 0;
   J->ir_aborts = 0;
