@@ -178,13 +178,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install readline
+      - name: Install readline and libffi
         run: |
           export HOMEBREW_NO_AUTO_UPDATE=1
-          brew install readline
-          prefix="$(brew --prefix readline)"
-          echo "CPATH=$prefix/include" >> "$GITHUB_ENV"
-          echo "LIBRARY_PATH=$prefix/lib" >> "$GITHUB_ENV"
+          brew install readline libffi
+          rl="$(brew --prefix readline)"
+          ffi="$(brew --prefix libffi)"
+          echo "CPATH=$rl/include:$ffi/include" >> "$GITHUB_ENV"
+          echo "LIBRARY_PATH=$rl/lib:$ffi/lib" >> "$GITHUB_ENV"
 
       - name: Build
         run: make -j"$(sysctl -n hw.ncpu)" MYLIBS=-lreadline
@@ -194,3 +195,10 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Build and test FFI
+        run: |
+          make clean
+          make WITH_FFI=1 -j"$(sysctl -n hw.ncpu)"
+          make WITH_FFI=1 test
+          make WITH_FFI=1 shared
