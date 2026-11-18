@@ -15,14 +15,15 @@
 > opt-in and does not yet beat the interpreter on this corpus.  Re-run
 > `make bench-compare` for current numbers.
 
-> **J4 snapshot (2026-11-17, after making `-O3` the default build level;
+> **J4 snapshot (2026-11-18, after making `-O3` the default build level;
 > `make bench-compare`).**
 > Best CPU milliseconds; `x` is relative to stock Lua (lower is faster).
 >
 > | benchmark | lua | luar | luar x | luajit | luajit x |
 > | --- | ---: | ---: | ---: | ---: | ---: |
-> | numeric/int_sum | 35.48 | **3.93** | 0.11 | 5.90 | 0.17 |
-> | numeric/float_loop | 27.56 | **6.85** | 0.25 | 2.99 | 0.11 |
+> | numeric/int_sum | 35.26 | **3.91** | 0.11 | 5.87 | 0.17 |
+> | numeric/float_loop | 27.41 | **6.84** | 0.25 | 3.19 | 0.12 |
+> | numeric/float_div | 10.30 | **6.36** | 0.62 | 6.35 | 0.62 |
 > | numeric/product | 17.71 | **2.94** | 0.17 | 2.94 | 0.17 |
 > | numeric/lin_sum | 53.01 | **3.92** | 0.07 | 5.97 | 0.11 |
 > | numeric/square_sum | 56.97 | **3.92** | 0.07 | 5.93 | 0.10 |
@@ -35,7 +36,8 @@
 > | table/new_clear | 16.58 | **12.18** | 0.73 | 2.93 | 0.18 |
 >
 > The register-cached fast paths are the source of the integer, float,
-> product, linear, square, repeat and while gains; `table/new_clear` is
+> product, linear, square, repeat, while, division and float-sum gains;
+> `table/new_clear` is
 > faster through the LuaR extension/interpreter path.  `fib` is unchanged because calls are not
 > compiled; `mandel` is now at parity, `table/array` is still a modest
 > regression because its loops are not profitable under the loop-level JIT,

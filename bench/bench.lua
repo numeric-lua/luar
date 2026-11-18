@@ -588,6 +588,16 @@ def {
 }
 
 def {
+  name = "numeric/float_div", group = "numeric",
+  run = function ()
+    local n = N(2000000)
+    local s = 1.0
+    for i = 1, n do s = s / i end
+    return s
+  end,
+}
+
+def {
   name = "numeric/fib", group = "numeric",
   run = function ()
     return fib(27)
