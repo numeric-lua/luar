@@ -3525,6 +3525,10 @@ static int jit_trace_tget_selftest (lua_State *L) {
   tab = (Table *)lua_topointer(L, -1);
   luar_trace_ir_init(&t, NULL, 0, 3, 0);
   memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_GUARD; in.a = 1; in.b = LUAR_IR_TAG_TABLE;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_GUARD; in.a = 2; in.b = LUAR_IR_TAG_INT;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
   in.kind = LUAR_IR_TGET; in.a = 0; in.b = 1; in.c = 2;
   if (!luar_trace_ir_emit(&t, &in)) goto done;
   in.kind = LUAR_IR_RET;
