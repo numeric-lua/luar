@@ -58,8 +58,8 @@ tags, malformed `FORLOOP` triples, bad exit indices and invalid exit states.
 
 ## Exit state
 
-`LuaR_IRExitState` stores the resume PC, live slot count, exact Lua tag bytes
-and the 8-byte payload for each slot.  Snapshots are short-lived: they must
+`LuaR_IRExitState` stores the resume PC, live slot count (up to 64), exact
+Lua tag bytes and the 8-byte payload for each slot.  Snapshots are short-lived: they must
 not cross a GC safepoint because collectable payloads are not rooted.
 Restoring writes stack slots only, so no GC barrier is required.
 

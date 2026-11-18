@@ -3476,6 +3476,24 @@ done:
 }
 
 
+static int jit_trace_snapshot_selftest (lua_State *L) {
+  LuaR_IRExitState ex;
+  TValue base[40];
+  int i, ok = 1;
+  memset(base, 0, sizeof(base));
+  for (i = 0; i < 40; i++)
+    setivalue(&base[i], i + 1);
+  if (!luar_trace_ir_snapshot(&ex, 7, base, 40)) return 0;
+  for (i = 0; i < 40; i++)
+    setivalue(&base[i], 0);
+  if (!luar_trace_ir_restore(&ex, base)) return 0;
+  for (i = 0; i < 40; i++)
+    if (!ttisinteger(&base[i]) || ivalue(&base[i]) != i + 1) ok = 0;
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_side_fail_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3664,6 +3682,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "side_link_selftest");
   lua_pushcfunction(L, jit_trace_side_fail_selftest);
   lua_setfield(L, -2, "side_fail_selftest");
+  lua_pushcfunction(L, jit_trace_snapshot_selftest);
+  lua_setfield(L, -2, "snapshot_selftest");
   lua_pushcfunction(L, jit_trace_tget_selftest);
   lua_setfield(L, -2, "tget_selftest");
   lua_pushcfunction(L, jit_trace_loop_exec_selftest);
