@@ -528,6 +528,68 @@ static void classify_union (CType *ct, size_t base, unsigned char *cls,
 }
 
 
+#if defined(__aarch64__)
+/* Detect an AAPCS64 homogeneous floating aggregate (1-4 FP members). */
+static int union_hfa_info (CType *ct, int *base, int *count) {
+  uint16_t i;
+  if (ct->incomplete || ct->size == 0 || ct->size == FFI_SIZE_UNKNOWN)
+    return 0;
+  *base = 0;
+  *count = 0;
+  for (i = 0; i < ct->nfields; i++) {
+    CType *f = ct->fields[i].type;
+    int b, n;
+    if (f->kind == CT_FLOAT) {
+      b = (int)f->size;
+      n = 1;
+    }
+    else if (f->kind == CT_ARRAY && f->child->kind == CT_FLOAT &&
+             f->length > 0 && f->length <= 4) {
+      b = (int)f->child->size;
+      n = (int)f->length;
+    }
+    else if (f->kind == CT_UNION) {
+      if (!union_hfa_info(f, &b, &n))
+        return 0;
+    }
+    else
+      return 0;
+    if (b != 4 && b != 8)
+      return 0;
+    if (*base == 0) {
+      *base = b;
+      *count = n;
+    }
+    else if (*base != b || *count != n)
+      return 0;
+  }
+  return *count >= 1 && *count <= 4 &&
+         ct->size == (size_t)(*base * *count);
+}
+
+
+static ffi_type *build_hfa_type (lua_State *L, CType *ct, int base, int count,
+                                 FTAlloc **allocs) {
+  (void)ct;
+  ffi_type **elems;
+  ffi_type *ft;
+  int i;
+  if (count == 1)
+    return (base == 4) ? &ffi_type_float : &ffi_type_double;
+  ft = (ffi_type *)ft_alloc(L, allocs, sizeof(ffi_type));
+  elems = (ffi_type **)ft_alloc(L, allocs,
+                                sizeof(ffi_type *) * (size_t)(count + 1));
+  for (i = 0; i < count; i++)
+    elems[i] = (base == 4) ? &ffi_type_float : &ffi_type_double;
+  elems[count] = NULL;
+  memset(ft, 0, sizeof(*ft));
+  ft->type = FFI_TYPE_STRUCT;
+  ft->elements = elems;
+  return ft;
+}
+#endif
+
+
 static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
                                    FTAlloc **allocs) {
   unsigned char cls[2];
@@ -539,6 +601,13 @@ static ffi_type *build_union_type (lua_State *L, FFIState *S, CType *ct,
   if (ct->nfields == 0)
     luaL_error(L, "ffi: empty union '%s' cannot be passed by value",
                ffi_type_repr(S, ct));
+#if defined(__aarch64__)
+  {
+    int hbase, hcount;
+    if (union_hfa_info(ct, &hbase, &hcount))
+      return build_hfa_type(L, ct, hbase, hcount, allocs);
+  }
+#endif
   nchunks = ct->size > 8 ? 2 : 1;
   cls[0] = cls[1] = 0;
   for (i = 0; i < ct->nfields; i++)
@@ -829,11 +898,18 @@ static void convert_call_arg (lua_State *L, FFIState *S, CType *at,
                  ffi_type_repr(S, at));
     *avalue = cdata_value_addr(cd);
 #if defined(__aarch64__)
-    /* AAPCS64 passes large composites by reference.  Passing the pointer
-    ** directly avoids libffi re-classifying the synthetic struct. */
-    if (at->kind == CT_UNION && at->size > 16)
-      *argtype_override = &ffi_type_pointer;
-    else
+    /* AAPCS64 passes non-HFA composites larger than 16 bytes by reference.
+    ** HFA unions keep their natural double/float struct type. */
+    {
+      int hbase, hcount;
+      if (at->kind == CT_UNION && at->size > 16 &&
+          !union_hfa_info(at, &hbase, &hcount))
+        *argtype_override = &ffi_type_pointer;
+      else
+        *argtype_override = NULL;
+    }
+#else
+    *argtype_override = NULL;
 #endif
       *argtype_override = NULL;
     return;
