@@ -104,8 +104,7 @@ H.eq(h.mixed16_make(10, 2.5).s.l, 10)
 local mxb = ffi.new("struct Mixed16Box", {tag = 1, u = mx})
 H.eq(h.mixed16_box_get(mxb), 8.5)
 
--- larger unions go through the x86-64 memory ABI path
-if ffi.arch == "x64" then
+-- larger unions go through the memory ABI path
 local bd = ffi.new("union BigD", {{1.0, 2.0, 3.0, 4.0}})
 H.eq(h.bigd_sum(bd), 10.0)
 H.eq(h.bigd_make(1.0, 1.5, 2.0, 2.5).d[3], 2.5)
@@ -145,6 +144,5 @@ local o12i = ffi.new("union Odd12I", {{2, 3, 4}})
 H.eq(h.odd12i_sum(o12i), 9)
 local o12b = ffi.new("struct Odd12Box", {tag = 1, u = o12})
 H.eq(h.odd12_box_sum(o12b), 7.0)
-end
 
 print("ffi/15_union_value ok")
