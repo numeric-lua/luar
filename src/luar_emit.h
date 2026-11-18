@@ -111,6 +111,7 @@ typedef struct LuaR_LoopDesc {
   int fw_square;
   int fw_prod;
   int fw_sub;
+  int fw_div;
   int fw_linear;
   int fw_float;
   double fw_const;

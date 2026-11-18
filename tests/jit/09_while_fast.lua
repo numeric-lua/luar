@@ -43,6 +43,11 @@ local function wssq (n)
   while i < n do s = s + i * i; i = i + 1 end
   return s
 end
+local function wdiv (n)
+  local i, s = 1, 1.0
+  while i <= n do s = s / i; i = i + 1 end
+  return s
+end
 local function wstep (n)
   local i, s = 0, 0
   while i < n do s = s + i; i = i + 2 end
@@ -110,6 +115,10 @@ H.eq(wle(1000), 500500)
 H.eq(rev(1000), 500500)
 H.eq(wstep(1000), 249500)
 H.eq(wf(1000), 249750.0)
+local wd_on = wdiv(100)
+local wd_off
+jit.off(); wd_off = wdiv(100); jit.on()
+H.eq(string.pack("d", wd_on), string.pack("d", wd_off))
 H.eq(wfs(100000), 4999950000.0)
 H.eq(wssq(100000), 333328333350000.0)
 H.eq(wprod(10), 3628800)

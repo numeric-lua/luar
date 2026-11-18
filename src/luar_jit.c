@@ -613,7 +613,7 @@ decode_done:
 
     int acc = -1, idx = -1, limit = -1, kind = 0, ok = 1, has_imm = 0;
     int inc_i = -1, temp = -1, square = 0, prod = 0;
-    int is_float = 0, accum_i = -1, sub = 0, linear = 0;
+    int is_float = 0, accum_i = -1, sub = 0, div = 0, linear = 0;
     double fconst = 0.0;
     int64_t imm = 0;
     for (i = 0; i < n - 1 && ok; i++) {
@@ -649,6 +649,14 @@ decode_done:
         is_float = 1;
         linear = 1;
         fconst = op->num;
+      }
+      else if (op->kind == LUAR_OP_DIV) {
+        if (prod || acc >= 0 || op->a != op->b || op->c != idx ||
+            op->ta != LUAR_T_FLOAT) { ok = 0; break; }
+        acc = op->a;
+        is_float = 1;
+        div = 1;
+        accum_i = (int)i;
       }
       else if (op->kind == LUAR_OP_ADD) {
         if (prod || acc >= 0 || op->a != op->b) { ok = 0; break; }
@@ -703,6 +711,7 @@ decode_done:
       d.fw_square = square;
       d.fw_prod = prod;
       d.fw_sub = sub;
+      d.fw_div = div;
       d.fw_linear = linear;
       d.fw_float = is_float;
       d.fw_const = fconst;

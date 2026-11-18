@@ -1318,60 +1318,65 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
       dasm_put(Dst, 167);
 #line 914 "src/luar_emit_x64.dasc"
     }
+    else if (d->fw_div) {
+      //| divsd xmm0, xmm1
+      dasm_put(Dst, 179);
+#line 917 "src/luar_emit_x64.dasc"
+    }
     else if (d->fw_square) {
       //| mulsd xmm1, xmm1
       //| addsd xmm0, xmm1
       dasm_put(Dst, 1238);
-#line 918 "src/luar_emit_x64.dasc"
+#line 921 "src/luar_emit_x64.dasc"
     }
     else if (d->fw_linear) {
       //| mulsd xmm1, xmm2
       //| addsd xmm0, xmm1
       dasm_put(Dst, 1249);
-#line 922 "src/luar_emit_x64.dasc"
+#line 925 "src/luar_emit_x64.dasc"
     }
     else {
       //| addsd xmm0, xmm1
       dasm_put(Dst, 161);
-#line 925 "src/luar_emit_x64.dasc"
+#line 928 "src/luar_emit_x64.dasc"
     }
   }
   else if (d->fw_prod) {
     //| imul r12, r13
     dasm_put(Dst, 1260);
-#line 929 "src/luar_emit_x64.dasc"
+#line 932 "src/luar_emit_x64.dasc"
   }
   else if (d->fw_sub) {
     //| sub r12, r13
     dasm_put(Dst, 1265);
-#line 932 "src/luar_emit_x64.dasc"
+#line 935 "src/luar_emit_x64.dasc"
   }
   else if (d->fw_square) {
     //| mov rcx, r13
     //| imul rcx, r13
     //| add r12, rcx
     dasm_put(Dst, 1270);
-#line 937 "src/luar_emit_x64.dasc"
+#line 940 "src/luar_emit_x64.dasc"
   }
   else {
     //| add r12, r13
     dasm_put(Dst, 1282);
-#line 940 "src/luar_emit_x64.dasc"
+#line 943 "src/luar_emit_x64.dasc"
   }
   //| add r13, d->fw_step
   //| jmp <1
   //|2:
   dasm_put(Dst, 1287, d->fw_step);
-#line 944 "src/luar_emit_x64.dasc"
+#line 947 "src/luar_emit_x64.dasc"
   if (d->fw_float) {
     //| movsd qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], xmm0
     dasm_put(Dst, 105, ((int)LUAR_SLOT(d->fw_acc)));
-#line 946 "src/luar_emit_x64.dasc"
+#line 949 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov qword [rbx + ((int)LUAR_SLOT(d->fw_acc))], r12
     dasm_put(Dst, 906, ((int)LUAR_SLOT(d->fw_acc)));
-#line 949 "src/luar_emit_x64.dasc"
+#line 952 "src/luar_emit_x64.dasc"
   }
   //| mov qword [rbx + ((int)LUAR_SLOT(d->fw_idx))], r13
   //| mov eax, 1
@@ -1388,7 +1393,7 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1298, ((int)LUAR_SLOT(d->fw_idx)));
-#line 964 "src/luar_emit_x64.dasc"
+#line 967 "src/luar_emit_x64.dasc"
 }
 
 static void emit_fast_sq (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -1403,34 +1408,34 @@ static void emit_fast_sq (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| mov r13, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
   //| mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
   dasm_put(Dst, 797, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)), ((int)LUAR_SLOT(d->for_a + 1)));
-#line 977 "src/luar_emit_x64.dasc"
+#line 980 "src/luar_emit_x64.dasc"
   if (d->fs_float) {
     //| movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->fs_acc))]
     dasm_put(Dst, 20, ((int)LUAR_SLOT(d->fs_acc)));
-#line 979 "src/luar_emit_x64.dasc"
+#line 982 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov r15, qword [rbx + ((int)LUAR_SLOT(d->fs_acc))]
     dasm_put(Dst, 953, ((int)LUAR_SLOT(d->fs_acc)));
-#line 982 "src/luar_emit_x64.dasc"
+#line 985 "src/luar_emit_x64.dasc"
   }
   emit_guards(Dst, d);
   //|1:
   dasm_put(Dst, 699);
-#line 985 "src/luar_emit_x64.dasc"
+#line 988 "src/luar_emit_x64.dasc"
   if (d->fs_float) {
     //| cvtsi2sd xmm1, r13
     //| mulsd xmm1, xmm1
     //| addsd xmm0, xmm1
     dasm_put(Dst, 1328);
-#line 989 "src/luar_emit_x64.dasc"
+#line 992 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov rcx, r13
     //| imul rcx, r13
     //| add r15, rcx
     dasm_put(Dst, 1345);
-#line 994 "src/luar_emit_x64.dasc"
+#line 997 "src/luar_emit_x64.dasc"
   }
   //| test r12, r12
   //| jz >2
@@ -1441,16 +1446,16 @@ static void emit_fast_sq (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
   //| mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
   dasm_put(Dst, 731, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)));
-#line 1003 "src/luar_emit_x64.dasc"
+#line 1006 "src/luar_emit_x64.dasc"
   if (d->fs_float) {
     //| movsd qword [rbx + ((int)LUAR_SLOT(d->fs_acc))], xmm0
     dasm_put(Dst, 105, ((int)LUAR_SLOT(d->fs_acc)));
-#line 1005 "src/luar_emit_x64.dasc"
+#line 1008 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov qword [rbx + ((int)LUAR_SLOT(d->fs_acc))], r15
     dasm_put(Dst, 975, ((int)LUAR_SLOT(d->fs_acc)));
-#line 1008 "src/luar_emit_x64.dasc"
+#line 1011 "src/luar_emit_x64.dasc"
   }
   //| mov eax, 1
   //| pop r15
@@ -1468,7 +1473,7 @@ static void emit_fast_sq (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1357);
-#line 1024 "src/luar_emit_x64.dasc"
+#line 1027 "src/luar_emit_x64.dasc"
 }
 
 static void emit_fast_prod (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -1483,38 +1488,38 @@ static void emit_fast_prod (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| mov r13, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
   //| mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
   dasm_put(Dst, 797, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)), ((int)LUAR_SLOT(d->for_a + 1)));
-#line 1037 "src/luar_emit_x64.dasc"
+#line 1040 "src/luar_emit_x64.dasc"
   if (d->fp_float) {
     //| movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->fp_acc))]
     dasm_put(Dst, 20, ((int)LUAR_SLOT(d->fp_acc)));
-#line 1039 "src/luar_emit_x64.dasc"
+#line 1042 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov r15, qword [rbx + ((int)LUAR_SLOT(d->fp_acc))]
     dasm_put(Dst, 953, ((int)LUAR_SLOT(d->fp_acc)));
-#line 1042 "src/luar_emit_x64.dasc"
+#line 1045 "src/luar_emit_x64.dasc"
   }
   emit_guards(Dst, d);
   //|1:
   dasm_put(Dst, 699);
-#line 1045 "src/luar_emit_x64.dasc"
+#line 1048 "src/luar_emit_x64.dasc"
   if (d->fp_float) {
     //| cvtsi2sd xmm1, r13
     dasm_put(Dst, 1231);
-#line 1047 "src/luar_emit_x64.dasc"
+#line 1050 "src/luar_emit_x64.dasc"
     if (d->fp_div)
       //| divsd xmm0, xmm1
       dasm_put(Dst, 179);
-#line 1049 "src/luar_emit_x64.dasc"
+#line 1052 "src/luar_emit_x64.dasc"
     else
       //| mulsd xmm0, xmm1
       dasm_put(Dst, 173);
-#line 1051 "src/luar_emit_x64.dasc"
+#line 1054 "src/luar_emit_x64.dasc"
   }
   else {
     //| imul r15, r13
     dasm_put(Dst, 1387);
-#line 1054 "src/luar_emit_x64.dasc"
+#line 1057 "src/luar_emit_x64.dasc"
   }
   //| test r12, r12
   //| jz >2
@@ -1525,16 +1530,16 @@ static void emit_fast_prod (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
   //| mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
   dasm_put(Dst, 731, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)));
-#line 1063 "src/luar_emit_x64.dasc"
+#line 1066 "src/luar_emit_x64.dasc"
   if (d->fp_float) {
     //| movsd qword [rbx + ((int)LUAR_SLOT(d->fp_acc))], xmm0
     dasm_put(Dst, 105, ((int)LUAR_SLOT(d->fp_acc)));
-#line 1065 "src/luar_emit_x64.dasc"
+#line 1068 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov qword [rbx + ((int)LUAR_SLOT(d->fp_acc))], r15
     dasm_put(Dst, 975, ((int)LUAR_SLOT(d->fp_acc)));
-#line 1068 "src/luar_emit_x64.dasc"
+#line 1071 "src/luar_emit_x64.dasc"
   }
   //| mov eax, 1
   //| pop r15
@@ -1552,7 +1557,7 @@ static void emit_fast_prod (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1357);
-#line 1084 "src/luar_emit_x64.dasc"
+#line 1087 "src/luar_emit_x64.dasc"
 }
 
 static void emit_fast_sub (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -1567,31 +1572,31 @@ static void emit_fast_sub (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| mov r13, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
   //| mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
   dasm_put(Dst, 797, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)), ((int)LUAR_SLOT(d->for_a + 1)));
-#line 1097 "src/luar_emit_x64.dasc"
+#line 1100 "src/luar_emit_x64.dasc"
   if (d->fsb_float) {
     //| movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->fsb_acc))]
     dasm_put(Dst, 20, ((int)LUAR_SLOT(d->fsb_acc)));
-#line 1099 "src/luar_emit_x64.dasc"
+#line 1102 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov r15, qword [rbx + ((int)LUAR_SLOT(d->fsb_acc))]
     dasm_put(Dst, 953, ((int)LUAR_SLOT(d->fsb_acc)));
-#line 1102 "src/luar_emit_x64.dasc"
+#line 1105 "src/luar_emit_x64.dasc"
   }
   emit_guards(Dst, d);
   //|1:
   dasm_put(Dst, 699);
-#line 1105 "src/luar_emit_x64.dasc"
+#line 1108 "src/luar_emit_x64.dasc"
   if (d->fsb_float) {
     //| cvtsi2sd xmm1, r13
     //| subsd xmm0, xmm1
     dasm_put(Dst, 1393);
-#line 1108 "src/luar_emit_x64.dasc"
+#line 1111 "src/luar_emit_x64.dasc"
   }
   else {
     //| sub r15, r13
     dasm_put(Dst, 1405);
-#line 1111 "src/luar_emit_x64.dasc"
+#line 1114 "src/luar_emit_x64.dasc"
   }
   //| test r12, r12
   //| jz >2
@@ -1602,16 +1607,16 @@ static void emit_fast_sub (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
   //| mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
   dasm_put(Dst, 731, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)));
-#line 1120 "src/luar_emit_x64.dasc"
+#line 1123 "src/luar_emit_x64.dasc"
   if (d->fsb_float) {
     //| movsd qword [rbx + ((int)LUAR_SLOT(d->fsb_acc))], xmm0
     dasm_put(Dst, 105, ((int)LUAR_SLOT(d->fsb_acc)));
-#line 1122 "src/luar_emit_x64.dasc"
+#line 1125 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov qword [rbx + ((int)LUAR_SLOT(d->fsb_acc))], r15
     dasm_put(Dst, 975, ((int)LUAR_SLOT(d->fsb_acc)));
-#line 1125 "src/luar_emit_x64.dasc"
+#line 1128 "src/luar_emit_x64.dasc"
   }
   //| mov eax, 1
   //| pop r15
@@ -1629,7 +1634,7 @@ static void emit_fast_sub (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1357);
-#line 1141 "src/luar_emit_x64.dasc"
+#line 1144 "src/luar_emit_x64.dasc"
 }
 
 static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -1642,162 +1647,162 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| push r15
   //| mov r13, qword [rbx + ((int)LUAR_SLOT(d->fr_idx))]
   dasm_put(Dst, 1410, ((int)LUAR_SLOT(d->fr_idx)));
-#line 1152 "src/luar_emit_x64.dasc"
+#line 1155 "src/luar_emit_x64.dasc"
   if (d->fr_float) {
     //| movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->fr_acc))]
     dasm_put(Dst, 20, ((int)LUAR_SLOT(d->fr_acc)));
-#line 1154 "src/luar_emit_x64.dasc"
+#line 1157 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov r15, qword [rbx + ((int)LUAR_SLOT(d->fr_acc))]
     dasm_put(Dst, 953, ((int)LUAR_SLOT(d->fr_acc)));
-#line 1157 "src/luar_emit_x64.dasc"
+#line 1160 "src/luar_emit_x64.dasc"
   }
   if (d->fr_limit != 0xFF) {
     //| mov r14, qword [rbx + ((int)LUAR_SLOT(d->fr_limit))]
     dasm_put(Dst, 669, ((int)LUAR_SLOT(d->fr_limit)));
-#line 1160 "src/luar_emit_x64.dasc"
+#line 1163 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov64 r14, d->fr_immediate
     dasm_put(Dst, 1199, (unsigned int)(d->fr_immediate), (unsigned int)((d->fr_immediate)>>32));
-#line 1163 "src/luar_emit_x64.dasc"
+#line 1166 "src/luar_emit_x64.dasc"
   }
   emit_guards(Dst, d);
   //|1:
   //| add r13, d->fr_step
   dasm_put(Dst, 1426, d->fr_step);
-#line 1167 "src/luar_emit_x64.dasc"
+#line 1170 "src/luar_emit_x64.dasc"
   if (d->fr_float) {
     //| cvtsi2sd xmm1, r13
     dasm_put(Dst, 1231);
-#line 1169 "src/luar_emit_x64.dasc"
+#line 1172 "src/luar_emit_x64.dasc"
     if (d->fr_op == 1) {
       //| subsd xmm0, xmm1
       dasm_put(Dst, 167);
-#line 1171 "src/luar_emit_x64.dasc"
+#line 1174 "src/luar_emit_x64.dasc"
     }
     else if (d->fr_op == 2) {
       //| mulsd xmm0, xmm1
       dasm_put(Dst, 173);
-#line 1174 "src/luar_emit_x64.dasc"
+#line 1177 "src/luar_emit_x64.dasc"
     }
     else if (d->fr_op == 3) {
       //| mulsd xmm1, xmm1
       //| addsd xmm0, xmm1
       dasm_put(Dst, 1238);
-#line 1178 "src/luar_emit_x64.dasc"
+#line 1181 "src/luar_emit_x64.dasc"
     }
     else {
       //| addsd xmm0, xmm1
       dasm_put(Dst, 161);
-#line 1181 "src/luar_emit_x64.dasc"
+#line 1184 "src/luar_emit_x64.dasc"
     }
   }
   else if (d->fr_op == 1) {
     //| sub r15, r13
     dasm_put(Dst, 1405);
-#line 1185 "src/luar_emit_x64.dasc"
+#line 1188 "src/luar_emit_x64.dasc"
   }
   else if (d->fr_op == 2) {
     //| imul r15, r13
     dasm_put(Dst, 1387);
-#line 1188 "src/luar_emit_x64.dasc"
+#line 1191 "src/luar_emit_x64.dasc"
   }
   else if (d->fr_op == 3) {
     //| mov rcx, r13
     //| imul rcx, r13
     //| add r15, rcx
     dasm_put(Dst, 1345);
-#line 1193 "src/luar_emit_x64.dasc"
+#line 1196 "src/luar_emit_x64.dasc"
   }
   else {
     //| add r15, r13
     dasm_put(Dst, 970);
-#line 1196 "src/luar_emit_x64.dasc"
+#line 1199 "src/luar_emit_x64.dasc"
   }
   if (d->fr_idx_left) {
     //| cmp r13, r14
     dasm_put(Dst, 1206);
-#line 1199 "src/luar_emit_x64.dasc"
+#line 1202 "src/luar_emit_x64.dasc"
   }
   else {
     //| cmp r14, r13
     dasm_put(Dst, 1433);
-#line 1202 "src/luar_emit_x64.dasc"
+#line 1205 "src/luar_emit_x64.dasc"
   }
   if (kind == LUAR_OP_LT) {
     if (k) {
       //| jl <1
       dasm_put(Dst, 1438);
-#line 1206 "src/luar_emit_x64.dasc"
+#line 1209 "src/luar_emit_x64.dasc"
     }
     else {
       //| jge <1
       dasm_put(Dst, 1443);
-#line 1209 "src/luar_emit_x64.dasc"
+#line 1212 "src/luar_emit_x64.dasc"
     }
   }
   else if (kind == LUAR_OP_LE) {
     if (k) {
       //| jle <1
       dasm_put(Dst, 1448);
-#line 1214 "src/luar_emit_x64.dasc"
+#line 1217 "src/luar_emit_x64.dasc"
     }
     else {
       //| jg <1
       dasm_put(Dst, 1453);
-#line 1217 "src/luar_emit_x64.dasc"
+#line 1220 "src/luar_emit_x64.dasc"
     }
   }
   else if (kind == LUAR_OP_GT) {
     if (k) {
       //| jg <1
       dasm_put(Dst, 1453);
-#line 1222 "src/luar_emit_x64.dasc"
+#line 1225 "src/luar_emit_x64.dasc"
     }
     else {
       //| jle <1
       dasm_put(Dst, 1448);
-#line 1225 "src/luar_emit_x64.dasc"
+#line 1228 "src/luar_emit_x64.dasc"
     }
   }
   else if (kind == LUAR_OP_GE) {
     if (k) {
       //| jge <1
       dasm_put(Dst, 1443);
-#line 1230 "src/luar_emit_x64.dasc"
+#line 1233 "src/luar_emit_x64.dasc"
     }
     else {
       //| jl <1
       dasm_put(Dst, 1438);
-#line 1233 "src/luar_emit_x64.dasc"
+#line 1236 "src/luar_emit_x64.dasc"
     }
   }
   else {
     if (k) {
       //| je <1
       dasm_put(Dst, 1458);
-#line 1238 "src/luar_emit_x64.dasc"
+#line 1241 "src/luar_emit_x64.dasc"
     }
     else {
       //| jne <1
       dasm_put(Dst, 1463);
-#line 1241 "src/luar_emit_x64.dasc"
+#line 1244 "src/luar_emit_x64.dasc"
     }
   }
   //| mov qword [rbx + ((int)LUAR_SLOT(d->fr_idx))], r13
   dasm_put(Dst, 756, ((int)LUAR_SLOT(d->fr_idx)));
-#line 1244 "src/luar_emit_x64.dasc"
+#line 1247 "src/luar_emit_x64.dasc"
   if (d->fr_float) {
     //| movsd qword [rbx + ((int)LUAR_SLOT(d->fr_acc))], xmm0
     dasm_put(Dst, 105, ((int)LUAR_SLOT(d->fr_acc)));
-#line 1246 "src/luar_emit_x64.dasc"
+#line 1249 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov qword [rbx + ((int)LUAR_SLOT(d->fr_acc))], r15
     dasm_put(Dst, 975, ((int)LUAR_SLOT(d->fr_acc)));
-#line 1249 "src/luar_emit_x64.dasc"
+#line 1252 "src/luar_emit_x64.dasc"
   }
   //| mov eax, 1
   //| pop r15
@@ -1814,7 +1819,7 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1468);
-#line 1264 "src/luar_emit_x64.dasc"
+#line 1267 "src/luar_emit_x64.dasc"
 }
 
 static void emit_partial_code (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -1822,7 +1827,7 @@ static void emit_partial_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| push rbx
   //| mov rbx, rdi
   dasm_put(Dst, 533);
-#line 1270 "src/luar_emit_x64.dasc"
+#line 1273 "src/luar_emit_x64.dasc"
   emit_guards(Dst, d);
   emit_body(Dst, d);
   //| mov eax, -((int)d->exit_pc + 2)
@@ -1833,7 +1838,7 @@ static void emit_partial_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1496, -((int)d->exit_pc + 2));
-#line 1279 "src/luar_emit_x64.dasc"
+#line 1282 "src/luar_emit_x64.dasc"
 }
 
 static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
@@ -1885,11 +1890,11 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| push rbx
   //| mov rbx, rdi
   dasm_put(Dst, 533);
-#line 1329 "src/luar_emit_x64.dasc"
+#line 1332 "src/luar_emit_x64.dasc"
   emit_guards(Dst, d);
   //|1:
   dasm_put(Dst, 699);
-#line 1331 "src/luar_emit_x64.dasc"
+#line 1334 "src/luar_emit_x64.dasc"
   emit_body(Dst, d);
   /* Exact FORLOOP semantics: while count > 0, decrement, advance the index
   ** and run the body again.  When count is already zero the body just ran
@@ -1912,7 +1917,7 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   //| pop rbx
   //| ret
   dasm_put(Dst, 1507, ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a)), ((int)LUAR_SLOT(d->for_a + 2)), ((int)LUAR_SLOT(d->for_a + 1)), ((int)LUAR_SLOT(d->for_a + 2)));
-#line 1352 "src/luar_emit_x64.dasc"
+#line 1355 "src/luar_emit_x64.dasc"
 }
 
 LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
