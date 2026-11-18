@@ -39,7 +39,9 @@
 > faster through the LuaR extension/interpreter path.  `fib` is unchanged because calls are not
 > compiled; `mandel` is now at parity, `table/array` is still a modest
 > regression because its loops are not profitable under the loop-level JIT,
-> and the table tier remains opt-in.  `-O3` (the default from this build)
+> and the table tier remains opt-in.  Preallocating the fill array from the loop's
+> remaining count was also tested; it did not make the native fill faster than
+> the interpreter, so it was not kept.  `-O3` (the default from this build)
 > improved the interpreter path without changing semantics.  The official suite, ASan and the whole test
 > matrix pass at this revision.  `make JIT=0` now genuinely rebuilds the
 > interpreter-only binary (previously the `JIT` alias was ignored).
