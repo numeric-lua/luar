@@ -134,12 +134,6 @@ H.eq(mm2.i, 123456 + 1000 + 100 + 2)
 local pa = h.packedadd4(p, p2, p2, p)
 H.eq(pa.i, 123456 + 1000 + 1000 + 123456)
 
--- packed callbacks are x86-64-only
-if ffi.arch ~= "x64" then
-  print("ffi/17_packed: arm64 calls/returns ok")
-  return
-end
-
 local cb = ffi.callback("int (*)(struct PackedS)",
   function (x) return x.i end)
 h.set_packed_cb(cb)

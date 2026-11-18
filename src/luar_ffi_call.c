@@ -2480,10 +2480,15 @@ int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
   if (ft->ret->kind == CT_ARRAY)
     return luaL_error(L, "ffi.callback: return type '%s' is not supported",
                       ffi_type_repr(S, ft->ret));
+#if defined(__x86_64__)
   if (packed_callback_mixed_candidate(ft))
     return ffi_callback_new_packed_mixed(L, S, ct, ft, funcidx);
   if (packed_callback_candidate(ft))
     return ffi_callback_new_packed(L, S, ct, ft, funcidx);
+#else
+  /* The packed trampolines emit x86-64 machine code; other hosts use the
+  ** generic libffi closure path below. */
+#endif
   nargs = ft->nargs;
   cb = (FCallback *)calloc(1, sizeof(FCallback));
   if (cb == NULL)
