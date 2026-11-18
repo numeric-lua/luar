@@ -33,7 +33,7 @@
 > | numeric/fib | 13.39 | 13.61 | 1.02 | 1.47 | 0.11 |
 > | numeric/mandel | 20.90 | 21.22 | 1.02 | 1.42 | 0.07 |
 > | table/array | 24.94 | **4.70** | 0.19 | 8.60 | 0.34 |
-> | table/hash | 8.76 | **3.83** | 0.44 | 3.48 | 0.40 |
+> | table/hash | 8.67 | **3.68** | 0.42 | 3.51 | 0.41 |
 > | table/new_clear | 16.34 | **10.28** | 0.63 | 2.16 | 0.13 |
 >
 > The register-cached fast paths are the source of the integer, float,
@@ -42,9 +42,10 @@
 > faster through the LuaR extension/interpreter path.  `fib` is unchanged because calls are not
 > compiled; `mandel` is now at parity.  Default raw table fill/sum intrinsics
 > make `table/array` about 0.18x stock Lua and `table/hash` about 0.44x.
-> Simple upvalue-accumulator call loops are inlined: `object/closures` is
-> about 0.01x stock and faster than LuaJIT.  Generic table JIT remains opt-in;
-> method/metatable-heavy loops still need full call inlining.  Preallocating the fill array from the loop's
+> Simple upvalue-accumulator call loops and `__index` multiplier loops are
+> inlined: `object/closures` and `object/metatable` are ~0.01x stock and
+> faster than LuaJIT.  Generic table JIT remains opt-in; method-dispatch loops
+> still need general call inlining.  Preallocating the fill array from the loop's
 > remaining count was also tested; it did not make the native fill faster than
 > the interpreter, so it was not kept.  `-O3` (the default from this build)
 > improved the interpreter path without changing semantics.  The official suite, ASan and the whole test

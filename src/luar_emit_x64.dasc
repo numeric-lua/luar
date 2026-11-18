@@ -762,6 +762,49 @@ static void emit_fast_int (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static void emit_fast_meta (dasm_State **Dst, const LuaR_LoopDesc *d)
+{
+  | push rbx
+  | mov rbx, rdi
+  | push r12
+  | push r13
+  | push r14
+  | push r15
+  | mov r12, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+  | mov r13, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
+  | mov r14, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+  | mov r15, qword [rbx + ((int)LUAR_SLOT(d->fm_acc))]
+  |1:
+  | mov rax, r13
+  | imul rax, ((int64_t)d->fm_mult)
+  | add r15, rax
+  | test r12, r12
+  | jz >2
+  | dec r12
+  | add r13, r14
+  | jmp <1
+  |2:
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
+  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], r13
+  | mov qword [rbx + ((int)LUAR_SLOT(d->fm_acc))], r15
+  | mov eax, 1
+  | pop r15
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+  |3:
+  | xor eax, eax
+  | pop r15
+  | pop r14
+  | pop r13
+  | pop r12
+  | pop rbx
+  | ret
+}
+
+
 static void emit_fast_closure (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
   | push rbx
@@ -1353,6 +1396,10 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   }
   if (d->fast_tsum) {
     emit_fast_tsum(Dst, d);
+    return;
+  }
+  if (d->fast_meta) {
+    emit_fast_meta(Dst, d);
     return;
   }
   if (d->fast_closure) {

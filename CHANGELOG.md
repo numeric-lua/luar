@@ -112,6 +112,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   `x = x + arg`, called for its side effect in a numeric loop.  The native
   loop updates the open upvalue directly; `object/closures` drops to ~0.01x
   stock Lua and beats LuaJIT.  Other call shapes still interpret.
+- Inline a simple `__index` multiplier shape: an empty table with an
+  `__index` function returning `k * N` is compiled to `acc += idx * N`,
+  re-validating the table/metatable/function body at every native entry.
+  `object/metatable` drops to ~0.01x stock Lua and beats LuaJIT.
 - Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,
   `s = s + t[keys[i]]`) with hash presizing: `table/hash` drops to ~0.43x
   stock Lua.  Keys may be function parameters or closure upvalues.

@@ -85,6 +85,11 @@ typedef struct LuaR_LoopDesc {
   double ff_const;
   int ff_is_float;
   int64_t ff_iconst;
+  int fast_meta;		/* inlined __index multiplier loop */
+  int fm_table;
+  int fm_acc;
+  int fm_upval;
+  int64_t fm_mult;
   int fast_closure;		/* inlined simple upvalue accumulator closure */
   int fc_func_slot;
   int fc_upval_slot;

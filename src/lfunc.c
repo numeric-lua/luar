@@ -291,6 +291,11 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_fc_closure[0] = f->luar_fc_closure[1] = NULL;
   f->luar_fc_func[0] = f->luar_fc_func[1] = 0;
   f->luar_fc_upval[0] = f->luar_fc_upval[1] = 0;
+  f->luar_meta[0] = f->luar_meta[1] = 0;
+  f->luar_meta_table[0] = f->luar_meta_table[1] = 0;
+  f->luar_meta_acc[0] = f->luar_meta_acc[1] = 0;
+  f->luar_meta_upval[0] = f->luar_meta_upval[1] = -1;
+  f->luar_meta_mult[0] = f->luar_meta_mult[1] = 0;
   f->luar_variant_tried = 0;
   f->luar_seen = 0;
   return f;

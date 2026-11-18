@@ -643,6 +643,11 @@ typedef struct Proto {
   void *luar_fc_closure[2];
   int luar_fc_func[2];
   int luar_fc_upval[2];
+  int luar_meta[2];
+  int luar_meta_table[2];
+  int luar_meta_acc[2];
+  int luar_meta_upval[2];
+  int64_t luar_meta_mult[2];
   int luar_variant_tried;
   unsigned long long luar_seen;
   l_uint32 luar_hot_limit;

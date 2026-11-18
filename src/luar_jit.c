@@ -27,6 +27,7 @@
 #include "luar.h"
 
 #include "ltable.h"
+#include "lstring.h"
 #include "lopcodes.h"
 #include "lopnames.h"
 #include "luar_emit.h"
@@ -237,6 +238,113 @@ static int match_closure_loop (Proto *p, ptrdiff_t start,
 }
 
 
+static int meta_multiplier (lua_State *L, TValue *tt, int64_t *mult) {
+  TValue fn;
+  Table *t, *mt;
+  LClosure *cl;
+  TString *key;
+  if (!ttistable(tt))
+    return 0;
+  t = hvalue(tt);
+  if (t->asize != 0 || t->lsizenode != 0 || t->metatable == NULL)
+    return 0;
+  mt = t->metatable;
+  key = luaS_newliteral(L, "__index");
+  if (luaH_getstr(mt, key, &fn) != LUA_VLCL)
+    return 0;
+  cl = clLvalue(&fn);
+  if (cl->p->numparams != 2 || cl->p->sizeupvalues != 0 ||
+      cl->p->sizecode < 4 || cl->p->maxstacksize < 3)
+    return 0;
+  if (GET_OPCODE(cl->p->code[0]) != OP_MULK ||
+      GETARG_A(cl->p->code[0]) != 2 || GETARG_B(cl->p->code[0]) != 1 ||
+      GET_OPCODE(cl->p->code[1]) != OP_MMBINK ||
+      GET_OPCODE(cl->p->code[2]) != OP_RETURN1 ||
+      GETARG_A(cl->p->code[2]) != 2 ||
+      GET_OPCODE(cl->p->code[3]) != OP_RETURN0)
+    return 0;
+  {
+    TValue *k = &cl->p->k[GETARG_C(cl->p->code[0])];
+    if (!ttisinteger(k))
+      return 0;
+    *mult = ivalue(k);
+  }
+  return 1;
+}
+
+
+static int match_meta_loop (lua_State *L, Proto *p, ptrdiff_t start,
+                            ptrdiff_t backedge, int for_a, TValue *base,
+                            LuaR_LoopDesc *d) {
+  Instruction gt, add, mm, fp;
+  int64_t mult;
+  if (backedge != start + 3)
+    return 0;
+  gt = p->code[start]; add = p->code[start + 1];
+  mm = p->code[start + 2]; fp = p->code[start + 3];
+  if (GET_OPCODE(gt) != OP_GETTABLE || GET_OPCODE(add) != OP_ADD ||
+      GET_OPCODE(mm) != OP_MMBIN || GET_OPCODE(fp) != OP_FORLOOP)
+    return 0;
+  if (GETARG_C(gt) != for_a + 2 || GETARG_C(add) != GETARG_A(gt) ||
+      GETARG_A(add) != GETARG_B(add) || GETARG_A(fp) != for_a)
+    return 0;
+  if (!ttisinteger(&base[GETARG_A(add)]) ||
+      GETARG_A(gt) == for_a + 2)
+    return 0;
+  if (!meta_multiplier(L, &base[GETARG_B(gt)], &mult))
+    return 0;
+  d->fast_meta = 1;
+  d->fm_table = GETARG_B(gt);
+  d->fm_acc = GETARG_A(add);
+  d->fm_upval = -1;
+  d->fm_mult = mult;
+  return 1;
+}
+
+
+static int match_meta_upval_loop (lua_State *L, Proto *p, ptrdiff_t start,
+                                  ptrdiff_t backedge, int for_a, TValue *base,
+                                  LuaR_LoopDesc *d) {
+  Instruction up, gt, add, mm, fp;
+  TValue *fv, *tab;
+  LClosure *cl;
+  UpVal *uv;
+  int64_t mult;
+  if (backedge != start + 4)
+    return 0;
+  up = p->code[start]; gt = p->code[start + 1];
+  add = p->code[start + 2]; mm = p->code[start + 3];
+  fp = p->code[start + 4];
+  if (GET_OPCODE(up) != OP_GETUPVAL || GET_OPCODE(gt) != OP_GETTABLE ||
+      GET_OPCODE(add) != OP_ADD || GET_OPCODE(mm) != OP_MMBIN ||
+      GET_OPCODE(fp) != OP_FORLOOP)
+    return 0;
+  if (GETARG_A(up) != GETARG_B(gt) || GETARG_C(gt) != for_a + 2 ||
+      GETARG_C(add) != GETARG_A(gt) || GETARG_A(add) != GETARG_B(add) ||
+      GETARG_A(fp) != for_a)
+    return 0;
+  if (!ttisinteger(&base[GETARG_A(add)]) ||
+      GETARG_A(gt) == for_a + 2)
+    return 0;
+  fv = &base[-1];
+  if (!ttisLclosure(fv))
+    return 0;
+  cl = clLvalue(fv);
+  if (GETARG_B(up) >= cl->p->sizeupvalues)
+    return 0;
+  uv = cl->upvals[GETARG_B(up)];
+  tab = uv->v.p;
+  if (!meta_multiplier(L, tab, &mult))
+    return 0;
+  d->fast_meta = 1;
+  d->fm_table = 0;
+  d->fm_acc = GETARG_A(add);
+  d->fm_upval = GETARG_B(up);
+  d->fm_mult = mult;
+  return 1;
+}
+
+
 static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                         ptrdiff_t backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -365,6 +473,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
   }
 
+  if (!is_while && for_a >= 0 &&
+      match_meta_upval_loop(L, p, start, backedge, for_a, b, &d))
+    goto emit_ready;
+  if (!is_while && for_a >= 0 &&
+      match_meta_loop(L, p, start, backedge, for_a, b, &d))
+    goto emit_ready;
   if (!is_while && for_a >= 0 &&
       match_closure_loop(p, start, backedge, for_a, b, &d))
     goto emit_ready;
@@ -1282,6 +1396,11 @@ emit_ready:
     p->luar_fc_closure[slot] = d.fc_closure;
     p->luar_fc_func[slot] = d.fc_func_slot;
     p->luar_fc_upval[slot] = d.fc_upval_slot;
+    p->luar_meta[slot] = d.fast_meta;
+    p->luar_meta_table[slot] = d.fm_table;
+    p->luar_meta_acc[slot] = d.fm_acc;
+    p->luar_meta_upval[slot] = d.fm_upval;
+    p->luar_meta_mult[slot] = d.fm_mult;
   }
   return 1;
 }
@@ -1562,6 +1681,26 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       if (p->luar_code_epoch[i] != J->epoch) {
         p->luar_code[i] = NULL;   /* flushed: mapping was released */
         continue;
+      }
+      if (p->luar_meta[i]) {
+        TValue *tab;
+        int64_t mult;
+        if (p->luar_meta_upval[i] >= 0) {
+          TValue *fv = &((TValue *)base)[-1];
+          LClosure *cl;
+          if (!ttisLclosure(fv))
+            return 0;
+          cl = clLvalue(fv);
+          if (p->luar_meta_upval[i] >= cl->p->sizeupvalues)
+            return 0;
+          tab = cl->upvals[p->luar_meta_upval[i]]->v.p;
+        }
+        else
+          tab = &((TValue *)base)[p->luar_meta_table[i]];
+        if (!ttisinteger(&((TValue *)base)[p->luar_meta_acc[i]]) ||
+            !meta_multiplier(L, tab, &mult) ||
+            mult != p->luar_meta_mult[i])
+          return 0;
       }
       if (p->luar_fc_closure[i] != NULL) {
         TValue *fv = &((TValue *)base)[p->luar_fc_func[i]];
