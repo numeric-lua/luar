@@ -27,7 +27,7 @@ LuaR 0.1.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | `table.new` / `table.clear` | working |
 | `jit` control surface | working: `on/off/flush/dump/status/stats/trace/traces/ir/opt`; `status()` is true on x86-64 with J2 |
 | FFI | LuaJIT-compatible core: cdef macros/includes, cdata, struct/union bitfields, packed/aligned layouts, packed integer calls/returns and packed-argument callbacks on x86-64, unions to 8 MiB by value, varargs, callbacks + `cb:set/free`, TLS, real-consumer test (`WITH_FFI=1`) |
-| native JIT | J1 recorder + J2 x86-64 numeric `for`/`while`/`repeat` codegen with guarded numeric conditions and register-cached sums/divisions/squares/products/linear/subtraction, including float accumulators; default raw table fill/sum intrinsics (5x stock on `table/array`, 2.3x on `table/hash`), experimental opt-in generic table and partial-call tiers (`jit.status()` true; ~9x `int_sum`, ~5.5x `float_sum`, ~1.6x `float_div`) |
+| native JIT | J1 recorder + J2 x86-64 numeric `for`/`while`/`repeat` codegen with guarded numeric conditions and register-cached sums/divisions/squares/products/linear/subtraction, including float accumulators; default raw table fill/sum intrinsics (5x stock on `table/array`, 2.3x on `table/hash`) and simple upvalue-accumulator call inlining, experimental opt-in generic table and partial-call tiers (`jit.status()` true; ~9x `int_sum`, ~5.5x `float_sum`, ~1.6x `float_div`) |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 
 LuaR 0.1 is a drop-in replacement for the `lua` 5.5 interpreter and for

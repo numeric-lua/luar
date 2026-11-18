@@ -108,6 +108,10 @@ the runtime, while the Lua language surface follows upstream Lua.
   counted by `jit.stats().side_traces` (`jit.opt.start("hotexit=N")`,
   default 10) (int/float polymorphic loops); both variants are tried at each
   backedge.  `tests/jit/25_polymorphic.lua` covers it.
+- Inline a simple closure shape: `f` with one integer upvalue doing
+  `x = x + arg`, called for its side effect in a numeric loop.  The native
+  loop updates the open upvalue directly; `object/closures` drops to ~0.01x
+  stock Lua and beats LuaJIT.  Other call shapes still interpret.
 - Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,
   `s = s + t[keys[i]]`) with hash presizing: `table/hash` drops to ~0.43x
   stock Lua.  Keys may be function parameters or closure upvalues.

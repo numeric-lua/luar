@@ -173,6 +173,70 @@ static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+static int match_closure_loop (Proto *p, ptrdiff_t start,
+                               ptrdiff_t backedge, int for_a, TValue *base,
+                               LuaR_LoopDesc *d) {
+  Instruction m0, m1, call, f0, f1, f2, f3, f4, f5, f6;
+  int call_a, func_slot = -1, arg_slot = -1;
+  LClosure *cl;
+  UpVal *uv;
+  ptrdiff_t off;
+  if (backedge != start + 3)
+    return 0;
+  m0 = p->code[start];
+  m1 = p->code[start + 1];
+  call = p->code[start + 2];
+  if (GET_OPCODE(m0) != OP_MOVE || GET_OPCODE(m1) != OP_MOVE ||
+      GET_OPCODE(call) != OP_CALL)
+    return 0;
+  if (GETARG_B(call) != 2 || GETARG_C(call) != 1)
+    return 0;
+  call_a = GETARG_A(call);
+  if (GETARG_A(m0) == call_a)
+    func_slot = GETARG_B(m0);
+  if (GETARG_A(m1) == call_a)
+    func_slot = GETARG_B(m1);
+  if (GETARG_A(m1) == call_a + 1)
+    arg_slot = GETARG_B(m1);
+  if (GETARG_A(m0) == call_a + 1)
+    arg_slot = GETARG_B(m0);
+  if (func_slot < 0 || arg_slot != for_a + 2)
+    return 0;
+  if (!ttisLclosure(&base[func_slot]))
+    return 0;
+  cl = clLvalue(&base[func_slot]);
+  if (cl->p->numparams != 1 || cl->p->sizeupvalues != 1 ||
+      cl->p->sizecode < 7 || cl->p->maxstacksize < 2)
+    return 0;
+  f0 = cl->p->code[0]; f1 = cl->p->code[1]; f2 = cl->p->code[2];
+  f3 = cl->p->code[3]; f4 = cl->p->code[4]; f5 = cl->p->code[5];
+  f6 = cl->p->code[6];
+  if (GET_OPCODE(f0) != OP_GETUPVAL || GETARG_A(f0) != 1 ||
+      GETARG_B(f0) != 0 ||
+      GET_OPCODE(f1) != OP_ADD || GETARG_A(f1) != 1 ||
+      GETARG_B(f1) != 1 || GETARG_C(f1) != 0 ||
+      GET_OPCODE(f2) != OP_MMBIN ||
+      GET_OPCODE(f3) != OP_SETUPVAL || GETARG_A(f3) != 1 ||
+      GETARG_B(f3) != 0 ||
+      GET_OPCODE(f4) != OP_GETUPVAL || GETARG_A(f4) != 1 ||
+      GETARG_B(f4) != 0 ||
+      GET_OPCODE(f5) != OP_RETURN1 ||
+      GET_OPCODE(f6) != OP_RETURN0)
+    return 0;
+  uv = cl->upvals[0];
+  off = uv->v.p - base;
+  if (off < 0 || off >= p->maxstacksize || off > 255)
+    return 0;
+  if (!ttisinteger(uv->v.p))
+    return 0;
+  d->fast_closure = 1;
+  d->fc_func_slot = func_slot;
+  d->fc_upval_slot = (int)off;
+  d->fc_closure = cl->p;
+  return 1;
+}
+
+
 static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                         ptrdiff_t backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -301,6 +365,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
   }
 
+  if (!is_while && for_a >= 0 &&
+      match_closure_loop(p, start, backedge, for_a, b, &d))
+    goto emit_ready;
   for (i = 0; i < n - 1; i++) {
     Instruction ins = p->code[start + i];
     LuaR_Op *op = &ops[i];
@@ -1212,6 +1279,9 @@ emit_ready:
     p->luar_code_pc[slot] = (int)backedge;
     p->luar_code_base[slot] = for_a;
     p->luar_code_epoch[slot] = J->epoch;
+    p->luar_fc_closure[slot] = d.fc_closure;
+    p->luar_fc_func[slot] = d.fc_func_slot;
+    p->luar_fc_upval[slot] = d.fc_upval_slot;
   }
   return 1;
 }
@@ -1492,6 +1562,20 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       if (p->luar_code_epoch[i] != J->epoch) {
         p->luar_code[i] = NULL;   /* flushed: mapping was released */
         continue;
+      }
+      if (p->luar_fc_closure[i] != NULL) {
+        TValue *fv = &((TValue *)base)[p->luar_fc_func[i]];
+        LClosure *cl;
+        UpVal *uv;
+        if (!ttisLclosure(fv))
+          return 0;
+        cl = clLvalue(fv);
+        if ((void *)cl->p != p->luar_fc_closure[i])
+          return 0;
+        uv = cl->upvals[0];
+        if (uv->v.p != &((TValue *)base)[p->luar_fc_upval[i]] ||
+            !ttisinteger(uv->v.p))
+          return 0;
       }
       any = 1;
       r = ((LuaR_LoopFn)p->luar_code[i])(base);

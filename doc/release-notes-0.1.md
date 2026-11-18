@@ -16,7 +16,7 @@ those of upstream Lua 5.5.1.
 - JIT: J1 recorder/dumps/stats; J2 guarded numeric `for`/`while`/`repeat`
   loops with integer/float sums, divisions, products, squares, subtraction
   and linear accumulators.  Raw table fill/sum intrinsics, including keyed hash forms, are on by
-  default;
+  default, and simple upvalue-accumulator calls are inlined;
   generic table emission and partial calls are opt-in.
 - ASan/UBSan, differential, fuzz, shared-library, install, official Lua
   suite and real `libluatorch.so` coverage.
