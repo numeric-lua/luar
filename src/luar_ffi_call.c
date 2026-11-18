@@ -29,7 +29,11 @@
 #define RTLD_DEFAULT	((void *)-2)
 #endif
 #ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS	MAP_ANON
+# ifdef MAP_ANON
+#  define MAP_ANONYMOUS	MAP_ANON
+# else
+#  define MAP_ANONYMOUS	0x1000	/* macOS MAP_ANON */
+# endif
 #endif
 
 #include "lua.h"
