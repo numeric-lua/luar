@@ -436,3 +436,7 @@ typedef struct PackedS (*mix_ret_cb_t)(struct PackedS, int);
 static mix_ret_cb_t g_mix_ret_cb;
 void set_mix_ret_cb (mix_ret_cb_t cb) { g_mix_ret_cb = cb; }
 struct PackedS invoke_stored_mix_ret (void) { struct PackedS p = {1, 100, 2}; return g_mix_ret_cb(p, 1000); }
+typedef int (*mix2_cb_t)(struct PackedS, struct PackedS, int);
+static mix2_cb_t g_mix2_cb;
+void set_mix2_cb (mix2_cb_t cb) { g_mix2_cb = cb; }
+int invoke_stored_mix2 (void) { struct PackedS a={1,100,2}, b={3,20,4}; return g_mix2_cb(a,b,1000); }

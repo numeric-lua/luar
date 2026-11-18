@@ -1752,18 +1752,23 @@ static void callback_handler (ffi_cif *cif, void *ret, void **args,
 
 
 static int packed_callback_mixed_candidate (CType *ft) {
-  CType *at0, *at1, *rt;
-  if (ft->nargs != 2)
+  CType *rt = ft->ret;
+  int i, scalars = 0, packed = 0;
+  if (ft->nargs < 2 || ft->nargs > 4)
     return 0;
-  at0 = ft->args[0];
-  at1 = ft->args[1];
-  rt = ft->ret;
-  if (!(at0->kind == CT_STRUCT && at0->pack == 1 &&
-        at0->align_override == 0 && at0->size > 0 && at0->size <= 8 &&
-        packed_int_type(at0)))
-    return 0;
-  if (!(at1->kind == CT_INT || at1->kind == CT_BOOL ||
-        at1->kind == CT_ENUM) || at1->size == 0 || at1->size > 8)
+  for (i = 0; i < (int)ft->nargs; i++) {
+    CType *at = ft->args[i];
+    if (at->kind == CT_STRUCT && at->pack == 1 &&
+        at->align_override == 0 && at->size > 0 && at->size <= 8 &&
+        packed_int_type(at))
+      packed++;
+    else if ((at->kind == CT_INT || at->kind == CT_BOOL ||
+              at->kind == CT_ENUM) && at->size > 0 && at->size <= 8)
+      scalars++;
+    else
+      return 0;
+  }
+  if (scalars != 1 || packed < 1 || packed > 3)
     return 0;
   if (rt->kind == CT_STRUCT && rt->pack == 1 && rt->align_override == 0 &&
       rt->size > 0 && rt->size <= 16 && packed_int_type(rt))
@@ -1828,8 +1833,6 @@ static uint64_t packed_callback_scalar_ret (FCallback *cb, CType *rt) {
 
 static uint64_t packed_callback_mixed_scalar (FCallback *cb, const void *buf) {
   lua_State *L = cb->L;
-  CType *at = cb->ft->args[0];
-  CType *st = cb->ft->args[1];
   CType *rt = cb->ft->ret;
   int top = lua_gettop(L);
   uint64_t out;
@@ -1839,11 +1842,21 @@ static uint64_t packed_callback_mixed_scalar (FCallback *cb, const void *buf) {
   }
   lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
   {
-    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
-    memcpy(cd->v.p, (const char *)buf + 8, at->size);
+    const char *p = (const char *)buf + 8;
+    int ai;
+    for (ai = 0; ai < (int)cb->ft->nargs; ai++) {
+      CType *a = cb->ft->args[ai];
+      if (a->kind == CT_STRUCT) {
+        CData *cd = ffi_push_owned(L, cb->S, a, a->size);
+        memcpy(cd->v.p, p, a->size);
+        p += 8;
+      }
+      else
+        lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(a, buf));
+    }
   }
-  lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(st, buf));
-  if (lua_pcall(L, 2, rt->kind == CT_VOID ? 0 : 1, 0) != LUA_OK) {
+  if (lua_pcall(L, (int)cb->ft->nargs,
+                rt->kind == CT_VOID ? 0 : 1, 0) != LUA_OK) {
     callback_set_error(L, lua_tostring(L, -1));
     lua_settop(L, top);
     return 0;
@@ -1857,8 +1870,6 @@ static uint64_t packed_callback_mixed_scalar (FCallback *cb, const void *buf) {
 static void packed_callback_mixed_ret (FCallback *cb, const void *buf,
                                        void *ret) {
   lua_State *L = cb->L;
-  CType *at = cb->ft->args[0];
-  CType *st = cb->ft->args[1];
   CType *rt = cb->ft->ret;
   int top = lua_gettop(L);
   if (!lua_checkstack(L, 5)) {
@@ -1868,10 +1879,19 @@ static void packed_callback_mixed_ret (FCallback *cb, const void *buf,
   }
   lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
   {
-    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
-    memcpy(cd->v.p, (const char *)buf + 8, at->size);
+    const char *p = (const char *)buf + 8;
+    int ai;
+    for (ai = 0; ai < (int)cb->ft->nargs; ai++) {
+      CType *a = cb->ft->args[ai];
+      if (a->kind == CT_STRUCT) {
+        CData *cd = ffi_push_owned(L, cb->S, a, a->size);
+        memcpy(cd->v.p, p, a->size);
+        p += 8;
+      }
+      else
+        lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(a, buf));
+    }
   }
-  lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(st, buf));
   if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
     memset(ret, 0, rt->size);
     callback_set_error(L, lua_tostring(L, -1));
@@ -1896,8 +1916,12 @@ static void packed_callback_mixed_ret (FCallback *cb, const void *buf,
 static void *packed_callback_mixed_thunk (FCallback *cb, int packed_ret) {
   unsigned char code[192];
   size_t n = 0, i;
+  int packed_n = 0;
   void *mem;
   size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  for (i = 0; i < (size_t)cb->ft->nargs; i++)
+    if (cb->ft->args[i]->kind == CT_STRUCT)
+      packed_n++;
   if (!packed_ret) {
     /* sub rsp,72; mov [rsp],rdi; lea r10,[rsp+80]; mov rax,[r10];
        mov [rsp+8],rax; mov rdi,cb; mov rsi,rsp; mov rax,dispatcher;
@@ -1906,9 +1930,18 @@ static void *packed_callback_mixed_thunk (FCallback *cb, int packed_ret) {
     code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x3c; code[n++] = 0x24;
     code[n++] = 0x4c; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
     code[n++] = 0x50;
-    code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x02;
-    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x44; code[n++] = 0x24;
-    code[n++] = 0x08;
+    for (i = 0; i < (size_t)packed_n; i++) {
+      int disp = (int)(8 * i);
+      if (disp == 0) {
+        code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x02;
+      }
+      else {
+        code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x42;
+        code[n++] = (unsigned char)disp;
+      }
+      code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x44; code[n++] = 0x24;
+      code[n++] = (unsigned char)(0x08 + disp);
+    }
     code[n++] = 0x48; code[n++] = 0xbf;
     {
       uint64_t p = (uint64_t)(uintptr_t)cb;
@@ -1939,9 +1972,18 @@ static void *packed_callback_mixed_thunk (FCallback *cb, int packed_ret) {
     code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x34; code[n++] = 0x24;
     code[n++] = 0x4c; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
     code[n++] = 0x60;
-    code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x02;
-    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x44; code[n++] = 0x24;
-    code[n++] = 0x08;
+    for (i = 0; i < (size_t)packed_n; i++) {
+      int disp = (int)(8 * i);
+      if (disp == 0) {
+        code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x02;
+      }
+      else {
+        code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x42;
+        code[n++] = (unsigned char)disp;
+      }
+      code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x44; code[n++] = 0x24;
+      code[n++] = (unsigned char)(0x08 + disp);
+    }
     code[n++] = 0x48; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
     code[n++] = 0x28;
     code[n++] = 0x48; code[n++] = 0xbf;

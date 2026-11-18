@@ -40,6 +40,8 @@ void set_mix_cb(int (*cb)(struct PackedS, int));
 int invoke_stored_mix(void);
 void set_mix_ret_cb(struct PackedS (*cb)(struct PackedS, int));
 struct PackedS invoke_stored_mix_ret(void);
+void set_mix2_cb(int (*cb)(struct PackedS, struct PackedS, int));
+int invoke_stored_mix2(void);
 int invoke_packed(struct PackedS p);
 struct PackedS invoke_packed_ret(struct PackedS p);
 struct PackedWide invoke_wide(struct PackedWide p);
@@ -168,6 +170,10 @@ local cbmixr = ffi.callback("struct PackedS (*)(struct PackedS, int)",
 h.set_mix_ret_cb(cbmixr)
 local cbmixrres = h.invoke_stored_mix_ret()
 H.eq(cbmixrres.i, 1100)
+local cbmix2 = ffi.callback("int (*)(struct PackedS, struct PackedS, int)",
+  function (a, b, k) return a.i + b.i + k end)
+h.set_mix2_cb(cbmix2)
+H.eq(h.invoke_stored_mix2(), 1120)
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())
