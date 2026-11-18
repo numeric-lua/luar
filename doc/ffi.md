@@ -142,8 +142,9 @@ preprocessor subset is available.
   struct can also be returned from functions taking up to five scalar
   arguments through an sret thunk.  Small (1–16 byte), HFA and mixed
   by-value unions and large HFA/memory-class unions now work on arm64 and
-  are exercised in macOS CI; packed by-value aggregates and ELF TLS
-  resolution remain x86-64-specific.  The core FFI (cdef, cdata, scalar
+  are exercised in macOS CI.  Packed aggregate arguments with scalar
+  returns also work; packed returns/callbacks and TLS resolution remain
+  x86-64-specific.  The core FFI (cdef, cdata, scalar
   calls, varargs, callbacks without packed aggregates) is also exercised
   on macOS arm64 in CI; on x86-64 a callback taking one packed
   integer argument can return a scalar (including float) or another packed

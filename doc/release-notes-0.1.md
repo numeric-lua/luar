@@ -23,10 +23,10 @@ those of upstream Lua 5.5.1.
 
 ## Known limitations
 
-- Packed by-value FFI remains x86-64 ABI thunks; other hosts reject
-  unsupported packed shapes.  Small, HFA, mixed and large memory-class
-  unions now work on arm64 and are exercised in macOS CI; ELF TLS
-  resolution remains Linux x86-64 only.
+- Packed by-value returns and callbacks remain x86-64 ABI thunks; packed
+  aggregate arguments with scalar returns also work on arm64.  Small, HFA,
+  mixed and large memory-class unions now work on arm64 and are exercised in
+  macOS CI; TLS resolution remains x86-64 only.
 - Table JIT tiers are opt-in and not yet faster than the interpreter on the
   reference corpus.
 - Full Lua call inlining and J4 side traces are not implemented;
