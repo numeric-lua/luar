@@ -76,11 +76,6 @@ H.eq(p.c, 7)
 H.eq(p.i, 123456)
 H.eq(h.packed_i_ptr(p), 123456)
 
-if ffi.arch ~= "x64" then
-  print("ffi/17_packed: skipped (x86-64 packed-by-value ABI)")
-  return
-end
-
 -- single packed integer arguments are passed through a MEMORY-ABI thunk
 H.eq(h.packed_by_value(p), 123456)
 local pref = ffi.cast("struct PackedS *", p)[0]
