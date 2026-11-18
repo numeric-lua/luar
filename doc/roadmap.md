@@ -32,22 +32,24 @@ arithmetic, int64/uint64), `string`/`copy`/`fill`/`gc`/`metatype`, `ffi.C`
 and `ffi.load` with fixed and variadic calls through libffi, `ffi.errno`.
 
 Status: implemented behind `WITH_FFI=1`: cdata bitwise/shift, variadic
-calls, callbacks (including `cb:set`/`cb:free`, struct/union returns),
-structs with array members and unions of any size up to 16 bytes or larger
-memory-class shapes by value, struct/union bitfields, packed/aligned
-layouts (including packed integer calls/returns on x86-64), `#pragma pack`, object/function/variadic cdef macros,
-`sizeof`/`_Alignof`/`offsetof` constants, TLS globals, ASan/UBSan/fuzz
-coverage and a real `libluatorch.so` consumer (2.5.1).  What remains:
-packed aggregates by value (the MEMORY-class call ABI needs a custom
-thunk), non-x86-64 hosts, and full macOS ABI verification.
+calls, callbacks (including `cb:set`/`cb:free`, struct/union returns and
+packed-argument callbacks on x86-64), structs with array members and unions
+of any size up to 16 bytes or larger memory-class shapes by value,
+struct/union bitfields, packed/aligned layouts (including packed integer
+calls/returns and mixed packed/scalar calls on x86-64), `#pragma pack`,
+object/function/variadic cdef macros with stringification/pasting and
+local/environment includes, `sizeof`/`_Alignof`/`offsetof` constants, TLS
+globals, ASan/UBSan/fuzz coverage and a real `libluatorch.so` consumer
+(2.5.1).  What remains: non-x86-64 hosted packed thunks and full macOS ABI
+verification.
 
 Exit criteria:
 
 * A pure-FFI program that allocates structs, passes pointers to libc and
   calls `qsort`-style APIs runs correctly under `make WITH_FFI=1`.
 * No crashes under the ffi test suite with ASan/UBSan (`make test-asan`).
-* Documented limitations: function-like/include preprocessing,
-  large/aggregate unions by value, non-x86-64 hosts.
+* Documented limitations: packed by-value shapes outside the x86-64
+  thunk matrix, and non-x86-64 hosts.
 * `make WITH_FFI=0` remains green.
 
 Estimated: 2–4 weeks.
@@ -128,6 +130,15 @@ Exit criteria:
 * A `jit.flush()` during execution never leaves stale code reachable.
 
 Estimated: 6–10 weeks.
+
+## 0.6 — Trace coverage (partial)
+
+Status: numeric integer/float `for`/`while`/`repeat` loops are compiled with
+guards and register-cached sums, divisions, products, squares, subtraction
+and linear accumulators.  Table lookups/stores are opt-in and remain slower
+than the interpreter; the 1.5–3× table/object target is not met.  Full call
+inlining and side traces are not implemented (side-trace accounting exists
+via `jit.stats().exits`).
 
 ## 0.6 — Trace coverage
 
