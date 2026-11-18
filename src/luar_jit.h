@@ -55,6 +55,7 @@ typedef struct LuaR_JIT {
   int dump_trace;		/* jit.dump("t"): print bytecode snapshots */
   int dump_ir;			/* jit.dump("i"): print linear IR */
   uint32_t compiled;		/* native loops emitted */
+  unsigned long long exits;	/* native guard failures (side-exit seeds) */
   size_t mcode;			/* executable bytes */
   int ncode;
   LuaR_Code code[LUAR_JIT_MAXCODE];

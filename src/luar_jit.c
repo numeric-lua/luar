@@ -67,6 +67,7 @@ static void free_code (LuaR_JIT *J) {
   }
   J->ncode = 0;
   J->compiled = 0;
+  J->exits = 0;
   J->mcode = 0;
 }
 
@@ -1066,7 +1067,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       p->luar_code[i] = NULL;   /* flushed: mapping was released */
       continue;
     }
-    return ((LuaR_LoopFn)p->luar_code[i])(base);
+    {
+      int r = ((LuaR_LoopFn)p->luar_code[i])(base);
+      if (r == 0)
+        J->exits++;
+      return r;
+    }
   }
   return 0;
 }
@@ -1394,6 +1400,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "mcode");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->compiled : 0);
   lua_setfield(L, -2, "compiled");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->exits : 0);
+  lua_setfield(L, -2, "exits");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;

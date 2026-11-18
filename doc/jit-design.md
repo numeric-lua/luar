@@ -32,7 +32,8 @@ is provably observationally equivalent to that interpreter.
   with register-cached sum/subtraction/product/square fast paths (integer
   or float); other backward inner loops still fall back.  A `Proto` keeps the first compiled
   loop and the most recently compiled one (two slots); a 64-bit bloom of
-  hot backedges prevents retrying rejected loops.  The code cache is capped
+  hot backedges prevents retrying rejected loops.  Guard failures increment `jit.stats().exits`, the seed counter for future
+  side traces.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.
 - **Gate status.**  `numeric/int_sum` is ~9x faster than the interpreter
   (ahead of LuaJIT), `numeric/float_loop` ~4x, and `mandel` is near parity
