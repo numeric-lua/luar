@@ -96,7 +96,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J2 `while` support: simple integer-conditioned `while` loops (body without
   calls/tables/float conditions) run their remaining iterations natively;
   `break` and float conditions fall back.
-- Early J3 coverage (opt-in `jit.opt.start("table=1")`): raw integer array
+- J3 raw table fill/sum intrinsics (default, `tint=0` disables):
+  `t[i]=i` and `acc=acc+t[i]` loops are executed by C helpers, making
+  `table/array` ~0.69x stock Lua.  Generic table emission remains opt-in
+  (`jit.opt.start("table=1")`): raw integer array
   stores (`t[i] = i`) and accumulation (`acc = acc + t[i]`), including
   register-cached fill/sum fast paths,, with metatable/bounds/tag guards
   that bail before the current iteration.  Both are correct but not yet

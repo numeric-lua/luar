@@ -51,6 +51,7 @@ void luari_jit_init (lua_State *L) {
   J->epoch = 1;
   J->enabled = 1;
   J->hotloop = LUAR_JIT_HOTCOUNT;
+  J->enable_tint = 1;
   G(L)->luar_jit = J;
 }
 
@@ -754,6 +755,36 @@ decode_done:
     d.fast_fill = 1;
     d.ff_table = ops[0].a;
   }
+  if ((d.fast_fill || d.fast_tsum) && J->enable_tint) {
+    int slot = -1, k;
+    int tint = d.fast_fill ? 1 : 2;
+    for (k = 0; k < 2; k++) {
+      if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+        slot = k;
+        break;
+      }
+    }
+    if (slot < 0) {
+      for (k = 0; k < 2; k++) {
+        if (p->luar_code_pc[k] == (int)backedge ||
+            (p->luar_tint[k] != 0 && p->luar_tint_pc[k] == (int)backedge)) {
+          slot = k;
+          break;
+        }
+      }
+    }
+    if (slot < 0)
+      slot = 1;
+    p->luar_code[slot] = NULL;
+    p->luar_tint[slot] = tint;
+    p->luar_tint_pc[slot] = (int)backedge;
+    p->luar_tint_table[slot] = d.fast_fill ? d.ff_table : d.ft_table;
+    p->luar_tint_acc[slot] = d.fast_tsum ? d.ft_acc : 0;
+    p->luar_tint_base[slot] = for_a;
+    p->luar_tint_epoch[slot] = J->epoch;
+    J->compiled++;
+    return 1;
+  }
   if (d.has_table && !J->enable_table)
     return 0;
 
@@ -1064,6 +1095,102 @@ emit_ready:
 }
 
 
+static int table_fill_intrinsic (lua_State *L, TValue *base,
+                                 int for_a, int table_reg) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *tt = &base[table_reg];
+  lua_Integer count, step, idx, last, k;
+  Table *h;
+  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  if (last > (1 << 22))
+    return 0;
+  h = hvalue(tt);
+  if (h->metatable != NULL)
+    return 0;
+  if (h->asize < (unsigned)last)
+    luaH_resize(L, h, (unsigned)last, 0);
+  for (k = 0; k <= count; k++) {
+    TValue v;
+    setivalue(&v, idx + k);
+    obj2arr(h, (unsigned)(idx - 1 + k), &v);
+  }
+  setivalue(ct, 0);
+  setivalue(it, idx + count);
+  return 1;
+}
+
+
+static int table_sum_intrinsic (lua_State *L, TValue *base,
+                                int for_a, int table_reg, int acc_reg) {
+  (void)L;
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *tt = &base[table_reg];
+  TValue *at = &base[acc_reg];
+  lua_Integer count, step, idx, last, k;
+  Table *h;
+  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  if (last > (1 << 22))
+    return 0;
+  h = hvalue(tt);
+  if (h->metatable != NULL || (unsigned)last > h->asize)
+    return 0;
+  if (ttisinteger(at)) {
+    lua_Unsigned sum = l_castS2U(ivalue(at));
+    for (k = 0; k <= count; k++) {
+      unsigned key = (unsigned)(idx + k - 1);
+      lu_byte tag = *getArrTag(h, key);
+      if (tag != LUA_VNUMINT)
+        return 0;
+      sum += l_castS2U(getArrVal(h, key)->i);
+    }
+    chgivalue(at, l_castU2S(sum));
+  }
+  else if (ttisfloat(at)) {
+    lua_Number sum = fltvalue(at);
+    for (k = 0; k <= count; k++) {
+      unsigned key = (unsigned)(idx + k - 1);
+      lu_byte tag = *getArrTag(h, key);
+      if (tag == LUA_VNUMINT)
+        sum += cast_num(getArrVal(h, key)->i);
+      else if (tag == LUA_VNUMFLT)
+        sum += getArrVal(h, key)->n;
+      else
+        return 0;
+    }
+    setfltvalue(at, sum);
+  }
+  else
+    return 0;
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                        int expected_base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -1074,6 +1201,25 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     return 0;
   if (L->hookmask != 0)
     return 0;
+  for (i = 0; i < 2; i++) {
+    if (p->luar_tint[i] != 0 && p->luar_tint_pc[i] == pc &&
+        p->luar_tint_base[i] == expected_base) {
+      int r;
+      if (p->luar_tint_epoch[i] != J->epoch) {
+        p->luar_tint[i] = 0;
+        continue;
+      }
+      r = (p->luar_tint[i] == 1)
+              ? table_fill_intrinsic(L, (TValue *)base, expected_base,
+                                     p->luar_tint_table[i])
+              : table_sum_intrinsic(L, (TValue *)base, expected_base,
+                                    p->luar_tint_table[i],
+                                    p->luar_tint_acc[i]);
+      if (r == 0)
+        J->exits++;
+      return r;
+    }
+  }
   for (i = 0; i < 2; i++) {
     if (p->luar_code[i] == NULL || p->luar_code_pc[i] != pc ||
         p->luar_code_base[i] != expected_base)
@@ -1258,8 +1404,12 @@ static int jit_opt_start (lua_State *L) {
   lua_newtable(L);
   for (i = 1; i <= n; i++) {
     const char *opt = luaL_checkstring(L, i);
-    if (J != NULL && strncmp(opt, "table=", 6) == 0)
+    if (J != NULL && strncmp(opt, "table=", 6) == 0) {
       J->enable_table = (opt[6] != '0');
+      J->enable_tint = (opt[6] != '0');
+    }
+    else if (J != NULL && strncmp(opt, "tint=", 5) == 0)
+      J->enable_tint = (opt[5] != '0');
     else if (J != NULL && strncmp(opt, "call=", 5) == 0)
       J->enable_partial = (opt[5] != '0');
     else if (J != NULL && strncmp(opt, "hotloop=", 8) == 0) {

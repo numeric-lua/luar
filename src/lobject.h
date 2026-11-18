@@ -631,6 +631,12 @@ typedef struct Proto {
   int luar_code_pc[2];
   int luar_code_base[2];
   l_uint32 luar_code_epoch[2];
+  int luar_tint[2];	/* 1 = table fill intrinsic */
+  int luar_tint_pc[2];
+  int luar_tint_table[2];
+  int luar_tint_acc[2];
+  int luar_tint_base[2];
+  l_uint32 luar_tint_epoch[2];
   unsigned long long luar_seen;
   l_uint32 luar_hot_limit;
 } Proto;

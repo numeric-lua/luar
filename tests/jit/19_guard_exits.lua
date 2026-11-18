@@ -16,14 +16,15 @@ jit.flush()
 jit.opt.start("table=1")
 jit.on()
 local ints = {}
-local floats = {}
+local bad = {}
 for i = 1, 200 do
   ints[i] = i
-  floats[i] = i + 0.5
+  bad[i] = i
 end
+bad[100] = "x"
 H.eq(sum(ints, 200), 20100)
 local before = jit.stats().exits
-H.eq(sum(floats, 200) ~= nil, true)
+H.raises(function () return sum(bad, 200) end, "attempt to add")
 H.check(jit.stats().exits > before, "guard failures were not counted")
 
 jit.flush()

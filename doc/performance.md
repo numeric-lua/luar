@@ -32,17 +32,17 @@
 > | numeric/while_sum | 59.88 | **1.96** | 0.03 | 7.83 | 0.13 |
 > | numeric/fib | 13.39 | 13.61 | 1.02 | 1.47 | 0.11 |
 > | numeric/mandel | 20.90 | 21.22 | 1.02 | 1.42 | 0.07 |
-> | table/array | 32.92 | 34.55 | 1.05 | 12.01 | 0.36 |
-> | table/hash | 9.02 | 9.21 | 1.02 | 3.58 | 0.40 |
-> | table/new_clear | 16.58 | **12.18** | 0.73 | 2.93 | 0.18 |
+> | table/array | 25.15 | **17.41** | 0.69 | 8.68 | 0.35 |
+> | table/hash | 8.88 | 9.05 | 1.02 | 3.42 | 0.38 |
+> | table/new_clear | 16.49 | **11.88** | 0.72 | 2.14 | 0.13 |
 >
 > The register-cached fast paths are the source of the integer, float,
 > product, linear, square, repeat, while, float division and float sums;
 > `table/new_clear` is
 > faster through the LuaR extension/interpreter path.  `fib` is unchanged because calls are not
-> compiled; `mandel` is now at parity, `table/array` is still a modest
-> regression because its loops are not profitable under the loop-level JIT,
-> and the table tier remains opt-in.  Preallocating the fill array from the loop's
+> compiled; `mandel` is now at parity, and `table/array` is now 0.69x stock
+> Lua thanks to default raw fill/sum intrinsics (generic table JIT remains
+> opt-in).  Preallocating the fill array from the loop's
 > remaining count was also tested; it did not make the native fill faster than
 > the interpreter, so it was not kept.  `-O3` (the default from this build)
 > improved the interpreter path without changing semantics.  The official suite, ASan and the whole test

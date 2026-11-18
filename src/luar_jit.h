@@ -51,6 +51,7 @@ typedef struct LuaR_JIT {
   int enabled;			/* jit.off() clears this */
   uint32_t hotloop;		/* jit.opt.start("hotloop=N") */
   int enable_table;		/* experimental J3 table lookups (opt-in) */
+  int enable_tint;		/* raw table fill/sum intrinsics (default on) */
   int enable_partial;		/* experimental numeric prefixes before CALL */
   int dump_trace;		/* jit.dump("t"): print bytecode snapshots */
   int dump_ir;			/* jit.dump("i"): print linear IR */
@@ -112,7 +113,8 @@ static inline int luari_jit_hot (lua_State *L, Proto *p,
 #else
 #define LUAR_JIT_HOT(L, p, pc, base)	luari_jit_hot((L), (p), (pc), (base))
 #define LUAR_JIT_RUN(L, p, pc, base, exp) \
-  ((((p)->luar_code[0] != NULL) || ((p)->luar_code[1] != NULL)) ? \
+  ((((p)->luar_code[0] != NULL) || ((p)->luar_code[1] != NULL) || \
+     ((p)->luar_tint[0] != 0) || ((p)->luar_tint[1] != 0)) ? \
    luari_jit_try_run((L), (p), (pc), (base), (exp)) : 0)
 #endif
 
