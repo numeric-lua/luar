@@ -1751,6 +1751,260 @@ static void callback_handler (ffi_cif *cif, void *ret, void **args,
 }
 
 
+static int packed_callback_mixed_candidate (CType *ft) {
+  CType *at0, *at1, *rt;
+  if (ft->nargs != 2)
+    return 0;
+  at0 = ft->args[0];
+  at1 = ft->args[1];
+  rt = ft->ret;
+  if (!(at0->kind == CT_STRUCT && at0->pack == 1 &&
+        at0->align_override == 0 && at0->size > 0 && at0->size <= 8 &&
+        packed_int_type(at0)))
+    return 0;
+  if (!(at1->kind == CT_INT || at1->kind == CT_BOOL ||
+        at1->kind == CT_ENUM) || at1->size == 0 || at1->size > 8)
+    return 0;
+  if (rt->kind == CT_STRUCT && rt->pack == 1 && rt->align_override == 0 &&
+      rt->size > 0 && rt->size <= 16 && packed_int_type(rt))
+    return 1;
+  switch (rt->kind) {
+    case CT_VOID: case CT_INT: case CT_BOOL: case CT_ENUM:
+    case CT_FLOAT: case CT_POINTER: case CT_FUNC:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+
+static int64_t packed_callback_scalar_value (CType *ct, const void *p) {
+  const unsigned char *b = (const unsigned char *)p;
+  uint64_t u = 0;
+  size_t i;
+  for (i = 0; i < ct->size && i < 8; i++)
+    u |= (uint64_t)b[i] << (8 * i);
+  if (ct->is_unsigned || ct->kind == CT_BOOL || ct->kind == CT_ENUM)
+    return (int64_t)u;
+  if (ct->size < 8 && (u & ((uint64_t)1 << (ct->size * 8 - 1))) != 0)
+    u |= ~(((uint64_t)1 << (ct->size * 8)) - 1);
+  return (int64_t)u;
+}
+
+
+static uint64_t packed_callback_scalar_ret (FCallback *cb, CType *rt) {
+  lua_State *L = cb->L;
+  int ok = 1;
+  uint64_t out = 0;
+  switch (rt->kind) {
+    case CT_INT:
+    case CT_BOOL:
+    case CT_ENUM:
+      out = (uint64_t)ffi_to_int(L, cb->S, -1, &ok);
+      if (!ok) { out = 0; callback_set_error(L, "packed callback return"); }
+      break;
+    case CT_FLOAT: {
+      double d = ffi_to_double(L, cb->S, -1, &ok);
+      if (!ok) { d = 0; callback_set_error(L, "packed callback return"); }
+      if (rt->size == 4) {
+        float f = (float)d;
+        memcpy(&out, &f, sizeof(f));
+      }
+      else
+        memcpy(&out, &d, sizeof(d));
+      break;
+    }
+    case CT_POINTER:
+    case CT_FUNC:
+      out = (uint64_t)(uintptr_t)ffi_to_ptr(L, cb->S, -1, &ok);
+      if (!ok) { out = 0; callback_set_error(L, "packed callback return"); }
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
+
+static uint64_t packed_callback_mixed_scalar (FCallback *cb, const void *buf) {
+  lua_State *L = cb->L;
+  CType *at = cb->ft->args[0];
+  CType *st = cb->ft->args[1];
+  CType *rt = cb->ft->ret;
+  int top = lua_gettop(L);
+  uint64_t out;
+  if (!lua_checkstack(L, 5)) {
+    callback_set_error(L, "packed callback stack overflow");
+    return 0;
+  }
+  lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
+  {
+    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
+    memcpy(cd->v.p, (const char *)buf + 8, at->size);
+  }
+  lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(st, buf));
+  if (lua_pcall(L, 2, rt->kind == CT_VOID ? 0 : 1, 0) != LUA_OK) {
+    callback_set_error(L, lua_tostring(L, -1));
+    lua_settop(L, top);
+    return 0;
+  }
+  out = packed_callback_scalar_ret(cb, rt);
+  lua_settop(L, top);
+  return out;
+}
+
+
+static void packed_callback_mixed_ret (FCallback *cb, const void *buf,
+                                       void *ret) {
+  lua_State *L = cb->L;
+  CType *at = cb->ft->args[0];
+  CType *st = cb->ft->args[1];
+  CType *rt = cb->ft->ret;
+  int top = lua_gettop(L);
+  if (!lua_checkstack(L, 5)) {
+    memset(ret, 0, rt->size);
+    callback_set_error(L, "packed callback stack overflow");
+    return;
+  }
+  lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
+  {
+    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
+    memcpy(cd->v.p, (const char *)buf + 8, at->size);
+  }
+  lua_pushinteger(L, (lua_Integer)packed_callback_scalar_value(st, buf));
+  if (lua_pcall(L, 2, 1, 0) != LUA_OK) {
+    memset(ret, 0, rt->size);
+    callback_set_error(L, lua_tostring(L, -1));
+    lua_settop(L, top);
+    return;
+  }
+  {
+    CData *cd = ffi_tocdata(L, -1);
+    if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
+        cd->ct->kind == CT_STRUCT && cd->ct->size == rt->size) {
+      memcpy(ret, cd->v.p, rt->size);
+    }
+    else {
+      memset(ret, 0, rt->size);
+      callback_set_error(L, "packed callback returned an incompatible value");
+    }
+  }
+  lua_settop(L, top);
+}
+
+
+static void *packed_callback_mixed_thunk (FCallback *cb, int packed_ret) {
+  unsigned char code[192];
+  size_t n = 0, i;
+  void *mem;
+  size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  if (!packed_ret) {
+    /* sub rsp,72; mov [rsp],rdi; lea r10,[rsp+80]; mov rax,[r10];
+       mov [rsp+8],rax; mov rdi,cb; mov rsi,rsp; mov rax,dispatcher;
+       call rax; add rsp,72; [movq xmm0,rax]; ret */
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x48;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x3c; code[n++] = 0x24;
+    code[n++] = 0x4c; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
+    code[n++] = 0x50;
+    code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x02;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x44; code[n++] = 0x24;
+    code[n++] = 0x08;
+    code[n++] = 0x48; code[n++] = 0xbf;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)cb;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe6;
+    code[n++] = 0x48; code[n++] = 0xb8;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)&packed_callback_mixed_scalar;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0xff; code[n++] = 0xd0;
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x48;
+    if (cb->ft->ret->kind == CT_FLOAT) {
+      code[n++] = 0x66; code[n++] = 0x48; code[n++] = 0x0f;
+      code[n++] = 0x6e; code[n++] = 0xc0;
+    }
+    code[n++] = 0xc3;
+  }
+  else {
+    /* sub rsp,88; mov [rsp+32],rdi; mov [rsp],rsi; lea r10,[rsp+96];
+       mov rax,[r10]; mov [rsp+8],rax; lea rdx,[rsp+40];
+       mov rdi,cb; mov rsi,rsp; call dispatcher; mov r8,[rsp+32];
+       copy ret bytes [rsp+40]; mov rax,r8; add rsp,88; ret */
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x58;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x7c; code[n++] = 0x24;
+    code[n++] = 0x20;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x34; code[n++] = 0x24;
+    code[n++] = 0x4c; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
+    code[n++] = 0x60;
+    code[n++] = 0x49; code[n++] = 0x8b; code[n++] = 0x02;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x44; code[n++] = 0x24;
+    code[n++] = 0x08;
+    code[n++] = 0x48; code[n++] = 0x8d; code[n++] = 0x54; code[n++] = 0x24;
+    code[n++] = 0x28;
+    code[n++] = 0x48; code[n++] = 0xbf;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)cb;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe6;
+    code[n++] = 0x48; code[n++] = 0xb8;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)&packed_callback_mixed_ret;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0xff; code[n++] = 0xd0;
+    code[n++] = 0x4c; code[n++] = 0x8b; code[n++] = 0x44; code[n++] = 0x24;
+    code[n++] = 0x20;
+    for (i = 0; i < cb->ft->ret->size; i++) {
+      code[n++] = 0x8a; code[n++] = 0x44; code[n++] = 0x24;
+      code[n++] = (unsigned char)(0x28 + i);
+      code[n++] = 0x41; code[n++] = 0x88; code[n++] = 0x40;
+      code[n++] = (unsigned char)i;
+    }
+    code[n++] = 0x4c; code[n++] = 0x89; code[n++] = 0xc0;
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x58;
+    code[n++] = 0xc3;
+  }
+  mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED)
+    return NULL;
+  memcpy(mem, code, n);
+  if (mprotect(mem, pagesize, PROT_READ | PROT_EXEC) != 0) {
+    munmap(mem, pagesize);
+    return NULL;
+  }
+  return mem;
+}
+
+
+static int ffi_callback_new_packed_mixed (lua_State *L, FFIState *S, CType *ct,
+                                          CType *ft, int funcidx) {
+  FCallback *cb = (FCallback *)calloc(1, sizeof(FCallback));
+  CData *cd;
+  if (cb == NULL)
+    return luaL_error(L, "ffi.callback: out of memory");
+  cb->L = L;
+  cb->S = S;
+  cb->ft = ft;
+  cb->fnref = LUA_NOREF;
+  cb->code = packed_callback_mixed_thunk(cb, ft->ret->kind == CT_STRUCT);
+  if (cb->code == NULL) {
+    free(cb);
+    return luaL_error(L, "ffi.callback: cannot allocate a packed thunk");
+  }
+  lua_pushvalue(L, funcidx);
+  cb->fnref = luaL_ref(L, LUA_REGISTRYINDEX);
+  cd = ffi_push_cdata_object(L, S, ct, CDATA_FUNC | CDATA_CALLBACK, 0);
+  cd->v.p = cb->code;
+  cd->aux = cb;
+  return 1;
+}
+
+
 static int packed_callback_candidate (CType *ft) {
   CType *rt = ft->ret;
   int i, rt_ok;
@@ -1991,6 +2245,8 @@ int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
   if (ft->ret->kind == CT_ARRAY)
     return luaL_error(L, "ffi.callback: return type '%s' is not supported",
                       ffi_type_repr(S, ft->ret));
+  if (packed_callback_mixed_candidate(ft))
+    return ffi_callback_new_packed_mixed(L, S, ct, ft, funcidx);
   if (packed_callback_candidate(ft))
     return ffi_callback_new_packed(L, S, ct, ft, funcidx);
   nargs = ft->nargs;
