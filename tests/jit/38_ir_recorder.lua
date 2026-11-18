@@ -15,6 +15,8 @@ local st = jit.stats()
 H.check(st.ir_traces >= 1, "no J4 IR trace recorded")
 H.check(st.ir_ops >= 2, "J4 IR trace has too few operations")
 H.check(st.ir_aborts >= 0, "missing IR abort counter")
+H.check(st.ir_compiled >= 1, "recorded IR did not compile")
+H.check(st.ir_code_bytes > 0, "empty IR machine code")
 
 jit.flush()
 H.eq(jit.stats().ir_traces, 0)

@@ -1455,6 +1455,127 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   | ret
 }
 
+static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
+  int i, forslot = -1;
+  | push rbx
+  | mov rbx, rdi
+  |1:
+  for (i = 0; i < t->nins; i++) {
+    const LuaR_IRIns *in = &t->ins[i];
+    switch (in->kind) {
+      case LUAR_IR_GUARD: {
+        int tag = (in->b == LUAR_IR_TAG_INT) ? LUA_VNUMINT :
+                  (in->b == LUAR_IR_TAG_FLOAT) ? LUA_VNUMFLT :
+                  (in->b == LUAR_IR_TAG_TABLE) ? LUA_VTABLE : 0;
+        if (tag == 0)
+          return 0;
+        | cmp byte [rbx + ((int)LUAR_TAG(in->a))], tag
+        | jne >2
+        break;
+      }
+      case LUAR_IR_LOADI:
+        | mov64 rax, in->ival
+        | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
+        break;
+      case LUAR_IR_ADDI:
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(in->b))]
+        | add rax, in->ival
+        | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
+        break;
+      case LUAR_IR_SLOAD:
+      case LUAR_IR_SSTORE:
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(in->b))]
+        | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
+        | mov al, byte [rbx + ((int)LUAR_TAG(in->b))]
+        | mov byte [rbx + ((int)LUAR_TAG(in->a))], al
+        break;
+      case LUAR_IR_ADD:
+      case LUAR_IR_SUB:
+      case LUAR_IR_MUL:
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(in->b))]
+        if (in->kind == LUAR_IR_ADD)
+          | add rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        else if (in->kind == LUAR_IR_SUB)
+          | sub rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        else
+          | imul rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
+        break;
+      case LUAR_IR_FORLOOP:
+        if (forslot >= 0)
+          return 0;
+        forslot = in->a;
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(forslot))]
+        | test rax, rax
+        | jz >3
+        | dec rax
+        | mov qword [rbx + ((int)LUAR_SLOT(forslot))], rax
+        | mov rcx, qword [rbx + ((int)LUAR_SLOT(forslot + 2))]
+        | add rcx, qword [rbx + ((int)LUAR_SLOT(forslot + 1))]
+        | mov qword [rbx + ((int)LUAR_SLOT(forslot + 2))], rcx
+        | jmp <1
+        break;
+      case LUAR_IR_EXIT:
+      case LUAR_IR_RET:
+        break;
+      default:
+        return 0;
+    }
+  }
+  if (forslot < 0)
+    return 0;
+  |3:
+  | mov eax, 1
+  | pop rbx
+  | ret
+  |2:
+  | xor eax, eax
+  | pop rbx
+  | ret
+  return 1;
+}
+
+int luari_emit_trace_ir (const LuaR_TraceIR *t, void **code, size_t *size) {
+  dasm_State *Dst;
+  size_t sz = 0;
+  void *mem;
+  int status;
+  if (t == NULL || code == NULL || size == NULL || t->nins <= 0)
+    return 0;
+  dasm_init(&Dst, DASM_MAXSECTION);
+  dasm_setupglobal(&Dst, NULL, 0);
+  dasm_setup(&Dst, luar_emit_actions);
+  if (!emit_trace_ir_func(&Dst, t)) {
+    dasm_free(&Dst);
+    return 0;
+  }
+  if (dasm_checkstep(&Dst, -1) != 0 ||
+      dasm_link(&Dst, &sz) != 0) {
+    dasm_free(&Dst);
+    return 0;
+  }
+  mem = mmap(NULL, sz, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED) {
+    dasm_free(&Dst);
+    return 0;
+  }
+  status = dasm_encode(&Dst, mem);
+  if (status != 0 || mprotect(mem, sz, PROT_READ | PROT_EXEC) != 0) {
+    if (status == 0) munmap(mem, sz);
+    dasm_free(&Dst);
+    return 0;
+  }
+  dasm_free(&Dst);
+  *code = mem;
+  *size = sz;
+  return 1;
+}
+
+
 LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
 {
   dasm_State *Dst;

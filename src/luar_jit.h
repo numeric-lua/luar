@@ -69,6 +69,8 @@ typedef struct LuaR_JIT {
   uint32_t ir_side_aborts;
   uint32_t ir_max_depth;
   uint32_t ir_cycles;
+  uint32_t ir_compiled;
+  uint32_t ir_code_bytes;
   size_t mcode;			/* executable bytes */
   int ncode;
   LuaR_Code code[LUAR_JIT_MAXCODE];

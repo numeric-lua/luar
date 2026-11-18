@@ -29,4 +29,9 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size) {
   return NULL;
 }
 
+int luari_emit_trace_ir (const LuaR_TraceIR *t, void **code, size_t *size) {
+  (void)t; (void)code; (void)size;
+  return 0;
+}
+
 #endif

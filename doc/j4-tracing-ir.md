@@ -17,8 +17,13 @@ the working JIT can keep shipping while a trace compiler is built.
 - Side-link metadata: depth cap 4, cycle detection against the root loop
   target, reported by `ir_max_depth`/`ir_cycles`.
 - IR type/liveness analysis: **implemented** for integer and table ops.
+- IR-to-x86-64 emission: **implemented for integer root traces**
+  (constants, moves, guards, arithmetic, `FORLOOP`, exit/ret), counted by
+  `jit.stats().ir_compiled/ir_code_bytes`.  The code is compiled as a
+  validation shadow of the existing loop JIT, not yet linked/executed.
 - Side-trace linker/depth caps/cycle handling: **not implemented**.
-- Machine-code emission from the IR: **not implemented**.
+- Machine-code emission from the IR: **implemented for integer root
+  traces**, currently validation-only; side-segment linking is next.
 
 `jit.trace_ir().selftest()` exercises IR construction, verification, exit
 snapshotting and restore.

@@ -14,6 +14,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "luar_trace.h"
+
 typedef enum {
   LUAR_OP_MOVE,
   LUAR_OP_LOADI,
@@ -143,6 +145,7 @@ typedef int (*LuaR_LoopFn) (void *base);
 ** owns the mapping and must munmap(*code_size) bytes when done.
 */
 LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size);
+int luari_emit_trace_ir (const LuaR_TraceIR *t, void **code, size_t *size);
 
 /* Nonzero when this build can emit and execute native loops on the host. */
 int luari_emit_available (void);
