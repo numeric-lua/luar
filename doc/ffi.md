@@ -140,7 +140,9 @@ preprocessor subset is available.
   packed **integer** struct with exactly one by-value argument and a scalar
   return can be called through a MEMORY-ABI stack thunk; a packed integer
   struct can also be returned from functions taking up to five scalar
-  arguments through an sret thunk (integer registers shifted past the
+  arguments through an sret thunk; on x86-64 a callback taking one packed
+  integer argument can return a scalar (including float) or another packed
+  integer struct (integer registers shifted past the
   hidden return pointer).  Up to three packed integer arguments can be
   passed to a function returning a packed integer struct; the return uses
   an embedded sret buffer, so its size is not limited to one chunk.  Up to

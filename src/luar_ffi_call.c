@@ -1751,6 +1751,221 @@ static void callback_handler (ffi_cif *cif, void *ret, void **args,
 }
 
 
+static int packed_callback_candidate (CType *ft) {
+  CType *at;
+  CType *rt;
+  int at_ok, rt_ok;
+  if (ft->nargs != 1)
+    return 0;
+  at = ft->args[0];
+  rt = ft->ret;
+  at_ok = (at->kind == CT_STRUCT && at->pack == 1 &&
+           at->align_override == 0 && at->size > 0 && at->size <= 16 &&
+           packed_int_type(at));
+  if (!at_ok)
+    return 0;
+  rt_ok = (rt->kind == CT_STRUCT && rt->pack == 1 &&
+           rt->align_override == 0 && rt->size > 0 && rt->size <= 16 &&
+           packed_int_type(rt));
+  if (rt_ok)
+    return 1;
+  switch (rt->kind) {
+    case CT_VOID: case CT_INT: case CT_BOOL: case CT_ENUM:
+    case CT_FLOAT: case CT_POINTER: case CT_FUNC:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+
+static uint64_t packed_callback_scalar (FCallback *cb, const void *arg) {
+  lua_State *L = cb->L;
+  CType *at = cb->ft->args[0];
+  CType *rt = cb->ft->ret;
+  int top = lua_gettop(L);
+  uint64_t out = 0;
+  int ok = 1;
+  if (!lua_checkstack(L, 4)) {
+    callback_set_error(L, "packed callback stack overflow");
+    return 0;
+  }
+  lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
+  {
+    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
+    memcpy(cd->v.p, arg, at->size);
+  }
+  if (lua_pcall(L, 1, rt->kind == CT_VOID ? 0 : 1, 0) != LUA_OK) {
+    callback_set_error(L, lua_tostring(L, -1));
+    lua_settop(L, top);
+    return 0;
+  }
+  switch (rt->kind) {
+    case CT_INT:
+    case CT_BOOL:
+    case CT_ENUM:
+      out = (uint64_t)ffi_to_int(L, cb->S, -1, &ok);
+      if (!ok) { out = 0; callback_set_error(L, "packed callback return"); }
+      break;
+    case CT_FLOAT: {
+      double d = ffi_to_double(L, cb->S, -1, &ok);
+      if (!ok) { d = 0; callback_set_error(L, "packed callback return"); }
+      if (rt->size == 4) {
+        float f = (float)d;
+        memcpy(&out, &f, sizeof(f));
+      }
+      else
+        memcpy(&out, &d, sizeof(d));
+      break;
+    }
+    case CT_POINTER:
+    case CT_FUNC:
+      out = (uint64_t)(uintptr_t)ffi_to_ptr(L, cb->S, -1, &ok);
+      if (!ok) { out = 0; callback_set_error(L, "packed callback return"); }
+      break;
+    default:
+      break;
+  }
+  lua_settop(L, top);
+  return out;
+}
+
+
+static void packed_callback_ret (FCallback *cb, const void *arg, void *ret) {
+  lua_State *L = cb->L;
+  CType *at = cb->ft->args[0];
+  CType *rt = cb->ft->ret;
+  int top = lua_gettop(L);
+  if (!lua_checkstack(L, 4)) {
+    memset(ret, 0, rt->size);
+    callback_set_error(L, "packed callback stack overflow");
+    return;
+  }
+  lua_rawgeti(L, LUA_REGISTRYINDEX, cb->fnref);
+  {
+    CData *cd = ffi_push_owned(L, cb->S, at, at->size);
+    memcpy(cd->v.p, arg, at->size);
+  }
+  if (lua_pcall(L, 1, 1, 0) != LUA_OK) {
+    memset(ret, 0, rt->size);
+    callback_set_error(L, lua_tostring(L, -1));
+    lua_settop(L, top);
+    return;
+  }
+  {
+    CData *cd = ffi_tocdata(L, -1);
+    if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
+        cd->ct->kind == CT_STRUCT && cd->ct->size == rt->size) {
+      memcpy(ret, cd->v.p, rt->size);
+    }
+    else {
+      memset(ret, 0, rt->size);
+      callback_set_error(L, "packed callback returned an incompatible value");
+    }
+  }
+  lua_settop(L, top);
+}
+
+
+static void *packed_callback_thunk (FCallback *cb, int packed_ret) {
+  unsigned char code[256];
+  size_t n = 0, i;
+  void *mem;
+  size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
+  if (!packed_ret) {
+    /* sub rsp,40; lea rsi,[rsp+48]; mov rdi,cb; mov rax,dispatcher;
+       call rax; add rsp,40; [movq xmm0,rax]; ret */
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x28;
+    code[n++] = 0x48; code[n++] = 0x8d; code[n++] = 0x74; code[n++] = 0x24;
+    code[n++] = 0x30;
+    code[n++] = 0x48; code[n++] = 0xbf;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)cb;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0x48; code[n++] = 0xb8;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)&packed_callback_scalar;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0xff; code[n++] = 0xd0;
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x28;
+    if (cb->ft->ret->kind == CT_FLOAT) {
+      code[n++] = 0x66; code[n++] = 0x48; code[n++] = 0x0f;
+      code[n++] = 0x6e; code[n++] = 0xc0; /* movq xmm0,rax */
+    }
+    code[n++] = 0xc3;
+  }
+  else {
+    /* sub rsp,56; mov [rsp+32],rdi; lea rsi,[rsp+64]; mov rdx,rsp;
+       mov rdi,cb; mov rax,dispatcher; call rax; mov r8,[rsp+32];
+       copy bytes; mov rax,r8; add rsp,56; ret */
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xec; code[n++] = 0x38;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0x7c; code[n++] = 0x24;
+    code[n++] = 0x20;
+    code[n++] = 0x48; code[n++] = 0x8d; code[n++] = 0x74; code[n++] = 0x24;
+    code[n++] = 0x40;
+    code[n++] = 0x48; code[n++] = 0x89; code[n++] = 0xe2;
+    code[n++] = 0x48; code[n++] = 0xbf;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)cb;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0x48; code[n++] = 0xb8;
+    {
+      uint64_t p = (uint64_t)(uintptr_t)&packed_callback_ret;
+      for (i = 0; i < 8; i++) code[n++] = (unsigned char)(p >> (8 * i));
+    }
+    code[n++] = 0xff; code[n++] = 0xd0;
+    code[n++] = 0x4c; code[n++] = 0x8b; code[n++] = 0x44; code[n++] = 0x24;
+    code[n++] = 0x20;
+    for (i = 0; i < cb->ft->ret->size; i++) {
+      code[n++] = 0x8a; code[n++] = 0x44; code[n++] = 0x24;
+      code[n++] = (unsigned char)i;
+      code[n++] = 0x41; code[n++] = 0x88; code[n++] = 0x40;
+      code[n++] = (unsigned char)i;
+    }
+    code[n++] = 0x4c; code[n++] = 0x89; code[n++] = 0xc0;
+    code[n++] = 0x48; code[n++] = 0x83; code[n++] = 0xc4; code[n++] = 0x38;
+    code[n++] = 0xc3;
+  }
+  mem = mmap(NULL, pagesize, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (mem == MAP_FAILED)
+    return NULL;
+  memcpy(mem, code, n);
+  if (mprotect(mem, pagesize, PROT_READ | PROT_EXEC) != 0) {
+    munmap(mem, pagesize);
+    return NULL;
+  }
+  return mem;
+}
+
+
+static int ffi_callback_new_packed (lua_State *L, FFIState *S, CType *ct,
+                                    CType *ft, int funcidx) {
+  FCallback *cb = (FCallback *)calloc(1, sizeof(FCallback));
+  CData *cd;
+  if (cb == NULL)
+    return luaL_error(L, "ffi.callback: out of memory");
+  cb->L = L;
+  cb->S = S;
+  cb->ft = ft;
+  cb->fnref = LUA_NOREF;
+  cb->code = packed_callback_thunk(cb, ft->ret->kind == CT_STRUCT);
+  if (cb->code == NULL) {
+    free(cb);
+    return luaL_error(L, "ffi.callback: cannot allocate a packed thunk");
+  }
+  lua_pushvalue(L, funcidx);
+  cb->fnref = luaL_ref(L, LUA_REGISTRYINDEX);
+  cd = ffi_push_cdata_object(L, S, ct, CDATA_FUNC | CDATA_CALLBACK, 0);
+  cd->v.p = cb->code;
+  cd->aux = cb;
+  return 1;
+}
+
+
 int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
   CType *ft = ct;
   FCallback *cb;
@@ -1766,6 +1981,8 @@ int ffi_callback_new (lua_State *L, FFIState *S, CType *ct, int funcidx) {
   if (ft->ret->kind == CT_ARRAY)
     return luaL_error(L, "ffi.callback: return type '%s' is not supported",
                       ffi_type_repr(S, ft->ret));
+  if (packed_callback_candidate(ft))
+    return ffi_callback_new_packed(L, S, ct, ft, funcidx);
   nargs = ft->nargs;
   cb = (FCallback *)calloc(1, sizeof(FCallback));
   if (cb == NULL)
@@ -1857,6 +2074,8 @@ void ffi_callback_free (lua_State *L, CData *cd) {
   cd->aux = NULL;
   if (cb->closure != NULL)
     ffi_closure_free(cb->closure);
+  else if (cb->code != NULL)
+    munmap(cb->code, (size_t)sysconf(_SC_PAGESIZE));
   ft_free_all(cb->allocs);
   free(cb->args);
   if (cb->fnref != LUA_NOREF)

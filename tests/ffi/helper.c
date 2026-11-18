@@ -396,3 +396,19 @@ struct PackedS packedmixmulti2 (struct PackedS a, double d, struct PackedS b, in
 struct PackedS packedadd4 (struct PackedS a, struct PackedS b, struct PackedS c, struct PackedS d) {
   struct PackedS q; q.c=(char)(a.c+b.c+c.c+d.c); q.i=a.i+b.i+c.i+d.i; q.s=(short)(a.s+b.s+c.s+d.s); return q;
 }
+typedef int (*packed_cb_t)(struct PackedS);
+typedef struct PackedS (*packed_ret_cb_t)(struct PackedS);
+typedef struct PackedWide (*wide_ret_cb_t)(struct PackedWide);
+static packed_cb_t g_packed_cb;
+static packed_ret_cb_t g_packed_ret_cb;
+static wide_ret_cb_t g_wide_ret_cb;
+void set_packed_cb (packed_cb_t cb) { g_packed_cb = cb; }
+void set_packed_ret_cb (packed_ret_cb_t cb) { g_packed_ret_cb = cb; }
+void set_wide_ret_cb (wide_ret_cb_t cb) { g_wide_ret_cb = cb; }
+int invoke_packed (struct PackedS p) { return g_packed_cb(p); }
+struct PackedS invoke_packed_ret (struct PackedS p) { return g_packed_ret_cb(p); }
+struct PackedWide invoke_wide (struct PackedWide p) { return g_wide_ret_cb(p); }
+typedef double (*double_cb_t)(struct PackedS);
+static double_cb_t g_double_cb;
+void set_double_cb (double_cb_t cb) { g_double_cb = cb; }
+double invoke_packed_d (struct PackedS p) { return g_double_cb(p); }

@@ -27,6 +27,14 @@ struct PackedS packedmix2(struct PackedS p, int a, double b);
 struct PackedS packedmixmulti(struct PackedS a, struct PackedS b, int k);
 struct PackedS packedmixmulti2(struct PackedS a, double d, struct PackedS b, int k);
 struct PackedS packedadd4(struct PackedS a, struct PackedS b, struct PackedS c, struct PackedS d);
+void set_packed_cb(int (*cb)(struct PackedS));
+void set_packed_ret_cb(struct PackedS (*cb)(struct PackedS));
+void set_wide_ret_cb(struct PackedWide (*cb)(struct PackedWide));
+void set_double_cb(double (*cb)(struct PackedS));
+double invoke_packed_d(struct PackedS p);
+int invoke_packed(struct PackedS p);
+struct PackedS invoke_packed_ret(struct PackedS p);
+struct PackedWide invoke_wide(struct PackedWide p);
 
 #pragma pack(push, 1)
 struct PragmaPacked { char c; int i; short s; };
@@ -112,6 +120,28 @@ local mm2 = h.packedmixmulti2(p, 2.5, p2, 100)
 H.eq(mm2.i, 123456 + 1000 + 100 + 2)
 local pa = h.packedadd4(p, p2, p2, p)
 H.eq(pa.i, 123456 + 1000 + 1000 + 123456)
+local cb = ffi.callback("int (*)(struct PackedS)",
+  function (x) return x.i end)
+h.set_packed_cb(cb)
+H.eq(h.invoke_packed(p), 123456)
+cb:set(function (x) return x.i + 1 end)
+H.eq(h.invoke_packed(p), 123457)
+local cb2 = ffi.callback("struct PackedS (*)(struct PackedS)",
+  function (x) x.i = x.i + 1; return x end)
+h.set_packed_ret_cb(cb2)
+local cbr = h.invoke_packed_ret(p)
+H.eq(cbr.i, 123457)
+local cbw = ffi.callback("struct PackedWide (*)(struct PackedWide)",
+  function (x) x.b = x.b + 1; return x end)
+h.set_wide_ret_cb(cbw)
+local cbwr = h.invoke_wide(pw)
+H.eq(cbwr.b, 1001)
+local cbd = ffi.callback("double (*)(struct PackedS)",
+  function (x) return x.i end)
+h.set_double_cb(cbd)
+H.eq(h.invoke_packed_d(p), 123456.0)
+local cbtmp = ffi.callback("int (*)(struct PackedS)", function () return 0 end)
+cbtmp:free()
 
 -- #pragma pack applies the same byte-granular layout
 H.eq(ffi.sizeof("struct PragmaPacked"), h.size_PragmaPacked())
