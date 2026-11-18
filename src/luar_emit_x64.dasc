@@ -1495,12 +1495,15 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
       case LUAR_IR_SUB:
       case LUAR_IR_MUL:
         | mov rax, qword [rbx + ((int)LUAR_SLOT(in->b))]
-        if (in->kind == LUAR_IR_ADD)
+        if (in->kind == LUAR_IR_ADD) {
           | add rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
-        else if (in->kind == LUAR_IR_SUB)
+        }
+        else if (in->kind == LUAR_IR_SUB) {
           | sub rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
-        else
+        }
+        else {
           | imul rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        }
         | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         break;

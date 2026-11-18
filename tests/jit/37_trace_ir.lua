@@ -11,6 +11,8 @@ H.eq(ir.guard_selftest(), true)
 if jit.status() then
   H.eq(ir.exec_selftest(), true)
   H.eq(ir.side_exec_selftest(), true)
+  H.eq(ir.loop_exec_selftest(), true)
+  H.eq(ir.add_selftest(), true)
 end
 
 print("jit/37_trace_ir ok")

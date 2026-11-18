@@ -123,6 +123,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Added opt-in live execution of generated root traces (`ir=1`) and fixed the
+  DynASM arithmetic action scoping that had dropped the ADD store/tag.
 - Added a trace-entry guard contract (`luar_trace_ir_guards_match`) and
   selftest for live-entry validation.
 - Added interior-segment IR execution coverage via

@@ -25,8 +25,10 @@ the working JIT can keep shipping while a trace compiler is built.
   `side_exec_selftest()` compiles/executes a non-loop interior segment.
 - Side-trace linker/depth caps/cycle handling: **not implemented**.
 - Machine-code emission from the IR: **implemented for integer root and
-  interior segments**; root traces are validation-only and the side-segment
-  selftest executes directly.  Live link/execution in `try_run` is next.
+  interior segments**.
+- Live root-trace execution: **implemented behind `jit.opt.start("ir=1")`**;
+  legacy JIT compilation is disabled for that loop while IR execution is
+  enabled.  `ir_executed` counts successful entries.
 
 `jit.trace_ir().selftest()` exercises IR construction, verification, exit
 snapshotting and restore.  `jit.trace_ir().exec_selftest()` compiles and
@@ -69,10 +71,11 @@ live slots; failing guards must fall back to the interpreter before any
 mutation.  An interior side segment starts at its recorded resume PC with
 the accumulator/control state already advanced by the parent trace.
 
-A first live-entry experiment produced an incorrect loop result because the
-entry/loop-control contract was not enforced; it was reverted.  The guard
-contract and the interior/root execution selftests are the prerequisites for
-retrying live linking.
+A first live-entry experiment produced an incorrect loop result because a
+DynASM `if/else` scoped the arithmetic store/tag actions incorrectly.  With
+braced action blocks, the loop emitter and live root path now produce the
+correct result.  The guard contract remains the entry check; interior
+side-segment linking is still pending.
 
 ## Next milestones
 

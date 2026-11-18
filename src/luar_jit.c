@@ -55,6 +55,7 @@ void luari_jit_init (lua_State *L) {
   J->hotloop = LUAR_JIT_HOTCOUNT;
   J->hotexit = 10;
   J->enable_tint = 1;
+  J->enable_ir = 0;
   G(L)->luar_jit = J;
 }
 
@@ -2733,6 +2734,19 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     return 0;
   if (L->hookmask != 0)
     return 0;
+  if (J->enable_ir && p->luar_ir_code != NULL) {
+    if (p->luar_ir_epoch != J->epoch) {
+      p->luar_ir_code = NULL;
+      p->luar_ir_size = 0;
+    }
+    else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
+      int irr = ((LuaR_LoopFn)p->luar_ir_code)(base);
+      if (irr > 0) {
+        J->ir_executed++;
+        return 1;
+      }
+    }
+  }
   for (i = 0; i < 2; i++) {
     if (p->luar_tint[i] != 0 && p->luar_tint_pc[i] == pc &&
         p->luar_tint_base[i] == expected_base) {
@@ -2952,6 +2966,19 @@ LUA_API int luar_has_jit (void) {
 /* Recording                                                         */
 /* ---------------------------------------------------------------- */
 
+static int ir_integer_only (const LuaR_TraceIR *ir) {
+  int i;
+  for (i = 0; i < ir->nins; i++) {
+    const LuaR_IRIns *in = &ir->ins[i];
+    if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT)
+      return 0;
+    if (in->kind == LUAR_IR_TGET || in->kind == LUAR_IR_TSET)
+      return 0;
+  }
+  return 1;
+}
+
+
 int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
                        void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -3027,7 +3054,21 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     if (luar_trace_record_loop(p, (int)target, (int)off, (TValue *)base, &ir)) {
       J->ir_traces++;
       J->ir_ops += (uint32_t)ir.nins;
-      {
+      if (J->enable_ir && p->luar_ir_code == NULL &&
+          GET_OPCODE(ins) == OP_FORLOOP && ir_integer_only(&ir) &&
+          luari_emit_trace_ir(&ir, &p->luar_ir_code,
+                              &p->luar_ir_size) &&
+          J->ncode < LUAR_JIT_MAXCODE) {
+        J->code[J->ncode].code = p->luar_ir_code;
+        J->code[J->ncode].size = p->luar_ir_size;
+        J->ncode++;
+        J->ir_compiled++;
+        J->ir_code_bytes += (uint32_t)p->luar_ir_size;
+        p->luar_ir_pc = (int)off;
+        p->luar_ir_base = GETARG_A(ins);
+        p->luar_ir_epoch = J->epoch;
+      }
+      else {
         void *ir_code = NULL;
         size_t ir_size = 0;
         if (luari_emit_trace_ir(&ir, &ir_code, &ir_size)) {
@@ -3044,7 +3085,7 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     else
       J->ir_aborts++;
   }
-  if (J->enabled) {
+  if (J->enabled && !J->enable_ir) {
     int ok = try_compile(L, p, target, off, base);
     int full = (p->luar_code[0] != NULL || p->luar_tint[0] != 0) &&
                (p->luar_code[1] != NULL || p->luar_tint[1] != 0);
@@ -3128,7 +3169,9 @@ static int jit_opt_start (lua_State *L) {
   lua_newtable(L);
   for (i = 1; i <= n; i++) {
     const char *opt = luaL_checkstring(L, i);
-    if (J != NULL && strncmp(opt, "table=", 6) == 0) {
+    if (J != NULL && strncmp(opt, "ir=", 3) == 0)
+      J->enable_ir = (opt[3] != '0');
+    else if (J != NULL && strncmp(opt, "table=", 6) == 0) {
       J->enable_table = (opt[6] != '0');
       J->enable_tint = (opt[6] != '0');
     }
@@ -3322,6 +3365,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_code_bytes : 0);
   lua_setfield(L, -2, "ir_code_bytes");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_executed : 0);
+  lua_setfield(L, -2, "ir_executed");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;
@@ -3398,6 +3443,72 @@ done:
 }
 
 
+static int jit_trace_add_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  TValue base[2];
+  void *code = NULL;
+  size_t size = 0;
+  int ok = 0;
+  int (*fn)(void *);
+  luar_trace_ir_init(&t, NULL, 0, 2, 0);
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_LOADI; in.a = 0; in.ival = 10;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_LOADI; in.a = 1; in.ival = 5;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_ADD; in.a = 0; in.b = 0; in.c = 1;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_RET;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
+  if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
+  memset(base, 0, sizeof(base));
+  fn = (int (*)(void *))code;
+  if (fn(base) != 1) goto done;
+  if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 15) goto done;
+  ok = 1;
+done:
+  if (code != NULL) munmap(code, size);
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
+static int jit_trace_loop_exec_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  TValue base[4];
+  void *code = NULL;
+  size_t size = 0;
+  int ok = 0;
+  int (*fn)(void *);
+  luar_trace_ir_init(&t, NULL, 0, 4, 0);
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_ADD; in.a = 0; in.b = 0; in.c = 3;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_FORLOOP; in.a = 1;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_RET;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
+  if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
+  memset(base, 0, sizeof(base));
+  setivalue(&base[0], 0);
+  setivalue(&base[1], 3);
+  setivalue(&base[2], 1);
+  setivalue(&base[3], 0);
+  fn = (int (*)(void *))code;
+  if (fn(base) != 1) goto done;
+  if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 6) goto done;
+  ok = 1;
+done:
+  if (code != NULL) munmap(code, size);
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_guard_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3436,6 +3547,10 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "side_exec_selftest");
   lua_pushcfunction(L, jit_trace_guard_selftest);
   lua_setfield(L, -2, "guard_selftest");
+  lua_pushcfunction(L, jit_trace_loop_exec_selftest);
+  lua_setfield(L, -2, "loop_exec_selftest");
+  lua_pushcfunction(L, jit_trace_add_selftest);
+  lua_setfield(L, -2, "add_selftest");
   return 1;
 }
 

@@ -71,6 +71,8 @@ typedef struct LuaR_JIT {
   uint32_t ir_cycles;
   uint32_t ir_compiled;
   uint32_t ir_code_bytes;
+  uint32_t ir_executed;
+  int enable_ir;
   size_t mcode;			/* executable bytes */
   int ncode;
   LuaR_Code code[LUAR_JIT_MAXCODE];
@@ -129,7 +131,8 @@ static inline int luari_jit_hot (lua_State *L, Proto *p,
 #define LUAR_JIT_HOT(L, p, pc, base)	luari_jit_hot((L), (p), (pc), (base))
 #define LUAR_JIT_RUN(L, p, pc, base, exp) \
   ((((p)->luar_code[0] != NULL) || ((p)->luar_code[1] != NULL) || \
-     ((p)->luar_tint[0] != 0) || ((p)->luar_tint[1] != 0)) ? \
+     ((p)->luar_tint[0] != 0) || ((p)->luar_tint[1] != 0) || \
+     ((p)->luar_ir_code != NULL)) ? \
    luari_jit_try_run((L), (p), (pc), (base), (exp)) : 0)
 #endif
 
