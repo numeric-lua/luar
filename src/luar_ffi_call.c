@@ -828,7 +828,14 @@ static void convert_call_arg (lua_State *L, FFIState *S, CType *at,
                  argidx, luaL_typename(L, argidx),
                  ffi_type_repr(S, at));
     *avalue = cdata_value_addr(cd);
-    *argtype_override = NULL;
+#if defined(__aarch64__)
+    /* AAPCS64 passes large composites by reference.  Passing the pointer
+    ** directly avoids libffi re-classifying the synthetic struct. */
+    if (at->kind == CT_UNION && at->size > 16)
+      *argtype_override = &ffi_type_pointer;
+    else
+#endif
+      *argtype_override = NULL;
     return;
   }
   memset(slot, 0, sizeof(*slot));
