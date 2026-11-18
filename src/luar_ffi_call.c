@@ -1,3 +1,6 @@
+#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#define _DARWIN_C_SOURCE 1
+#endif
 /*
 ** luar_ffi_call.c -- C library namespaces and libffi calls.
 **
