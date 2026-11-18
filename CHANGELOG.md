@@ -104,7 +104,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `table/array` ~0.14x stock Lua (and faster than LuaJIT).
 - Guard-exit driven loop variants: when a compiled numeric loop fails its
   type guards, a second variant is compiled from the live frame if a slot
-  is free and `hotexit` exits have accumulated (`jit.opt.start("hotexit=N")`,
+  is free and `hotexit` exits have accumulated; successful variants are
+  counted by `jit.stats().side_traces` (`jit.opt.start("hotexit=N")`,
   default 10) (int/float polymorphic loops); both variants are tried at each
   backedge.  `tests/jit/25_polymorphic.lua` covers it.
 - Keyed raw table fill/sum intrinsics (`t[keys[i]] = i`,

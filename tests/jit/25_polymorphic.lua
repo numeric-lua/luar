@@ -23,6 +23,7 @@ end
 local st = jit.stats()
 H.check(st.compiled >= 2, "guard-exit variant did not compile")
 H.check(st.exits >= 1, "guard exits were not counted")
+H.check(st.side_traces >= 1, "side-exit variant was not recorded")
 
 jit.off()
 H.eq(f(0, 100), 5050)

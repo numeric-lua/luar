@@ -36,7 +36,7 @@ is provably observationally equivalent to that interpreter.
   loop and the most recently compiled one (two slots); a 64-bit bloom of
   hot backedges prevents retrying rejected loops.  Guard failures increment `jit.stats().exits` and a per-code-slot counter;
   a failed guarded loop can compile a second numeric variant from the live
-  frame once `hotexit` (default 10, `jit.opt.start("hotexit=N")`) exits have
+  frame (counted by `jit.stats().side_traces`) once `hotexit` (default 10, `jit.opt.start("hotexit=N")`) exits have
   accumulated (for example an
   int loop followed by a float loop) before returning to the interpreter.
   Full side traces remain future work.  The code cache is capped

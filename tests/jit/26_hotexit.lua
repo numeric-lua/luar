@@ -20,6 +20,7 @@ local first = jit.stats().compiled
 H.eq(f(0.0, 1000), 500500.0)
 H.check(jit.stats().exits >= 3, "hotexit guard failures were not counted")
 H.check(jit.stats().compiled > first, "variant did not compile after hotexit")
+H.check(jit.stats().side_traces >= 1, "side trace was not counted")
 H.eq(f(0, 1000), 500500)
 H.eq(f(0.0, 1000), 500500.0)
 

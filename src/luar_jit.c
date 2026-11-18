@@ -70,6 +70,7 @@ static void free_code (LuaR_JIT *J) {
   J->ncode = 0;
   J->compiled = 0;
   J->exits = 0;
+  J->side_traces = 0;
   J->mcode = 0;
 }
 
@@ -1505,7 +1506,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         (p->luar_code[0] == NULL || p->luar_code[1] == NULL) &&
         p->luar_tint[0] == 0 && p->luar_tint[1] == 0) {
       p->luar_variant_tried = 1;
-      luari_jit_hotloop(L, p, &p->code[pc], base);
+      {
+        int before = (p->luar_code[0] != NULL) + (p->luar_code[1] != NULL);
+        luari_jit_hotloop(L, p, &p->code[pc], base);
+        if ((p->luar_code[0] != NULL) + (p->luar_code[1] != NULL) > before)
+          J->side_traces++;
+      }
     }
   }
   return 0;
@@ -1847,6 +1853,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->exits : 0);
   lua_setfield(L, -2, "exits");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->side_traces : 0);
+  lua_setfield(L, -2, "side_traces");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;
