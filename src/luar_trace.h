@@ -93,6 +93,7 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base);
 
 int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen);
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
+int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);
 int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start);
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,

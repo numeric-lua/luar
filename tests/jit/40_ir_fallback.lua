@@ -10,13 +10,10 @@ jit.flush()
 jit.opt.start("ir=1")
 jit.on()
 
--- table writes are not emitted by the current IR compiler
-local t = {}
-local function fill (t, n)
-  for i = 1, n do t[i] = i end
-end
-fill(t, 1000)
-H.eq(t[1000], 1000)
+-- float arithmetic is not emitted by the integer IR compiler
+local s = 0.0
+for i = 1, 1000 do s = s + i * 0.5 end
+H.eq(s, 250250.0)
 H.eq(jit.stats().ir_executed, 0)
 
 -- a fresh integer loop in the same mode still compiles and executes

@@ -171,6 +171,19 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   return 1;
 }
 
+int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val) {
+  Table *t;
+  if (tv == NULL || !ttistable(tv) || val == NULL || !ttisinteger(val))
+    return 0;
+  t = (Table *)tv->value_.gc;
+  if (key < 1 || (lua_Unsigned)key > t->asize)
+    return 0;
+  *getArrTag(t, (unsigned)(key - 1)) = LUA_VNUMINT;
+  getArrVal(t, (unsigned)(key - 1))->i = ivalue(val);
+  return 1;
+}
+
+
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out) {
   Table *t;
   if (tv == NULL || !ttistable(tv))

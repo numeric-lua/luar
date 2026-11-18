@@ -2974,8 +2974,7 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
     if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT &&
         in->b != LUAR_IR_TAG_TABLE)
       return 0;
-    if (in->kind == LUAR_IR_TSET)
-      return 0;
+
   }
   return 1;
 }

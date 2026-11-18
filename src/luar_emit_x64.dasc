@@ -1456,10 +1456,13 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 }
 
 static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
-  int i, forslot = -1, hastget = 0;
-  for (i = 0; i < t->nins; i++)
+  int i, forslot = -1, hastget = 0, hastset = 0;
+  for (i = 0; i < t->nins; i++) {
     if (t->ins[i].kind == LUAR_IR_TGET)
       hastget = 1;
+    if (t->ins[i].kind == LUAR_IR_TSET)
+      hastset = 1;
+  }
   | push rbx
   | mov rbx, rdi
   |1:
@@ -1472,7 +1475,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
                   (in->b == LUAR_IR_TAG_TABLE) ? LUA_VTABLE : 0;
         if (tag == 0)
           return 0;
-        if (hastget)
+        if (hastget || hastset)
           break;
         | cmp byte [rbx + ((int)LUAR_TAG(in->a))], tag
         | jne >2
@@ -1521,6 +1524,15 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | test eax, eax
         | jz >2
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
+        break;
+      case LUAR_IR_TSET:
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov rsi, qword [rbx + ((int)LUAR_SLOT(in->b))]
+        | lea rdx, [rbx + ((int)LUAR_SLOT(in->c))]
+        | mov64 rax, (int64_t)(intptr_t)&luar_trace_tset_int
+        | call rax
+        | test eax, eax
+        | jz >2
         break;
       case LUAR_IR_FORLOOP:
         if (forslot >= 0)
