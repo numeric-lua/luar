@@ -2134,8 +2134,6 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         return 0;
     }
   }
-  if (forslot < 0)
-    return 0;
   //|3:
   //| mov eax, 1
   //| pop rbx
@@ -2145,7 +2143,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   //| pop rbx
   //| ret
   dasm_put(Dst, 1808);
-#line 1538 "src/luar_emit_x64.dasc"
+#line 1536 "src/luar_emit_x64.dasc"
   return 1;
 }
 

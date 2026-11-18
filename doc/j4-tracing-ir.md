@@ -21,10 +21,12 @@ the working JIT can keep shipping while a trace compiler is built.
   (constants, moves, guards, arithmetic, `FORLOOP`, exit/ret), counted by
   `jit.stats().ir_compiled/ir_code_bytes`.  The code is compiled as a
   validation shadow of the existing loop JIT; `jit.trace_ir().exec_selftest()`
-  additionally executes a generated trace and checks its result.
+  additionally executes a generated trace and checks its result;
+  `side_exec_selftest()` compiles/executes a non-loop interior segment.
 - Side-trace linker/depth caps/cycle handling: **not implemented**.
-- Machine-code emission from the IR: **implemented for integer root
-  traces**, currently validation-only; side-segment linking is next.
+- Machine-code emission from the IR: **implemented for integer root and
+  interior segments**; root traces are validation-only and the side-segment
+  selftest executes directly.  Live link/execution in `try_run` is next.
 
 `jit.trace_ir().selftest()` exercises IR construction, verification, exit
 snapshotting and restore.  `jit.trace_ir().exec_selftest()` compiles and

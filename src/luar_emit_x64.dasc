@@ -1525,8 +1525,6 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         return 0;
     }
   }
-  if (forslot < 0)
-    return 0;
   |3:
   | mov eax, 1
   | pop rbx

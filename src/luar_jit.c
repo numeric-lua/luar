@@ -3367,6 +3367,37 @@ done:
 }
 
 
+static int jit_trace_side_exec_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  TValue base[4];
+  void *code = NULL;
+  size_t size = 0;
+  int ok = 0;
+  int (*fn)(void *);
+  luar_trace_ir_init(&t, NULL, 17, 4, 1);
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_LOADI; in.a = 0; in.ival = 3;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_ADDI; in.a = 0; in.b = 0; in.ival = 4;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  in.kind = LUAR_IR_RET;
+  if (!luar_trace_ir_emit(&t, &in)) goto done;
+  if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
+  if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
+  memset(base, 0, sizeof(base));
+  fn = (int (*)(void *))code;
+  if (fn(base) != 1) goto done;
+  if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 7) goto done;
+  ok = 1;
+done:
+  if (code != NULL)
+    munmap(code, size);
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_ir (lua_State *L) {
   lua_newtable(L);
   lua_pushinteger(L, LUAR_IR_VERSION);
@@ -3379,6 +3410,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "selftest");
   lua_pushcfunction(L, jit_trace_exec_selftest);
   lua_setfield(L, -2, "exec_selftest");
+  lua_pushcfunction(L, jit_trace_side_exec_selftest);
+  lua_setfield(L, -2, "side_exec_selftest");
   return 1;
 }
 
