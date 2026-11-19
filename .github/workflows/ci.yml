@@ -231,8 +231,7 @@ jobs:
           mkdir -p tests/tmp
           cc -dynamiclib -fPIC -Isrc tests/embed/module.c -Lsrc -lluar \
              -Wl,-rpath,"$PWD/src" -o tests/tmp/luartestmod.dylib
-          ./src/luar -e 'package.cpath="$PWD/tests/tmp/?.dylib"; \
-            assert(require("luartestmod").answer() == 42)'
+          ./src/luar -e 'package.cpath="$PWD/tests/tmp/?.dylib"; assert(require("luartestmod").answer() == 42)'
           make PREFIX="$PWD/stage/usr/local" install
           test -f stage/usr/local/lib/libluar.0.11.0.dylib
           test -L stage/usr/local/lib/libluar.dylib
