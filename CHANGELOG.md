@@ -6,6 +6,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-18
+
 ### Added
 
 - The default build level is now `-O3` (overridable with `CFLAGS`); it brings

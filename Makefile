@@ -12,7 +12,7 @@ WITH_JIT?= $(JIT)
 MAKE?= make
 RM= rm -f
 
-VERSION= 0.1.0
+VERSION= 0.2.0
 LUAVER= 5.5
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 LUA_SO= libluar.so.$(VERSION)

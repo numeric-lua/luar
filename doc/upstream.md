@@ -271,7 +271,7 @@ What it does:
 5. writes `tests/tmp/upstream-report.txt` with one PASS/FAIL line per file,
    the canonical result and the tail of each failure log.
 
-At the time of writing (Lua 5.5.1, LuaR 0.1.0) the observed result is:
+At the time of writing (Lua 5.5.1, LuaR 0.2.0) the observed result is:
 
 ```
 per-file: 31 run, 31 passed, 0 failed
@@ -288,7 +288,7 @@ suite sha256: da07b543872dc0bb2ff12aabd0c248578d78df3eb6b67efdc537a46d455c7f31
   every subsystem was exercised.
 * The **complete** suite is not automated. It needs the C helpers in
   `libs/` built against LuaR's headers, and it contains environment-specific
-  checks. On Linux/glibc with LuaR 0.1.0:
+  checks. On Linux/glibc with LuaR 0.2.0:
   * `main.lua` asserts that `-v` prints `PUC-Rio` in the copyright line;
     LuaR intentionally prints its own banner (`LuaR ... Copyright (C) 2026
     LuaR contributors`) while still naming `Lua 5.5.1`. This is a deliberate

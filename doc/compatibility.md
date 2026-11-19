@@ -5,7 +5,7 @@ small additive extension surface, and no legacy Lua versions at all.
 
 ## 1. The guarantee: Lua 5.5.1
 
-LuaR 0.1 is a drop-in replacement for the official Lua 5.5.1 runtime:
+LuaR 0.2 is a drop-in replacement for the official Lua 5.5.1 runtime:
 
 | Surface | Guarantee |
 | --- | --- |

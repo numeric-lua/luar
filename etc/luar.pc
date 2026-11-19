@@ -5,7 +5,7 @@ includedir=${prefix}/include/luar
 
 Name: luar
 Description: LuaR, a Lua 5.5-forward runtime with LuaJIT-style extensions
-Version: 0.1.0
+Version: 0.2.0
 Libs: -L${libdir} -lluar -lm
 Libs.private: -ldl
 Cflags: -I${includedir}

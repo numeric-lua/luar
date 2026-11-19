@@ -23,7 +23,7 @@ Delivered:
 Exit criteria (met): `make test` green; semantics suite identical under stock
 `lua` 5.5.1; `luar -v` identifies the Lua base.
 
-## 0.2 — FFI core (landed 2026-11-17, preview)
+## 0.2 — FFI core and J4 foundation (released 2026-11-18)
 
 Scope: `ffi.cdef` (typedef/struct/union/enum/pointer/array/function types),
 ctype introspection (`typeof`, `istype`, `sizeof`, `alignof`, `offsetof`),
@@ -42,6 +42,10 @@ local/environment includes, `sizeof`/`_Alignof`/`offsetof` constants, TLS
 globals, ASan/UBSan/fuzz coverage and a real `libluatorch.so` consumer
 (2.5.1).  What remains: non-x86-64 hosted packed thunks and full macOS ABI
 verification.
+
+J4 landed ahead of the original 0.4/0.5 plan: typed tracing IR, live
+integer/table roots, interior array→hash side traces, guarded leaf-call
+inlining and interpreter safepoints are available behind `jit.opt.start("ir=1")`.
 
 Exit criteria:
 

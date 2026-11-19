@@ -69,7 +69,7 @@ jobs:
           test -f stage/usr/local/lib/libluar.a
           test -f stage/usr/local/lib/pkgconfig/luar.pc
           LD_LIBRARY_PATH="$PWD/stage/usr/local/lib" \
-            stage/usr/local/bin/luar -v | grep -q "LuaR 0.1.0"
+            stage/usr/local/bin/luar -v | grep -q "LuaR 0.2.0"
           PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
             pkg-config --exists luar
           PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \

@@ -94,7 +94,7 @@ ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T)
 #   libluar.so             unversioned link-time name
 # VERSION is passed by the top-level Makefile; the default keeps 'make -C src'
 # usable on its own.  PIC objects are separate from the static ones.
-VERSION?= 0.1.0
+VERSION?= 0.2.0
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 LUA_SO= libluar.so.$(VERSION)
 LUA_SONAME= libluar.so.$(SOVERSION)
