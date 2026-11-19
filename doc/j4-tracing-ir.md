@@ -32,6 +32,8 @@ the working JIT can keep shipping while a trace compiler is built.
   identity (`CGUARD`).  Unsupported calls fall back.
 - `__index`: table helpers reject tables with a metatable, so the native
   and side paths fall back instead of bypassing metamethods.
+- Differential coverage: deterministic array/hash rounds compare IR/side
+  results against interpreter-computed expectations.
 - Mixed bodies with table reads and inlined leaf calls: **recorded and
   linked**, including interior side exits.
 - Multi-table bodies: **recorded and linked**; a hash-shape change in the

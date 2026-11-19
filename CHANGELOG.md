@@ -131,6 +131,7 @@ the runtime, while the Lua language surface follows upstream Lua.
 - Live side tests now assert depth tracking as well as compilation and
   execution.
 - Added guarded inlining of one-argument integer leaf calls in IR roots.
+- Added a deterministic IR/side differential test over array/hash shapes.
 - Added `__index` fallback coverage for table IR paths.
 - Added mixed table/call interior side-trace coverage.
 - Added multi-table interior side exits and recorded side depth.
