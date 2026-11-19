@@ -23,10 +23,16 @@ end
 assert(sum(a, 1000) == 500500)
 assert(jit.stats().ir_executed >= 1)
 
--- an unsupported float cdata array must stay on the interpreter
-local d = ffi.new("double[?]", 3)
-d[1] = 2.5
-assert(sum(d, 2) == 2.5)
+-- double cdata arrays use the CGETF float specialization
+local d = ffi.new("double[?]", 1001)
+for i = 0, 1000 do d[i] = i + 0.5 end
+local function sumf (d, n)
+  local s = 0
+  for i = 1, n do s = s + d[i] end
+  return s
+end
+assert(sumf(d, 1000) == 501000.0)
+assert(jit.stats().ir_executed >= 2)
 
 jit.flush()
 jit.opt.start("ir=0")

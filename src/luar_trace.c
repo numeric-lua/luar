@@ -134,6 +134,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         }
         break;
       case LUAR_IR_CGETI:
+      case LUAR_IR_CGETF:
         break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
@@ -703,8 +704,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
-      case OP_GETTABLE:
-        if (luar_ffi_trace_kind(&base[b]) == 1 && ttisinteger(&base[c])) {
+      case OP_GETTABLE: {
+        int fk = luar_ffi_trace_kind(&base[b]);
+        if (fk > 0 && ttisinteger(&base[c])) {
           if (!seen[b]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
             in.ival = (int64_t)(intptr_t)base[b].value_.gc;
@@ -718,7 +720,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[c] = 1;
           }
-          in.kind = LUAR_IR_CGETI; in.a = (uint8_t)a; in.b = (uint8_t)b;
+          in.kind = fk == 2 ? LUAR_IR_CGETF : LUAR_IR_CGETI;
+          in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.c = (uint8_t)c; in.pc = pc;
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
@@ -740,6 +743,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.c = (uint8_t)c; in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
+      }
       case OP_SETTABLE:
         if (!seen[a]) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;

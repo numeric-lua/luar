@@ -40,3 +40,6 @@ int luar_ffi_trace_kind (TValue *tv) { (void)tv; return -1; }
 int64_t luar_ffi_trace_cget_int (TValue *cdv, TValue *kt, TValue *out) {
   (void)cdv; (void)kt; (void)out; return 0;
 }
+int64_t luar_ffi_trace_cget_double (TValue *cdv, TValue *kt, TValue *out) {
+  (void)cdv; (void)kt; (void)out; return 0;
+}

@@ -1515,6 +1515,16 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         break;
+      case LUAR_IR_CGETF:
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
+        | lea rsi, [rbx + ((int)LUAR_SLOT(in->c))]
+        | lea rdx, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov64 rax, (int64_t)(intptr_t)&luar_ffi_trace_cget_double
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
       case LUAR_IR_CGETI:
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
         | lea rsi, [rbx + ((int)LUAR_SLOT(in->c))]

@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-11-19
+
+### Added
+
+- `CGETF`: double/float cdata array and pointer reads in J4, with float
+  accumulation through the existing float specialization.
+- `tests/ffi/22_trace_cdata.lua` now covers both int and double arrays.
+
 ## [0.14.0] — 2026-11-19
 
 ### Added
