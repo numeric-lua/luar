@@ -6,6 +6,13 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-19
+
+### Added
+
+- Hash insertion/rehash through J4 `TSET` with an L-aware loop ABI.
+- `tests/jit/66_hash_insert.lua` and the `j4/hash_insert` benchmark.
+
 ## [0.11.0] — 2026-11-19
 
 ### Added

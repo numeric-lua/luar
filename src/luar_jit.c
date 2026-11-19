@@ -2734,7 +2734,7 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 }
 
 
-static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
+static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua_State *L) {
   int ns = p->maxstacksize;
   if (getenv("LUAR_NO_SIDE") && !p->luar_ir_float) return -1;
   LuaR_IRExitState snap;
@@ -2791,7 +2791,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
     return -1;
   if (!luar_trace_ir_snapshot(&snap, expc, (TValue *)base, ns))
     return -1;
-  sr = ((LuaR_LoopFn)p->luar_side_code)(base);
+  sr = ((LuaR_LoopFn)p->luar_side_code)(base, L);
   if (sr >= 0) {
     J->ir_side_executed++;
     return sr;
@@ -2839,7 +2839,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
           p->luar_child_pc[level] != pc ||
           p->luar_child_start[level] != startpc)
         break;
-      csr = ((LuaR_LoopFn)p->luar_child_code[level])(base);
+      csr = ((LuaR_LoopFn)p->luar_child_code[level])(base, L);
       if (csr == 2) {
         J->ir_yields++;
         return 0;
@@ -2885,7 +2885,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       p->luar_ir_call_pc = -1;
     }
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
-      int irr = ((LuaR_LoopFn)p->luar_ir_code)(base);
+      int irr = ((LuaR_LoopFn)p->luar_ir_code)(base, L);
       if (irr == 2) {
         J->ir_yields++;
         return 0;
@@ -2901,7 +2901,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           return irr;
         }
         {
-        int sr = jit_ir_side(J, p, pc, base, expc);
+        int sr = jit_ir_side(J, p, pc, base, expc, L);
         if (sr >= 0) {
           J->ir_executed++;
           return sr;
@@ -3067,7 +3067,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           return 0;
       }
       any = 1;
-      r = ((LuaR_LoopFn)p->luar_code[i])(base);
+      r = ((LuaR_LoopFn)p->luar_code[i])(base, L);
       if (r != 0) {
         if (r < -1) {
           int expc = -r - 2;
@@ -3124,7 +3124,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             int ns = p->maxstacksize;
             if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
             if (luar_trace_ir_snapshot(&snap, expc, (TValue *)base, ns)) {
-              int sr = ((LuaR_LoopFn)p->luar_side_code)(base);
+              int sr = ((LuaR_LoopFn)p->luar_side_code)(base, L);
               if (sr >= 0) {
                 J->ir_side_executed++;
                 return sr;
@@ -3731,7 +3731,7 @@ static int jit_trace_exec_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   luar_trace_ir_init(&t, NULL, 0, 4, 0);
   memset(&in, 0, sizeof(in));
   in.kind = LUAR_IR_LOADI; in.a = 0; in.ival = 5;
@@ -3745,8 +3745,8 @@ static int jit_trace_exec_selftest (lua_State *L) {
   if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
   if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
   memset(base, 0, sizeof(base));
-  fn = (int (*)(void *))code;
-  if (fn(base) != 1) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 1) goto done;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 12) goto done;
   ok = 1;
 done:
@@ -3764,7 +3764,7 @@ static int jit_trace_side_exec_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   luar_trace_ir_init(&t, NULL, 17, 4, 1);
   memset(&in, 0, sizeof(in));
   in.kind = LUAR_IR_LOADI; in.a = 0; in.ival = 3;
@@ -3776,8 +3776,8 @@ static int jit_trace_side_exec_selftest (lua_State *L) {
   if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
   if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
   memset(base, 0, sizeof(base));
-  fn = (int (*)(void *))code;
-  if (fn(base) != 1) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 1) goto done;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 7) goto done;
   ok = 1;
 done:
@@ -3795,7 +3795,7 @@ static int jit_trace_add_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   luar_trace_ir_init(&t, NULL, 0, 2, 0);
   memset(&in, 0, sizeof(in));
   in.kind = LUAR_IR_LOADI; in.a = 0; in.ival = 10;
@@ -3809,8 +3809,8 @@ static int jit_trace_add_selftest (lua_State *L) {
   if (!luar_trace_ir_verify(&t, NULL, 0)) goto done;
   if (!luari_emit_trace_ir(&t, &code, &size)) goto done;
   memset(base, 0, sizeof(base));
-  fn = (int (*)(void *))code;
-  if (fn(base) != 1) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 1) goto done;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 15) goto done;
   ok = 1;
 done:
@@ -3853,7 +3853,7 @@ static int jit_trace_side_fail_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   extern int64_t luar_trace_tget_int (TValue *, lua_Integer, int64_t *);
   luar_trace_ir_init(&t, NULL, 5, 3, 1);
   t.side = 1;
@@ -3869,8 +3869,8 @@ static int jit_trace_side_fail_selftest (lua_State *L) {
   setivalue(&base[2], 1);
   setivalue(&base[0], 99);
   if (!luar_trace_ir_snapshot(&snap, 5, base, 3)) goto done;
-  fn = (int (*)(void *))code;
-  if (fn(base) != -7) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != -7) goto done;
   setivalue(&base[0], 1234);
   if (!luar_trace_ir_restore(&snap, base)) goto done;
   if (ivalue(&base[0]) != 99) goto done;
@@ -3889,7 +3889,7 @@ static int jit_trace_loop_exec_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   luar_trace_ir_init(&t, NULL, 0, 4, 0);
   memset(&in, 0, sizeof(in));
   in.kind = LUAR_IR_ADD; in.a = 0; in.b = 0; in.c = 3;
@@ -3905,8 +3905,8 @@ static int jit_trace_loop_exec_selftest (lua_State *L) {
   setivalue(&base[1], 3);
   setivalue(&base[2], 1);
   setivalue(&base[3], 0);
-  fn = (int (*)(void *))code;
-  if (fn(base) != 1) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 1) goto done;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 6) goto done;
   ok = 1;
 done:
@@ -3923,7 +3923,7 @@ static int jit_trace_tget_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   lua_createtable(L, 1, 0);
   lua_pushinteger(L, 42);
   lua_seti(L, -2, 1);
@@ -3944,8 +3944,8 @@ static int jit_trace_tget_selftest (lua_State *L) {
   base[1] = *s2v(L->top.p - 1);
   lua_pop(L, 1);
   setivalue(&base[2], 1);
-  fn = (int (*)(void *))code;
-  if (fn(base) != 1) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 1) goto done;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 42) goto done;
   ok = 1;
 done:
@@ -3963,7 +3963,7 @@ static int jit_trace_side_link_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   luar_trace_ir_init(&t, NULL, 5, 4, 1);
   t.side = 1;
   memset(&in, 0, sizeof(in));
@@ -3980,8 +3980,8 @@ static int jit_trace_side_link_selftest (lua_State *L) {
   setivalue(&base[1], 3);
   setivalue(&base[2], 1);
   setivalue(&base[3], 0);
-  fn = (int (*)(void *))code;
-  if (fn(base) != 0) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 0) goto done;
   if (ivalue(&base[1]) != 2 || ivalue(&base[3]) != 1) goto done;
   ok = 1;
 done:
@@ -4014,7 +4014,7 @@ static int jit_trace_tget_generic_ir_selftest (lua_State *L) {
   void *code = NULL;
   size_t size = 0;
   int ok = 0;
-  int (*fn)(void *);
+  LuaR_LoopFn fn;
   lua_createtable(L, 0, 1);
   lua_pushinteger(L, 42);
   lua_seti(L, -2, 100000);
@@ -4032,8 +4032,8 @@ static int jit_trace_tget_generic_ir_selftest (lua_State *L) {
   base[1] = *s2v(L->top.p - 1);
   lua_pop(L, 1);
   setivalue(&base[2], 100000);
-  fn = (int (*)(void *))code;
-  if (fn(base) != 1) goto done;
+  fn = (LuaR_LoopFn)code;
+  if (fn(base, L) != 1) goto done;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 42) goto done;
   ok = 1;
 done:

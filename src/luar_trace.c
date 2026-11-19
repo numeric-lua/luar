@@ -294,6 +294,35 @@ int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
 }
 
 
+int64_t luar_trace_tset_insert (TValue *tv, lua_Integer key, TValue *val,
+                                lua_State *L) {
+  Table *t;
+  TValue old;
+  lu_byte tag;
+  if (tv == NULL || !ttistable(tv) || val == NULL || !ttisinteger(val) ||
+      key < 1 || L == NULL)
+    return 0;
+  t = (Table *)tv->value_.gc;
+  if ((lua_Unsigned)key <= t->asize) {
+    if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX) &&
+        tagisempty(*getArrTag(t, (unsigned)(key - 1))))
+      return 0;
+    *getArrTag(t, (unsigned)(key - 1)) = LUA_VNUMINT;
+    getArrVal(t, (unsigned)(key - 1))->i = ivalue(val);
+    return 1;
+  }
+  tag = luaH_getint(t, key, &old);
+  if (!tagisempty(tag) && !ttisnil(&old)) {
+    luaH_setint(L, t, key, val);
+    return 1;
+  }
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;   /* absent key: __newindex owns the write */
+  luaH_setint(L, t, key, val);   /* may grow/rehash */
+  return 1;
+}
+
+
 int64_t luar_trace_tset_hash (TValue *tv, lua_Integer key, TValue *val) {
   Table *t;
   TValue old;

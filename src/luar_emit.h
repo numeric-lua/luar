@@ -137,7 +137,7 @@ typedef struct LuaR_LoopDesc {
 } LuaR_LoopDesc;
 
 /* x86-64 SysV: int f(void *base), base points at register R0. */
-typedef int (*LuaR_LoopFn) (void *base);
+typedef int (*LuaR_LoopFn) (void *base, lua_State *L);
 
 /*
 ** Build executable code.  Returns NULL when the descriptor cannot be

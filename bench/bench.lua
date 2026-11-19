@@ -786,6 +786,26 @@ def {
 }
 
 def {
+  name = "j4/hash_insert", group = "j4",
+  skip = j4_skip,
+  prepare = function ()
+    jit.off()
+    j4_hash = {}
+    j4_prepare()
+  end,
+  run = function ()
+    local t = j4_hash
+    local n = N(200000)
+    local s = 0
+    for i = 1, n do
+      t[i] = i
+      s = s + t[i]
+    end
+    return s
+  end,
+}
+
+def {
   name = "j4/call_leaf", group = "j4",
   skip = j4_skip,
   prepare = j4_prepare,
