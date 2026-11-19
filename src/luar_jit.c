@@ -2727,6 +2727,60 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 }
 
 
+static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
+  int ns = p->maxstacksize;
+  LuaR_IRExitState snap;
+  int sr;
+  if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
+  if (p->luar_side_code == NULL && !p->luar_ir_side_done) {
+    LuaR_TraceIR ir;
+    int link, k, has_tset = 0;
+    p->luar_ir_side_done = 1;
+    if (expc < 0 || expc > pc ||
+        !luar_trace_record_loop(p, expc, pc, (TValue *)base, &ir))
+      return -1;
+    for (k = 0; k < ir.nins; k++)
+      if (ir.ins[k].kind == LUAR_IR_TSET) has_tset = 1;
+    link = luar_trace_ir_link(&ir, 0, p->luar_ir_pc);
+    (void)luar_trace_ir_analyze(&ir, NULL, 0);
+    if (link == 0 || has_tset) {
+      J->ir_side_aborts++;
+      return -1;
+    }
+    if (link == 2) J->ir_cycles++;
+    if ((uint32_t)ir.depth > J->ir_max_depth)
+      J->ir_max_depth = (uint32_t)ir.depth;
+    J->ir_side_traces++;
+    J->ir_side_ops += (uint32_t)ir.nins;
+    ir.side = 1;
+    if (!luari_emit_trace_ir(&ir, &p->luar_side_code, &p->luar_side_size) ||
+        J->ncode >= LUAR_JIT_MAXCODE) {
+      p->luar_side_code = NULL;
+      return -1;
+    }
+    p->luar_side_pc = pc;
+    p->luar_side_start = expc;
+    p->luar_side_epoch = J->epoch;
+    J->code[J->ncode].code = p->luar_side_code;
+    J->code[J->ncode].size = p->luar_side_size;
+    J->ncode++;
+    J->ir_side_compiled++;
+  }
+  if (p->luar_side_code == NULL || p->luar_side_epoch != J->epoch ||
+      p->luar_side_pc != pc || p->luar_side_start != expc)
+    return -1;
+  if (!luar_trace_ir_snapshot(&snap, expc, (TValue *)base, ns))
+    return -1;
+  sr = ((LuaR_LoopFn)p->luar_side_code)(base);
+  if (sr >= 0) {
+    J->ir_side_executed++;
+    return sr;
+  }
+  luar_trace_ir_restore(&snap, (TValue *)base);
+  return -1;
+}
+
+
 int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                        int expected_base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -2747,6 +2801,13 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       if (irr > 0) {
         J->ir_executed++;
         return 1;
+      }
+      if (irr < -1) {
+        int sr = jit_ir_side(J, p, pc, base, -irr - 2);
+        if (sr >= 0) {
+          J->ir_executed++;
+          return sr;
+        }
       }
     }
   }

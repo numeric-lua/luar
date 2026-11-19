@@ -130,6 +130,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   loops from producing non-root side exits.
 - Live side tests now assert depth tracking as well as compilation and
   execution.
+- Linked live side traces from IR-root table guard exits, including
+  snapshot/restore and counters.
 - Added live array-to-hash side traces: a guard exit compiles a generic
   hash-`TGET` side segment, executes it with snapshot/restore, and continues
   the loop.  Added `tests/jit/43_side_live.lua`.

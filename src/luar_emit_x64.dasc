@@ -1517,6 +1517,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         break;
       case LUAR_IR_TGET:
+        | mov r11d, ((int)in->pc)
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
         | mov rsi, qword [rbx + ((int)LUAR_SLOT(in->c))]
         | lea rdx, [rbx + ((int)LUAR_SLOT(in->a))]
@@ -1600,7 +1601,17 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   | pop rbx
   | ret
   |2:
-  | mov eax, side ? -1 : 0
+  if (side) {
+    | mov eax, -1
+  }
+  else if (hastget) {
+    | mov eax, r11d
+    | neg eax
+    | sub eax, 2
+  }
+  else {
+    | xor eax, eax
+  }
   | pop rbx
   | ret
   return 1;
