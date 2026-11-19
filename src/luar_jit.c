@@ -79,6 +79,7 @@ static void free_code (LuaR_JIT *J) {
   J->ir_executed = 0;
   J->ir_side_compiled = 0;
   J->ir_side_executed = 0;
+  J->ir_call_exits = 0;
   J->ir_side_start = -1;
   J->ir_root_start = -1;
   J->ir_yields = 0;
@@ -2714,6 +2715,8 @@ static Table *tint_keys_table (Proto *p, TValue *base, int slot) {
 }
 
 
+static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir);
+
 static int entry_sig_matches (Proto *p, int slot, TValue *base) {
   int k;
   uint64_t h = 1469598103934665603ull;
@@ -2745,6 +2748,17 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
       return -1;
     for (k = 0; k < ir.nins; k++)
       if (ir.ins[k].kind == LUAR_IR_TSET) has_tset = 1;
+    {
+      int floatized = p->luar_ir_float &&
+                      ir_floatify(p, (TValue *)base, &ir);
+      if (!floatized) {
+        int gi;
+        for (gi = 0; gi < ir.nins; gi++)
+          if (ir.ins[gi].kind == LUAR_IR_GUARD &&
+              ir.ins[gi].b == LUAR_IR_TAG_FLOAT)
+            return -1;   /* mixed shape: do not emit integer side code */
+      }
+    }
     link = luar_trace_ir_link(&ir, 0, p->luar_ir_start);
     (void)luar_trace_ir_analyze(&ir, NULL, 0);
     if (link == 0 || has_tset ||
@@ -2816,15 +2830,18 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       }
       if (irr < -1) {
         int expc = -irr - 2;
+        if (p->luar_ir_partial && expc == p->luar_ir_call_pc) {
+          J->ir_call_exits++;
+          return irr;
+        }
+        {
         int sr = jit_ir_side(J, p, pc, base, expc);
         if (sr >= 0) {
           J->ir_executed++;
           return sr;
         }
-        /* Resume the interpreter at the exact exit PC.  The side path
-        ** restored the snapshot on failure, so re-running from the exit
-        ** (not the loop head) avoids duplicating the executed prefix. */
         return -(expc + 2);
+        }
       }
     }
   }
@@ -3084,12 +3101,90 @@ LUA_API int luar_has_jit (void) {
 /* Recording                                                         */
 /* ---------------------------------------------------------------- */
 
+static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
+  int i, fslot = -1, sawtable = 0, sawfloat = 0;
+  for (i = 0; i < ir->nins; i++) {
+    LuaR_IRIns *op = &ir->ins[i];
+    if (op->kind == LUAR_IR_GUARD) {
+      if (op->b != LUAR_IR_TAG_INT && op->b != LUAR_IR_TAG_FLOAT &&
+          op->b != LUAR_IR_TAG_TABLE)
+        return 0;
+      continue;
+    }
+    if (op->kind == LUAR_IR_TGET && !sawtable) {
+      Instruction ex;
+      int tb, tk;
+      double fv;
+      if (op->pc < 0 || op->pc >= p->sizecode)
+        return 0;
+      ex = p->code[op->pc];
+      if (GET_OPCODE(ex) != OP_GETTABLE)
+        return 0;
+      tb = GETARG_B(ex);
+      tk = GETARG_C(ex);
+      if (!ttisinteger(&base[tk]))
+        return 0;
+      if (luar_trace_tgetf_generic(&base[tb], ivalue(&base[tk]), &fv)) {
+        op->kind = LUAR_IR_TGETF;
+        fslot = op->a;
+        sawfloat = 1;
+      }
+      sawtable = 1;
+      continue;
+    }
+    if (op->kind == LUAR_IR_MULK) {
+      int is_float = (op->nval != (double)op->ival);
+      if ((sawfloat && op->b == fslot) || is_float) {
+        op->kind = LUAR_IR_FMULK;
+        fslot = op->a;
+        sawfloat = 1;
+        continue;
+      }
+    }
+    if (op->kind == LUAR_IR_ADD && sawfloat &&
+        (op->b == fslot || op->c == fslot)) {
+      op->kind = LUAR_IR_FADD;
+      fslot = op->a;
+      continue;
+    }
+    if (op->kind == LUAR_IR_FORLOOP || op->kind == LUAR_IR_RET ||
+        op->kind == LUAR_IR_EXIT || op->kind == LUAR_IR_CGUARD)
+      continue;
+    return 0;
+  }
+  return sawtable && sawfloat && fslot >= 0;
+}
+
+
 static int ir_integer_only (const LuaR_TraceIR *ir) {
-  int i;
+  int i, tag[LUAR_IR_MAX_SLOTS];
+  for (i = 0; i < LUAR_IR_MAX_SLOTS; i++)
+    tag[i] = -1;
   for (i = 0; i < ir->nins; i++) {
     const LuaR_IRIns *in = &ir->ins[i];
-    if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT &&
-        in->b != LUAR_IR_TAG_TABLE)
+    if (in->kind == LUAR_IR_GUARD) {
+      if (in->b != LUAR_IR_TAG_INT && in->b != LUAR_IR_TAG_TABLE)
+        return 0;
+      tag[in->a] = (uint8_t)in->b;
+    }
+  }
+  for (i = 0; i < ir->nins; i++) {
+    const LuaR_IRIns *in = &ir->ins[i];
+    if (in->kind == LUAR_IR_ADD || in->kind == LUAR_IR_SUB ||
+        in->kind == LUAR_IR_MUL || in->kind == LUAR_IR_DIV) {
+      if (tag[in->b] == LUAR_IR_TAG_TABLE ||
+          tag[in->b] == LUAR_IR_TAG_OTHER ||
+          tag[in->c] == LUAR_IR_TAG_TABLE ||
+          tag[in->c] == LUAR_IR_TAG_OTHER)
+        return 0;
+    }
+    if ((in->kind == LUAR_IR_ADDI ||
+         (in->kind >= LUAR_IR_ADDK && in->kind <= LUAR_IR_IDIVK)) &&
+        (tag[in->b] == LUAR_IR_TAG_TABLE ||
+         tag[in->b] == LUAR_IR_TAG_OTHER))
+      return 0;
+    if (in->kind >= LUAR_IR_ADDK && in->kind <= LUAR_IR_IDIVK &&
+        in->nval != (double)in->ival)
       return 0;
   }
   return 1;
@@ -3168,13 +3263,29 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
   }
   {
     LuaR_TraceIR ir;
-    if (luar_trace_record_loop(p, (int)target, (int)off, (TValue *)base, &ir)) {
+    int callpc = -1, partial = 0;
+    int recorded = luar_trace_record_loop(p, (int)target, (int)off,
+                                          (TValue *)base, &ir);
+    if (!recorded) {
+      partial = luar_trace_record_call_prefix(p, (int)target, (int)off,
+                                              (TValue *)base, &ir, &callpc);
+      recorded = partial;
+    }
+    if (recorded) {
       J->ir_traces++;
       J->ir_ops += (uint32_t)ir.nins;
-      if (J->enable_ir && p->luar_ir_code == NULL &&
-          GET_OPCODE(ins) == OP_FORLOOP && ir_integer_only(&ir) &&
-          luari_emit_trace_ir(&ir, &p->luar_ir_code,
-                              &p->luar_ir_size) &&
+      {
+        int intok = ir_integer_only(&ir);
+        int fltok = (!intok && ir_floatify(p, (TValue *)base, &ir));
+        if (J->enable_ir && p->luar_ir_code == NULL &&
+            GET_OPCODE(ins) == OP_FORLOOP && (intok || fltok)) {
+          if (luari_emit_trace_ir(&ir, &p->luar_ir_code,
+                                  &p->luar_ir_size))
+            p->luar_ir_float = fltok;
+        }
+      }
+      if (J->enable_ir && p->luar_ir_code != NULL &&
+          p->luar_ir_pc != (int)off &&
           J->ncode < LUAR_JIT_MAXCODE) {
         J->code[J->ncode].code = p->luar_ir_code;
         J->code[J->ncode].size = p->luar_ir_size;
@@ -3183,6 +3294,24 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
         J->ir_code_bytes += (uint32_t)p->luar_ir_size;
         p->luar_ir_pc = (int)off;
         p->luar_ir_start = (int)target;
+        p->luar_ir_partial = partial;
+        p->luar_ir_call_pc = callpc;
+        p->luar_ir_table_slot = -1;
+        p->luar_ir_key_slot = -1;
+        p->luar_ir_elem_tag = 0;
+        {
+          int ii;
+          for (ii = 0; ii < ir.nins; ii++) {
+            LuaR_IRIns *o = &ir.ins[ii];
+            if (o->kind == LUAR_IR_TGET || o->kind == LUAR_IR_TGETF) {
+              p->luar_ir_table_slot = o->b;
+              p->luar_ir_key_slot = o->c;
+              p->luar_ir_elem_tag = (o->kind == LUAR_IR_TGETF) ?
+                                    LUAR_IR_TAG_FLOAT : LUAR_IR_TAG_INT;
+              break;
+            }
+          }
+        }
         J->ir_root_start = (int)target;
         p->luar_ir_base = GETARG_A(ins);
         p->luar_ir_epoch = J->epoch;
@@ -3490,6 +3619,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_side_compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_executed : 0);
   lua_setfield(L, -2, "ir_side_executed");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_call_exits : 0);
+  lua_setfield(L, -2, "ir_call_exits");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_start : -1);
   lua_setfield(L, -2, "ir_side_start");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_root_start : -1);

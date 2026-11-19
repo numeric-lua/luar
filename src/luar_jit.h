@@ -74,6 +74,7 @@ typedef struct LuaR_JIT {
   uint32_t ir_executed;
   uint32_t ir_side_compiled;
   uint32_t ir_side_executed;
+  uint32_t ir_call_exits;
   int ir_side_start;
   int ir_root_start;
   uint32_t ir_yields;

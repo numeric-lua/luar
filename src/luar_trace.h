@@ -39,8 +39,12 @@ typedef enum {
   LUAR_IR_MUL,
   LUAR_IR_DIV,
   LUAR_IR_TGET,		/* a = dest, b = table, c = key */
+  LUAR_IR_TGETF,	/* float table read */
+  LUAR_IR_FMULK,	/* float multiply by nval */
+  LUAR_IR_FADD,		/* float add */
   LUAR_IR_TSET,		/* a = table, b = key, c = value */
   LUAR_IR_CGUARD,	/* a = slot, ival = expected closure pointer */
+  LUAR_IR_CALLEXIT,	/* terminal: resume interpreter at CALL pc */
   LUAR_IR_FORLOOP,	/* a = control base slot */
   LUAR_IR_EXIT,		/* a = exit index */
   LUAR_IR_RET
@@ -74,6 +78,7 @@ typedef struct LuaR_TraceIR {
   int32_t maxslots;
   int depth;		/* side-trace depth, 0 for a root trace */
   int side;		/* 1 = interior side segment */
+  int partial;		/* 1 = trace prefix ending at a CALL */
   int nins;
   LuaR_IRIns ins[LUAR_IR_MAX_INS];
   int nexits;
@@ -94,7 +99,14 @@ int luar_trace_ir_snapshot (LuaR_IRExitState *ex, int32_t pc, TValue *base,
 int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base);
 
 int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen);
+int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
+                                   TValue *base, LuaR_TraceIR *t,
+                                   int *callpc);
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
+int64_t luar_trace_fadd (TValue *a, TValue *b, TValue *c);
+int64_t luar_trace_fmulk (TValue *a, TValue *b, double k);
+int luar_trace_table_elem_tag (TValue *tv, lua_Integer key);
+int64_t luar_trace_tgetf_generic (TValue *tv, lua_Integer key, double *out);
 int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);

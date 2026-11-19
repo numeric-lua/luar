@@ -6,6 +6,28 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-19
+
+### Added
+
+- Live homogeneous float-table J4 roots (`TGETF`, `FMULK`, `FADD`), including
+  float constants such as `t[i] * 2.0`.
+- J4 CALL-exit prefixes: non-inlineable calls execute the natively supported
+  prefix, resume the interpreter at the CALL, and continue the loop.
+- J4 benchmarks for float tables and CALL exits.
+
+### Changed
+
+- J4 table traces keep tag guards, including collectable table tags.
+- Integer J4 roots reject table-typed arithmetic operands and float constants
+  that have no integer specialization; such traces fall back safely.
+- J4 helper failures preserve their exact exit PC across C helper calls.
+
+### Fixed
+
+- `x = t[i] * 2.0` no longer loses the double constant (integer `imul 0`).
+- J4 stats now distinguish CALL exits (`ir_call_exits`).
+
 ## [0.3.0] — 2026-11-19
 
 ### Added

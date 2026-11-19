@@ -768,6 +768,24 @@ def {
 }
 
 def {
+  name = "j4/float_table", group = "j4",
+  skip = j4_skip,
+  prepare = function ()
+    jit.off()
+    local t = {}
+    for i = 1, N(1000000) do t[i] = i + 0.5 end
+    j4_array = t
+    j4_prepare()
+  end,
+  run = function ()
+    local t = j4_array
+    local s = 0
+    for i = 1, #t do s = s + t[i] * 2 end
+    return s
+  end,
+}
+
+def {
   name = "j4/call_leaf", group = "j4",
   skip = j4_skip,
   prepare = j4_prepare,
@@ -777,6 +795,23 @@ def {
     local s = 0
     for i = 1, n do s = s + f(i) end
     return s
+  end,
+}
+
+def {
+  name = "j4/call_exit", group = "j4",
+  skip = j4_skip,
+  prepare = j4_prepare,
+  run = function ()
+    local n = N(1500000)
+    local y = 10
+    local function f (x) return x + y end
+    local function g (fn, n)
+      local s = 0
+      for i = 1, n do s = s + fn(i) end
+      return s
+    end
+    return g(f, n)
   end,
 }
 

@@ -102,9 +102,30 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CALLEXIT:
+        if (in->pc < 0) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad callexit");
+          return 0;
+        }
+        break;
       case LUAR_IR_CGUARD:
         if (!valid_slot(t, in->a)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cguard");
+          return 0;
+        }
+        break;
+      case LUAR_IR_TGETF:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tgetf");
+          return 0;
+        }
+        break;
+      case LUAR_IR_FMULK:
+      case LUAR_IR_FADD:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad float op");
           return 0;
         }
         break;
@@ -180,6 +201,60 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
 
 
 
+static int ir_number (TValue *v, double *out) {
+  if (ttisinteger(v)) { *out = (double)ivalue(v); return 1; }
+  if (ttisfloat(v)) { *out = fltvalue(v); return 1; }
+  return 0;
+}
+
+int luar_trace_table_elem_tag (TValue *tv, lua_Integer key) {
+  Table *t;
+  if (tv == NULL || !ttistable(tv))
+    return 0;
+  t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL || key < 1 || (lua_Unsigned)key > t->asize)
+    return 0;
+  switch (*getArrTag(t, (unsigned)(key - 1))) {
+    case LUA_VNUMINT: return LUAR_IR_TAG_INT;
+    case LUA_VNUMFLT: return LUAR_IR_TAG_FLOAT;
+    default: return 0;
+  }
+}
+
+
+int64_t luar_trace_fadd (TValue *a, TValue *b, TValue *c) {
+  double x, y;
+  if (!ir_number(b, &x) || !ir_number(c, &y))
+    return 0;
+  setfltvalue(a, x + y);
+  return 1;
+}
+
+int64_t luar_trace_fmulk (TValue *a, TValue *b, double k) {
+  double x;
+  if (!ir_number(b, &x))
+    return 0;
+  setfltvalue(a, x * k);
+  return 1;
+}
+
+int64_t luar_trace_tgetf_generic (TValue *tv, lua_Integer key,
+                                   double *out) {
+  TValue k, res;
+  Table *t;
+  if (tv == NULL || !ttistable(tv))
+    return 0;
+  t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL)
+    return 0;
+  setivalue(&k, key);
+  if (luaH_get(t, &k, &res) != LUA_VNUMFLT)
+    return 0;
+  *out = fltvalue(&res);
+  return 1;
+}
+
+
 int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
                                   int64_t *out) {
   TValue k, res;
@@ -221,6 +296,21 @@ int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out) {
     return 0;
   *out = getArrVal(t, (unsigned)(key - 1))->i;
   return 1;
+}
+
+
+static int record_loop (Proto *p, int start, int backedge, TValue *base,
+                        LuaR_TraceIR *t, int partial, int *callpc);
+
+int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
+                            LuaR_TraceIR *t) {
+  return record_loop(p, start, backedge, base, t, 0, NULL);
+}
+
+int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
+                                   TValue *base, LuaR_TraceIR *t,
+                                   int *callpc) {
+  return record_loop(p, start, backedge, base, t, 1, callpc);
 }
 
 
@@ -278,6 +368,11 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_TGET:
       case LUAR_IR_TSET:
         kind[in->a] = 0;
+        break;
+      case LUAR_IR_TGETF:
+      case LUAR_IR_FMULK:
+      case LUAR_IR_FADD:
+        kind[in->a] = 2;
         break;
       default:
         break;
@@ -358,6 +453,7 @@ static int inline_leaf_call (LuaR_TraceIR *t, int a, TValue *fn,
         in.a = (uint8_t)a;
         in.b = (uint8_t)(a + 1);
         in.ival = ivalue(kv);
+        in.nval = (double)in.ival;
         in.pc = pc;
         return luar_trace_ir_emit(t, &in);
       }
@@ -427,14 +523,15 @@ static int inline_leaf_call2 (LuaR_TraceIR *t, int a, TValue *fn,
 }
 
 
-int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
-                            LuaR_TraceIR *t) {
+static int record_loop (Proto *p, int start, int backedge, TValue *base,
+                        LuaR_TraceIR *t, int partial, int *callpc) {
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
   int fn_src[LUAR_IR_MAX_SLOTS];
   LuaR_IRIns in;
   LuaR_IRExitState ex;
   int sawloop = 0;
+  if (callpc != NULL) *callpc = -1;
   if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
   luar_trace_ir_init(t, p, start, ns, 0);
   memset(seen, 0, sizeof(seen));
@@ -524,6 +621,8 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                                                   LUAR_IR_IDIVK;
         in.a = (uint8_t)a; in.b = (uint8_t)b; in.c = (uint8_t)c;
         in.ival = ttisinteger(&p->k[c]) ? ivalue(&p->k[c]) : 0;
+        in.nval = ttisfloat(&p->k[c]) ? fltvalue(&p->k[c]) :
+                  (double)in.ival;
         in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
@@ -605,10 +704,15 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (!(b == 2 ? inline_leaf_call(t, a, fn, pc)
                      : inline_leaf_call2(t, a, fn, pc))) {
-          if (getenv("LUAR_CALL_DEBUG"))
-            fprintf(stderr, "call inline failed a=%d b=%d c=%d tag=%d\n",
-                    a, b, c, (int)ttypetag(fn));
-          return 0;
+          if (!partial || pc <= start || t->nins == 0)
+            return 0;
+          in.kind = LUAR_IR_CALLEXIT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          t->partial = 1;
+          if (callpc != NULL) *callpc = pc;
+          seen[a] = 1;
+          r = 1;
+          break;
         }
         seen[a] = 1;
         r = 1;
@@ -625,6 +729,10 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
     if (!r) return 0;
     if (GET_OPCODE(ins) == OP_FORLOOP)
       break;
+  }
+  if (t->partial) {
+    in.kind = LUAR_IR_RET; in.pc = backedge + 1;
+    return luar_trace_ir_emit(t, &in);
   }
   if (!sawloop)
     return 0;
