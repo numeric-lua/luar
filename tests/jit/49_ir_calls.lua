@@ -24,14 +24,17 @@ local st = jit.stats()
 H.check(st.ir_compiled >= 1, "call-loop IR root was not compiled")
 H.check(st.ir_executed >= 1, "call-loop IR root was not executed")
 
--- unsupported two-argument calls must fall back, not miscompile
+-- two-argument leaf calls are inlined as well
 local function add2 (x, y) return x + y end
 local function sum2 (f, n)
   local s = 0
   for i = 1, n do s = s + f(i, 1) end
   return s
 end
+local before = jit.stats().ir_compiled
 H.eq(sum2(add2, 10000), 50015000)
+H.check(jit.stats().ir_compiled > before,
+        "two-argument leaf call was not compiled")
 
 jit.flush()
 jit.opt.start("ir=0")

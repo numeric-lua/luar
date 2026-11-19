@@ -677,6 +677,136 @@ def {
   end,
 }
 
+-- j4 (LuaR tracing IR) ---------------------------------------------
+
+local function j4_skip ()
+  if type(luar) ~= "table" or type(jit) ~= "table" then
+    return "J4 requires LuaR"
+  end
+  local ok = pcall(function () jit.opt.start("ir=1") end)
+  if not ok then
+    return "J4 IR option is not available"
+  end
+  return nil
+end
+
+local function j4_prepare ()
+  jit.opt.start("ir=1")
+  jit.on()
+end
+
+local j4_array, j4_hash, j4_a, j4_b
+
+local function j4_make_array (n)
+  jit.off()
+  local t = {}
+  for i = 1, n do t[i] = i end
+  jit.on()
+  return t
+end
+
+local function j4_make_hash (n)
+  jit.off()
+  local t = table.new(0, n)
+  for i = 1, n do t[i] = i end
+  jit.on()
+  return t
+end
+
+local function j4_dbl (x) return x * 2 end
+local function j4_add2 (x, y) return x + y end
+
+local function j4_read (t, n)
+  local s = 0
+  for i = 1, n do s = s + t[i] * 2 end
+  return s
+end
+
+local function j4_mixed (t, f, n)
+  local s = 0
+  for i = 1, n do s = s + t[i] + f(i) end
+  return s
+end
+
+def {
+  name = "j4/int_sum", group = "j4",
+  skip = j4_skip,
+  prepare = j4_prepare,
+  run = function ()
+    local n = N(8000000)
+    local s = 0
+    for i = 1, n do s = s + i end
+    return s
+  end,
+}
+
+def {
+  name = "j4/table_read", group = "j4",
+  skip = j4_skip,
+  prepare = function ()
+    j4_array = j4_make_array(N(1400000))
+    j4_prepare()
+  end,
+  run = function ()
+    local a = j4_array
+    return j4_read(a, #a)
+  end,
+}
+
+def {
+  name = "j4/table_hash_side", group = "j4",
+  skip = j4_skip,
+  prepare = function ()
+    j4_array = j4_make_array(N(1000000))
+    j4_hash = j4_make_hash(N(1000000))
+    j4_prepare()
+  end,
+  run = function ()
+    local n = #j4_array
+    return j4_read(j4_array, n) + j4_read(j4_hash, n)
+  end,
+}
+
+def {
+  name = "j4/call_leaf", group = "j4",
+  skip = j4_skip,
+  prepare = j4_prepare,
+  run = function ()
+    local n = N(1500000)
+    local f = j4_dbl
+    local s = 0
+    for i = 1, n do s = s + f(i) end
+    return s
+  end,
+}
+
+def {
+  name = "j4/call_twoarg", group = "j4",
+  skip = j4_skip,
+  prepare = j4_prepare,
+  run = function ()
+    local n = N(1500000)
+    local f = j4_add2
+    local s = 0
+    for i = 1, n do s = s + f(i, 1) end
+    return s
+  end,
+}
+
+def {
+  name = "j4/multi_table", group = "j4",
+  skip = j4_skip,
+  prepare = function ()
+    j4_a = j4_make_array(N(1000000))
+    j4_b = j4_make_array(N(1000000))
+    j4_prepare()
+  end,
+  run = function ()
+    return j4_mixed(j4_a, j4_dbl, #j4_a) +
+           j4_mixed(j4_b, j4_dbl, #j4_b)
+  end,
+}
+
 -- string ------------------------------------------------------------
 
 def {

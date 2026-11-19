@@ -178,6 +178,8 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   return 1;
 }
 
+
+
 int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
                                   int64_t *out) {
   TValue k, res;
@@ -374,6 +376,55 @@ static int inline_leaf_call (LuaR_TraceIR *t, int a, TValue *fn,
 }
 
 
+static int inline_leaf_call2 (LuaR_TraceIR *t, int a, TValue *fn,
+                               int pc) {
+  LClosure *cl;
+  Proto *fp;
+  Instruction i0, i1;
+  int ra, k;
+  if (!ttisLclosure(fn))
+    return 0;
+  cl = (LClosure *)fn->value_.gc;
+  fp = cl->p;
+  if (fp == NULL || fp->sizecode < 2 || isvararg(fp) ||
+      cl->nupvalues != 0 || fp->maxstacksize < 3 || fp->numparams < 2)
+    return 0;
+  i0 = fp->code[0];
+  k = 1;
+  while (k < fp->sizecode) {
+    int op = GET_OPCODE(fp->code[k]);
+    if (op != OP_MMBIN && op != OP_MMBINI && op != OP_MMBINK)
+      break;
+    k++;
+  }
+  if (k >= fp->sizecode)
+    return 0;
+  i1 = fp->code[k];
+  if (GET_OPCODE(i1) != OP_RETURN1)
+    return 0;
+  ra = GETARG_A(i1);
+  if (ra != GETARG_A(i0) || GETARG_B(i0) != 0 || GETARG_C(i0) != 1)
+    return 0;
+  switch (GET_OPCODE(i0)) {
+    case OP_ADD:
+    case OP_SUB:
+    case OP_MUL: {
+      LuaR_IRIns in;
+      memset(&in, 0, sizeof(in));
+      in.kind = GET_OPCODE(i0) == OP_ADD ? LUAR_IR_ADD :
+                GET_OPCODE(i0) == OP_SUB ? LUAR_IR_SUB : LUAR_IR_MUL;
+      in.a = (uint8_t)a;
+      in.b = (uint8_t)(a + 1);
+      in.c = (uint8_t)(a + 2);
+      in.pc = pc;
+      return luar_trace_ir_emit(t, &in);
+    }
+    default:
+      return 0;
+  }
+}
+
+
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                             LuaR_TraceIR *t) {
   int pc, ns = p->maxstacksize;
@@ -518,7 +569,9 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       case OP_CALL: {
         TValue *fn = fn_src[a] >= 0 ? &base[fn_src[a]] : &base[a];
-        if (a + 1 >= ns || !ttisinteger(&base[a + 1]))
+        if (c != 2 || (b != 2 && b != 3) || a + b - 1 >= ns ||
+            !ttisinteger(&base[a + 1]) ||
+            (b == 3 && !ttisinteger(&base[a + 2])))
           return 0;
         {
           int fs = fn_src[a] >= 0 ? fn_src[a] : a;
@@ -539,7 +592,14 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
           if (!luar_trace_ir_emit(t, &in)) return 0;
           seen[a + 1] = 1;
         }
-        if (c != 2 || b != 2 || !inline_leaf_call(t, a, fn, pc)) {
+        if (b == 3 && !seen[a + 2]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
+          in.b = LUAR_IR_TAG_INT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[a + 2] = 1;
+        }
+        if (!(b == 2 ? inline_leaf_call(t, a, fn, pc)
+                     : inline_leaf_call2(t, a, fn, pc))) {
           if (getenv("LUAR_CALL_DEBUG"))
             fprintf(stderr, "call inline failed a=%d b=%d c=%d tag=%d\n",
                     a, b, c, (int)ttypetag(fn));

@@ -138,24 +138,13 @@ Estimated: 6–10 weeks.
 
 ## 0.6 — Trace coverage (partial)
 
-Status: numeric integer/float `for`/`while`/`repeat` loops are compiled with
-guards and register-cached sums, divisions, products, squares, subtraction
-and linear accumulators.  Table lookups/stores are opt-in and remain slower
-than the interpreter; the 1.5–3× table/object target is not met.  Full call
-inlining and side traces are not implemented (side-trace accounting exists
-via `jit.stats().exits`).
-
-## 0.6 — Trace coverage (partial)
-
-Status: early J3, opt-in.  Read-only raw-array lookups and raw integer
-stores/accumulation (`t[i]`, `acc = acc + t[i]`, `t[i] = i`, with
-register-cached fill/sum fast paths) can be emitted behind
-`jit.opt.start("table=1")`, with per-element tag/bounds/metatable guards
-that bail before the current iteration.  They are correct and tested but
-default raw fill/sum intrinsics make `table/array` ~0.14x stock Lua and
-`table/hash` ~parity; generic table emission remains opt-in.  Shape guards,
-calls remain to be
-done.
+Status: J3 table loops remain opt-in behind `jit.opt.start("table=1")`;
+default raw fill/sum intrinsics cover the common array shapes.  J4 now adds
+an opt-in tracing IR (`ir=1`) with integer/table roots, K-ops, multi-table
+bodies, guarded leaf-call inlining, and interior array→hash side traces.
+Generic table shape guards and non-inlineable call exits remain open.  The
+LuaR-only `j4` benchmark group measures this path without implying that it
+is faster than J2/J3 yet.
 
 * Table loads/stores with shape guards and inline caches, `GETFIELD`/
   `SETFIELD`/`GETI`/`SETI`, array-part fast paths.

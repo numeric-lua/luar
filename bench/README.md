@@ -101,6 +101,12 @@ interpreter at `SCALE=1`; use `--scale` on much slower/faster machines.
 | object | `object/metatable` | 1,000,000 missing-key reads through function `__index` |
 | coroutine | `coroutine/ping_pong` | two coroutines yielding alternately, 125,000 rounds each |
 | varargs | `varargs/select` | 80,000 calls with 8 varargs and a `select` loop |
+| j4 | `j4/int_sum` | integer loop forced through the J4 tracing IR (`ir=1`) |
+| j4 | `j4/table_read` | array read through J4 IR |
+| j4 | `j4/table_hash_side` | array→hash shape change exercising an interior side trace |
+| j4 | `j4/call_leaf` | one-argument guarded leaf-call inlining in J4 |
+| j4 | `j4/call_twoarg` | two-argument guarded leaf-call inlining in J4 |
+| j4 | `j4/multi_table` | two-table body with a leaf call in J4 |
 
 Feature notes:
 
@@ -112,6 +118,9 @@ Feature notes:
   operation: it measures the best available preallocation/clear facility.
 - `string/pack` is unavailable in LuaJIT 2.1 and is reported as `n/a`,
   not as a crash.
+- The `j4` group is LuaR-only: it enables `jit.opt.start("ir=1")` and is
+  reported as skipped by stock Lua and LuaJIT.  These cases measure the
+  opt-in tracing-IR path, not the default J2/J3 path.
 
 ## Timing methodology
 

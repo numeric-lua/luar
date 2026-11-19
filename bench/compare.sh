@@ -286,7 +286,7 @@ GCC_LINE=$(gcc --version 2>/dev/null | head -n 1 || true)
   cat "$TMP/report-body.md"
   printf '\n## Caveats\n\n'
   printf -- '- These are microbenchmarks, not application benchmarks. Ratios are specific to this host, build and run.\n'
-  printf -- '- LuaR 0.1 is interpreter-only: no native JIT, no FFI. The LuaJIT rows are the performance ceiling a JIT can reach, not LuaR 0.1 behaviour.\n'
+  printf -- '- LuaR uses its tiered JIT by default; J4 rows are opt-in and LuaR-only. The LuaJIT rows are the performance ceiling, not LuaR behaviour.\n'
   printf -- '- The machine is shared and throttles; best-of-N is optimistic, the median is reported alongside it. Runs with ratios near 1.00 should be treated as equal.\n'
   printf -- '- Stock Lua lacks `table.new`/`table.clear`; `table/new_clear` uses a `table.create` + `pairs()` fallback and says so in Notes. LuaJIT 2.1 lacks `string.pack`, so that benchmark is `n/a` there.\n'
   printf -- '- Wall time is sampled around the first timed run after the pre-sample GC; CPU time is the primary metric.\n'

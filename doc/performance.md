@@ -1,4 +1,9 @@
-# LuaR 0.1 performance baseline
+# LuaR performance baseline
+
+> The measured tables below are the historical 0.1 interpreter baseline.
+> Current releases add the default J2/J3 loop JIT and the opt-in J4 tracing
+> IR; regenerate current numbers with `./bench/compare.sh`, including the
+> LuaR-only `j4` corpus group.
 
 > **J2 update (2026-11-17, later the same day).**  The x86-64 loop JIT
 > compiles hot `for` loops whose bodies are numeric register arithmetic
