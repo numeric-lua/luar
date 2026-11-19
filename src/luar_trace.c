@@ -292,6 +292,25 @@ int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
 }
 
 
+int64_t luar_trace_tset_hash (TValue *tv, lua_Integer key, TValue *val) {
+  Table *t;
+  TValue old;
+  lu_byte tag;
+  if (tv == NULL || !ttistable(tv) || val == NULL || !ttisinteger(val))
+    return 0;
+  t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL || key < 1)
+    return 0;
+  if ((lua_Unsigned)key <= t->asize)
+    return luar_trace_tset_int(tv, key, val);
+  tag = luaH_getint(t, key, &old);
+  if (tagisempty(tag) || ttisnil(&old))
+    return 0;   /* absent cells may grow/rehash: interpreter handles */
+  luaH_setint(NULL, t, key, val);   /* existing cell, no allocation */
+  return 1;
+}
+
+
 int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val) {
   Table *t;
   if (tv == NULL || !ttistable(tv) || val == NULL || !ttisinteger(val))

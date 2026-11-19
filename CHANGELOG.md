@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-19
+
+### Added
+
+- Existing-hash-cell integer `TSET` in J4 side segments, without allocation
+  or metamethod fallback.
+- `tests/jit/64_side_hash_tset.lua` covering hash writes and reads.
+
 ## [0.9.0] — 2026-11-19
 
 ### Added

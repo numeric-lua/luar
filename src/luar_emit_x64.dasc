@@ -1533,7 +1533,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         | mov rsi, qword [rbx + ((int)LUAR_SLOT(in->b))]
         | lea rdx, [rbx + ((int)LUAR_SLOT(in->c))]
-        | mov64 rax, (int64_t)(intptr_t)&luar_trace_tset_int
+        | mov64 rax, (int64_t)(intptr_t)(side ?
+            &luar_trace_tset_hash : &luar_trace_tset_int)
         | call rax
         | mov r11d, ((int)in->pc)
         | test eax, eax
