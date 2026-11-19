@@ -57,7 +57,7 @@ fi
 if nm -D --defined-only "$SRC/$full" >/dev/null 2>&1; then
   SYMS="$TMP/dynsyms.txt"
   nm -D --defined-only "$SRC/$full" | awk '{print $NF}' | sort -u > "$SYMS"
-  bad=$(grep -vE '^(lua_|luaL_|luaopen_|luar_)' "$SYMS" || true)
+  bad=$(grep -vE '^(lua_|luaL_|luaopen_)' "$SYMS" |         grep -vxE 'luar_(version|lua_version|os|arch|has_ffi|has_jit|openlibs)' || true)
   [ -z "$bad" ] || fail "non-API symbols exported: $bad"
   for sym in luaL_newstate lua_newstate luaL_openselectedlibs luaopen_base \
              luaopen_table luaopen_luar luaopen_jit luaopen_ffi \
@@ -66,9 +66,13 @@ if nm -D --defined-only "$SRC/$full" >/dev/null 2>&1; then
   done
   if [ -f "$SRC/libluar.a" ]; then
     STATIC_SYMS="$TMP/staticsyms.txt"
-    nm -g --defined-only "$SRC/libluar.a" |
-      awk '$2 ~ /^[TDBR]$/ {print $3}' |
-      grep -E '^(lua_|luaL_|luaopen_|luar_)' | sort -u > "$STATIC_SYMS"
+    { nm -g --defined-only "$SRC/libluar.a" |
+        awk '$2 ~ /^[TDBR]$/ {print $3}' |
+        grep -E '^(lua_|luaL_|luaopen_)'
+      nm -g --defined-only "$SRC/libluar.a" |
+        awk '$2 ~ /^[TDBR]$/ {print $3}' |
+        grep -xE 'luar_(version|lua_version|os|arch|has_ffi|has_jit|openlibs)'
+    } | sort -u > "$STATIC_SYMS"
     if ! diff -u "$STATIC_SYMS" "$SYMS" > "$TMP/export-diff.txt"; then
       cat "$TMP/export-diff.txt" >&2
       fail "dynamic exports do not match the static LuaR API"
@@ -105,12 +109,12 @@ $CC -O2 -Wall -Wextra -I "$SRC" -o "$TMP/luar-shared" \
   fail "could not link src/lua.o against libluar.so"
 out=$(run_shared "$TMP/luar-shared" -v)
 case "$out" in
-  "LuaR 0.2.0 (Lua 5.5.1)"*) ;;
+  "LuaR 0.3.0 (Lua 5.5.1)"*) ;;
   *) fail "shared-linked luar -v output: $out" ;;
 esac
 out=$(run_shared "$TMP/luar-shared" -e \
   'print(luar.version .. "|" .. luar.lua_version .. "|" .. (6*7))')
-[ "$out" = "0.2.0|Lua 5.5.1|42" ] || fail "shared-linked luar output: $out"
+[ "$out" = "0.3.0|Lua 5.5.1|42" ] || fail "shared-linked luar output: $out"
 ok "luar CLI runs against libluar.so and reports the LuaR identity"
 
 # -- stock Lua 5.5 C module loaded through the shared library --------------
@@ -157,6 +161,11 @@ fi
 
 # -- pkg-config: shared and static link recipes ----------------------------
 if command -v pkg-config >/dev/null 2>&1; then
+  pc_version=$(PKG_CONFIG_PATH="$ROOT/etc" pkg-config \
+    --define-variable=includedir="$SRC" --modversion luar)
+  hdr_version=$(sed -n 's/^#define LUAR_VERSION[[:space:]]*"\(.*\)"/\1/p' "$SRC/luar_version.h")
+  [ "$pc_version" = "$hdr_version" ] ||
+    fail "pkg-config version ($pc_version) != luar_version.h ($hdr_version)"
   pc_cflags=$(PKG_CONFIG_PATH="$ROOT/etc" pkg-config \
     --define-variable=includedir="$SRC" --cflags luar)
   pc_libs=$(PKG_CONFIG_PATH="$ROOT/etc" pkg-config \
@@ -184,10 +193,12 @@ if command -v pkg-config >/dev/null 2>&1; then
     *-lluar*) ;;
     *) fail "pkg-config --static --libs luar does not pass -lluar: $static_libs" ;;
   esac
-  case "$static_libs" in
-    *-ldl*) ;;
-    *) fail "pkg-config --static --libs luar lacks Libs.private (-ldl): $static_libs" ;;
-  esac
+  if [ "$(uname -s)" != "Darwin" ]; then
+    case "$static_libs" in
+      *-ldl*) ;;
+      *) fail "pkg-config --static --libs luar lacks Libs.private (-ldl): $static_libs" ;;
+    esac
+  fi
   # shellcheck disable=SC2086  # pkg-config output is a flag list
   $CC -O2 -Wall -Wextra $pc_cflags -o "$TMP/embed-pc-static" \
     "$ROOT/tests/embed/embed.c" $static_libs ||

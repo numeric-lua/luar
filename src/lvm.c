@@ -1166,6 +1166,12 @@ void luaV_finishOp (lua_State *L) {
 #define dojump(ci,i,e)	{ pc += GETARG_sJ(i) + e; updatetrap(ci); }
 
 
+/* LUAR: decode a native exit PC with a bounds check. */
+#define LUAR_JIT_SET_EXIT_PC(p, pcvar, r) \
+  do { int luar_epc = -(r) - 2; \
+       if (luar_epc >= 0 && luar_epc < (p)->sizecode) \
+         pcvar = (p)->code + luar_epc; } while (0)
+
 /* for test instructions, execute the jump instruction that follows it */
 #define donextjump(ci)	{ Instruction ni = *pc; \
   const Instruction *luarjb = pc; \
@@ -1178,7 +1184,7 @@ void luaV_finishOp (lua_State *L) {
     if (luarjr > 0) \
       pc = luarjb + 1; \
     else if (luarjr < -1) \
-      pc = cl->p->code + (-luarjr - 2); \
+      LUAR_JIT_SET_EXIT_PC(cl->p, pc, luarjr); \
   } }
 
 /*
@@ -1708,7 +1714,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           if (luarjr > 0)
             pc = luarback + 1;  /* LUAR: native while loop finished */
           else if (luarjr < -1)
-            pc = cl->p->code + (-luarjr - 2);
+            LUAR_JIT_SET_EXIT_PC(cl->p, pc, luarjr);
         }
 #endif
         vmbreak;
@@ -1929,7 +1935,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
             if (luarjr > 0)
               pc = luarb + 1;  /* LUAR: the native loop finished it */
             else if (luarjr < -1)
-              pc = cl->p->code + (-luarjr - 2);
+              LUAR_JIT_SET_EXIT_PC(cl->p, pc, luarjr);
 #endif
           }
         }

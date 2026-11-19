@@ -2,16 +2,9 @@
 ** libluar.map -- dynamic export list for libluar.so.
 **
 ** A shared Lua runtime must expose the complete Lua 5.5 C API plus the
-** luar_* additions, and nothing else.  The core has ~200 luaX_* helper
-** symbols with external linkage; without this filter they would end up in
-** the dynamic symbol table and could collide with another Lua (or another
-** libluar) loaded into the same process.
-**
-** The globs below match the public headers exactly:
-**   lua_*      lua.h (including lua_ident and lua_numbertocstring)
-**   luaL_*     lauxlib.h
-**   luaopen_*  lualib.h and the LuaR extension openers
-**   luar_*     luar.h
+** small public luar.h additions, and nothing else.  The internal tracing,
+** JIT and FFI helpers are intentionally not exported; see src/luar.h for
+** the public extension API.
 **
 ** This is an anonymous version node: it filters the dynamic symbol table
 ** without assigning symbol versions, so ordinary (unversioned) C modules
@@ -22,7 +15,13 @@
     lua_*;
     luaL_*;
     luaopen_*;
-    luar_*;
+    luar_version;
+    luar_lua_version;
+    luar_os;
+    luar_arch;
+    luar_has_ffi;
+    luar_has_jit;
+    luar_openlibs;
   local:
     *;
 };

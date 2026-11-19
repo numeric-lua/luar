@@ -1,6 +1,6 @@
 # LuaR architecture
 
-Status: 0.2.0. This document describes the system as built and the design
+Status: 0.3.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -177,7 +177,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.2.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.3.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.
@@ -198,9 +198,10 @@ dependency precedes the module's `liblua` dependency in the lookup scope.
 while `pkg-config --static` adds `Libs.private` (`-ldl`, needed by the
 `dlopen`-based module loader on older glibc). `make test-shared` links an
 embedding host and the CLI against `libluar.so` and loads a stock Lua 5.5 C
-module into it. The ELF/GNU-ld path is the tested one; the Makefile also has
-a minimal macOS `-dynamiclib` fallback, but it has no export list and no CI
-coverage yet.
+module into it. The ELF/GNU-ld path is the tested one.  On macOS the shared target uses
+`libluar.<version>.dylib` with an `@rpath` install name and versioned
+symlinks; the optional macOS CI job builds it, but the ELF symbol-export and
+shared-link tests are not yet run there.
 
 ## 9. Testing strategy
 

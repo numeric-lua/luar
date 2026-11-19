@@ -109,8 +109,13 @@ ok "LUAR_INIT"
 
 # -- embedding through the public headers ---------------------------------
 # libffi is dlopen()ed by the FFI module, so a static link needs no -lffi.
+case "$(uname -s)" in
+  Darwin) EMBED_LIBS="-lm" ;;
+  *)      EMBED_LIBS="-lm -ldl" ;;
+esac
+# shellcheck disable=SC2086
 cc -O2 -I "$ROOT/src" -o "$TMP/embed" "$ROOT/tests/embed/embed.c" \
-   "$ROOT/src/libluar.a" -lm -ldl ||
+   "$ROOT/src/libluar.a" $EMBED_LIBS ||
   fail "could not build the embed test"
 out=$("$TMP/embed") || fail "embed test failed"
 [ "$out" = "embed ok" ] || fail "embed output: $out"

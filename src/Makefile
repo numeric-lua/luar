@@ -94,11 +94,18 @@ ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T)
 #   libluar.so             unversioned link-time name
 # VERSION is passed by the top-level Makefile; the default keeps 'make -C src'
 # usable on its own.  PIC objects are separate from the static ones.
-VERSION?= 0.2.0
+VERSION?= 0.3.0
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
+UNAME_S:= $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+LUA_SO= libluar.$(VERSION).dylib
+LUA_SONAME= libluar.$(SOVERSION).dylib
+LUA_SOLINK= libluar.dylib
+else
 LUA_SO= libluar.so.$(VERSION)
 LUA_SONAME= libluar.so.$(SOVERSION)
 LUA_SOLINK= libluar.so
+endif
 # Export list for the ELF linker (see etc/libluar.map).  Kept outside src/
 # so tools/upstream-check.sh does not classify it as an upstream addition.
 LUA_MAP= ../etc/libluar.map
@@ -113,8 +120,10 @@ ifeq ($(UNAME_S),Linux)
 SHARED_LIBS+= -ldl
 endif
 ifeq ($(UNAME_S),Darwin)
-SHARED_LDFLAGS= -dynamiclib -Wl,-install_name,$(LUA_SONAME)
+SHARED_LDFLAGS= -dynamiclib -Wl,-install_name,@rpath/$(LUA_SONAME) \
+	-Wl,-compatibility_version,$(SOVERSION) -Wl,-current_version,$(VERSION)
 SHARED_MAP=
+SYSLIBS= -lreadline
 endif
 
 # Targets start here.

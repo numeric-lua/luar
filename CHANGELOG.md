@@ -6,6 +6,31 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-19
+
+### Added
+
+- LuaR-only `j4` benchmark corpus covering integer, table-read,
+  array→hash side-trace, one- and two-argument leaf-call, and multi-table
+  paths; `bench/compare.sh` reports stock Lua/LuaJIT as skipped for `j4`.
+- Two-argument integer leaf-call inlining in J4 roots.
+- J4 benchmark and correctness coverage for exact side-failure resume,
+  closure-guard fallback, cycle classification, `__newindex` fallback and
+  table-write metatable rejection.
+- J4 table traces now keep guards (collectable table tags) and report a
+  per-instruction resume PC; native exit PCs are bounds-checked in `lvm`.
+- The shared-library export map is an explicit public `luar.h` allowlist;
+  macOS builds use `.dylib` names and `@rpath` install names.
+- `make dist` requires a clean tree; staged install CI compiles and runs
+  shared and static consumers through the installed `luar.pc`.
+
+### Changed
+
+- J4 side linking now records the root start separately from the native
+  backedge for correct cycle classification.
+- Side-code cache exhaustion no longer leaks generated code.
+- Benchmark documentation no longer describes LuaR as interpreter-only.
+
 ## [0.2.0] — 2026-11-18
 
 ### Added

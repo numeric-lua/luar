@@ -12,11 +12,19 @@ WITH_JIT?= $(JIT)
 MAKE?= make
 RM= rm -f
 
-VERSION= 0.2.0
+VERSION= 0.3.0
 LUAVER= 5.5
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
+UNAME_S:= $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+LUA_SO= libluar.$(VERSION).dylib
+LUA_SONAME= libluar.$(SOVERSION).dylib
+LUA_SOLINK= libluar.dylib
+else
 LUA_SO= libluar.so.$(VERSION)
 LUA_SONAME= libluar.so.$(SOVERSION)
+LUA_SOLINK= libluar.so
+endif
 DISTNAME= luar-$(VERSION)
 
 INSTALL_BIN= $(DESTDIR)$(PREFIX)/bin
@@ -135,17 +143,21 @@ bench-compare: build
 install: build shared
 	mkdir -p $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_PC) \
 		$(INSTALL_MAN) $(INSTALL_LMOD) $(INSTALL_CMOD)
+	$(RM) $(INSTALL_LIB)/libluar.so.* $(INSTALL_LIB)/libluar.*.dylib
 	install -m 0755 src/luar src/luarc $(INSTALL_BIN)
 	install -m 0644 src/libluar.a $(INSTALL_LIB)/libluar.a
 	install -m 0755 src/$(LUA_SO) $(INSTALL_LIB)/$(LUA_SO)
 	ln -sfn $(LUA_SO) $(INSTALL_LIB)/$(LUA_SONAME)
-	ln -sfn $(LUA_SONAME) $(INSTALL_LIB)/libluar.so
+	ln -sfn $(LUA_SONAME) $(INSTALL_LIB)/$(LUA_SOLINK)
 	install -m 0644 src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h \
 		src/lua.hpp src/luar.h src/luar_version.h $(INSTALL_INC)
-	sed 's|^prefix=.*|prefix=$(PREFIX)|' etc/luar.pc > $(INSTALL_PC)/luar.pc
+	sed -e 's|^prefix=.*|prefix=$(PREFIX)|' \
+	    -e '$(if $(filter Darwin,$(UNAME_S)),s|^Libs.private: -ldl$$|Libs.private:|,)' \
+	    etc/luar.pc > $(INSTALL_PC)/luar.pc
 	install -m 0644 man/luar.1 $(INSTALL_MAN)/luar.1
 
 dist:
+	@test -z "$$(git status --porcelain)" || { 	  echo "dist: working tree is dirty; commit or stash changes first" >&2; 	  exit 1; }
 	git archive --format=tar --prefix=$(DISTNAME)/ HEAD | gzip -n > $(DISTNAME).tar.gz
 
 test-dist: dist
@@ -158,7 +170,7 @@ uninstall:
 	$(RM) $(INSTALL_BIN)/luar $(INSTALL_BIN)/luarc
 	$(RM) $(INSTALL_LIB)/libluar.a
 	$(RM) $(INSTALL_LIB)/$(LUA_SO) $(INSTALL_LIB)/$(LUA_SONAME) \
-		$(INSTALL_LIB)/libluar.so
+		$(INSTALL_LIB)/$(LUA_SOLINK)
 	$(RM) -r $(INSTALL_INC)
 	$(RM) $(INSTALL_PC)/luar.pc
 	$(RM) $(INSTALL_MAN)/luar.1
@@ -166,6 +178,10 @@ uninstall:
 clean:
 	$(MAKE_SRC) clean
 	$(RM) -r build $(PREFIX_STAMP) $(FFI_STAMP) $(JIT_STAMP)
+
+distclean: clean
+	$(RM) $(DISTNAME).tar.gz
+	$(RM) -r tests/tmp
 
 # FAIL if src/ has drifted from the vendored upstream snapshot in ways
 # that were not recorded in tools/upstream-baseline.txt.  See doc/upstream.md.

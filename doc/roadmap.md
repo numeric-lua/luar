@@ -58,14 +58,13 @@ Exit criteria:
 
 Estimated: 2–4 weeks.
 
-## 0.3 — Distribution and ABI hardening
+## 0.3 — Distribution and ABI hardening (released 2026-11-19)
 
 * `libluar.so` exporting the Lua 5.5 C API, with a documented soname and
   `pkg-config` file; static and shared installs tested on Linux and macOS.
-  Shared build, `libluar.so.0` soname, export map and the `luar.pc` shared/
-  static recipes are in place and tested on Linux (`make test-shared`);
-  macOS shared build and the full FFI suite are exercised in the optional CI
-  job; small/HFA/mixed and large by-value unions plus packed aggregate
+  Shared build, `libluar.so.0` soname, explicit export allowlist and the
+  `luar.pc` shared/static recipes are in place and tested on Linux
+  (`make test-shared`); macOS builds a `.dylib` in the optional CI job; small/HFA/mixed and large by-value unions plus packed aggregate
   arguments/returns/callbacks and TLS now run on arm64.
 * CI matrix: gcc/clang, WITH_FFI on/off, JIT=0, staged install with
   `pkg-config`, shared-library FFI, ASan/UBSan and fuzz jobs.  The official
