@@ -81,6 +81,7 @@ static void free_code (LuaR_JIT *J) {
   J->ir_side_executed = 0;
   J->ir_side_start = -1;
   J->ir_root_start = -1;
+  J->ir_yields = 0;
   J->ir_traces = 0;
   J->ir_ops = 0;
   J->ir_aborts = 0;
@@ -2801,6 +2802,10 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     }
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
       int irr = ((LuaR_LoopFn)p->luar_ir_code)(base);
+      if (irr == 2) {
+        J->ir_yields++;
+        return 0;
+      }
       if (irr > 0) {
         J->ir_executed++;
         return 1;
@@ -3479,6 +3484,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_side_start");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_root_start : -1);
   lua_setfield(L, -2, "ir_root_start");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_yields : 0);
+  lua_setfield(L, -2, "ir_yields");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;

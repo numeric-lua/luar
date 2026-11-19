@@ -130,6 +130,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   loops from producing non-root side exits.
 - Live side tests now assert depth tracking as well as compilation and
   execution.
+- Added periodic interpreter yields (safepoints) for generated root traces,
+  counted by `ir_yields`.
 - Fixed `MMBINI` immediate-slot bounds checking, enabling prefixed table
   bodies in IR recording and true interior side exits (asserted by
   `tests/jit/45_ir_interior.lua`).
