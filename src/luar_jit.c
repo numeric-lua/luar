@@ -3640,6 +3640,22 @@ done:
 }
 
 
+static int jit_trace_hash_get_selftest (lua_State *L) {
+  TValue tv;
+  int64_t v = 0;
+  int ok;
+  lua_createtable(L, 0, 1);
+  lua_pushinteger(L, 42);
+  lua_seti(L, -2, 100000);
+  lua_pushvalue(L, -1);
+  tv = *s2v(L->top.p - 1);
+  ok = (int)luar_trace_tget_generic(&tv, 100000, &v) && v == 42;
+  lua_pop(L, 2);
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_guard_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3678,6 +3694,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "side_exec_selftest");
   lua_pushcfunction(L, jit_trace_guard_selftest);
   lua_setfield(L, -2, "guard_selftest");
+  lua_pushcfunction(L, jit_trace_hash_get_selftest);
+  lua_setfield(L, -2, "hash_get_selftest");
   lua_pushcfunction(L, jit_trace_side_link_selftest);
   lua_setfield(L, -2, "side_link_selftest");
   lua_pushcfunction(L, jit_trace_side_fail_selftest);

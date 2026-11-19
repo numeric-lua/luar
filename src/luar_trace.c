@@ -171,6 +171,21 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   return 1;
 }
 
+int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
+                                  int64_t *out) {
+  TValue k, res;
+  Table *t;
+  if (tv == NULL || !ttistable(tv))
+    return 0;
+  t = (Table *)tv->value_.gc;
+  setivalue(&k, key);
+  if (luaH_get(t, &k, &res) != LUA_VNUMINT)
+    return 0;
+  *out = ivalue(&res);
+  return 1;
+}
+
+
 int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val) {
   Table *t;
   if (tv == NULL || !ttistable(tv) || val == NULL || !ttisinteger(val))
