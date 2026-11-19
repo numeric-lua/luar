@@ -3967,6 +3967,25 @@ done:
 }
 
 
+static int jit_trace_link_selftest (lua_State *L) {
+  LuaR_TraceIR t;
+  LuaR_IRIns in;
+  int ok = 1;
+  luar_trace_ir_init(&t, NULL, 5, 4, 0);
+  memset(&in, 0, sizeof(in));
+  in.kind = LUAR_IR_FORLOOP; in.a = 1;
+  if (!luar_trace_ir_emit(&t, &in)) return 0;
+  in.kind = LUAR_IR_RET;
+  if (!luar_trace_ir_emit(&t, &in)) return 0;
+  if (luar_trace_ir_link(&t, 0, 5) != 2 || t.depth != 1) ok = 0;
+  t.startpc = 6;
+  if (luar_trace_ir_link(&t, 3, 5) != 1 || t.depth != 4) ok = 0;
+  if (luar_trace_ir_link(&t, 4, 5) != 0) ok = 0;
+  lua_pushboolean(L, ok);
+  return 1;
+}
+
+
 static int jit_trace_guard_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -4005,6 +4024,8 @@ static int jit_trace_ir (lua_State *L) {
   lua_setfield(L, -2, "side_exec_selftest");
   lua_pushcfunction(L, jit_trace_guard_selftest);
   lua_setfield(L, -2, "guard_selftest");
+  lua_pushcfunction(L, jit_trace_link_selftest);
+  lua_setfield(L, -2, "link_selftest");
   lua_pushcfunction(L, jit_trace_tget_generic_ir_selftest);
   lua_setfield(L, -2, "tget_generic_ir_selftest");
   lua_pushcfunction(L, jit_trace_hash_get_selftest);
