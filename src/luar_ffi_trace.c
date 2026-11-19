@@ -386,3 +386,31 @@ int64_t luar_ffi_trace_cset_field_double (TValue *cdv, size_t off, size_t sz,
   else memcpy(p, &d, 8);
   return 1;
 }
+
+
+int64_t luar_ffi_trace_cset_field_int_const (TValue *cdv, size_t off,
+                                             size_t sz, int64_t v) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *p;
+  if (cdv == NULL || !ttisfulluserdata(cdv) ||
+      (sz != 1 && sz != 2 && sz != 4 && sz != 8))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size || sz > ct->size - off)
+    return 0;
+  p = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+      cd->v.p : (void *)&cd->v;
+  p = (char *)p + off;
+  if (sz == 1) { uint8_t x = (uint8_t)v; memcpy(p, &x, 1); }
+  else if (sz == 2) { uint16_t x = (uint16_t)v; memcpy(p, &x, 2); }
+  else if (sz == 4) { uint32_t x = (uint32_t)v; memcpy(p, &x, 4); }
+  else { uint64_t x = (uint64_t)v; memcpy(p, &x, 8); }
+  return 1;
+}

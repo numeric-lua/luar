@@ -6,6 +6,13 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-11-19
+
+### Added
+
+- `CSETFIELDK`: constant integer struct/union field writes in J4.
+- `tests/ffi/22_trace_cdata.lua` now covers constant field writes.
+
 ## [0.19.0] — 2026-11-19
 
 ### Added

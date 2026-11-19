@@ -44,7 +44,8 @@ typedef enum {
   LUAR_IR_CSETI,	/* FFI cdata integer array write */
   LUAR_IR_CSETF,	/* FFI cdata float/double array write */
   LUAR_IR_CGETFIELD,	/* FFI cdata scalar struct field read */
-  LUAR_IR_CSETFIELD,	/* FFI cdata scalar struct field write */		/* a = dest, b = table, c = key */
+  LUAR_IR_CSETFIELD,	/* FFI cdata scalar struct field write */
+  LUAR_IR_CSETFIELDK,	/* FFI cdata scalar struct field write, integer K */		/* a = dest, b = table, c = key */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -125,6 +126,8 @@ int64_t luar_ffi_trace_cset_field_int (TValue *cdv, size_t off, size_t sz,
                                        TValue *val);
 int64_t luar_ffi_trace_cset_field_double (TValue *cdv, size_t off, size_t sz,
                                           TValue *val);
+int64_t luar_ffi_trace_cset_field_int_const (TValue *cdv, size_t off,
+                                             size_t sz, int64_t val);
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_fsub (TValue *a, TValue *b, TValue *c);
 int64_t luar_trace_fdivk (TValue *a, TValue *b, double k);

@@ -139,6 +139,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CSETF:
       case LUAR_IR_CGETFIELD:
       case LUAR_IR_CSETFIELD:
+      case LUAR_IR_CSETFIELDK:
         break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
@@ -776,19 +777,30 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_SETFIELD: {
-        int fk;
+        int fk, isk = GETARG_k(ins);
         size_t off = 0, fsize = 0;
-        if (!ttisstring(&p->k[b]) || GETARG_k(ins)) return 0;
+        TValue *v = isk ? &p->k[c] : &base[c];
+        if (!ttisstring(&p->k[b])) return 0;
         if (luar_ffi_trace_kind(&base[a]) == 3 &&
             luar_ffi_trace_field(&base[a], getstr(tsvalue(&p->k[b])),
                                  &fk, &off, &fsize) &&
-            (fk == 1 ? ttisinteger(&base[c]) : ttisfloat(&base[c]))) {
+            (fk == 1 ? ttisinteger(v) : ttisfloat(v))) {
           if (!seen[a]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)a;
             in.ival = (int64_t)(intptr_t)base[a].value_.gc;
             in.pc = pc;
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[a] = 1;
+          }
+          if (isk) {
+            if (fk != 1) return 0;   /* float constant writes fall back */
+            in.kind = LUAR_IR_CSETFIELDK; in.a = (uint8_t)a;
+            in.b = (uint8_t)fsize; in.c = 1;
+            in.ival = (int64_t)off;
+            in.nval = (double)ivalue(v);
+            in.pc = pc;
+            r = luar_trace_ir_emit(t, &in);
+            break;
           }
           if (!seen[c]) {
             in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;

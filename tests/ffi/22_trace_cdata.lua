@@ -79,7 +79,15 @@ wfx(wp, 1000)
 wfy(wp, wq, 1000)
 assert(wp.x == 1000)
 assert(wp.y == 2.5)
-assert(jit.stats().ir_executed >= 6)
+
+-- constant integer field writes use CSETFIELDK
+local kp = ffi.new("struct luar_trace_P")
+local function wfk (p, n)
+  for i = 1, n do p.x = 7 end
+end
+wfk(kp, 1000)
+assert(kp.x == 7)
+assert(jit.stats().ir_executed >= 7)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

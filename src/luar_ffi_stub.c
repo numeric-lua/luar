@@ -71,3 +71,8 @@ int64_t luar_ffi_trace_cset_field_double (TValue *cdv, size_t off, size_t sz,
                                           TValue *val) {
   (void)cdv; (void)off; (void)sz; (void)val; return 0;
 }
+
+int64_t luar_ffi_trace_cset_field_int_const (TValue *cdv, size_t off,
+                                             size_t sz, int64_t val) {
+  (void)cdv; (void)off; (void)sz; (void)val; return 0;
+}
