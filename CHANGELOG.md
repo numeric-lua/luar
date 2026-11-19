@@ -6,6 +6,15 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-19
+
+### Added
+
+- Existing-cell J4 side `TSET` on tables with a metatable, while empty cells
+  still honor `__newindex`.
+- macOS C-module compile/load/require check in CI.
+- `tests/jit/65_side_meta_tset.lua`.
+
 ## [0.10.0] — 2026-11-19
 
 ### Added
