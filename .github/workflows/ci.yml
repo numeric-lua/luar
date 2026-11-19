@@ -228,7 +228,7 @@ jobs:
           cc -O2 -Isrc tests/embed/embed.c -Lsrc -lluar -lm \
              -Wl,-rpath,"$PWD/src" -o embed-shared
           ./embed-shared | grep -q "embed ok"
-          make PREFIX=/usr/local DESTDIR="$PWD/stage" install
+          make PREFIX="$PWD/stage/usr/local" install
           test -f stage/usr/local/lib/libluar.0.8.0.dylib
           test -L stage/usr/local/lib/libluar.dylib
           PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
