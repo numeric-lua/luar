@@ -6,6 +6,13 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-11-19
+
+### Added
+
+- Side-segment hash insertion coverage (`tests/jit/67_side_hash_insert.lua`).
+- `j4/hash_insert` benchmark from the 0.12 cycle.
+
 ## [0.12.0] — 2026-11-19
 
 ### Added
