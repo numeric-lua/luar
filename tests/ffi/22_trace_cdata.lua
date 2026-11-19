@@ -87,7 +87,15 @@ local function wfk (p, n)
 end
 wfk(kp, 1000)
 assert(kp.x == 7)
-assert(jit.stats().ir_executed >= 7)
+
+-- constant double field writes use CSETFIELDK
+local fp = ffi.new("struct luar_trace_P")
+local function wff (p, n)
+  for i = 1, n do p.y = 2.5 end
+end
+wff(fp, 1000)
+assert(fp.y == 2.5)
+assert(jit.stats().ir_executed >= 8)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

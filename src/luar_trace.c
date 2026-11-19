@@ -793,11 +793,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             seen[a] = 1;
           }
           if (isk) {
-            if (fk != 1) return 0;   /* float constant writes fall back */
             in.kind = LUAR_IR_CSETFIELDK; in.a = (uint8_t)a;
-            in.b = (uint8_t)fsize; in.c = 1;
+            in.b = (uint8_t)fsize; in.c = (uint8_t)fk;
             in.ival = (int64_t)off;
-            in.nval = (double)ivalue(v);
+            in.nval = fk == 1 ? (double)ivalue(v) : fltvalue(v);
             in.pc = pc;
             r = luar_trace_ir_emit(t, &in);
             break;

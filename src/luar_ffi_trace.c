@@ -414,3 +414,28 @@ int64_t luar_ffi_trace_cset_field_int_const (TValue *cdv, size_t off,
   else { uint64_t x = (uint64_t)v; memcpy(p, &x, 8); }
   return 1;
 }
+
+
+int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
+                                                size_t sz, double d) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *p;
+  if (cdv == NULL || !ttisfulluserdata(cdv) || (sz != 4 && sz != 8))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size || sz > ct->size - off)
+    return 0;
+  p = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+      cd->v.p : (void *)&cd->v;
+  p = (char *)p + off;
+  if (sz == 4) { float f = (float)d; memcpy(p, &f, 4); }
+  else memcpy(p, &d, 8);
+  return 1;
+}

@@ -128,6 +128,8 @@ int64_t luar_ffi_trace_cset_field_double (TValue *cdv, size_t off, size_t sz,
                                           TValue *val);
 int64_t luar_ffi_trace_cset_field_int_const (TValue *cdv, size_t off,
                                              size_t sz, int64_t val);
+int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
+                                                size_t sz, double val);
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_fsub (TValue *a, TValue *b, TValue *c);
 int64_t luar_trace_fdivk (TValue *a, TValue *b, double k);

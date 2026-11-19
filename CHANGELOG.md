@@ -6,6 +6,12 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-11-19
+
+### Added
+
+- Constant `float`/`double` struct/union field writes in J4.
+
 ## [0.20.0] — 2026-11-19
 
 ### Added

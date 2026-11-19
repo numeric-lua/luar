@@ -1525,17 +1525,30 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | test eax, eax
         | jz >2
         break;
-      case LUAR_IR_CSETFIELDK:
+      case LUAR_IR_CSETFIELDK: {
+        int isf = (in->c == 2);
+        const void *cfn = isf ?
+          (const void *)&luar_ffi_trace_cset_field_double_const :
+          (const void *)&luar_ffi_trace_cset_field_int_const;
+        int64_t bits;
+        memcpy(&bits, &in->nval, sizeof(bits));
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         | mov rsi, ((int64_t)in->ival)
         | mov rdx, ((int64_t)in->b)
-        | mov rcx, ((int64_t)in->nval)
-        | mov64 rax, (int64_t)(intptr_t)&luar_ffi_trace_cset_field_int_const
+        if (isf) {
+          | mov64 rax, bits
+          | movq xmm0, rax
+        }
+        else {
+          | mov rcx, ((int64_t)in->nval)
+        }
+        | mov64 rax, (int64_t)(intptr_t)cfn
         | call rax
         | mov r11d, ((int)in->pc)
         | test eax, eax
         | jz >2
         break;
+      }
       case LUAR_IR_CSETFIELD: {
         const void *setfn = (in->c == 2) ?
           (const void *)&luar_ffi_trace_cset_field_double :
