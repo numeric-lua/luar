@@ -123,6 +123,7 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Wired the generic hash lookup into side-trace `TGET` codegen with a selftest.
 - Added a generic hash-lookup primitive for future array-miss side traces.
 - Expanded exit snapshots to 64 slots and added a restore selftest.
 - Added side-failure/restore coverage for interior segments.
