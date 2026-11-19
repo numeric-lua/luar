@@ -30,6 +30,7 @@ local st = jit.stats()
 H.check(st.ir_side_traces >= 1, "IR side trace was not recorded")
 H.check(st.ir_side_compiled >= 1, "IR side trace was not compiled")
 H.check(st.ir_side_executed >= 1, "IR side trace was not executed")
+H.check(st.ir_cycles >= 1, "root-start side exit was not classified as a cycle")
 
 jit.flush()
 jit.opt.start("ir=0")

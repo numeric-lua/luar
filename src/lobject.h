@@ -642,6 +642,7 @@ typedef struct Proto {
   void *luar_ir_code;
   size_t luar_ir_size;
   int luar_ir_pc;
+  int luar_ir_start;
   int luar_ir_base;
   l_uint32 luar_ir_epoch;
   void *luar_side_code;

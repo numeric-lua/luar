@@ -200,6 +200,8 @@ int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val) {
   if (tv == NULL || !ttistable(tv) || val == NULL || !ttisinteger(val))
     return 0;
   t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL)
+    return 0;
   if (key < 1 || (lua_Unsigned)key > t->asize)
     return 0;
   *getArrTag(t, (unsigned)(key - 1)) = LUA_VNUMINT;
@@ -318,7 +320,7 @@ static int inline_leaf_call (LuaR_TraceIR *t, int a, TValue *fn,
   cl = (LClosure *)fn->value_.gc;
   fp = cl->p;
   if (fp == NULL || fp->sizecode < 2 || isvararg(fp) ||
-      cl->nupvalues != 0 || fp->maxstacksize < 2)
+      cl->nupvalues != 0 || fp->maxstacksize < 2 || fp->numparams != 1)
     return 0;
   i0 = fp->code[0];
   k = 1;
@@ -387,7 +389,7 @@ static int inline_leaf_call2 (LuaR_TraceIR *t, int a, TValue *fn,
   cl = (LClosure *)fn->value_.gc;
   fp = cl->p;
   if (fp == NULL || fp->sizecode < 2 || isvararg(fp) ||
-      cl->nupvalues != 0 || fp->maxstacksize < 3 || fp->numparams < 2)
+      cl->nupvalues != 0 || fp->maxstacksize < 3 || fp->numparams != 2)
     return 0;
   i0 = fp->code[0];
   k = 1;
@@ -453,7 +455,10 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_MOVE:
         if (ttisLclosure(&base[b])) {
           fn_src[a] = b;
-          r = 1;
+          in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
+          in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
           break;
         }
         if (!seen[b] && b < ns) {

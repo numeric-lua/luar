@@ -2745,7 +2745,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
       return -1;
     for (k = 0; k < ir.nins; k++)
       if (ir.ins[k].kind == LUAR_IR_TSET) has_tset = 1;
-    link = luar_trace_ir_link(&ir, 0, p->luar_ir_pc);
+    link = luar_trace_ir_link(&ir, 0, p->luar_ir_start);
     (void)luar_trace_ir_analyze(&ir, NULL, 0);
     if (link == 0 || has_tset ||
         (uint32_t)ir.depth > LUAR_IR_MAX_DEPTH) {
@@ -2760,8 +2760,9 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
     J->ir_side_traces++;
     J->ir_side_ops += (uint32_t)ir.nins;
     ir.side = 1;
-    if (!luari_emit_trace_ir(&ir, &p->luar_side_code, &p->luar_side_size) ||
-        J->ncode >= LUAR_JIT_MAXCODE) {
+    if (J->ncode >= LUAR_JIT_MAXCODE)
+      return -1;
+    if (!luari_emit_trace_ir(&ir, &p->luar_side_code, &p->luar_side_size)) {
       p->luar_side_code = NULL;
       return -1;
     }
@@ -2814,11 +2815,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         return 1;
       }
       if (irr < -1) {
-        int sr = jit_ir_side(J, p, pc, base, -irr - 2);
+        int expc = -irr - 2;
+        int sr = jit_ir_side(J, p, pc, base, expc);
         if (sr >= 0) {
           J->ir_executed++;
           return sr;
         }
+        /* Resume the interpreter at the exact exit PC.  The side path
+        ** restored the snapshot on failure, so re-running from the exit
+        ** (not the loop head) avoids duplicating the executed prefix. */
+        return -(expc + 2);
       }
     }
   }
@@ -3176,6 +3182,7 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
         J->ir_compiled++;
         J->ir_code_bytes += (uint32_t)p->luar_ir_size;
         p->luar_ir_pc = (int)off;
+        p->luar_ir_start = (int)target;
         J->ir_root_start = (int)target;
         p->luar_ir_base = GETARG_A(ins);
         p->luar_ir_epoch = J->epoch;
