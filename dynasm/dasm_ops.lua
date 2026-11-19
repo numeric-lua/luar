@@ -2,7 +2,7 @@
 -- dasm_ops.lua -- 32-bit operation helpers for DynASM on Lua 5.5+.
 --
 -- DynASM was written for LuaJIT and used the Lua 5.1-era `bit` library.
--- LuaR ships no such compatibility library: its backends run on native Lua
+-- Luar ships no such compatibility library: its backends run on native Lua
 -- 5.5 operators instead.  This module provides the exact 32-bit semantics
 -- the encoders expect (signed int32 results, five-bit shift counts).
 --

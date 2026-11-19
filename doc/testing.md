@@ -1,7 +1,7 @@
-# Testing LuaR
+# Testing Luar
 
-LuaR treats the official Lua implementation as the specification, so most of
-the test strategy is about proving that LuaR has not drifted from it.
+Luar treats the official Lua implementation as the specification, so most of
+the test strategy is about proving that Luar has not drifted from it.
 
 ## Quick start
 
@@ -54,7 +54,7 @@ belong here as well as in `tests/semantics/`. If no stock `lua` is on
 `PATH`, the runner prints a skip and exits successfully.
 
 The semantics files are also expected to pass under stock Lua. CI runs them
-that way to catch tests that accidentally encode LuaR behaviour.
+that way to catch tests that accidentally encode Luar behaviour.
 
 ## ABI tests
 
@@ -66,7 +66,7 @@ embedding API and that `luaL_openlibs` brings up the extensions.
 `tests/shared.sh` (run by `make test-shared`) repeats the embedding test
 against `src/libluar.so` with `-L src -lluar` and `LD_LIBRARY_PATH=src`, and
 links a copy of the CLI itself against the shared library. It checks the
-soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.7.0`), verifies
+soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.7.1`), verifies
 with `nm -D` that only `lua_*`/`luaL_*`/`luaopen_*`/`luar_*` are exported,
 loads the stock `mhello.c` module into the shared-linked CLI, and exercises
 both `pkg-config --libs luar` and `pkg-config --static --libs luar` against
@@ -77,7 +77,7 @@ The stock module is linked with `-llua` and therefore carries
 `DT_NEEDED liblua.so.5.5`. This does not cause interposition: `libluar.so`
 is a direct dependency of the host and therefore precedes the module's own
 dependency in the global lookup scope, so the module's `lua_*` references
-bind to LuaR. On glibc the test confirms this with `LD_DEBUG=bindings`;
+bind to Luar. On glibc the test confirms this with `LD_DEBUG=bindings`;
 elsewhere the working module is the evidence. The same reasoning explains
 why a *static* host must be linked with `-Wl,-E` to load C modules at all:
 it has no other way to publish `lua_*` to `dlopen`.
@@ -87,7 +87,7 @@ it has no other way to publish `lua_*` to `dlopen`.
 `tests/upstream/run.sh` downloads the Lua authors' test suite for the exact
 base version into an ignored scratch directory, runs it with `luar`, and
 writes `tests/tmp/upstream-report.txt`. It is intentionally not vendored:
-the suite changes with Lua releases and is not part of LuaR.
+the suite changes with Lua releases and is not part of Luar.
 
 ## FFI tests
 

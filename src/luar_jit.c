@@ -3492,7 +3492,7 @@ static int jit_status (lua_State *L) {
 
 
 static int jit_opt_start (lua_State *L) {
-  /* Accept and keep LuaJIT-style option strings.  LuaR's experimental
+  /* Accept and keep LuaJIT-style option strings.  Luar's experimental
   ** table JIT is opt-in ("table=1") because it is not yet a performance
   ** win on the reference corpus.
   */
@@ -4143,7 +4143,7 @@ LUALIB_API int luaopen_jit (lua_State *L) {
   luaL_checkversion(L);
   luari_jit_init(L);
   luaL_newlib(L, jitlib);
-  lua_pushliteral(L, "LuaR " LUAR_VERSION);
+  lua_pushliteral(L, "Luar " LUAR_VERSION);
   lua_setfield(L, -2, "version");
   lua_pushinteger(L, LUAR_VERSION_NUM);
   lua_setfield(L, -2, "version_num");

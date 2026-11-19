@@ -5,7 +5,7 @@ Status: accepted
 
 ## Context
 
-LuaR must adopt new Lua releases quickly. The usual fork options are:
+Luar must adopt new Lua releases quickly. The usual fork options are:
 
 1. keep a directory of quilt-style patches applied to upstream sources;
 2. edit sources in place and rely on git history;
@@ -19,7 +19,7 @@ we change and is it still current?".
 
 Keep `vendor/lua-X.Y.Z/` as a pristine snapshot and `src/` as the working
 tree. Record the known deltas in `tools/upstream-baseline.txt` (file paths,
-LuaR hashes, upstream hashes), enforce it with `tools/upstream-check.sh`, and
+Luar hashes, upstream hashes), enforce it with `tools/upstream-check.sh`, and
 provide `tools/upstream-sync.sh` for adopting a new release with a three-way
 diff. Core edits are small and tagged `/* LUAR */`; new functionality lives
 in new files.

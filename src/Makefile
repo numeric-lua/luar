@@ -1,4 +1,4 @@
-# Makefile for building LuaR (luar, luarc, libluar.a)
+# Makefile for building Luar (luar, luarc, libluar.a)
 # Derived from the Lua 5.5.1 build system; see ../doc/roadmap.md
 # for the upstream-tracking policy.
 #
@@ -17,8 +17,8 @@ RANLIB= ranlib
 RM= rm -f
 UNAME_S:= $(shell uname -s)
 
-# LuaR extensions are always compiled in.  FFI is opt-in until the
-# LuaR FFI library is complete (see doc/roadmap.md, milestone 0.2).
+# Luar extensions are always compiled in.  FFI is opt-in until the
+# Luar FFI library is complete (see doc/roadmap.md, milestone 0.2).
 WITH_FFI?= 0
 
 # J1 trace recorder.  JIT=0 compiles the backedge hooks out entirely.
@@ -94,7 +94,7 @@ ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T)
 #   libluar.so             unversioned link-time name
 # VERSION is passed by the top-level Makefile; the default keeps 'make -C src'
 # usable on its own.  PIC objects are separate from the static ones.
-VERSION?= 0.7.0
+VERSION?= 0.7.1
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 UNAME_S:= $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

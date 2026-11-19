@@ -1,6 +1,6 @@
 #!/bin/sh
 # tools/upstream-sync.sh -- fetch a new official Lua release and compare it
-# with the current vendor snapshot and LuaR's src/ tree.
+# with the current vendor snapshot and Luar's src/ tree.
 #
 # Usage:
 #   tools/upstream-sync.sh 5.6.0            # fetch, unpack, report, no writes
@@ -319,7 +319,7 @@ if [ -z "$OLD" ]; then
   echo "Three-way summary: no old vendor tree to compare against."
   echo "  new vendor: $NEW"
   echo "  source:     $SRC"
-  echo "  (the first snapshot cannot classify upstream vs LuaR changes;"
+  echo "  (the first snapshot cannot classify upstream vs Luar changes;"
   echo "   use --from DIR to compare against an unpacked older release)"
   echo
 else
@@ -394,7 +394,7 @@ else
   echo
   echo "  upstream changes: $((UP_MOD_N + UP_ADD_N + UP_DEL_N))" \
        "(modified $UP_MOD_N, added $UP_ADD_N, removed $UP_DEL_N)"
-  echo "  LuaR changes vs old vendor: $((LR_MOD_N + LR_ADD_N))" \
+  echo "  Luar changes vs old vendor: $((LR_MOD_N + LR_ADD_N))" \
        "(modified/deleted $LR_MOD_N, added $LR_ADD_N)"
   echo "  conflicts requiring a manual rebase: $CONFLICT_N"
 
@@ -410,8 +410,8 @@ else
   print_list "modified upstream" "$UP_MOD" "$UP_MOD_N"
   print_list "added upstream" "$UP_ADD" "$UP_ADD_N"
   print_list "removed upstream" "$UP_DEL" "$UP_DEL_N"
-  print_list "changed by LuaR" "$LR_MOD" "$LR_MOD_N"
-  print_list "LuaR-added files" "$LR_ADD" "$LR_ADD_N"
+  print_list "changed by Luar" "$LR_MOD" "$LR_MOD_N"
+  print_list "Luar-added files" "$LR_ADD" "$LR_ADD_N"
   print_list "conflicts" "$CONFLICT" "$CONFLICT_N"
   print_list "new upstream files missing from src" "$MISSING" "$MISSING_N"
   print_list "removed upstream but still in src" "$STALE" "$STALE_N"

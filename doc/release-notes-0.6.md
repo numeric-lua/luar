@@ -1,6 +1,6 @@
-# LuaR 0.6 release notes
+# Luar 0.6 release notes
 
-LuaR is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
+Luar is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
 generalizes chained J4 side traces to the configured depth cap.
 
 ## Highlights
@@ -39,4 +39,4 @@ official Lua 5.5.1 suite.
   fall back.
 - Blocked PCs are conservative (hash-bit collisions only lose optimization).
 - Native exit-stub spilling and full macOS shared ABI tests remain.
-- LuaR supports only Lua 5.5; no 5.1–5.4 compatibility mode.
+- Luar supports only Lua 5.5; no 5.1–5.4 compatibility mode.

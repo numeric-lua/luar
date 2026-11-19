@@ -1,11 +1,11 @@
 # Compatibility contract
 
-This document is the promise LuaR makes: a complete Lua 5.5 runtime, a
+This document is the promise Luar makes: a complete Lua 5.5 runtime, a
 small additive extension surface, and no legacy Lua versions at all.
 
 ## 1. The guarantee: Lua 5.5.1
 
-LuaR 0.7 is a drop-in replacement for the official Lua 5.5.1 runtime:
+Luar 0.7 is a drop-in replacement for the official Lua 5.5.1 runtime:
 
 | Surface | Guarantee |
 | --- | --- |
@@ -22,9 +22,9 @@ interpreters), and with the official Lua test suite (`tests/upstream/run.sh`).
 
 Intentional, documented differences:
 
-* `luar -v` prints the LuaR banner including the Lua base version.
+* `luar -v` prints the Luar banner including the Lua base version.
 * The program name defaults to `luar`; `luarc` replaces `luac`.
-* `luaL_openlibs` (and the stand-alone interpreter) also open the LuaR
+* `luaL_openlibs` (and the stand-alone interpreter) also open the Luar
   extensions: `luar`, `jit`, `table.new`/`table.clear`, and `ffi` when
   built.  A host compiled against the **stock** Lua 5.5 headers still expands
   `luaL_openlibs` to `luaL_openselectedlibs(L, ~0, 0)` and therefore gets
@@ -33,7 +33,7 @@ Intentional, documented differences:
 * Default module paths include `luar/5.5` directories before the Lua ones.
 * `LUAR_INIT` is consulted before `LUA_INIT`.
 * `LUA_ROOT` can be overridden at build time with `PREFIX`.
-* `_VERSION` stays `"Lua 5.5"`; LuaR's own version is in `luar.version`.
+* `_VERSION` stays `"Lua 5.5"`; Luar's own version is in `luar.version`.
 
 ## 2. Lua 5.5 only
 
@@ -51,7 +51,7 @@ is `doc/lua55-only.md`.  The build contains no
 * `unpack`, `module`, `setfenv`/`getfenv`, `newproxy`, `string.gfind`,
   `table.maxn`, `math.mod`, `loadstring` and the 5.1 vararg `arg` table.
 
-Code that needs those must be written for Lua 5.5.  LuaR does not ship,
+Code that needs those must be written for Lua 5.5.  Luar does not ship,
 link, or emulate an older Lua runtime.
 
 ## 3. LuaJIT-style extension surface
@@ -69,7 +69,7 @@ Lua 5.5 spelling and is left untouched.
 
 | API | Status | Notes |
 | --- | --- | --- |
-| `jit.version`, `jit.version_num` | implemented | LuaR version, not LuaJIT's |
+| `jit.version`, `jit.version_num` | implemented | Luar version, not LuaJIT's |
 | `jit.os`, `jit.arch` | implemented | `Linux`/`OSX`/..., `x64`/`arm64`/... |
 | `jit.status()` | implemented | `true, arch` when the J2 x86-64 engine is active; `false` after `jit.off()` or on unsupported hosts |
 | `jit.on()`, `jit.off()` | implemented | toggles native loop entry; the interpreter stays authoritative |
@@ -80,7 +80,7 @@ Lua 5.5 spelling and is left untouched.
 | `jit.security()` | not implemented | out of scope |
 | `jit.util.*` | not implemented | LuaJIT-specific bytecode introspection |
 | `jit.profile` | not implemented | candidate for 0.4 |
-| `jit.stats()`, `jit.trace()`, `jit.traces()`, `jit.ir()` | LuaR extension | J1 recorder/J2 introspection (`compiled`, `mcode`, `traces`) |
+| `jit.stats()`, `jit.trace()`, `jit.traces()`, `jit.ir()` | Luar extension | J1 recorder/J2 introspection (`compiled`, `mcode`, `traces`) |
 
 ### 3.3 `ffi` — core implemented (opt-in)
 

@@ -1,5 +1,5 @@
 /*
-** luar_jit.h -- internal LuaR JIT/trace-recording interface.
+** luar_jit.h -- internal Luar JIT/trace-recording interface.
 **
 ** J1 (this stage) records hot loop backedges and snapshots the bytecode of
 ** the loop into a trace buffer.  It does not generate machine code: the

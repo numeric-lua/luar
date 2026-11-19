@@ -1,7 +1,7 @@
 /*
-** luar_version.h -- LuaR version macros.
+** luar_version.h -- Luar version macros.
 **
-** LuaR is a Lua 5.5-forward runtime: the language and C API track the
+** Luar is a Lua 5.5-forward runtime: the language and C API track the
 ** official PUC-Rio Lua releases, while the runtime adds LuaJIT-style
 ** extensions (jit, ffi, table.new/clear) and a tiered JIT.
 **
@@ -13,9 +13,9 @@
 
 #define LUAR_VERSION_MAJOR	0
 #define LUAR_VERSION_MINOR	7
-#define LUAR_VERSION_PATCH	0
+#define LUAR_VERSION_PATCH	1
 
-#define LUAR_VERSION		"0.7.0"
+#define LUAR_VERSION		"0.7.1"
 #define LUAR_VERSION_NUM	(LUAR_VERSION_MAJOR * 10000 + \
 				 LUAR_VERSION_MINOR * 100 + \
 				 LUAR_VERSION_PATCH)
@@ -24,11 +24,11 @@
 #define LUAR_LUA_VERSION	"Lua 5.5.1"
 #define LUAR_LUA_VERSION_NUM	505
 
-#define LUAR_COPYRIGHT		"LuaR " LUAR_VERSION \
-				"  Copyright (C) 2026 LuaR contributors"
+#define LUAR_COPYRIGHT		"Luar " LUAR_VERSION \
+				"  Copyright (C) 2026 Luar contributors"
 
 /* One-line identity banner used by the command line tools. */
-#define LUAR_BANNER		"LuaR " LUAR_VERSION " (" LUAR_LUA_VERSION ")" \
-				"  Copyright (C) 2026 LuaR contributors"
+#define LUAR_BANNER		"Luar " LUAR_VERSION " (" LUAR_LUA_VERSION ")" \
+				"  Copyright (C) 2026 Luar contributors"
 
 #endif

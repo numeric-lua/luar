@@ -55,7 +55,7 @@ typedef struct CLibrary {
 /*
 ** libffi is loaded dynamically.  Keeping the library calls behind
 ** dlsym() means libluar.a has no unresolved libffi symbols, so embedding
-** LuaR does not need to add -lffi to every host link line.  The FFI still
+** Luar does not need to add -lffi to every host link line.  The FFI still
 ** needs libffi to be installed at run time.
 */
 static void *libffi_handle = NULL;

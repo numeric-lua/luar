@@ -48,7 +48,7 @@ is missing.
 ### Host-Lua note
 
 DynASM was written for LuaJIT and originally depended on the Lua 5.1-era
-`bit` library.  LuaR ships no such compatibility module: the vendored
+`bit` library.  Luar ships no such compatibility module: the vendored
 `dynasm/dasm_ops.lua` implements the 32-bit operations with native Lua 5.5
 operators, and the backends require that instead.  The generated
 `demo_trace.c` is byte-identical to the pre-port DynASM output, so any stock

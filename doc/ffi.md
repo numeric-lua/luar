@@ -1,6 +1,6 @@
-# LuaR FFI
+# Luar FFI
 
-The LuaR FFI is a compact, opt-in implementation of the LuaJIT `ffi`
+The Luar FFI is a compact, opt-in implementation of the LuaJIT `ffi`
 library for the Lua 5.5 runtime.  It is built on [libffi](https://libffi.org/)
 and `dlopen`/`dlsym`, and follows LuaJIT where practical.  This document
 describes what is implemented, the exact semantics, and the intentional
@@ -16,9 +16,9 @@ make WITH_FFI=0            # stub: no FFI, luar.features.ffi == false
 
 Requirements: libffi 3.8 or newer headers (`#include <ffi.h>`) at build
 time, POSIX `dlopen`, a C99 compiler, and the libffi shared library at run
-time.  LuaR does **not** link against libffi: the entry points are resolved
+time.  Luar does **not** link against libffi: the entry points are resolved
 with `dlopen`/`dlsym` when the FFI module is opened.  Consequently
-`libluar.a` has no unresolved libffi symbols and a host embedding LuaR does
+`libluar.a` has no unresolved libffi symbols and a host embedding Luar does
 not need to add `-lffi` to its own link line.  The
 implementation is Linux/x86-64 tested; it uses the platform C ABI (System V
 on the tested target).
@@ -424,7 +424,7 @@ Call features:
   with the normal read rules; pointer/aggregate arguments are references
   valid for the duration of the callback (do not retain them after it
   returns).  If the Lua function raises, the C caller receives a zero
-  return and the message is available from `ffi.callback_error()` (a LuaR
+  return and the message is available from `ffi.callback_error()` (a Luar
   extension that clears the stored message).  Callbacks are freed by the GC;
   a C library that keeps a pointer after the cdata is collected has the
   usual use-after-free caveat.  Callbacks must be invoked from the Lua
@@ -466,14 +466,14 @@ Call features:
   for owned arrays than LuaJIT.
 * Only the metatype metamethods listed above are dispatched.
 * Variadic default conversions differ from LuaJIT in two places.  LuaJIT
-  passes every Lua number as `double`, while LuaR passes an integer Lua
+  passes every Lua number as `double`, while Luar passes an integer Lua
   number as `int`/`long long` (so `printf("%d", 42)` works) and only a
   non-integer Lua number as `double`.  LuaJIT also passes struct/union
-  cdata as pointers, while LuaR rejects aggregate varargs with a clear
+  cdata as pointers, while Luar rejects aggregate varargs with a clear
   error because passing them by value is not portable.  Use
   `ffi.new`/`ffi.cast` to force a particular C type.
 * `__thread`/`_Thread_local` globals resolve through `dlsym` for the
-  calling thread; LuaR does not create or migrate threads, and another C
+  calling thread; Luar does not create or migrate threads, and another C
   thread sees its own instance.
 * Bitfields are supported for integer, enum and `_Bool` fields in structs
   with GCC/x86-64 bit-granular packing, including mixed base types and

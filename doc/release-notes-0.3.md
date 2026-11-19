@@ -1,6 +1,6 @@
-# LuaR 0.3 release notes
+# Luar 0.3 release notes
 
-LuaR is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
+Luar is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
 focuses on making the J4 tracing-IR path measurable and safer, and on the
 distribution/ABI surface rather than on broad new trace coverage.
 
@@ -9,7 +9,7 @@ distribution/ABI surface rather than on broad new trace coverage.
 - **J4 benchmark corpus**: `bench/bench.lua j4` (or `FILTER=j4
   ./bench/compare.sh`) covers integer roots, table reads, array→hash side
   traces, one- and two-argument leaf calls, and multi-table bodies.  The
-  `j4` group is LuaR-only and enables `jit.opt.start("ir=1")`; stock Lua and
+  `j4` group is Luar-only and enables `jit.opt.start("ir=1")`; stock Lua and
   LuaJIT report it as skipped.
 - **Two-argument leaf calls** are inlined in J4 roots when the callee is an
   upvalue-free two-parameter function whose body is register `ADD`/`SUB`/
@@ -86,4 +86,4 @@ release gate.
 - Native-ABI exit-stub spilling is replaced by C-level snapshot/restore.
 - Packed aggregate calls use the x86-64 thunk matrix; non-x86-64 hosted
   packed callbacks and full macOS ABI verification remain.
-- LuaR supports only Lua 5.5; there is no 5.1–5.4 compatibility mode.
+- Luar supports only Lua 5.5; there is no 5.1–5.4 compatibility mode.

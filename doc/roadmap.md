@@ -1,4 +1,4 @@
-# LuaR roadmap
+# Luar roadmap
 
 The roadmap is ordered by user value, not by how satisfying the code is to
 write. FFI first (it is why people cannot leave LuaJIT), then distribution,
@@ -142,7 +142,7 @@ default raw fill/sum intrinsics cover the common array shapes.  J4 now adds
 an opt-in tracing IR (`ir=1`) with integer/table roots, K-ops, multi-table
 bodies, guarded leaf-call inlining, and interior array→hash side traces.
 Generic table shape guards and non-inlineable call exits remain open.  The
-LuaR-only `j4` benchmark group measures this path without implying that it
+Luar-only `j4` benchmark group measures this path without implying that it
 is faster than J2/J3 yet.
 
 * Table loads/stores with shape guards and inline caches, `GETFIELD`/
@@ -182,7 +182,7 @@ Lua 5.6 is not released yet (no work versions as of 2026-11). Preparations:
   run the official suite, catalogue breakage.
 
 Exit criteria: a dry-run 5.6 sync completes with a written report of every
-breaking change and the required LuaR work.
+breaking change and the required Luar work.
 
 ## 1.0 — Stable Lua 5.6-forward runtime
 

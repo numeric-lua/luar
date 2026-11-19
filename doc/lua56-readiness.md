@@ -1,6 +1,6 @@
 # Lua 5.6 readiness
 
-LuaR targets **one Lua line at a time**.  Today that line is 5.5.1; when PUC
+Luar targets **one Lua line at a time**.  Today that line is 5.5.1; when PUC
 publishes 5.6, adopting it is a deliberate, tested migration rather than a
 compatibility mode.  This page is the checklist for that migration.
 
@@ -8,20 +8,20 @@ compatibility mode.  This page is the checklist for that migration.
 
 PUC's [version history](https://www.lua.org/versions.html) lists Lua 5.5.1
 (released 03 Aug 2026) as the current release; there is no Lua 5.6 tarball
-yet.  LuaR therefore stays on 5.5.1 and keeps this checklist ready rather
+yet.  Luar therefore stays on 5.5.1 and keeps this checklist ready rather
 than speculating about APIs.  Re-check the download area before starting
 the sequence below.
 
 ## Assumptions
 
-* LuaR has no 5.1–5.4 compatibility layer and will not gain one for 5.6:
+* Luar has no 5.1–5.4 compatibility layer and will not gain one for 5.6:
   `global` stays reserved, deprecated math functions stay absent, and no
   `LUA_COMPAT_*` switches are reintroduced.
 * The upstream C API/ABI, bytecode format and standard library are the
-  semantic authority.  LuaR extensions must keep working on top.
+  semantic authority.  Luar extensions must keep working on top.
 * The 5.5-only test suite (`tests/semantics`, `tests/compat/strict55.lua`)
   is updated, not bypassed, if upstream changes language rules.
-* The FFI is a LuaR extension; its C ABI assumptions (libffi, pointer
+* The FFI is a Luar extension; its C ABI assumptions (libffi, pointer
   widths, `TValue` layout) must be revalidated against the new core.
 
 ## Adoption sequence
@@ -34,7 +34,7 @@ the sequence below.
    ```
 
 2. **Merge the core.**  Apply the vendor diff to `src/` (three-way), keeping
-   LuaR edits tagged `/* LUAR */`.  Do not edit `vendor/`.
+   Luar edits tagged `/* LUAR */`.  Do not edit `vendor/`.
 
 3. **Baseline.**  Review every changed tracked file and refresh:
 

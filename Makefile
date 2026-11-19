@@ -1,4 +1,4 @@
-# LuaR -- a Lua 5.5-forward runtime with LuaJIT-style extensions.
+# Luar -- a Lua 5.5-forward runtime with LuaJIT-style extensions.
 #
 # Top-level build/install driver.  The engine itself is in src/ and is
 # derived from the official Lua 5.5.1 sources (see vendor/lua-5.5.1).
@@ -12,7 +12,7 @@ WITH_JIT?= $(JIT)
 MAKE?= make
 RM= rm -f
 
-VERSION= 0.7.0
+VERSION= 0.7.1
 LUAVER= 5.5
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 UNAME_S:= $(shell uname -s)
@@ -164,7 +164,7 @@ test-dist: dist
 	rm -rf tests/tmp/dist && mkdir -p tests/tmp/dist
 	tar -xzf $(DISTNAME).tar.gz -C tests/tmp/dist
 	$(MAKE) -C tests/tmp/dist/$(DISTNAME) build
-	./tests/tmp/dist/$(DISTNAME)/src/luar -v | grep -q 'LuaR $(VERSION) (Lua 5.5'
+	./tests/tmp/dist/$(DISTNAME)/src/luar -v | grep -q 'Luar $(VERSION) (Lua 5.5'
 
 uninstall:
 	$(RM) $(INSTALL_BIN)/luar $(INSTALL_BIN)/luarc

@@ -1,8 +1,8 @@
 /*
-** embed.c -- a minimal C host embedding LuaR through the public headers.
+** embed.c -- a minimal C host embedding Luar through the public headers.
 **
 ** Proves that luar.h/libluar.a work for embedders and that luaL_openlibs
-** brings up the LuaR extensions (luar, jit, bit, and ffi when built).
+** brings up the Luar extensions (luar, jit, bit, and ffi when built).
 */
 
 #include <stdio.h>
@@ -22,7 +22,7 @@ int main (void) {
   lua_State *L = luaL_newstate();
   if (L == NULL) return fail("luaL_newstate");
 
-  if (strcmp(luar_version(), "0.7.0") != 0) return fail("luar_version");
+  if (strcmp(luar_version(), "0.7.1") != 0) return fail("luar_version");
   if (strcmp(luar_lua_version(), "Lua 5.5.1") != 0) return fail("luar_lua_version");
 
   luaL_openlibs(L);
@@ -30,7 +30,7 @@ int main (void) {
   if (lua_getglobal(L, "luar") != LUA_TTABLE)
     return fail("luar table missing after luaL_openlibs");
   lua_getfield(L, -1, "version");
-  if (strcmp(lua_tostring(L, -1), "0.7.0") != 0) return fail("luar.version");
+  if (strcmp(lua_tostring(L, -1), "0.7.1") != 0) return fail("luar.version");
   lua_pop(L, 2);   /* version, luar */
 
   lua_getglobal(L, "jit");

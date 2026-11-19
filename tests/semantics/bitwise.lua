@@ -1,6 +1,6 @@
 -- semantics/bitwise.lua -- native Lua 5.5 bitwise operators.
 --
--- This file must pass unchanged under stock Lua 5.5.1 and LuaR.  There is
+-- This file must pass unchanged under stock Lua 5.5.1 and Luar.  There is
 -- no `bit` library: these are language operators.
 
 local H = dofile("tests/helpers.lua")

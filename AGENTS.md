@@ -1,6 +1,6 @@
-# AGENTS.md -- working rules for the LuaR repository
+# AGENTS.md -- working rules for the Luar repository
 
-LuaR is a Lua 5.5-forward runtime: the official Lua implementation is the
+Luar is a Lua 5.5-forward runtime: the official Lua implementation is the
 semantic authority, and LuaJIT-style performance/extensions are layered on
 top.  Read `doc/architecture.md` and `doc/roadmap.md` before non-trivial work.
 
@@ -16,7 +16,7 @@ top.  Read `doc/architecture.md` and `doc/roadmap.md` before non-trivial work.
   libraries must be opt-in at build time (`WITH_FFI=1`, etc.).
 - LuaJIT compatibility means API shape and observable semantics, not bug
   compatibility.  Prefer correctness; document every intentional deviation.
-- LuaR is 5.5-only.  Do not add any compatibility mode or legacy API for
+- Luar is 5.5-only.  Do not add any compatibility mode or legacy API for
   older Lua versions (5.1–5.4); `global` is always reserved, deprecated math
   functions and `LUA_COMPAT_*` switches do not exist here.
 

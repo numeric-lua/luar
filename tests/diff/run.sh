@@ -1,5 +1,5 @@
 #!/bin/sh
-# tests/diff/run.sh -- run the same scripts under stock Lua 5.5 and LuaR and
+# tests/diff/run.sh -- run the same scripts under stock Lua 5.5 and Luar and
 # compare stdout and exit status.  This is the anti-fork guard.
 set -eu
 

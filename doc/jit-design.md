@@ -1,4 +1,4 @@
-# LuaR JIT design (tracing, memory-based, x86-64 first)
+# Luar JIT design (tracing, memory-based, x86-64 first)
 
 Status: design for milestones 0.4–0.7 / J1–J5, with a partial implementation
 of J1/J2 (see the status section below).  Normative for the JIT work.
@@ -296,7 +296,7 @@ across a trace: `TBC`, `CLOSE`, and `RETURN` with `k` exit before closing; a loo
 
 x86-64 SysV first. DynASM is vendored at `dynasm/` (`dynasm.lua`, `dasm_x86.lua`, `dasm_proto.h`, `dasm_x86.h`, 1.5.0), with its backends ported to native Lua 5.5 operators. Write `src/luar_emit.c`
 plus `src/luar_emit_x64.dasc`; check the generated `src/luar_emit_x64.h` in and add a `make dynasm-check` target that regenerates and diffs. This avoids
-requiring a built LuaR to build LuaR (bootstrap cycle).
+requiring a built Luar to build Luar (bootstrap cycle).
 
 Trace ABI: `uint32_t luar_trace_run(lua_State *L, CallInfo *ci, StkId base, LuaR_Trace *t)`. `r14=L`, `r13=ci`, `r15=base` (reloaded after helpers),
 `r12=trace`, `rbx=Proto->k`, `rbp` frame; scratch `rax,rcx,rdx,rsi,rdi,r8–r11`; `xmm0–xmm15` caller-saved. Slot `A` is `[r15+16*A]`, payload `+0`, tag byte
@@ -412,7 +412,7 @@ add `LUAR_JIT_DEBUG` emitter assertions (spill-map completeness, stack alignment
 flush. UBSan for mem2reg/IR; ASan for recorder and trace metadata. Leak checking stays disabled for the Lua state as in `doc/testing.md`, but trace
 metadata/code pages are checked explicitly.
 
-**Benchmarks and official suite.** `bench/bench.lua`/`bench/compare.sh` with stock Lua 5.5.1, LuaR JIT off/on, LuaJIT 2.1 on/off; record machine/compiler/date
+**Benchmarks and official suite.** `bench/bench.lua`/`bench/compare.sh` with stock Lua 5.5.1, Luar JIT off/on, LuaJIT 2.1 on/off; record machine/compiler/date
 and losses in `doc/performance.md`; no hard CI gates. J2 gate: numeric ≥3× stock. J3 gate: table/object 1.5–3×. J5 gate: FFI kernel within 30% of LuaJIT with
 identical results. Run `tests/upstream/run.sh`, `tests/semantics/` and `tests/diff/` with JIT on and off, and stress both GC modes, weak tables/ephemerons,
 finalizers, `<close>`, coroutines and `debug.sethook` (line/count/call/return).

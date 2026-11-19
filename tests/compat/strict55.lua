@@ -1,6 +1,6 @@
--- compat/strict55.lua -- LuaR is Lua 5.5 only: no legacy compatibility.
+-- compat/strict55.lua -- Luar is Lua 5.5 only: no legacy compatibility.
 --
--- This suite is LuaR-specific (stock Lua 5.5 may be built with
+-- This suite is Luar-specific (stock Lua 5.5 may be built with
 -- LUA_COMPAT_GLOBAL and would behave differently for 'global').
 
 local H = dofile("tests/helpers.lua")

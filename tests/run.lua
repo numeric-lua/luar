@@ -1,4 +1,4 @@
--- tests/run.lua -- LuaR test runner.
+-- tests/run.lua -- Luar test runner.
 --
 -- Usage: luar tests/run.lua [suite ...]
 --   suite is a directory name under tests/ (default: all except bench).

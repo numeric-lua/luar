@@ -29,6 +29,6 @@ LUA_API int luar_has_ffi (void) {
 
 
 LUALIB_API int luaopen_ffi (lua_State *L) {
-  return luaL_error(L, "LuaR: this build has no FFI support "
+  return luaL_error(L, "Luar: this build has no FFI support "
                        "(rebuild with WITH_FFI=1 and libffi)");
 }

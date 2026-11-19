@@ -1,8 +1,8 @@
-LuaR -- a Lua 5.5-forward runtime with LuaJIT-style extensions.
+Luar -- a Lua 5.5-forward runtime with LuaJIT-style extensions.
 
-Copyright (C) 2026 LuaR contributors.
+Copyright (C) 2026 Luar contributors.
 
-LuaR contains code from two MIT-licensed projects:
+Luar contains code from two MIT-licensed projects:
 
   * Lua 5.5.1, the reference implementation of the Lua language.
     Copyright (C) 1994-2026 Lua.org, PUC-Rio.
@@ -13,7 +13,7 @@ LuaR contains code from two MIT-licensed projects:
     Lua 5.1-era bit library to native Lua 5.5 operators.  No LuaJIT
     runtime, VM, FFI or Lua 5.1 compatibility code is included.
 
-Both are distributed under the MIT license, reproduced below.  The LuaR
+Both are distributed under the MIT license, reproduced below.  The Luar
 additions are released under the same terms.
 
 --------------------------------------------------------------------------

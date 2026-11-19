@@ -1,6 +1,6 @@
-# LuaR 0.7 release notes
+# Luar 0.7 release notes
 
-LuaR is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
+Luar is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
 finishes the current J4 side-chain depth work and broadens float table
 arithmetic.
 
@@ -33,4 +33,4 @@ staged install/pkg-config, shared-library and the official Lua 5.5.1 suite.
 - Side chains still exclude `TSET` and unsupported float shapes.
 - Blocked-PC tracking is bitmap-based and conservative.
 - Native exit-stub spilling and full macOS shared ABI tests remain.
-- LuaR supports only Lua 5.5; no 5.1–5.4 compatibility mode.
+- Luar supports only Lua 5.5; no 5.1–5.4 compatibility mode.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# tests/upstream/run.sh -- run the official Lua test suite under LuaR.
+# tests/upstream/run.sh -- run the official Lua test suite under Luar.
 #
 # The suite is downloaded from https://www.lua.org/tests/ into the ignored
 # tests/tmp/ directory, unpacked there, and run with ./src/luar.  It is never
@@ -81,7 +81,7 @@ if [ "$LUAR" = "$ROOT/src/luar" ]; then
 fi
 [ -x "$LUAR" ] || die "no runnable interpreter at $LUAR"
 
-# The suite version comes from the Lua base version recorded by LuaR.
+# The suite version comes from the Lua base version recorded by Luar.
 VERSION=$(sed -n \
   's/^#define[[:space:]]*LUAR_LUA_VERSION[[:space:]]*"Lua \([0-9][0-9.]*\)".*/\1/p' \
   "$ROOT/src/luar_version.h" | head -n 1)
@@ -159,13 +159,13 @@ if [ ! -f "$SUITE/all.lua" ]; then
 fi
 [ -f "$SUITE/all.lua" ] || die "suite did not unpack to $SUITE"
 
-# LuaR is strict Lua 5.5: 'global' is always a reserved word and there is no
+# Luar is strict Lua 5.5: 'global' is always a reserved word and there is no
 # LUA_COMPAT_GLOBAL.  The upstream basic suite still takes its compatibility
 # branch when T is nil, so skip that one assertion in the working copy.  This
 # is the same configuration upstream's own ltests build uses
 # (ltests/ltests.h undefines LUA_COMPAT_GLOBAL).
 if grep -q 'when not in "test mode", "global" isn' "$SUITE/goto.lua"; then
-  sed -i 's/if not T then  -- when not in "test mode", "global" isn.t reserved/if false then  -- LuaR strict 5.5: global is always reserved/' \
+  sed -i 's/if not T then  -- when not in "test mode", "global" isn.t reserved/if false then  -- Luar strict 5.5: global is always reserved/' \
     "$SUITE/goto.lua"
 fi
 
@@ -292,7 +292,7 @@ emit() {
   printf '%s\n' "$*"
 }
 
-emit "# LuaR official upstream test-suite report"
+emit "# Luar official upstream test-suite report"
 emit "# suite:        $SUITE_NAME"
 emit "# url:          $SUITE_URL"
 emit "# tarball:      tests/tmp/upstream/$SUITE_NAME.tar.gz"

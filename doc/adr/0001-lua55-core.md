@@ -5,7 +5,7 @@ Status: accepted
 
 ## Context
 
-LuaR must provide LuaJIT-class performance and FFI while tracking the current
+Luar must provide LuaJIT-class performance and FFI while tracking the current
 Lua language. Two starting points were considered:
 
 1. Fork LuaJIT 2.1 and teach it Lua 5.5 semantics.
@@ -26,7 +26,7 @@ bytecode format and module ABI. Build the following as additive layers:
 * a tracing JIT over the **Lua 5.5 bytecode**, with the unmodified
   interpreter as the semantic authority and fallback;
 * an upstream sync process that treats the official release as the source of
-  truth and LuaR deltas as a small, reviewable patch set.
+  truth and Luar deltas as a small, reviewable patch set.
 
 ## Consequences
 

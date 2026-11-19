@@ -1,5 +1,5 @@
 /*
-** luar_ffi_internal.h -- shared data model of the LuaR FFI.
+** luar_ffi_internal.h -- shared data model of the Luar FFI.
 **
 ** The FFI is split into four implementation files:
 **   luar_ffi_type.c   C type objects, interning, layout, conversions

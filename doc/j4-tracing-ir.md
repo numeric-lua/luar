@@ -1,6 +1,6 @@
 # J4 tracing-IR foundation
 
-This document describes the first layer of LuaR's tracing subsystem.  It is
+This document describes the first layer of Luar's tracing subsystem.  It is
 deliberately separate from the existing J2/J3 one-pass loop emitter so that
 the working JIT can keep shipping while a trace compiler is built.
 

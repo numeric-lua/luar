@@ -75,7 +75,7 @@ if nm -D --defined-only "$SRC/$full" >/dev/null 2>&1; then
     } | sort -u > "$STATIC_SYMS"
     if ! diff -u "$STATIC_SYMS" "$SYMS" > "$TMP/export-diff.txt"; then
       cat "$TMP/export-diff.txt" >&2
-      fail "dynamic exports do not match the static LuaR API"
+      fail "dynamic exports do not match the static Luar API"
     fi
     ok "dynamic exports match the static API set exactly"
   fi
@@ -109,13 +109,13 @@ $CC -O2 -Wall -Wextra -I "$SRC" -o "$TMP/luar-shared" \
   fail "could not link src/lua.o against libluar.so"
 out=$(run_shared "$TMP/luar-shared" -v)
 case "$out" in
-  "LuaR 0.7.0 (Lua 5.5.1)"*) ;;
+  "Luar 0.7.1 (Lua 5.5.1)"*) ;;
   *) fail "shared-linked luar -v output: $out" ;;
 esac
 out=$(run_shared "$TMP/luar-shared" -e \
   'print(luar.version .. "|" .. luar.lua_version .. "|" .. (6*7))')
-[ "$out" = "0.7.0|Lua 5.5.1|42" ] || fail "shared-linked luar output: $out"
-ok "luar CLI runs against libluar.so and reports the LuaR identity"
+[ "$out" = "0.7.1|Lua 5.5.1|42" ] || fail "shared-linked luar output: $out"
+ok "luar CLI runs against libluar.so and reports the Luar identity"
 
 # -- stock Lua 5.5 C module loaded through the shared library --------------
 # Built against the system lua5.5 when available, exactly like tests/cli.sh.
@@ -128,8 +128,8 @@ if pkg-config --exists lua5.5 2>/dev/null; then
 else
   $CC -O2 -fPIC -shared -I "$SRC" \
     -o "$TMP/mhello.so" "$ROOT/tests/cmod/mhello.c" ||
-    fail "could not build the C module from LuaR headers"
-  MOD_DESC="LuaR headers (pkg-config lua5.5 not available)"
+    fail "could not build the C module from Luar headers"
+  MOD_DESC="Luar headers (pkg-config lua5.5 not available)"
 fi
 out=$(run_shared env LUA_CPATH="$TMP/?.so" "$TMP/luar-shared" -e \
   'local m = require"mhello"; print(m.hello())') ||
@@ -141,7 +141,7 @@ esac
 ok "C module ABI through libluar.so ($MOD_DESC)"
 
 # The stock module carries DT_NEEDED liblua.so.5.5, but the executable's
-# libluar.so comes first in the global lookup scope, so lua_* bind to LuaR.
+# libluar.so comes first in the global lookup scope, so lua_* bind to Luar.
 # Confirm that on glibc where LD_DEBUG is available; otherwise the working
 # module plus the DT_NEEDED check above is the observable evidence.
 if command -v ldd >/dev/null 2>&1 &&

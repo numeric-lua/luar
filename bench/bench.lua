@@ -1,9 +1,9 @@
 #!/usr/bin/env lua
 --[[--------------------------------------------------------------------
-bench/bench.lua -- LuaR microbenchmark harness and corpus.
+bench/bench.lua -- Luar microbenchmark harness and corpus.
 
 The corpus is written in portable Lua 5.1/5.5 so the same file runs under
-stock Lua 5.5.1, LuaJIT 2.1 (JIT on and off) and LuaR.  Small workloads
+stock Lua 5.5.1, LuaJIT 2.1 (JIT on and off) and Luar.  Small workloads
 have fixed sizes tuned for roughly 20-35 ms per run on an ordinary x86-64
 interpreter; --scale changes them for other machines.
 
@@ -402,7 +402,7 @@ local function collect_meta (opts, wall_kind)
   local kind = detect_kind()
   local version
   if kind == "luar" then
-    version = "LuaR " .. tostring(luar.version) .. " (" ..
+    version = "Luar " .. tostring(luar.version) .. " (" ..
               tostring(luar.lua_version or _VERSION) .. ")"
   elseif kind == "luajit" then
     version = tostring(jit.version)
@@ -677,11 +677,11 @@ def {
   end,
 }
 
--- j4 (LuaR tracing IR) ---------------------------------------------
+-- j4 (Luar tracing IR) ---------------------------------------------
 
 local function j4_skip ()
   if type(luar) ~= "table" or type(jit) ~= "table" then
-    return "J4 requires LuaR"
+    return "J4 requires Luar"
   end
   local ok = pcall(function () jit.opt.start("ir=1") end)
   if not ok then
@@ -1301,7 +1301,7 @@ end
 
 
 local function print_table (meta, results)
-  io.write(format("LuaR benchmark: %s -- %s\n", meta.label, meta.version))
+  io.write(format("Luar benchmark: %s -- %s\n", meta.label, meta.version))
   io.write(format("lua=%s  jit=%s%s  wall=%s  repeat=%d warmup=%d scale=%g\n",
     meta.lua_version,
     meta.jit and "on" or "off",

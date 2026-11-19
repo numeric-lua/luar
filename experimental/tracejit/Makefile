@@ -1,4 +1,4 @@
-# Build the LuaR trace-JIT DynASM toolchain proof-of-concept.
+# Build the Luar trace-JIT DynASM toolchain proof-of-concept.
 # x86-64 Linux SysV only (DynASM x64, no Windows ABI support here).
 #
 #   make            build ./demo

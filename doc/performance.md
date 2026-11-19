@@ -1,9 +1,9 @@
-# LuaR performance baseline
+# Luar performance baseline
 
 > The measured tables below are the historical 0.1 interpreter baseline.
 > Current releases add the default J2/J3 loop JIT and the opt-in J4 tracing
 > IR; regenerate current numbers with `./bench/compare.sh`, including the
-> LuaR-only `j4` corpus group.
+> Luar-only `j4` corpus group.
 
 > **J2 update (2026-11-17, later the same day).**  The x86-64 loop JIT
 > compiles hot `for` loops whose bodies are numeric register arithmetic
@@ -44,7 +44,7 @@
 > The register-cached fast paths are the source of the integer, float,
 > product, linear, square, repeat, while, float division and float sums;
 > `table/new_clear` is
-> faster through the LuaR extension/interpreter path.  `fib` is unchanged because calls are not
+> faster through the Luar extension/interpreter path.  `fib` is unchanged because calls are not
 > compiled; `mandel` is now at parity.  Default raw table fill/sum intrinsics
 > make `table/array` about 0.18x stock Lua and `table/hash` about 0.44x.
 > Simple upvalue-accumulator calls, one-parameter leaf arithmetic calls,
@@ -74,8 +74,8 @@ are now compiled.
 | Host | `Linux machinedr 7.3.0-rc6-1-MANJARO #1 SMP PREEMPT_DYNAMIC Mon, 05 Oct 2026 00:15:36 +0000 x86_64 GNU/Linux` |
 | CPU | AMD Ryzen 3 7320U with Radeon Graphics, 8 logical CPUs (4 cores) |
 | Compiler | gcc (GCC) 16.2.1 20260810 |
-| LuaR build | `make` (`make -C src`), `CC=gcc`, `CFLAGS=-O2 -g -Wall -Wextra -DLUA_USE_LINUX` in this pre-J2 baseline; the default is now `-O3`, `LIBS=-lm -Wl,-E -ldl`, `WITH_FFI=0` |
-| LuaR binary | `LuaR 0.1.0 (Lua 5.5.1)`, sha256 `508f45817e158d3c6a04e939d209e2e50ced9cfe15f71a25ef821f0f23162588` |
+| Luar build | `make` (`make -C src`), `CC=gcc`, `CFLAGS=-O2 -g -Wall -Wextra -DLUA_USE_LINUX` in this pre-J2 baseline; the default is now `-O3`, `LIBS=-lm -Wl,-E -ldl`, `WITH_FFI=0` |
+| Luar binary | `Luar 0.1.0 (Lua 5.5.1)`, sha256 `508f45817e158d3c6a04e939d209e2e50ced9cfe15f71a25ef821f0f23162588` |
 | Stock Lua | `/usr/bin/lua`, package `lua 5.5.1-1`, `Lua 5.5.1`, sha256 `3eab886a2dcd0f09362ed8fbd8f843b51bf0946270a87e48c46f9edb2e0d8dcb`; `.comment` says GCC 16.1.1 |
 | LuaJIT | `/usr/bin/luajit`, package `luajit 2.1.1788856981+c6ffc14-1`, `LuaJIT 2.1.1788856981`, sha256 `573d15af0b8e3c040cb42b2dcba8d77c29d5097e200e27cf3fddbda0def89230` |
 | Revision | HEAD `270abe4fc5cf6b218b208511812f20210bf54277`; the build also contained unrelated in-progress FFI edits, not linked with `WITH_FFI=0` |
@@ -84,7 +84,7 @@ are now compiled.
 Core provenance: `lvm.c`, `ltable.c`, `lstrlib.c`, `lstring.c`,
 `lobject.c`, `lgc.c`, `lapi.c`, `ldo.c` and `lbaselib.c` are byte-identical
 to `vendor/lua-5.5.1/src/` at this revision (zero diff lines).  Only the
-CLI (`lua.c`) differs.  LuaR's runtime differences are additive
+CLI (`lua.c`) differs.  Luar's runtime differences are additive
 (`luar_lib.c`, `luar_jit.c`), so the VM behaviour measured
 here is upstream Lua 5.5.1 behaviour.
 
@@ -110,7 +110,7 @@ The measurements above used a private snapshot of that build (sha256
 `BUILD=0 LUAR_BIN=<that binary>` reproduces the exact interpreter.
 
 `bench/compare.sh` runs every benchmark in a **fresh interpreter process**
-for each of stock Lua 5.5.1, LuaR, LuaJIT 2.1 with the JIT on, and LuaJIT
+for each of stock Lua 5.5.1, Luar, LuaJIT 2.1 with the JIT on, and LuaJIT
 2.1 with `-joff`.  For each benchmark and interpreter:
 
 1. run once for the expected result, then 3 warmup runs;
@@ -184,13 +184,13 @@ Geometric means of best-CPU time ratios (lower/faster than Lua is good):
 
 | comparison | geomean | speedup | benches |
 | --- | ---: | ---: | ---: |
-| LuaR / Lua 5.5.1 | 1.013 | 0.99x (1.3% slower) | 16 |
+| Luar / Lua 5.5.1 | 1.013 | 0.99x (1.3% slower) | 16 |
 | LuaJIT -joff / Lua 5.5.1 | 0.609 | 1.64x faster | 15 |
 | LuaJIT JIT-on / Lua 5.5.1 | 0.149 | 6.69x faster | 15 (no `string.pack`) |
 
 By group (speedup over stock Lua, same data):
 
-| group | LuaR | LuaJIT -joff | LuaJIT JIT-on |
+| group | Luar | LuaJIT -joff | LuaJIT JIT-on |
 | --- | ---: | ---: | ---: |
 | numeric | 1.03x | 1.65x | 9.54x |
 | table | 1.09x | 2.14x | 3.92x |
@@ -201,9 +201,9 @@ By group (speedup over stock Lua, same data):
 
 ## Interpretation
 
-### LuaR vs stock Lua 5.5.1
+### Luar vs stock Lua 5.5.1
 
-They are the same VM, and the aggregate result says so: LuaR is 1.3%
+They are the same VM, and the aggregate result says so: Luar is 1.3%
 slower on the best-CPU geometric mean over the 16 benchmarks, i.e. parity
 within the noise of this host.  Individual rows still move by up to 16%,
 in both directions, which is expected for two different binaries rather than two
@@ -212,30 +212,30 @@ different implementations.
 - **Effectively equal (within about 2%):** `numeric/fib` (1.02),
   `table/array` (1.01), `table/hash` (1.00), `string/concat` (1.02),
   `object/closures` (0.98), `object/method` (0.98).
-- **LuaR slower:** `object/metatable` 1.16x (16%),
+- **Luar slower:** `object/metatable` 1.16x (16%),
   `varargs/select` 1.13x, `string/gsub` 1.12x, `string/pack` 1.10x,
   `string/format` 1.08x, `coroutine/ping_pong` 1.05x, `numeric/mandel`
   1.04x.  These are real for this pair of binaries (see the repeatability
   note below), but they are not caused by semantic changes.
-- **LuaR faster:** `table/new_clear` 0.77x (23% faster, because LuaR
+- **Luar faster:** `table/new_clear` 0.77x (23% faster, because Luar
   provides `table.new`/`table.clear` and stock Lua falls back to
   `table.create` plus a Lua-level `pairs()` clear), `numeric/int_sum`
   0.87x, `numeric/float_loop` 0.95x.  The integer/float wins are build
-  artefacts, not a LuaR optimization: a control build of pristine vendor
+  artefacts, not a Luar optimization: a control build of pristine vendor
   Lua with the same compiler and flags also runs `int_sum` at 0.92x stock
   Lua.
 - **What is not different:** the language, VM, table, string and GC
-  sources are upstream.  LuaR 0.1 cannot be expected to outperform Lua
+  sources are upstream.  Luar 0.1 cannot be expected to outperform Lua
   5.5 on pure interpreter workloads; it only wins where an extension
   removes work.
 
 The differences are dominated by build layout and compiler version, not
-by LuaR's additive libraries.  A control build was made from
+by Luar's additive libraries.  A control build was made from
 `vendor/lua-5.5.1/` with the same `-O2 -g -Wall -Wextra` and GCC 16.2.1,
-then compared with stock Lua (GCC 16.1.1) and LuaR over 5 rounds of 9
+then compared with stock Lua (GCC 16.1.1) and Luar over 5 rounds of 9
 samples per benchmark.  Medians of the per-round best times:
 
-| benchmark | stock Lua | vendor, same flags | LuaR | LuaR / same-flags ref |
+| benchmark | stock Lua | vendor, same flags | Luar | Luar / same-flags ref |
 | --- | ---: | ---: | ---: | ---: |
 | numeric/int_sum | 35.81 | 32.96 (0.92x) | 31.86 (0.89x) | 0.97 |
 | numeric/mandel | 21.54 | 22.17 (1.03x) | 22.42 (1.04x) | 1.01 |
@@ -244,13 +244,13 @@ samples per benchmark.  Medians of the per-round best times:
 | string/pack | 25.17 | 26.97 (1.07x) | 27.53 (1.09x) | 1.02 |
 | object/metatable | 31.05 | 34.70 (1.12x) | 37.55 (1.21x) | 1.08 |
 
-The same-flags reference moves in the same direction as LuaR for most
+The same-flags reference moves in the same direction as Luar for most
 workloads (int_sum faster, gsub/metatable/pack slower), even though it
-contains no LuaR code at all.  LuaR stays within 8% of that reference and
+contains no Luar code at all.  Luar stays within 8% of that reference and
 within 2-4% on most rows.  The remaining spread is code/data layout,
 distribution hardening flags on stock Lua, and GCC 16.1.1 vs 16.2.1.
 Therefore: treat differences below about 5% as noise, and do not read
-the 13-16% rows as a LuaR regression until they are reproduced with
+the 13-16% rows as a Luar regression until they are reproduced with
 identical builds of both runtimes.
 
 ### The interpreter gap to LuaJIT
@@ -263,8 +263,8 @@ all strings) and roughly equal on `gsub`.  So a significant part of the
 LuaJIT advantage is interpreter quality and data-structure choices, not
 just the JIT.
 
-LuaR 0.1 inherits the Lua 5.5 interpreter unchanged, so it starts from
-the stock-Lua position.  A LuaR JIT has to recover both the ~1.6x
+Luar 0.1 inherits the Lua 5.5 interpreter unchanged, so it starts from
+the stock-Lua position.  A Luar JIT has to recover both the ~1.6x
 interpreter gap where LuaJIT's interpreter wins **and** the additional
 JIT gain on top.  In particular, closures, method dispatch, varargs and
 `table/hash` are cases where LuaJIT's interpreter is 1.3-2.6x faster
@@ -273,11 +273,11 @@ before any machine code is generated.
 ### What the JIT must recover
 
 The gap to close is per-workload, and strings are not one workload.
-`LuaR gap` is LuaR best time divided by LuaJIT JIT-on best time: the
-factor by which LuaR would have to improve to match LuaJIT 2.1 on this
+`Luar gap` is Luar best time divided by LuaJIT JIT-on best time: the
+factor by which Luar would have to improve to match LuaJIT 2.1 on this
 machine.
 
-| workload | LuaJIT JIT-on speedup vs Lua | LuaR gap to LuaJIT | reading |
+| workload | LuaJIT JIT-on speedup vs Lua | Luar gap to LuaJIT | reading |
 | --- | ---: | ---: | --- |
 | numeric/int_sum | 6.21x | 5.4x | hot integer loop; tier-1 target |
 | numeric/float_loop | 8.89x | 8.4x | hot FP loop; tier-1 target |
@@ -285,8 +285,8 @@ machine.
 | numeric/mandel | 15.32x | 16.0x | tight FP branch loop; biggest numeric target |
 | table/array | 2.80x | 2.8x | allocation + indexed access |
 | table/hash | 3.06x | 3.1x | string-key hashing; LuaJIT's interpreter already helps |
-| table/new_clear | 7.03x | 5.4x | LuaR has the extension, but LuaJIT's JIT compiles the fill |
-| string/concat | 0.45x (LuaJIT slower) | 0.46x (LuaR already faster) | C-level string building; JIT not the answer |
+| table/new_clear | 7.03x | 5.4x | Luar has the extension, but LuaJIT's JIT compiles the fill |
+| string/concat | 0.45x (LuaJIT slower) | 0.46x (Luar already faster) | C-level string building; JIT not the answer |
 | string/format | 4.97x | 5.4x | mostly C call overhead/frame handling |
 | string/gsub | 1.00x | 1.1x | C pattern matcher; JIT buys almost nothing |
 | string/pack | n/a | n/a | absent in LuaJIT 2.1 |
@@ -317,7 +317,7 @@ a C-call boundary workload.
   preceding `table/hash` made LuaJIT's `string/concat` appear ~15x
   slower; that was a harness artefact, not a LuaJIT property.
 - **A targeted repeatability check** (5 independent process runs, 9
-  samples each) gave stable ratios for the largest LuaR/Lua gaps:
+  samples each) gave stable ratios for the largest Luar/Lua gaps:
   `int_sum` 0.885 (0.87-0.89), `metatable` 1.17-1.21,
   `gsub` 1.13-1.14, `pack` 1.09-1.10.  `table/hash` is noisier
   (0.84-1.00 across full runs) because its cost depends on GC state;

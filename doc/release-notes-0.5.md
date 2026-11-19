@@ -1,13 +1,13 @@
-# LuaR 0.5 release notes
+# Luar 0.5 release notes
 
-LuaR is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
+Luar is a Lua 5.5.1 runtime with LuaJIT-style extensions.  This release
 extends the opt-in J4 tracing-IR path with chained side execution and closes
 mixed int/float shape correctness.
 
 ## Highlights
 
 - **Chained J4 side traces**: when a parent side fails at an exact PC beyond
-  its start, LuaR compiles and executes a child side from that PC, reusing the
+  its start, Luar compiles and executes a child side from that PC, reusing the
   parent’s mutated state.  Child nodes are depth-tracked and cached; deeper
   chains remain capped.
 - **Mixed int/float table correctness**: int and float root specializations
@@ -44,4 +44,4 @@ Lua 5.5.1 suite jobs.
 - Homogeneous float table cells are supported; mixed cells use interpreter
   fallback.
 - Native-ABI exit-stub spilling and full macOS shared ABI tests remain.
-- LuaR supports only Lua 5.5; there is no 5.1–5.4 compatibility mode.
+- Luar supports only Lua 5.5; there is no 5.1–5.4 compatibility mode.

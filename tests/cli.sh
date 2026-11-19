@@ -14,7 +14,7 @@ ok() { echo "cli: ok: $*"; }
 # -- version ---------------------------------------------------------------
 v=$("$LUAR" -v)
 case "$v" in
-  "LuaR "*) ;;
+  "Luar "*) ;;
   *) fail "unexpected -v output: $v" ;;
 esac
 case "$v" in
@@ -25,7 +25,7 @@ ok "luar -v"
 
 v=$("$LUARC" -v)
 case "$v" in
-  "LuaR "*) ;;
+  "Luar "*) ;;
   *) fail "unexpected luarc -v output: $v" ;;
 esac
 ok "luarc -v"
@@ -42,7 +42,7 @@ ok "-e / exit codes"
 
 # -- -j control ------------------------------------------------------------
 out=$("$LUAR" -jv)
-case "$out" in "LuaR "*) ;; *) fail "-jv output: $out" ;; esac
+case "$out" in "Luar "*) ;; *) fail "-jv output: $out" ;; esac
 "$LUAR" -joff -e 'assert(jit.status() == false)' || fail "-joff"
 "$LUAR" -j opt=hotloop=10 -e 'assert(type(jit.status()) == "boolean")' || fail "-j opt="
 ok "-j control options"

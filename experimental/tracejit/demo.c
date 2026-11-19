@@ -1,5 +1,5 @@
 /*
-** LuaR trace-JIT toolchain proof-of-concept.
+** Luar trace-JIT toolchain proof-of-concept.
 **
 ** Loads a fixed Lua 5.5 chunk, reads the Proto from the loaded LClosure,
 ** prints/disassembles its bytecode, decodes the numeric-for loop, and

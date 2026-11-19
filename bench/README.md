@@ -1,14 +1,14 @@
-# LuaR benchmark corpus
+# Luar benchmark corpus
 
 `bench/` contains a small, self-contained microbenchmark corpus and a
-driver that compares LuaR against stock Lua 5.5.1 and LuaJIT 2.1 (JIT on
+driver that compares Luar against stock Lua 5.5.1 and LuaJIT 2.1 (JIT on
 and off).  It is a measurement tool: there are no pass/fail gates and the
 numbers are never committed by default.
 
 | File | Purpose |
 | --- | --- |
 | `bench.lua` | corpus + timing harness (`--bench`, `--repeat`, `--json`, `--baseline`, `--report`) |
-| `compare.sh` | build/snapshot LuaR, run all interpreters, write `tests/tmp/bench-results.md` |
+| `compare.sh` | build/snapshot Luar, run all interpreters, write `tests/tmp/bench-results.md` |
 | `README.md` | this file |
 
 Measured numbers and interpretation live in `doc/performance.md`.
@@ -42,7 +42,7 @@ layout and thermal state.
 2. Copies the resulting `src/luar` to a private temporary path and verifies
    that the copy runs.  Another agent may rebuild `src/luar` concurrently;
    all timings use the snapshot, and its SHA-256 is recorded in the report.
-3. Runs the corpus under stock Lua, LuaR, LuaJIT (JIT on) and LuaJIT
+3. Runs the corpus under stock Lua, Luar, LuaJIT (JIT on) and LuaJIT
    (`-joff`), **one fresh interpreter process per benchmark**.  A fresh
    process matters: a preceding `table/hash` workload changes LuaJIT's GC
    and string-interning state enough to distort a following string
@@ -59,7 +59,7 @@ layout and thermal state.
 | --- | --- | --- |
 | `LUA_BIN` | `lua` | stock Lua 5.5.1 binary |
 | `LUAJIT_BIN` | `luajit` | LuaJIT 2.1 binary |
-| `LUAR_BIN` | `src/luar` | LuaR binary to build/reuse |
+| `LUAR_BIN` | `src/luar` | Luar binary to build/reuse |
 | `BUILD` | `1` | `1` run `make build`; `0` reuse `LUAR_BIN` |
 | `MAKE` | `make` | make command |
 | `REPEAT` | `7` | timed samples per benchmark per pass |
@@ -118,7 +118,7 @@ Feature notes:
   operation: it measures the best available preallocation/clear facility.
 - `string/pack` is unavailable in LuaJIT 2.1 and is reported as `n/a`,
   not as a crash.
-- The `j4` group is LuaR-only: it enables `jit.opt.start("ir=1")` and is
+- The `j4` group is Luar-only: it enables `jit.opt.start("ir=1")` and is
   reported as skipped by stock Lua and LuaJIT.  These cases measure the
   opt-in tracing-IR path, not the default J2/J3 path.
 
@@ -177,12 +177,12 @@ The single-run table and the Markdown report show:
 
 ## Caveats
 
-- **LuaR 0.1 is an interpreter, not a JIT.**  It has no native code
+- **Luar 0.1 is an interpreter, not a JIT.**  It has no native code
   generation (the `jit` table truthfully reports off) and no FFI in a
   default build.  LuaJIT's JIT-on rows show what a mature JIT achieves;
-  they are not LuaR 0.1's behaviour and not a promise for the first LuaR
+  they are not Luar 0.1's behaviour and not a promise for the first Luar
   JIT tier.
-- **The same core does not imply identical timings.**  LuaR's VM, table
+- **The same core does not imply identical timings.**  Luar's VM, table
   and string sources are byte-identical to vendored Lua 5.5.1, but it is a
   different binary: extra libraries are linked, registration changes the
   heap layout, and the distro-built stock Lua uses its own compiler flags

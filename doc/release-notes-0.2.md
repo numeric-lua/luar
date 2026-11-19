@@ -1,6 +1,6 @@
-# LuaR 0.2 release notes
+# Luar 0.2 release notes
 
-LuaR is a Lua 5.5.1 runtime with LuaJIT-style extensions: a mature opt-in FFI,
+Luar is a Lua 5.5.1 runtime with LuaJIT-style extensions: a mature opt-in FFI,
 a tiered x86-64 JIT, and a new independent J4 tracing-IR subsystem.  The Lua
 language, bytecode, C API and module ABI remain those of upstream Lua 5.5.1.
 
@@ -72,4 +72,4 @@ FFI and the official Lua 5.5.1 suite (31/31 files plus canonical `final OK`).
 - Native-ABI exit-stub spilling is replaced by C-level snapshot/restore.
 - Packed by-value aggregate calls use the x86-64 thunk matrix; non-x86-64
   hosted packed callbacks and full macOS ABI verification remain.
-- LuaR supports only Lua 5.5; there is no 5.1–5.4 compatibility mode.
+- Luar supports only Lua 5.5; there is no 5.1–5.4 compatibility mode.

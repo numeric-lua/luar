@@ -517,7 +517,7 @@ static char *no_getenv (const char *name) {
 
 static int handle_luainit (lua_State *L) {
   const char *name = "=" LUA_INITVARVERSION;
-  const char *init = l_getenv("LUAR_INIT");   /* LuaR-specific hook first */
+  const char *init = l_getenv("LUAR_INIT");   /* Luar-specific hook first */
   if (init == NULL)
     init = l_getenv(name + 1);
   if (init == NULL) {
@@ -846,7 +846,7 @@ static void doREPL (lua_State *L) {
 /* With this option, code must require the debug library before using it */
 #define luai_openlibs(L)  luaL_openselectedlibs(L, ~LUA_DBLIBK, LUA_DBLIBK)
 #else
-/* The default is to open all standard libraries plus the LuaR extensions */
+/* The default is to open all standard libraries plus the Luar extensions */
 #define luai_openlibs(L)  luar_openlibs(L)
 #endif
 #endif

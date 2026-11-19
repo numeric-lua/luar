@@ -3,10 +3,10 @@
 See `doc/lua56-readiness.md` for the concrete 5.6 adoption checklist.
 
 Status: normative for the 0.1 line. See `doc/adr/0003-upstream-deltas.md`
-for why LuaR chose a tracked delta baseline over a patch queue.
+for why Luar chose a tracked delta baseline over a patch queue.
 
-LuaR is not a fork of the language. The language, bytecode format, C API and
-module ABI are the official PUC-Rio Lua ones; LuaR adds runtime features on
+Luar is not a fork of the language. The language, bytecode format, C API and
+module ABI are the official PUC-Rio Lua ones; Luar adds runtime features on
 top. Every upstream release is therefore an adoption exercise, not a porting
 project.
 
@@ -25,9 +25,9 @@ tests/upstream/run.sh --jobs 4            # official Lua suite under src/luar
 | Path | Owner | Rule |
 | --- | --- | --- |
 | `vendor/lua-<version>/` | upstream | Pristine tarball contents. Never edit; never add local files. |
-| `src/` | LuaR | Working tree derived from the vendor snapshot. All changes happen here. |
-| `src/luar_*`, `src/luar.h`, `src/luar_version.h` | LuaR | New functionality lives in new files. |
-| `tools/upstream-baseline.txt` | LuaR | Checked-in record of every modified upstream file. |
+| `src/` | Luar | Working tree derived from the vendor snapshot. All changes happen here. |
+| `src/luar_*`, `src/luar.h`, `src/luar_version.h` | Luar | New functionality lives in new files. |
+| `tools/upstream-baseline.txt` | Luar | Checked-in record of every modified upstream file. |
 | `tests/tmp/` | disposable | Downloaded suites, caches and reports. Git-ignored. |
 
 `vendor/lua-<version>/` is deliberately pristine, so it still contains
@@ -53,7 +53,7 @@ being missed.
    through the core.
 4. **No unrelated reformatting.** Do not touch whitespace, order or comments
    in untouched upstream lines; it turns every future rebase into noise.
-5. **No legacy-version compatibility code.** If upstream removed it, LuaR does not add
+5. **No legacy-version compatibility code.** If upstream removed it, Luar does not add
    it back.
 6. **Record before committing.** A changed core file is not done until
    `tools/upstream-check.sh --update` has recorded its two hashes, the diff
@@ -76,13 +76,13 @@ upstream lua-5.5.1
 `tools/upstream-check.sh` classifies `src/` against the newest
 `vendor/lua-*` snapshot:
 
-* **LuaR-added** — `luar_*.c`, `luar_*.h`, `luar.h`. Expected, never
+* **Luar-added** — `luar_*.c`, `luar_*.h`, `luar.h`. Expected, never
   compared with upstream.
 * **Modified** — content differs from the vendored file. Must be in the
   baseline, with both hashes matching the current tree.
 * **Missing** — an upstream file absent from `src/`. Always a failure.
 * **Extra** — a file in `src/` that is neither an upstream file, a known
-  LuaR addition, nor a build product. Always a failure; this catches stray
+  Luar addition, nor a build product. Always a failure; this catches stray
   copies and forgotten renames.
 * **Ignored** — build products (`*.o`, `libluar.a`, `luar`, `luarc`, ...)
   are counted but not treated as source drift.
@@ -90,7 +90,7 @@ upstream lua-5.5.1
 The check fails when:
 
 * a modified file is not listed in the baseline;
-* a listed file's **LuaR hash** changed (review and `--update`);
+* a listed file's **Luar hash** changed (review and `--update`);
 * a listed file's **upstream hash** no longer matches the vendored tree
   (the vendor snapshot changed: do the upstream review/merge first);
 * a baseline row is stale (the file is no longer modified or was deleted);
@@ -121,8 +121,8 @@ unpacks it. It then compares three trees:
 * the new release;
 * `src/`.
 
-The report lists upstream-modified/added/removed files, LuaR-modified and
-LuaR-added files, conflicts (changed on both sides), newly added upstream
+The report lists upstream-modified/added/removed files, Luar-modified and
+Luar-added files, conflicts (changed on both sides), newly added upstream
 files missing from `src/`, and upstream removals still present in `src/`.
 That is the rebase worklist.
 
@@ -178,16 +178,16 @@ tarballs, extracted suites or reports.
       No `src/` changes in this commit.
 - [ ] Add the new test-suite hash/URL to the release issue.
 
-### Phase 2 — rebase LuaR's deltas
+### Phase 2 — rebase Luar's deltas
 
 - [ ] For every conflict and every new/removed upstream file in the sync
-      report, inspect the upstream change and re-apply the LuaR intent to
+      report, inspect the upstream change and re-apply the Luar intent to
       `src/`, keeping edits small and `/* LUAR */`-tagged.
 - [ ] Update the version-specific code paths: `src/luar_version.h`
       (`LUAR_LUA_VERSION`, `LUAR_LUA_VERSION_NUM`), top-level `Makefile`
       (`LUAVER`), and any tests that pin the Lua version or bytecode version.
 - [ ] Copy new upstream files into `src/`; do not copy the upstream
-      `Makefile` over LuaR's.
+      `Makefile` over Luar's.
 - [ ] Run `tools/upstream-check.sh`. Expect failures for every deliberate
       change; review the full diff (`diff -u vendor/lua-5.6.0/src/FILE
       src/FILE`) before running `tools/upstream-check.sh --update`.
@@ -207,7 +207,7 @@ tarballs, extracted suites or reports.
       returns early because `_U` skipped non-portable tests is a known
       limitation, not a pass of that subsystem.
 - [ ] Run the semantics suite under stock Lua 5.6 as well when available
-      (`tests/diff/run.sh` style differential run) so LuaR is not the only
+      (`tests/diff/run.sh` style differential run) so Luar is not the only
       oracle.
 - [ ] `make bench` and record the numbers; compare against the previous
       release. No hard gate, but unexplained regressions block the release.
@@ -217,9 +217,9 @@ tarballs, extracted suites or reports.
 ### Phase 4 — bookkeeping and release
 
 - [ ] Update `README.md` status/version text, `man/luar.1`, `etc/luar.pc`
-      if the LuaR version changes, and the compatibility/architecture docs
+      if the Luar version changes, and the compatibility/architecture docs
       where they name the Lua base release.
-- [ ] Add a changelog entry: upstream release, LuaR deltas rebased, tests
+- [ ] Add a changelog entry: upstream release, Luar deltas rebased, tests
       and benchmarks, known deviations.
 - [ ] Remove the old `vendor/lua-*` tree once the new baseline is green
       (separate commit), unless it is needed for a maintenance branch.
@@ -241,7 +241,7 @@ Keep these in sync when moving from 5.5 to 5.6:
 | `tests/upstream/run.sh` | derives the suite version from `LUAR_LUA_VERSION`; no edit normally |
 
 The extension directories (`share/luar/5.5`, `lib/luar/5.5`) follow the Lua
-minor, not the LuaR minor: a Lua 5.5 ABI module keeps loading on LuaR 0.7.
+minor, not the Luar minor: a Lua 5.5 ABI module keeps loading on Luar 0.7.1.
 
 ## 7. Official test suite
 
@@ -264,14 +264,14 @@ What it does:
    `heavy.lua` in its own copy of the suite, with `_soft`, `_port` and
    `_nomsg` set as the official `_U` mode does — safe for `--jobs N`;
 4. runs the suite's authoritative `all.lua` driver with `-e"_U=true"` and
-   checks for `final OK !!!`; because LuaR is strict 5.5, the runner disables
+   checks for `final OK !!!`; because Luar is strict 5.5, the runner disables
    the one `goto.lua` assertion that expects `global` to be a legal variable
    name under `LUA_COMPAT_GLOBAL` (upstream's own `ltests` build makes the
    same choice);
 5. writes `tests/tmp/upstream-report.txt` with one PASS/FAIL line per file,
    the canonical result and the tail of each failure log.
 
-At the time of writing (Lua 5.5.1, LuaR 0.7.0) the observed result is:
+At the time of writing (Lua 5.5.1, Luar 0.7.1.1) the observed result is:
 
 ```
 per-file: 31 run, 31 passed, 0 failed
@@ -287,11 +287,11 @@ suite sha256: da07b543872dc0bb2ff12aabd0c248578d78df3eb6b67efdc537a46d455c7f31
   under `_soft`. Their PASS means the file's harness completed, not that
   every subsystem was exercised.
 * The **complete** suite is not automated. It needs the C helpers in
-  `libs/` built against LuaR's headers, and it contains environment-specific
-  checks. On Linux/glibc with LuaR 0.7.0:
+  `libs/` built against Luar's headers, and it contains environment-specific
+  checks. On Linux/glibc with Luar 0.7.1.1:
   * `main.lua` asserts that `-v` prints `PUC-Rio` in the copyright line;
-    LuaR intentionally prints its own banner (`LuaR ... Copyright (C) 2026
-    LuaR contributors`) while still naming `Lua 5.5.1`. This is a deliberate
+    Luar intentionally prints its own banner (`Luar ... Copyright (C) 2026
+    Luar contributors`) while still naming `Lua 5.5.1`. This is a deliberate
     branding deviation, not a semantic one, but it stops the unmodified
     complete run at `main.lua`.
   * `files.lua` expects seeking on stdin to fail; that depends on what stdin
@@ -305,7 +305,7 @@ suite sha256: da07b543872dc0bb2ff12aabd0c248578d78df3eb6b67efdc537a46d455c7f31
   your hands dirty"); it is useful for manual deep dives and is not a release
   gate. The basic mode above is the repeatable one.
 * Internal `ltests` tests require recompiling Lua with `ltests.c`/`ltests.h`
-  and `-DLUA_USER_H`, exactly as upstream documents. LuaR does not ship that
+  and `-DLUA_USER_H`, exactly as upstream documents. Luar does not ship that
   build; those tests are outside this runner.
 
 Downloaded tarballs and reports under `tests/tmp/` are disposable. Delete the
@@ -329,12 +329,12 @@ release and attach the report to the release issue.
 
 ## 9. Why the ABI makes this cheap
 
-LuaR does not define a second value model. `TValue`, the stack layout, the
+Luar does not define a second value model. `TValue`, the stack layout, the
 C API in `lua.h`/`lauxlib.h` and the module ABI remain the official ones;
 extensions allocate their own registries and userdata and call the public
 API. Consequences:
 
-* a binary C module built for the matching upstream Lua minor loads in LuaR
+* a binary C module built for the matching upstream Lua minor loads in Luar
   without recompilation (`tests/cli.sh` checks a stock `lua5.5` module);
 * upstream bug fixes and semantic changes arrive by merging core files, not
   by translating between two runtimes;

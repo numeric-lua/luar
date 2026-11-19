@@ -1,22 +1,22 @@
-# LuaR
+# Luar
 
 **A Lua 5.5-only runtime with a LuaJIT-style FFI and a tiered JIT path.**
 
-LuaR starts from the official Lua 5.5.1 sources and never looks backwards:
+Luar starts from the official Lua 5.5.1 sources and never looks backwards:
 no 5.1, 5.2, 5.3 or 5.4 compatibility switches, no legacy APIs, no second
 dialect. On top of that exact 5.5 language and C ABI it adds a compact FFI,
 the `jit` control surface, `table.new`/`table.clear`, and a concrete,
 documented route to a tracing JIT.
 
-The defining rule: **LuaR follows Lua.** When Lua 5.6 ships, LuaR adopts
+The defining rule: **Luar follows Lua.** When Lua 5.6 ships, Luar adopts
 it. Each release supports one Lua line, the current one.
 
 ```
 $ luar -v
-LuaR 0.7.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
+Luar 0.7.1 (Lua 5.5.1)  Copyright (C) 2026 Luar contributors
 ```
 
-## Status (0.7.0)
+## Status (0.7.1)
 
 | Area | State |
 | --- | --- |
@@ -30,7 +30,7 @@ LuaR 0.7.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
 | native JIT | J1 recorder + J2/J3 x86-64 numeric/table loops, guarded exits, call inlining and experimental generic-table/partial-call tiers. J4 tracing IR (`ir=1`): integer/float table roots, K-ops, multi-table bodies, interior array→hash side traces with snapshot/restore, CALL exits, depth/cycle accounting, guard-exit side linking, and interpreter safepoint yields (`jit.status()` true; ~9x `int_sum`, ~5.5x `float_sum`, ~1.6x `float_div`) |
 | upstream tracking | `vendor/` + baseline checker + official-suite runner |
 
-LuaR 0.7 is a drop-in replacement for the `lua` 5.5 interpreter and for
+Luar 0.7 is a drop-in replacement for the `lua` 5.5 interpreter and for
 `liblua`: same bytecode format, C API and module ABI. Outside the J2
 whitelist it runs the stock Lua 5.5 VM (within ~1% of stock in `bench/`).
 Compiled numeric for-loops are already ~9x (`int_sum`, ahead of LuaJIT)
@@ -40,7 +40,7 @@ JIT milestones, not a claim of 0.7.
 ## Following Lua
 
 `doc/lua56-readiness.md` is the adoption checklist for the next upstream
-line; LuaR does not add compatibility modes for older ones.
+line; Luar does not add compatibility modes for older ones.
 
 ## 5.5 only, by construction
 
@@ -58,7 +58,7 @@ line; LuaR does not add compatibility modes for older ones.
 
 ```sh
 make                    # src/luar, src/luarc, src/libluar.a
-make shared             # + src/libluar.so.0.7.0 (SONAME libluar.so.0)
+make shared             # + src/libluar.so.0.7.1 (SONAME libluar.so.0)
 make WITH_FFI=1         # + FFI (needs the libffi headers)
 make test               # smoke, CLI/ABI, semantics, compat, differential
 make test-shared        # embedding + C module against libluar.so
@@ -76,7 +76,7 @@ rebuild or disturb each other's objects; `make clean` removes both sets.
 
 ### Embedding and pkg-config
 
-`make install` installs `libluar.a`, `libluar.so.0.7.0` and the
+`make install` installs `libluar.a`, `libluar.so.0.7.1` and the
 `libluar.so.0`/`libluar.so` symlinks in `$PREFIX/lib`, together with
 `luar.pc`. Both link modes use the same package name:
 
@@ -88,11 +88,11 @@ cc host.c $(pkg-config --cflags --static --libs luar) -o host   # static
 `libluar.so` carries the SONAME `libluar.so.0` and exports exactly the Lua
 5.5 C API (`lua_*`, `luaL_*`, `luaopen_*`) plus the `luar_*` additions; the
 ~200 internal `luaX_*` helpers are hidden by `etc/libluar.map`. The SONAME is
-LuaR's own rather than `liblua.so`: the ABI is Lua 5.5's, but the library may
+Luar's own rather than `liblua.so`: the ABI is Lua 5.5's, but the library may
 grow extension symbols, and its name must not collide with a system `liblua`
 in the same process. Stock Lua 5.5 C modules load unchanged — when a host
 links `libluar.so`, a module built against stock `lua5.5` still binds its
-`lua_*` symbols to LuaR (`test-shared` checks this with `LD_DEBUG` on glibc).
+`lua_*` symbols to Luar (`test-shared` checks this with `LD_DEBUG` on glibc).
 
 Static hosts that load C modules at run time must export their own symbols
 (`-Wl,-E` on ELF); the `luar`/`luarc` binaries already do. A host linked
@@ -102,7 +102,7 @@ against `libluar.so` needs no extra linker flag.
 
 ```sh
 $ luar -v
-LuaR 0.7.0 (Lua 5.5.1)  Copyright (C) 2026 LuaR contributors
+Luar 0.7.1 (Lua 5.5.1)  Copyright (C) 2026 Luar contributors
 
 $ luar -e 'print(0xdeadbeef & 0xffff, table.new and "table.new" or "?")'
 48879	table.new
@@ -111,7 +111,7 @@ $ luar -b prog.lua prog.luac   # LuaJIT-compatible bytecode mode
 $ luar -joff prog.lua          # LuaJIT-compatible JIT control
 
 $ luar -e 'print(luar.version, luar.lua_version, jit.status())'
-0.7.0	Lua 5.5.1	true
+0.7.1	Lua 5.5.1	true
 ```
 
 With `WITH_FFI=1`:
@@ -137,7 +137,7 @@ value model and layer diagram are in `doc/architecture.md`; the decision
 record is `doc/adr/0001-lua55-core.md`.
 
 ```
-src/                 LuaR engine (derived from Lua 5.5.1, small tagged deltas)
+src/                 Luar engine (derived from Lua 5.5.1, small tagged deltas)
   luar_lib.c         identity, table extensions, extended openlibs
   luar_jit.c         jit.* control surface
   luar_ffi*.c        FFI: type system, cdef parser, cdata, libffi calls
@@ -177,15 +177,15 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
 - [doc/jit-design.md](doc/jit-design.md) — tracing-JIT design: opcode map,
   IR, guards, GC safepoints, codegen and J1–J5 milestones.
 - [doc/ffi.md](doc/ffi.md) — FFI scope, semantics and known limitations.
-- [doc/upstream.md](doc/upstream.md) — how LuaR tracks Lua, including the
+- [doc/upstream.md](doc/upstream.md) — how Luar tracks Lua, including the
   Lua 5.6 adoption checklist.
 - [doc/performance.md](doc/performance.md) — measured baseline and honest
   interpretation.
 - [doc/testing.md](doc/testing.md) — suites, differential testing, sanitizers.
-- [CHANGELOG.md](CHANGELOG.md) — what 0.7.0 contains.
+- [CHANGELOG.md](CHANGELOG.md) — what 0.7.1 contains.
 
 ## License
 
-LuaR is MIT-licensed. It contains code from Lua 5.5.1
+Luar is MIT-licensed. It contains code from Lua 5.5.1
 (Copyright © 1994–2026 Lua.org, PUC-Rio). The DynASM code generator is from
 LuaJIT (Copyright © 2005–2026 Mike Pall). See `COPYRIGHT`.

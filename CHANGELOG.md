@@ -1,10 +1,17 @@
 # Changelog
 
-All notable changes to LuaR are recorded here. The format follows
+All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
+
+## [0.7.1] — 2026-11-19
+
+### Changed
+
+- Renamed all display branding from “LuaR” to **Luar**.  Executables,
+  modules, C symbols and `LUAR_*` macros are unchanged.
 
 ## [0.7.0] — 2026-11-19
 
@@ -65,7 +72,7 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ### Added
 
-- LuaR-only `j4` benchmark corpus covering integer, table-read,
+- Luar-only `j4` benchmark corpus covering integer, table-read,
   array→hash side-trace, one- and two-argument leaf-call, and multi-table
   paths; `bench/compare.sh` reports stock Lua/LuaJIT as skipped for `j4`.
 - Two-argument integer leaf-call inlining in J4 roots.
@@ -84,7 +91,7 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J4 side linking now records the root start separately from the native
   backedge for correct cycle classification.
 - Side-code cache exhaustion no longer leaks generated code.
-- Benchmark documentation no longer describes LuaR as interpreter-only.
+- Benchmark documentation no longer describes Luar as interpreter-only.
 
 ## [0.2.0] — 2026-11-18
 
@@ -355,7 +362,7 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [0.1.0] — 2026-11-17
 
-The first LuaR release: Lua 5.5.1 only, a LuaJIT-style surface on top, and
+The first Luar release: Lua 5.5.1 only, a LuaJIT-style surface on top, and
 the machinery to keep following Lua.
 
 ### Added
@@ -379,7 +386,7 @@ the machinery to keep following Lua.
 - `jit` control surface: `version`, `version_num`, `os`, `arch`, `status`,
   `on`, `off`, `flush`, `opt.start`. `jit.status()` truthfully returns
   `false`: no native code generator ships in 0.1.
-- Extended `luaL_openlibs` that opens the LuaR extensions for embedders.
+- Extended `luaL_openlibs` that opens the Luar extensions for embedders.
 - LuaJIT-compatible CLI: `-j on|off|flush|opt=...|v` and
   `-b [-s] input output` bytecode compilation.
 - Stock Lua 5.5 C modules load unchanged (C ABI preserved, exported symbols);
@@ -421,7 +428,7 @@ the machinery to keep following Lua.
   `LUA_COMPAT_MATHLIB`, `LUA_COMPAT_APIINTCASTS`, the legacy API macros
   (`lua_strlen`, `lua_objlen`, `lua_equal`, `lua_lessthan`,
   `luaL_checkint`, ...), and the deprecated math functions.
-- `doc/porting-from-luajit.md`; LuaR documents only the current Lua line.
+- `doc/porting-from-luajit.md`; Luar documents only the current Lua line.
 
 ### Known limitations
 

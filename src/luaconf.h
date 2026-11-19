@@ -247,7 +247,7 @@
 #define LUA_LDIR	LUA_ROOT "share/lua/" LUA_VDIR "/"
 #define LUA_CDIR	LUA_ROOT "lib/lua/" LUA_VDIR "/"
 
-/* LuaR-specific module directories (searched before the Lua ones). */
+/* Luar-specific module directories (searched before the Lua ones). */
 #define LUAR_LDIR	LUA_ROOT "share/luar/" LUA_VDIR "/"
 #define LUAR_CDIR	LUA_ROOT "lib/luar/" LUA_VDIR "/"
 

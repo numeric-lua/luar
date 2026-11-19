@@ -7,7 +7,7 @@ Status: accepted (implementation in milestone 0.2)
 
 LuaJIT calls C functions through hand-written assembly per architecture. That
 is fast and dependency-free but is a large, platform-specific body of code
-and a source of ABI bugs. LuaR's FFI must work on x86-64 Linux first, then
+and a source of ABI bugs. Luar's FFI must work on x86-64 Linux first, then
 ARM64/macOS, without blocking on a hand-written call layer.
 
 ## Decision

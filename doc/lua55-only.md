@@ -1,6 +1,6 @@
 # The Lua 5.5-only surface
 
-LuaR implements exactly one language line: the current official Lua, which
+Luar implements exactly one language line: the current official Lua, which
 is **5.5.1** for this release. There is no compatibility mode, no
 `LUA_COMPAT_*` switch, and no legacy API. This document collects what that
 means in practice; `doc/compatibility.md` is the formal contract.
@@ -10,14 +10,14 @@ means in practice; `doc/compatibility.md` is the formal contract.
 The build removes the compatibility code that upstream Lua 5.5 still ships
 behind compile-time options:
 
-| Upstream option | LuaR |
+| Upstream option | Luar |
 | --- | --- |
 | `LUA_COMPAT_GLOBAL` | removed; `global` is always a reserved word |
 | `LUA_COMPAT_MATHLIB` | removed; `math.pow`, `math.atan2`, `math.log10`, `math.sinh`, `math.cosh`, `math.tanh` do not exist |
 | `LUA_COMPAT_APIINTCASTS` | removed; `lua_strlen`, `lua_objlen`, `lua_equal`, `lua_lessthan`, `luaL_checkint`, `luaL_checklong`, `luaL_checkunsigned` do not exist |
 
 The upstream compatibility section in `src/luaconf.h` is gone. If a program
-needs an older Lua, it must be ported; LuaR will not emulate it.
+needs an older Lua, it must be ported; Luar will not emulate it.
 
 ## 2. Language rules that always apply
 
@@ -36,7 +36,7 @@ needs an older Lua, it must be ported; LuaR will not emulate it.
 
 ## 3. Bitwise operators, not a `bit` library
 
-Lua 5.5 has native 64-bit bitwise operators and LuaR ships no `bit` module:
+Lua 5.5 has native 64-bit bitwise operators and Luar ships no `bit` module:
 
 ```lua
 local a = 0xff
@@ -96,7 +96,7 @@ C modules compiled for Lua 5.5 load unchanged because the ABI is the
 upstream one (`tests/cli.sh` proves it). LuaJIT's C API and bytecode are
 different and are not supported.
 
-## 6. What LuaR adds, and what it does not
+## 6. What Luar adds, and what it does not
 
 Additions are opt-in extensions layered on the 5.5 language:
 

@@ -1,5 +1,5 @@
 /*
-** luar_ffi.h -- internal interface to the LuaR FFI library.
+** luar_ffi.h -- internal interface to the Luar FFI library.
 **
 ** The public entry point is luaopen_ffi(); the rest of the file is the
 ** contract between the cdef parser, the ctype registry, the cdata

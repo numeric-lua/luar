@@ -1,6 +1,6 @@
-# LuaR 0.1 release notes
+# Luar 0.1 release notes
 
-LuaR is a Lua 5.5.1 runtime with LuaJIT-style extensions: an opt-in FFI and a
+Luar is a Lua 5.5.1 runtime with LuaJIT-style extensions: an opt-in FFI and a
 loop-level x86-64 JIT.  The language, bytecode, C API and module ABI are
 those of upstream Lua 5.5.1.
 

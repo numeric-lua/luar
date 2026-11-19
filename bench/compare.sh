@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #---------------------------------------------------------------------
-# bench/compare.sh -- build (or reuse) LuaR, snapshot the binary, then
+# bench/compare.sh -- build (or reuse) Luar, snapshot the binary, then
 # run the bench/bench.lua corpus under:
 #
 #   stock Lua 5.5.1 (baseline)
-#   LuaR
+#   Luar
 #   LuaJIT 2.1, JIT on
 #   LuaJIT 2.1, JIT off (-joff)
 #
@@ -16,7 +16,7 @@
 #
 #   LUA_BIN        stock Lua (default: lua on PATH)
 #   LUAJIT_BIN     LuaJIT (default: luajit on PATH)
-#   LUAR_BIN       LuaR binary (default: <repo>/src/luar)
+#   LUAR_BIN       Luar binary (default: <repo>/src/luar)
 #   BUILD          1 = run `make build` first, 0 = reuse (default: 1)
 #   MAKE           make command (default: make)
 #   REPEAT         timed samples per benchmark (default: 7)
@@ -98,17 +98,17 @@ trap cleanup EXIT
 
 mkdir -p -- "$(dirname -- "$OUT")"
 
-printf '== LuaR benchmark comparison ==\n'
+printf '== Luar benchmark comparison ==\n'
 printf '   repo: %s\n' "$ROOT"
 printf '   scratch: %s\n' "$TMP"
 
 # ---------------------------------------------------------------------
-# Build and snapshot LuaR before timing.  A concurrent agent may be
+# Build and snapshot Luar before timing.  A concurrent agent may be
 # rebuilding src/luar while this runs; the snapshot is the source of
 # truth for all timings.
 # ---------------------------------------------------------------------
 if [ "$BUILD" = 1 ]; then
-  printf '== building LuaR: %s -C %s build ==\n' "$MAKE" "$ROOT"
+  printf '== building Luar: %s -C %s build ==\n' "$MAKE" "$ROOT"
   if ! "$MAKE" -C "$ROOT" build >"$TMP/build.log" 2>&1; then
     tail -n 60 "$TMP/build.log" >&2 || true
     die "build failed (log: $TMP/build.log; rerun with KEEP=1 to keep it)"
@@ -132,7 +132,7 @@ snapshot_luar () {
   done
   return 1
 }
-snapshot_luar || die "could not snapshot a runnable LuaR binary from $LUAR_BIN"
+snapshot_luar || die "could not snapshot a runnable Luar binary from $LUAR_BIN"
 
 LUAR_SHA=$(sha256sum -- "$LUAR_COPY" 2>/dev/null | awk '{print $1}')
 [ -n "$LUAR_SHA" ] || LUAR_SHA="(sha256sum unavailable)"
@@ -140,7 +140,7 @@ SOURCE_SHA=$(sha256sum -- "$LUAR_BIN" 2>/dev/null | awk '{print $1}' || true)
 if [ -n "$SOURCE_SHA" ] && [ "$SOURCE_SHA" != "$LUAR_SHA" ]; then
   printf 'warning: %s changed while being snapshotted; timings use the snapshot\n' "$LUAR_BIN" >&2
 fi
-printf '   LuaR snapshot: %s (%s)\n' "$LUAR_COPY" "$LUAR_SHA"
+printf '   Luar snapshot: %s (%s)\n' "$LUAR_COPY" "$LUAR_SHA"
 
 # ---------------------------------------------------------------------
 # Interpreter versions and build flags for the report header.
@@ -266,13 +266,13 @@ NCPU=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo '?')
 GCC_LINE=$(gcc --version 2>/dev/null | head -n 1 || true)
 
 {
-  printf '# LuaR benchmark comparison\n\n'
+  printf '# Luar benchmark comparison\n\n'
   printf -- '- Generated: `%s`\n' "$(date -Iseconds 2>/dev/null || date)"
   printf -- '- Host: `%s`\n' "$(uname -a)"
   printf -- '- CPU: %s (%s logical CPUs)\n' "${CPU_MODEL:-unknown}" "$NCPU"
   [ -n "$GCC_LINE" ] && printf -- '- Compiler: `%s`\n' "$GCC_LINE"
   printf -- '- Build flags: `%s`\n' "$BUILD_FLAGS"
-  printf -- '- LuaR: `%s`, snapshot sha256 `%s`\n' "$LUAR_VERSION" "$LUAR_SHA"
+  printf -- '- Luar: `%s`, snapshot sha256 `%s`\n' "$LUAR_VERSION" "$LUAR_SHA"
   printf -- '- Stock Lua: `%s` at `%s`\n' "$LUA_VERSION" "$LUA_BIN"
   printf -- '- LuaJIT: `%s` at `%s`\n' "$LUAJIT_VERSION" "$LUAJIT_BIN"
   printf -- '- JIT status: on-run `%s`, off-run (`%s`) `%s`\n' \
@@ -286,7 +286,7 @@ GCC_LINE=$(gcc --version 2>/dev/null | head -n 1 || true)
   cat "$TMP/report-body.md"
   printf '\n## Caveats\n\n'
   printf -- '- These are microbenchmarks, not application benchmarks. Ratios are specific to this host, build and run.\n'
-  printf -- '- LuaR uses its tiered JIT by default; J4 rows are opt-in and LuaR-only. The LuaJIT rows are the performance ceiling, not LuaR behaviour.\n'
+  printf -- '- Luar uses its tiered JIT by default; J4 rows are opt-in and Luar-only. The LuaJIT rows are the performance ceiling, not Luar behaviour.\n'
   printf -- '- The machine is shared and throttles; best-of-N is optimistic, the median is reported alongside it. Runs with ratios near 1.00 should be treated as equal.\n'
   printf -- '- Stock Lua lacks `table.new`/`table.clear`; `table/new_clear` uses a `table.create` + `pairs()` fallback and says so in Notes. LuaJIT 2.1 lacks `string.pack`, so that benchmark is `n/a` there.\n'
   printf -- '- Wall time is sampled around the first timed run after the pre-sample GC; CPU time is the primary metric.\n'

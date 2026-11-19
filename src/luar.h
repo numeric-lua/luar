@@ -1,7 +1,7 @@
 /*
-** luar.h -- public extensions provided by the LuaR runtime.
+** luar.h -- public extensions provided by the Luar runtime.
 **
-** LuaR keeps the complete Lua 5.5 C API and ABI (lua.h, lauxlib.h,
+** Luar keeps the complete Lua 5.5 C API and ABI (lua.h, lauxlib.h,
 ** lualib.h).  This header only declares the additions.  Include lua.h
 ** first (or just include this header, which does it for you).
 **
@@ -20,8 +20,8 @@
 #define LUAR_FFILIBNAME		"ffi"
 
 /*
-** Open the standard libraries plus the LuaR extensions.  This is what
-** the luaL_openlibs() macro expands to in LuaR.
+** Open the standard libraries plus the Luar extensions.  This is what
+** the luaL_openlibs() macro expands to in Luar.
 */
 LUALIB_API void luar_openlibs (lua_State *L);
 

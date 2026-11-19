@@ -1,5 +1,5 @@
 /*
-** luar_lib.c -- LuaR runtime library: identity table, LuaJIT-style
+** luar_lib.c -- Luar runtime library: identity table, LuaJIT-style
 ** extensions to the standard libraries, and the extended openlibs().
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.

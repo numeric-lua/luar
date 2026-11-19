@@ -58,7 +58,7 @@ LUAMOD_API int (luaopen_utf8) (lua_State *L);
 /* open selected libraries */
 LUALIB_API void (luaL_openselectedlibs) (lua_State *L, int load, int preload);
 
-/* LuaR: open all libraries, including the LuaR extensions */
+/* Luar: open all libraries, including the Luar extensions */
 LUALIB_API void (luar_openlibs) (lua_State *L);
 
 /* open all libraries */

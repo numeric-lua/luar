@@ -1,5 +1,5 @@
 /*
-** luar_trace.h -- LuaR J4 tracing-IR and exit-state model.
+** luar_trace.h -- Luar J4 tracing-IR and exit-state model.
 **
 ** This is the first layer of a tracing JIT, deliberately independent from
 ** the existing one-pass loop emitter.  Traces are recorded as a small,

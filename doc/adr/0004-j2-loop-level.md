@@ -7,14 +7,14 @@ traces.
 
 The JIT design (`doc/jit-design.md`) targets a tracing compiler, but the
 full recorder, SSA IR, exits and register allocator are a multi-month
-effort.  LuaR 0.1 nevertheless needs a real performance tier and a truthful
+effort.  Luar 0.1 nevertheless needs a real performance tier and a truthful
 `jit.status()`, not a placeholder.  The numeric benchmarks are dominated by
 `for` loops with simple arithmetic bodies, and Lua 5.5 bytecode is already
 register-based, so the loop body can run directly on the stack slots.
 
 ## Decision
 
-When an integer-controlled `for` loop becomes hot, LuaR emits the
+When an integer-controlled `for` loop becomes hot, Luar emits the
 whitelisted body with DynASM and runs the *remaining* iterations natively:
 
 * the loop is entered from `OP_FORLOOP` after the interpreter has executed
