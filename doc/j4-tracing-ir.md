@@ -30,6 +30,8 @@ the working JIT can keep shipping while a trace compiler is built.
 - Leaf calls: **one integer argument and one integer result inlined** for
   upvalue-free leaf bodies (`MULK`/`ADDK`/`SUBK`/`ADDI`), guarded by closure
   identity (`CGUARD`).  Unsupported calls fall back.
+- Mixed bodies with table reads and inlined leaf calls: **recorded and
+  linked**, including interior side exits.
 - Multi-table bodies: **recorded and linked**; a hash-shape change in the
   second lookup produces an interior side exit.
 - Safepoints: root traces yield to the interpreter every 256 FORLOOP
