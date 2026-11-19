@@ -31,3 +31,6 @@
 # GCC/Clang -MMD header dependencies
 /src/*.d
 /src/*.pic.d
+
+# CI staging root
+/stage/
