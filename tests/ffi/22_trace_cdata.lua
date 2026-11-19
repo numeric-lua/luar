@@ -64,7 +64,22 @@ local function sfy (p, n)
 end
 assert(sfx(sp, 1000) == 2000)
 assert(sfy(sp, 1000) == 1500.0)
-assert(jit.stats().ir_executed >= 4)
+
+-- scalar struct writes use CSETFIELD
+local wp = ffi.new("struct luar_trace_P")
+local wq = ffi.new("struct luar_trace_P")
+wq.y = 2.5
+local function wfx (p, n)
+  for i = 1, n do p.x = i end
+end
+local function wfy (p, q, n)
+  for i = 1, n do p.y = q.y end
+end
+wfx(wp, 1000)
+wfy(wp, wq, 1000)
+assert(wp.x == 1000)
+assert(wp.y == 2.5)
+assert(jit.stats().ir_executed >= 6)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
