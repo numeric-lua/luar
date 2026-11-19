@@ -656,11 +656,12 @@ typedef struct Proto {
   int luar_side_pc;
   int luar_side_start;
   l_uint32 luar_side_epoch;
-  void *luar_child_code;
-  size_t luar_child_size;
-  int luar_child_start;
-  int luar_child_pc;
-  l_uint32 luar_child_epoch;
+  void *luar_child_code[3];
+  size_t luar_child_size[3];
+  int luar_child_start[3];
+  int luar_child_pc[3];
+  l_uint32 luar_child_epoch[3];
+  uint64_t luar_side_block;
   int luar_tint[2];	/* 1 = table fill intrinsic */
   int luar_tint_pc[2];
   int luar_tint_table[2];

@@ -2801,49 +2801,67 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
   }
   if (sr < -1) {
     int fpc = -sr - 2;
-    int child = -1;
+    int startpc = fpc;
+    int level;
     if (fpc == p->luar_side_start)
       return sr;   /* failed before any side mutation */
-    if (fpc > p->luar_side_start && fpc <= pc) {
-      if (p->luar_child_code != NULL && p->luar_child_epoch == J->epoch &&
-          p->luar_child_pc == pc && p->luar_child_start == fpc)
-        child = 1;
-      else if (p->luar_child_code == NULL) {
-        LuaR_TraceIR cir;
-        int has_tset = 0, kk;
-        if (luar_trace_record_loop(p, fpc, pc, (TValue *)base, &cir)) {
-          for (kk = 0; kk < cir.nins; kk++)
-            if (cir.ins[kk].kind == LUAR_IR_TSET) has_tset = 1;
-          if (!has_tset && luar_trace_ir_link(&cir, 1, p->luar_ir_start)) {
-            cir.side = 1;
-            if (J->ncode < LUAR_JIT_MAXCODE &&
-                luari_emit_trace_ir(&cir, &p->luar_child_code,
-                                    &p->luar_child_size)) {
-              p->luar_child_start = fpc;
-              p->luar_child_pc = pc;
-              p->luar_child_epoch = J->epoch;
-              J->code[J->ncode].code = p->luar_child_code;
-              J->code[J->ncode].size = p->luar_child_size;
-              J->ncode++;
-              J->ir_side_compiled++;
-              J->ir_side_traces++;
-              J->ir_side_ops += (uint32_t)cir.nins;
-              J->ir_side_start = fpc;
-              J->ir_side_depth = cir.depth;
-              if ((uint32_t)cir.depth > J->ir_max_depth)
-                J->ir_max_depth = (uint32_t)cir.depth;
-              child = 1;
-            }
-          }
-        }
+    for (level = 0; level < 3; level++) {
+      LuaR_TraceIR cir;
+      int has_tset = 0, kk, csr;
+      if (startpc <= p->luar_side_start ||
+          (p->luar_side_block & (1ull << (startpc & 63))))
+        break;
+      if (p->luar_child_code[level] == NULL) {
+        if (!luar_trace_record_loop(p, startpc, pc, (TValue *)base, &cir))
+          break;
+        for (kk = 0; kk < cir.nins; kk++)
+          if (cir.ins[kk].kind == LUAR_IR_TSET) has_tset = 1;
+        if (has_tset ||
+            !luar_trace_ir_link(&cir, level + 1, p->luar_ir_start))
+          break;
+        cir.side = 1;
+        if (J->ncode >= LUAR_JIT_MAXCODE)
+          break;
+        if (!luari_emit_trace_ir(&cir, &p->luar_child_code[level],
+                                 &p->luar_child_size[level]))
+          break;
+        p->luar_child_start[level] = startpc;
+        p->luar_child_pc[level] = pc;
+        p->luar_child_epoch[level] = J->epoch;
+        J->code[J->ncode].code = p->luar_child_code[level];
+        J->code[J->ncode].size = p->luar_child_size[level];
+        J->ncode++;
+        J->ir_side_compiled++;
+        J->ir_side_traces++;
+        J->ir_side_ops += (uint32_t)cir.nins;
+        J->ir_side_start = startpc;
+        J->ir_side_depth = cir.depth;
+        if ((uint32_t)cir.depth > J->ir_max_depth)
+          J->ir_max_depth = (uint32_t)cir.depth;
       }
-    }
-    if (child > 0) {
-      int csr = ((LuaR_LoopFn)p->luar_child_code)(base);
+      if (p->luar_child_code[level] == NULL ||
+          p->luar_child_epoch[level] != J->epoch ||
+          p->luar_child_pc[level] != pc ||
+          p->luar_child_start[level] != startpc)
+        break;
+      csr = ((LuaR_LoopFn)p->luar_child_code[level])(base);
+      if (csr == 2) {
+        J->ir_yields++;
+        return 0;
+      }
       if (csr >= 0) {
         J->ir_side_executed++;
         return csr;
       }
+      if (csr < -1) {
+        fpc = -csr - 2;
+        if (fpc > startpc) {
+          startpc = fpc;
+          continue;
+        }
+      }
+      p->luar_side_block |= (1ull << (startpc & 63));
+      break;
     }
   }
   luar_trace_ir_restore(&snap, (TValue *)base);

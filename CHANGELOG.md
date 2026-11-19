@@ -6,6 +6,15 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-19
+
+### Added
+
+- J4 side chains now reach depth 4 (parent + three children), reusing exact
+  failure PCs and parent state.
+- Blocked/no-progress PC tracking for side chain children.
+- `tests/jit/60_side_chain_depth.lua` covering a four-closure chain.
+
 ## [0.5.0] — 2026-11-19
 
 ### Added
