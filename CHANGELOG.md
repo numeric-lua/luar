@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-11-19
+
+### Added
+
+- CALL-exit prefixes for C functions and callable tables, not only Lua
+  closures.
+- `tests/jit/68_call_c_exit.lua`.
+
 ## [0.21.0] — 2026-11-19
 
 ### Added

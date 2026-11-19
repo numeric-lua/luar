@@ -641,6 +641,13 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           r = luar_trace_ir_emit(t, &in);
           break;
         }
+        if (partial && b < ns && ir_tag(&base[b]) == LUAR_IR_TAG_OTHER) {
+          in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
+          in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         if (!seen[b] && b < ns) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
           in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
@@ -877,16 +884,15 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         r = 1;
         break;
       case OP_CALL: {
-        TValue *fn = fn_src[a] >= 0 ? &base[fn_src[a]] : &base[a];
-        if (c != 2 || (b != 2 && b != 3) || a + b - 1 >= ns ||
-            !ttisinteger(&base[a + 1]) ||
-            (b == 3 && !ttisinteger(&base[a + 2])))
-          return 0;
-        {
-          int fs = fn_src[a] >= 0 ? fn_src[a] : a;
-          TValue *fv = &base[fs];
-          if (!ttisLclosure(fv))
-            return 0;
+        int mark = t->nins;
+        int fs = fn_src[a] >= 0 ? fn_src[a] : a;
+        TValue *fv = &base[fs];
+        TValue *fn = &base[fs];
+        int inline_ok = (c == 2 && (b == 2 || b == 3) &&
+                         a + b - 1 < ns && ttisLclosure(fv) &&
+                         ttisinteger(&base[a + 1]) &&
+                         (b == 2 || ttisinteger(&base[a + 2])));
+        if (inline_ok) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
             in.ival = (int64_t)(intptr_t)fv->value_.gc;
@@ -894,33 +900,34 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[fs] = 1;
           }
+          if (!seen[a + 1]) {
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+            in.b = LUAR_IR_TAG_INT; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[a + 1] = 1;
+          }
+          if (b == 3 && !seen[a + 2]) {
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
+            in.b = LUAR_IR_TAG_INT; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[a + 2] = 1;
+          }
+          if (b == 2 ? inline_leaf_call(t, a, fn, pc)
+                     : inline_leaf_call2(t, a, fn, pc)) {
+            seen[a] = 1;
+            r = 1;
+            break;
+          }
         }
-        if (!seen[a + 1]) {
-          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
-          in.b = LUAR_IR_TAG_INT; in.pc = pc;
-          if (!luar_trace_ir_emit(t, &in)) return 0;
-          seen[a + 1] = 1;
-        }
-        if (b == 3 && !seen[a + 2]) {
-          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
-          in.b = LUAR_IR_TAG_INT; in.pc = pc;
-          if (!luar_trace_ir_emit(t, &in)) return 0;
-          seen[a + 2] = 1;
-        }
-        if (!(b == 2 ? inline_leaf_call(t, a, fn, pc)
-                     : inline_leaf_call2(t, a, fn, pc))) {
-          if (!partial || pc <= start || t->nins == 0)
-            return 0;
-          in.kind = LUAR_IR_CALLEXIT; in.pc = pc;
-          if (!luar_trace_ir_emit(t, &in)) return 0;
-          t->partial = 1;
-          if (callpc != NULL) *callpc = pc;
-          seen[a] = 1;
-          partial_done = 1;
-          r = 1;
-          break;
-        }
+        if (!partial || pc <= start || b == 0)
+          return 0;
+        t->nins = mark;   /* discard speculative inline guards */
+        in.kind = LUAR_IR_CALLEXIT; in.pc = pc;
+        if (!luar_trace_ir_emit(t, &in)) return 0;
+        t->partial = 1;
+        if (callpc != NULL) *callpc = pc;
         seen[a] = 1;
+        partial_done = 1;
         r = 1;
         break;
       }
