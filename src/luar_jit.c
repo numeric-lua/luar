@@ -2738,17 +2738,15 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
   int ns = p->maxstacksize;
   if (getenv("LUAR_NO_SIDE") && !p->luar_ir_float) return -1;
   LuaR_IRExitState snap;
-  int sr;
+  int sr, lastpc = expc;
   if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
   if (p->luar_side_code == NULL && !p->luar_ir_side_done) {
     LuaR_TraceIR ir;
-    int link, k, has_tset = 0;
+    int link;
     p->luar_ir_side_done = 1;
     if (expc < 0 || expc > pc ||
         !luar_trace_record_loop(p, expc, pc, (TValue *)base, &ir))
       return -1;
-    for (k = 0; k < ir.nins; k++)
-      if (ir.ins[k].kind == LUAR_IR_TSET) has_tset = 1;
     {
       int floatized = p->luar_ir_float &&
                       ir_floatify(p, (TValue *)base, &ir);
@@ -2762,8 +2760,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
     }
     link = luar_trace_ir_link(&ir, 0, p->luar_ir_start);
     (void)luar_trace_ir_analyze(&ir, NULL, 0);
-    if (link == 0 || has_tset ||
-        (uint32_t)ir.depth > LUAR_IR_MAX_DEPTH) {
+    if (link == 0 || (uint32_t)ir.depth > LUAR_IR_MAX_DEPTH) {
       J->ir_side_aborts++;
       return -1;
     }
@@ -2803,21 +2800,19 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
     int fpc = -sr - 2;
     int startpc = fpc;
     int level;
+    lastpc = fpc;
     if (fpc == p->luar_side_start)
       return sr;   /* failed before any side mutation */
     for (level = 0; level < 3; level++) {
       LuaR_TraceIR cir;
-      int has_tset = 0, kk, csr;
+      int csr;
       if (startpc <= p->luar_side_start ||
           (p->luar_side_block & (1ull << (startpc & 63))))
         break;
       if (p->luar_child_code[level] == NULL) {
         if (!luar_trace_record_loop(p, startpc, pc, (TValue *)base, &cir))
           break;
-        for (kk = 0; kk < cir.nins; kk++)
-          if (cir.ins[kk].kind == LUAR_IR_TSET) has_tset = 1;
-        if (has_tset ||
-            !luar_trace_ir_link(&cir, level + 1, p->luar_ir_start))
+        if (!luar_trace_ir_link(&cir, level + 1, p->luar_ir_start))
           break;
         cir.side = 1;
         if (J->ncode >= LUAR_JIT_MAXCODE)
@@ -2857,6 +2852,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
         fpc = -csr - 2;
         if (fpc > startpc) {
           startpc = fpc;
+          lastpc = fpc;
           continue;
         }
       }
@@ -2864,6 +2860,8 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
       break;
     }
   }
+  if (sr < -1)
+    return -(lastpc + 2);
   luar_trace_ir_restore(&snap, (TValue *)base);
   return -1;
 }

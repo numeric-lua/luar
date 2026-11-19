@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-11-19
+
+### Added
+
+- `TSET` in chained J4 side segments, using exact-PC fallback instead of
+  replaying an already-mutated prefix.
+- `tests/jit/63_side_tset.lua` covering a side that performs a table write.
+
 ## [0.8.0] — 2026-11-19
 
 ### Added
