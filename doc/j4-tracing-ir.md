@@ -4,6 +4,16 @@ This document describes the first layer of LuaR's tracing subsystem.  It is
 deliberately separate from the existing J2/J3 one-pass loop emitter so that
 the working JIT can keep shipping while a trace compiler is built.
 
+## Milestone status
+
+The J4 core is implemented: the IR model/verifier, interpreter and guard-exit
+recording, exit snapshots/restore, integer/table/K-op/call codegen, interior
+side linking with depth/cycle accounting, interpreter safepoints, and live
+array-to-hash side traces are all present and tested.  Remaining items are
+extensions (native call exits, native-ABI stub spilling, float table
+specializations, generalized chained side traces), not prerequisites for the
+mid-loop side-trace milestone.
+
 ## Status
 
 - Trace IR value/guard/exit model: **implemented** (`src/luar_trace.h`).
