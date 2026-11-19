@@ -6,6 +6,15 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-11-19
+
+### Added
+
+- `CSETI`: integer cdata array/pointer writes in J4, with bounds/type checks
+  and no allocation.
+- `tests/ffi/22_trace_cdata.lua` now covers int reads, int writes and double
+  reads.
+
 ## [0.15.0] — 2026-11-19
 
 ### Added
