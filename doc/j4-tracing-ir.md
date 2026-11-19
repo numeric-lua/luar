@@ -30,6 +30,8 @@ the working JIT can keep shipping while a trace compiler is built.
 - Leaf calls: **one integer argument and one integer result inlined** for
   upvalue-free leaf bodies (`MULK`/`ADDK`/`SUBK`/`ADDI`), guarded by closure
   identity (`CGUARD`).  Unsupported calls fall back.
+- `__index`: table helpers reject tables with a metatable, so the native
+  and side paths fall back instead of bypassing metamethods.
 - Mixed bodies with table reads and inlined leaf calls: **recorded and
   linked**, including interior side exits.
 - Multi-table bodies: **recorded and linked**; a hash-shape change in the
