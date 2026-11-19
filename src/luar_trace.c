@@ -530,7 +530,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   int fn_src[LUAR_IR_MAX_SLOTS];
   LuaR_IRIns in;
   LuaR_IRExitState ex;
-  int sawloop = 0;
+  int sawloop = 0, partial_done = 0;
   if (callpc != NULL) *callpc = -1;
   if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
   luar_trace_ir_init(t, p, start, ns, 0);
@@ -711,6 +711,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           t->partial = 1;
           if (callpc != NULL) *callpc = pc;
           seen[a] = 1;
+          partial_done = 1;
           r = 1;
           break;
         }
@@ -727,7 +728,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         return 0;
     }
     if (!r) return 0;
-    if (GET_OPCODE(ins) == OP_FORLOOP)
+    if (partial_done || GET_OPCODE(ins) == OP_FORLOOP)
       break;
   }
   if (t->partial) {

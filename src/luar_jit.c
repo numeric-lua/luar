@@ -2817,6 +2817,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     if (p->luar_ir_epoch != J->epoch) {
       p->luar_ir_code = NULL;
       p->luar_ir_size = 0;
+      p->luar_ir_partial = 0;
+      p->luar_ir_call_pc = -1;
     }
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
       int irr = ((LuaR_LoopFn)p->luar_ir_code)(base);
@@ -3274,17 +3276,20 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     if (recorded) {
       J->ir_traces++;
       J->ir_ops += (uint32_t)ir.nins;
+      int newcode = 0;
       {
         int intok = ir_integer_only(&ir);
         int fltok = (!intok && ir_floatify(p, (TValue *)base, &ir));
         if (J->enable_ir && p->luar_ir_code == NULL &&
             GET_OPCODE(ins) == OP_FORLOOP && (intok || fltok)) {
           if (luari_emit_trace_ir(&ir, &p->luar_ir_code,
-                                  &p->luar_ir_size))
+                                  &p->luar_ir_size)) {
             p->luar_ir_float = fltok;
+            newcode = 1;
+          }
         }
       }
-      if (J->enable_ir && p->luar_ir_code != NULL &&
+      if (newcode && J->enable_ir && p->luar_ir_code != NULL &&
           p->luar_ir_pc != (int)off &&
           J->ncode < LUAR_JIT_MAXCODE) {
         J->code[J->ncode].code = p->luar_ir_code;

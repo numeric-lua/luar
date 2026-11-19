@@ -40,7 +40,7 @@
 #define DASM_MAXSECTION		1
 #line 27 "src/luar_emit_x64.dasc"
 //|.actionlist luar_emit_actions
-static const unsigned char luar_emit_actions[2149] = {
+static const unsigned char luar_emit_actions[2146] = {
   128,187,233,235,15,133,244,249,255,72,139,131,233,252,242,72,15,42,192,255,
   252,242,15,16,131,233,255,252,242,15,17,131,233,198,131,233,235,255,72,139,
   131,233,72,137,131,233,138,131,233,136,131,233,255,72,184,237,237,72,137,
@@ -141,9 +141,9 @@ static const unsigned char luar_emit_actions[2149] = {
   233,72,133,192,15,132,244,249,72,252,255,200,72,137,131,233,72,139,139,233,
   72,3,139,233,72,137,139,233,65,252,255,207,15,132,244,252,252,233,244,1,255,
   248,3,184,1,0,0,0,72,131,196,8,91,65,95,195,248,2,255,184,252,255,252,255,
-  252,255,252,255,255,68,137,216,252,247,216,131,232,2,255,49,192,255,72,131,
-  196,8,91,65,95,195,248,6,184,2,0,0,0,72,131,196,8,91,65,95,195,248,8,68,137,
-  216,252,247,216,131,232,2,72,131,196,8,91,65,95,195,255
+  252,255,252,255,255,68,137,216,252,247,216,131,232,2,255,72,131,196,8,91,
+  65,95,195,248,6,184,2,0,0,0,72,131,196,8,91,65,95,195,248,8,68,137,216,252,
+  247,216,131,232,2,72,131,196,8,91,65,95,195,255
 };
 
 #line 28 "src/luar_emit_x64.dasc"
@@ -2325,17 +2325,12 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
     dasm_put(Dst, 2083);
 #line 1665 "src/luar_emit_x64.dasc"
   }
-  else if (hastget || hastset) {
+  else {
     //| mov eax, r11d
     //| neg eax
     //| sub eax, 2
     dasm_put(Dst, 2093);
 #line 1670 "src/luar_emit_x64.dasc"
-  }
-  else {
-    //| xor eax, eax
-    dasm_put(Dst, 2103);
-#line 1673 "src/luar_emit_x64.dasc"
   }
   //| add rsp, 8
   //| pop rbx
@@ -2355,8 +2350,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   //| pop rbx
   //| pop r15
   //| ret
-  dasm_put(Dst, 2106);
-#line 1692 "src/luar_emit_x64.dasc"
+  dasm_put(Dst, 2103);
+#line 1689 "src/luar_emit_x64.dasc"
   return 1;
 }
 

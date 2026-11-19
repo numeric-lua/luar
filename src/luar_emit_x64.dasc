@@ -1663,13 +1663,10 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   if (side) {
     | mov eax, -1
   }
-  else if (hastget || hastset) {
+  else {
     | mov eax, r11d
     | neg eax
     | sub eax, 2
-  }
-  else {
-    | xor eax, eax
   }
   | add rsp, 8
   | pop rbx
