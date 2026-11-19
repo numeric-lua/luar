@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-19
+
+### Added
+
+- Full-width (`LUAR_IR_MAX_SLOTS` = 64) exit snapshot/restore selftest.
+- Growing-write/TSET fallback regression test.
+- macOS shared-dylib link/run and staged-install/pkg-config checks in CI.
+
 ## [0.7.1] — 2026-11-19
 
 ### Changed

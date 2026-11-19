@@ -3824,17 +3824,24 @@ done:
 
 static int jit_trace_snapshot_selftest (lua_State *L) {
   LuaR_IRExitState ex;
-  TValue base[40];
+  TValue base[LUAR_IR_MAX_SLOTS];
   int i, ok = 1;
   memset(base, 0, sizeof(base));
-  for (i = 0; i < 40; i++)
-    setivalue(&base[i], i + 1);
-  if (!luar_trace_ir_snapshot(&ex, 7, base, 40)) return 0;
-  for (i = 0; i < 40; i++)
+  for (i = 0; i < LUAR_IR_MAX_SLOTS; i++) {
+    if (i & 1) { setivalue(&base[i], i + 1); }
+    else setfltvalue(&base[i], (double)i + 0.25);
+  }
+  if (!luar_trace_ir_snapshot(&ex, 7, base, LUAR_IR_MAX_SLOTS)) return 0;
+  if (luar_trace_ir_snapshot(&ex, 7, base, LUAR_IR_MAX_SLOTS + 1)) return 0;
+  for (i = 0; i < LUAR_IR_MAX_SLOTS; i++)
     setivalue(&base[i], 0);
   if (!luar_trace_ir_restore(&ex, base)) return 0;
-  for (i = 0; i < 40; i++)
-    if (!ttisinteger(&base[i]) || ivalue(&base[i]) != i + 1) ok = 0;
+  for (i = 0; i < LUAR_IR_MAX_SLOTS; i++) {
+    if (i & 1) {
+      if (!ttisinteger(&base[i]) || ivalue(&base[i]) != i + 1) ok = 0;
+    } else if (!ttisfloat(&base[i]) ||
+               fltvalue(&base[i]) != (double)i + 0.25) ok = 0;
+  }
   lua_pushboolean(L, ok);
   return 1;
 }
