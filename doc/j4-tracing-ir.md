@@ -27,6 +27,9 @@ the working JIT can keep shipping while a trace compiler is built.
   `ir_side_traces/ir_side_compiled/ir_side_executed`; `ir_side_start` and
   `ir_root_start` expose the interior start PC; `ir_side_depth` reports the
   linked side depth and `LUAR_IR_MAX_DEPTH` is enforced at link time.
+- Leaf calls: **one integer argument and one integer result inlined** for
+  upvalue-free leaf bodies (`MULK`/`ADDK`/`SUBK`/`ADDI`), guarded by closure
+  identity (`CGUARD`).  Unsupported calls fall back.
 - Multi-table bodies: **recorded and linked**; a hash-shape change in the
   second lookup produces an interior side exit.
 - Safepoints: root traces yield to the interpreter every 256 FORLOOP

@@ -40,6 +40,7 @@ typedef enum {
   LUAR_IR_DIV,
   LUAR_IR_TGET,		/* a = dest, b = table, c = key */
   LUAR_IR_TSET,		/* a = table, b = key, c = value */
+  LUAR_IR_CGUARD,	/* a = slot, ival = expected closure pointer */
   LUAR_IR_FORLOOP,	/* a = control base slot */
   LUAR_IR_EXIT,		/* a = exit index */
   LUAR_IR_RET

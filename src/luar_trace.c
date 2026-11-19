@@ -4,6 +4,7 @@
 #include "lprefix.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "lua.h"
@@ -98,6 +99,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad arith");
+          return 0;
+        }
+        break;
+      case LUAR_IR_CGUARD:
+        if (!valid_slot(t, in->a)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cguard");
           return 0;
         }
         break;
@@ -298,16 +305,87 @@ static int ir_tag (const TValue *v) {
 }
 
 
+static int inline_leaf_call (LuaR_TraceIR *t, int a, TValue *fn,
+                              int pc) {
+  LClosure *cl;
+  Proto *fp;
+  Instruction i0, i1;
+  int rb, ra, k;
+  if (!ttisLclosure(fn))
+    return 0;
+  cl = (LClosure *)fn->value_.gc;
+  fp = cl->p;
+  if (fp == NULL || fp->sizecode < 2 || isvararg(fp) ||
+      cl->nupvalues != 0 || fp->maxstacksize < 2)
+    return 0;
+  i0 = fp->code[0];
+  k = 1;
+  while (k < fp->sizecode) {
+    int op = GET_OPCODE(fp->code[k]);
+    if (op != OP_MMBIN && op != OP_MMBINI && op != OP_MMBINK)
+      break;
+    k++;
+  }
+  if (k >= fp->sizecode)
+    return 0;
+  i1 = fp->code[k];
+  if (GET_OPCODE(i1) != OP_RETURN1)
+    return 0;
+  ra = GETARG_A(i1);
+  rb = GETARG_B(i0);
+  if (ra != 1 || rb != 0)
+    return 0;
+  switch (GET_OPCODE(i0)) {
+    case OP_MULK:
+    case OP_ADDK:
+    case OP_SUBK: {
+      TValue *kv;
+      k = GETARG_C(i0);
+      if (k < 0 || k >= fp->sizek)
+        return 0;
+      kv = &fp->k[k];
+      if (!ttisinteger(kv))
+        return 0;
+      {
+        LuaR_IRIns in;
+        memset(&in, 0, sizeof(in));
+        in.kind = GET_OPCODE(i0) == OP_MULK ? LUAR_IR_MULK :
+                  GET_OPCODE(i0) == OP_ADDK ? LUAR_IR_ADDK : LUAR_IR_SUBK;
+        in.a = (uint8_t)a;
+        in.b = (uint8_t)(a + 1);
+        in.ival = ivalue(kv);
+        in.pc = pc;
+        return luar_trace_ir_emit(t, &in);
+      }
+    }
+    case OP_ADDI: {
+      LuaR_IRIns in;
+      memset(&in, 0, sizeof(in));
+      in.kind = LUAR_IR_ADDI;
+      in.a = (uint8_t)a;
+      in.b = (uint8_t)(a + 1);
+      in.ival = GETARG_sC(i0);
+      in.pc = pc;
+      return luar_trace_ir_emit(t, &in);
+    }
+    default:
+      return 0;
+  }
+}
+
+
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                             LuaR_TraceIR *t) {
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
+  int fn_src[LUAR_IR_MAX_SLOTS];
   LuaR_IRIns in;
   LuaR_IRExitState ex;
   int sawloop = 0;
   if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
   luar_trace_ir_init(t, p, start, ns, 0);
   memset(seen, 0, sizeof(seen));
+  memset(fn_src, -1, sizeof(fn_src));
   memset(&in, 0, sizeof(in));
   for (pc = start; pc <= backedge; pc++) {
     Instruction ins = p->code[pc];
@@ -322,6 +400,11 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
       return 0;
     switch (GET_OPCODE(ins)) {
       case OP_MOVE:
+        if (ttisLclosure(&base[b])) {
+          fn_src[a] = b;
+          r = 1;
+          break;
+        }
         if (!seen[b] && b < ns) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
           in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
@@ -433,6 +516,39 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_MMBINK:
         r = 1;
         break;
+      case OP_CALL: {
+        TValue *fn = fn_src[a] >= 0 ? &base[fn_src[a]] : &base[a];
+        if (a + 1 >= ns || !ttisinteger(&base[a + 1]))
+          return 0;
+        {
+          int fs = fn_src[a] >= 0 ? fn_src[a] : a;
+          TValue *fv = &base[fs];
+          if (!ttisLclosure(fv))
+            return 0;
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc;
+            in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+        }
+        if (!seen[a + 1]) {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_INT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          seen[a + 1] = 1;
+        }
+        if (c != 2 || b != 2 || !inline_leaf_call(t, a, fn, pc)) {
+          if (getenv("LUAR_CALL_DEBUG"))
+            fprintf(stderr, "call inline failed a=%d b=%d c=%d tag=%d\n",
+                    a, b, c, (int)ttypetag(fn));
+          return 0;
+        }
+        seen[a] = 1;
+        r = 1;
+        break;
+      }
       case OP_FORLOOP:
         in.kind = LUAR_IR_FORLOOP; in.a = (uint8_t)a; in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
