@@ -29,6 +29,7 @@ local st = jit.stats()
 H.check(st.ir_side_traces >= 1, "no side IR trace recorded")
 H.check(st.ir_side_compiled >= 1, "side trace was not compiled")
 H.check(st.ir_side_executed >= 1, "side trace was not executed")
+H.check(st.ir_max_depth >= 1, "side-trace depth was not tracked")
 
 jit.flush()
 jit.opt.start("table=0")
