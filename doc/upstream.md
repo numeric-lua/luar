@@ -241,7 +241,7 @@ Keep these in sync when moving from 5.5 to 5.6:
 | `tests/upstream/run.sh` | derives the suite version from `LUAR_LUA_VERSION`; no edit normally |
 
 The extension directories (`share/luar/5.5`, `lib/luar/5.5`) follow the Lua
-minor, not the LuaR minor: a Lua 5.5 ABI module keeps loading on LuaR 0.6.
+minor, not the LuaR minor: a Lua 5.5 ABI module keeps loading on LuaR 0.7.
 
 ## 7. Official test suite
 
@@ -271,7 +271,7 @@ What it does:
 5. writes `tests/tmp/upstream-report.txt` with one PASS/FAIL line per file,
    the canonical result and the tail of each failure log.
 
-At the time of writing (Lua 5.5.1, LuaR 0.6.0) the observed result is:
+At the time of writing (Lua 5.5.1, LuaR 0.7.0) the observed result is:
 
 ```
 per-file: 31 run, 31 passed, 0 failed
@@ -288,7 +288,7 @@ suite sha256: da07b543872dc0bb2ff12aabd0c248578d78df3eb6b67efdc537a46d455c7f31
   every subsystem was exercised.
 * The **complete** suite is not automated. It needs the C helpers in
   `libs/` built against LuaR's headers, and it contains environment-specific
-  checks. On Linux/glibc with LuaR 0.6.0:
+  checks. On Linux/glibc with LuaR 0.7.0:
   * `main.lua` asserts that `-v` prints `PUC-Rio` in the copyright line;
     LuaR intentionally prints its own banner (`LuaR ... Copyright (C) 2026
     LuaR contributors`) while still naming `Lua 5.5.1`. This is a deliberate

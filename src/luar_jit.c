@@ -3217,6 +3217,18 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       fslot = op->a;
       continue;
     }
+    if (op->kind == LUAR_IR_SUB && sawfloat &&
+        (op->b == fslot || op->c == fslot)) {
+      op->kind = LUAR_IR_FSUB;
+      fslot = op->a;
+      continue;
+    }
+    if (op->kind == LUAR_IR_DIVK && (sawfloat || op->nval != (double)op->ival)) {
+      op->kind = LUAR_IR_FDIVK;
+      fslot = op->a;
+      sawfloat = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_FORLOOP || op->kind == LUAR_IR_RET ||
         op->kind == LUAR_IR_EXIT || op->kind == LUAR_IR_CGUARD)
       continue;

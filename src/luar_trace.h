@@ -42,6 +42,8 @@ typedef enum {
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
+  LUAR_IR_FSUB,		/* float subtract */
+  LUAR_IR_FDIVK,	/* float divide by constant */
   LUAR_IR_TSET,		/* a = table, b = key, c = value */
   LUAR_IR_CGUARD,	/* a = slot, ival = expected closure pointer */
   LUAR_IR_CALLEXIT,	/* terminal: resume interpreter at CALL pc */
@@ -103,6 +105,8 @@ int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
                                    TValue *base, LuaR_TraceIR *t,
                                    int *callpc);
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
+int64_t luar_trace_fsub (TValue *a, TValue *b, TValue *c);
+int64_t luar_trace_fdivk (TValue *a, TValue *b, double k);
 int64_t luar_trace_fadd (TValue *a, TValue *b, TValue *c);
 int64_t luar_trace_fmulk (TValue *a, TValue *b, double k);
 int luar_trace_table_elem_tag (TValue *tv, lua_Integer key);

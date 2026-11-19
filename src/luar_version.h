@@ -12,10 +12,10 @@
 #define luar_version_h
 
 #define LUAR_VERSION_MAJOR	0
-#define LUAR_VERSION_MINOR	6
+#define LUAR_VERSION_MINOR	7
 #define LUAR_VERSION_PATCH	0
 
-#define LUAR_VERSION		"0.6.0"
+#define LUAR_VERSION		"0.7.0"
 #define LUAR_VERSION_NUM	(LUAR_VERSION_MAJOR * 10000 + \
 				 LUAR_VERSION_MINOR * 100 + \
 				 LUAR_VERSION_PATCH)

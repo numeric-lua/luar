@@ -123,6 +123,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_FMULK:
       case LUAR_IR_FADD:
+      case LUAR_IR_FSUB:
+      case LUAR_IR_FDIVK:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad float op");
@@ -199,6 +201,26 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base) {
   return 1;
 }
 
+
+
+static int ir_number (TValue *v, double *out);
+int64_t luar_trace_fsub (TValue *a, TValue *b, TValue *c) {
+  double x, y;
+  if (!ir_number(b, &x) || !ir_number(c, &y))
+    return 0;
+  if (ttisinteger(b) && ttisinteger(c))
+    return 0;   /* integer subtraction keeps integer type */
+  setfltvalue(a, x - y);
+  return 1;
+}
+
+int64_t luar_trace_fdivk (TValue *a, TValue *b, double k) {
+  double x;
+  if (!ir_number(b, &x))
+    return 0;
+  setfltvalue(a, x / k);
+  return 1;
+}
 
 
 static int ir_number (TValue *v, double *out) {
@@ -372,6 +394,8 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_TGETF:
       case LUAR_IR_FMULK:
       case LUAR_IR_FADD:
+      case LUAR_IR_FSUB:
+      case LUAR_IR_FDIVK:
         kind[in->a] = 2;
         break;
       default:

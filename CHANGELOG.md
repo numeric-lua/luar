@@ -6,6 +6,15 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-19
+
+### Added
+
+- J4 float subtraction (`FSUB`) and division by constant (`FDIVK`).
+- `tests/jit/61_ir_float_arith.lua`.
+- Depth-4 chained side traces and blocked no-progress tracking from the
+  0.6 cycle.
+
 ## [0.6.0] — 2026-11-19
 
 ### Added
