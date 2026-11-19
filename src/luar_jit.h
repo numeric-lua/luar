@@ -77,6 +77,7 @@ typedef struct LuaR_JIT {
   int ir_side_start;
   int ir_root_start;
   uint32_t ir_yields;
+  int ir_side_depth;
   int enable_ir;
   size_t mcode;			/* executable bytes */
   int ncode;

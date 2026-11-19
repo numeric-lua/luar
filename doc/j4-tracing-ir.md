@@ -25,7 +25,10 @@ the working JIT can keep shipping while a trace compiler is built.
   executes an interior segment with generic hash lookup, snapshot/restore
   and `FORLOOP` continuation.  Counted by
   `ir_side_traces/ir_side_compiled/ir_side_executed`; `ir_side_start` and
-  `ir_root_start` expose the interior start PC.
+  `ir_root_start` expose the interior start PC; `ir_side_depth` reports the
+  linked side depth and `LUAR_IR_MAX_DEPTH` is enforced at link time.
+- Multi-table bodies: **recorded and linked**; a hash-shape change in the
+  second lookup produces an interior side exit.
 - Safepoints: root traces yield to the interpreter every 256 FORLOOP
   iterations (`ir_yields`), so hooks/GC are not starved by a native loop.
 - Depth/cycle handling: **implemented and tracked** (`ir_max_depth`,

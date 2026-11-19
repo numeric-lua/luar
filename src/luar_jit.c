@@ -82,6 +82,7 @@ static void free_code (LuaR_JIT *J) {
   J->ir_side_start = -1;
   J->ir_root_start = -1;
   J->ir_yields = 0;
+  J->ir_side_depth = 0;
   J->ir_traces = 0;
   J->ir_ops = 0;
   J->ir_aborts = 0;
@@ -2746,12 +2747,14 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
       if (ir.ins[k].kind == LUAR_IR_TSET) has_tset = 1;
     link = luar_trace_ir_link(&ir, 0, p->luar_ir_pc);
     (void)luar_trace_ir_analyze(&ir, NULL, 0);
-    if (link == 0 || has_tset) {
+    if (link == 0 || has_tset ||
+        (uint32_t)ir.depth > LUAR_IR_MAX_DEPTH) {
       J->ir_side_aborts++;
       return -1;
     }
     if (link == 2) J->ir_cycles++;
     J->ir_side_start = expc;
+    J->ir_side_depth = ir.depth;
     if ((uint32_t)ir.depth > J->ir_max_depth)
       J->ir_max_depth = (uint32_t)ir.depth;
     J->ir_side_traces++;
@@ -3486,6 +3489,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_root_start");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_yields : 0);
   lua_setfield(L, -2, "ir_yields");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_depth : 0);
+  lua_setfield(L, -2, "ir_side_depth");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;
