@@ -77,6 +77,8 @@ static void free_code (LuaR_JIT *J) {
   J->last_exit_pc = -1;
   J->sig_hits = 0;
   J->ir_executed = 0;
+  J->ir_side_compiled = 0;
+  J->ir_side_executed = 0;
   J->ir_traces = 0;
   J->ir_ops = 0;
   J->ir_aborts = 0;
@@ -2925,10 +2927,47 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   J->ir_max_depth = (uint32_t)ir.depth;
                 J->ir_side_traces++;
                 J->ir_side_ops += (uint32_t)ir.nins;
+                {
+                  int has_tset = 0, k;
+                  for (k = 0; k < ir.nins; k++)
+                    if (ir.ins[k].kind == LUAR_IR_TSET) has_tset = 1;
+                  if (!has_tset && p->luar_side_code == NULL &&
+                      J->ncode < LUAR_JIT_MAXCODE) {
+                    void *sc = NULL;
+                    size_t ss = 0;
+                    ir.side = 1;
+                    if (luari_emit_trace_ir(&ir, &sc, &ss)) {
+                      p->luar_side_code = sc;
+                      p->luar_side_size = ss;
+                      p->luar_side_pc = pc;
+                      p->luar_side_start = expc;
+                      p->luar_side_epoch = J->epoch;
+                      J->code[J->ncode].code = sc;
+                      J->code[J->ncode].size = ss;
+                      J->ncode++;
+                      J->ir_side_compiled++;
+                    }
+                  }
+                }
               }
             }
             else
               J->ir_side_aborts++;
+          }
+          if (p->luar_side_code != NULL &&
+              p->luar_side_epoch == J->epoch &&
+              p->luar_side_pc == pc && p->luar_side_start == expc) {
+            LuaR_IRExitState snap;
+            int ns = p->maxstacksize;
+            if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
+            if (luar_trace_ir_snapshot(&snap, expc, (TValue *)base, ns)) {
+              int sr = ((LuaR_LoopFn)p->luar_side_code)(base);
+              if (sr >= 0) {
+                J->ir_side_executed++;
+                return sr;
+              }
+              luar_trace_ir_restore(&snap, (TValue *)base);
+            }
           }
         }
         return r;
@@ -3368,6 +3407,10 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_code_bytes");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_executed : 0);
   lua_setfield(L, -2, "ir_executed");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_compiled : 0);
+  lua_setfield(L, -2, "ir_side_compiled");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_executed : 0);
+  lua_setfield(L, -2, "ir_side_executed");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;
