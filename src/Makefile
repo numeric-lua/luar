@@ -49,7 +49,7 @@ FFI_O= luar_ffi_stub.o
 # Objects of both FFI variants, so 'make clean' also removes a previous
 # WITH_FFI=1 build.
 ALL_FFI_O= luar_ffi_stub.o luar_ffi.o luar_ffi_type.o luar_ffi_parse.o \
-	luar_ffi_call.o luar_ffi_preproc.o
+	luar_ffi_call.o luar_ffi_preproc.o luar_ffi_trace.o
 ifeq ($(WITH_JIT),0)
 SYSCFLAGS+= -DLUAR_JIT_DISABLE
 endif
@@ -61,7 +61,7 @@ ifeq ($(WITH_FFI),1)
 # embedders have no link-time dependency on it; the headers are still needed
 # to build).
 FFI_O= luar_ffi.o luar_ffi_type.o luar_ffi_parse.o luar_ffi_call.o \
-	luar_ffi_preproc.o
+	luar_ffi_preproc.o luar_ffi_trace.o
 endif
 # The VM has two small inert hook points for FFI cdata equality (see
 # doc/ffi.md).  Compile them in both variants so switching WITH_FFI does
@@ -94,7 +94,7 @@ ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T)
 #   libluar.so             unversioned link-time name
 # VERSION is passed by the top-level Makefile; the default keeps 'make -C src'
 # usable on its own.  PIC objects are separate from the static ones.
-VERSION?= 0.13.0
+VERSION?= 0.14.0
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 UNAME_S:= $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

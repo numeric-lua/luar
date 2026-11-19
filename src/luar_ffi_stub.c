@@ -21,6 +21,7 @@
 #include "lauxlib.h"
 #include "lualib.h"
 #include "luar.h"
+#include "lobject.h"
 
 
 LUA_API int luar_has_ffi (void) {
@@ -31,4 +32,11 @@ LUA_API int luar_has_ffi (void) {
 LUALIB_API int luaopen_ffi (lua_State *L) {
   return luaL_error(L, "Luar: this build has no FFI support "
                        "(rebuild with WITH_FFI=1 and libffi)");
+}
+
+
+/* J4 FFI helpers: no FFI in this build. */
+int luar_ffi_trace_kind (TValue *tv) { (void)tv; return -1; }
+int64_t luar_ffi_trace_cget_int (TValue *cdv, TValue *kt, TValue *out) {
+  (void)cdv; (void)kt; (void)out; return 0;
 }

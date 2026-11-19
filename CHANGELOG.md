@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-19
+
+### Added
+
+- FFI-in-trace subset: integer cdata array/pointer elements read through
+  `CGETI` with an identity guard and bounds/type validation.
+- `tests/ffi/22_trace_cdata.lua`; unsupported cdata shapes fall back.
+
 ## [0.13.0] — 2026-11-19
 
 ### Added
