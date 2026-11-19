@@ -3007,13 +3007,17 @@ LUA_API int luar_has_jit (void) {
 /* ---------------------------------------------------------------- */
 
 static int ir_integer_only (const LuaR_TraceIR *ir) {
-  int i;
+  int i, started = 0;
   for (i = 0; i < ir->nins; i++) {
     const LuaR_IRIns *in = &ir->ins[i];
     if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT &&
         in->b != LUAR_IR_TAG_TABLE)
       return 0;
-
+    if (in->kind == LUAR_IR_GUARD)
+      continue;
+    if ((in->kind == LUAR_IR_TGET || in->kind == LUAR_IR_TSET) && started)
+      return 0;   /* table lookup must lead the body */
+    started = 1;
   }
   return 1;
 }
