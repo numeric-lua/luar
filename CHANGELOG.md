@@ -6,6 +6,21 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-19
+
+### Added
+
+- Chained J4 side traces: a parent side can compile and execute one child
+  segment at its exact failure PC, with depth-2 tracking and reuse.
+- `tests/jit/59_side_chain.lua` covering closure-identity chaining.
+- Exact side-failure PCs and mixed int/float root correctness from the 0.5
+  cycle.
+
+### Changed
+
+- J4 side compilation rejects unsupported float shapes rather than emitting
+  integer code for them.
+
 ## [0.4.0] — 2026-11-19
 
 ### Added
