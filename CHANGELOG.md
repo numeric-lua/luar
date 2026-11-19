@@ -123,6 +123,7 @@ the runtime, while the Lua language surface follows upstream Lua.
   `self.v = self.v + x` is executed by a C loop that computes the final field
   value and stores it once.  Handles table registers and upvalues;
   `object/method` drops to ~0.02x stock Lua and beats LuaJIT.
+- Live side tests now assert depth and root-cycle classification.
 - Live side tests now assert depth tracking as well as compilation and
   execution.
 - Added live array-to-hash side traces: a guard exit compiles a generic
