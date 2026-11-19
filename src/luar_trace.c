@@ -313,7 +313,8 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
     Instruction ins = p->code[pc];
     int a = GETARG_A(ins), b = GETARG_B(ins), c = GETARG_C(ins);
     int r;
-    if (a >= ns || (b >= ns && GET_OPCODE(ins) != OP_MMBINK) ||
+    if (a >= ns || (b >= ns && GET_OPCODE(ins) != OP_MMBINK &&
+                    GET_OPCODE(ins) != OP_MMBINI) ||
         (c >= ns && (GET_OPCODE(ins) == OP_ADD ||
                      GET_OPCODE(ins) == OP_SUB ||
                      GET_OPCODE(ins) == OP_MUL ||

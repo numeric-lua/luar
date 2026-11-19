@@ -79,6 +79,8 @@ static void free_code (LuaR_JIT *J) {
   J->ir_executed = 0;
   J->ir_side_compiled = 0;
   J->ir_side_executed = 0;
+  J->ir_side_start = -1;
+  J->ir_root_start = -1;
   J->ir_traces = 0;
   J->ir_ops = 0;
   J->ir_aborts = 0;
@@ -2748,6 +2750,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
       return -1;
     }
     if (link == 2) J->ir_cycles++;
+    J->ir_side_start = expc;
     if ((uint32_t)ir.depth > J->ir_max_depth)
       J->ir_max_depth = (uint32_t)ir.depth;
     J->ir_side_traces++;
@@ -3068,17 +3071,12 @@ LUA_API int luar_has_jit (void) {
 /* ---------------------------------------------------------------- */
 
 static int ir_integer_only (const LuaR_TraceIR *ir) {
-  int i, started = 0;
+  int i;
   for (i = 0; i < ir->nins; i++) {
     const LuaR_IRIns *in = &ir->ins[i];
     if (in->kind == LUAR_IR_GUARD && in->b != LUAR_IR_TAG_INT &&
         in->b != LUAR_IR_TAG_TABLE)
       return 0;
-    if (in->kind == LUAR_IR_GUARD)
-      continue;
-    if ((in->kind == LUAR_IR_TGET || in->kind == LUAR_IR_TSET) && started)
-      return 0;   /* table lookup must lead the body */
-    started = 1;
   }
   return 1;
 }
@@ -3170,6 +3168,7 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
         J->ir_compiled++;
         J->ir_code_bytes += (uint32_t)p->luar_ir_size;
         p->luar_ir_pc = (int)off;
+        J->ir_root_start = (int)target;
         p->luar_ir_base = GETARG_A(ins);
         p->luar_ir_epoch = J->epoch;
       }
@@ -3476,6 +3475,10 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_side_compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_executed : 0);
   lua_setfield(L, -2, "ir_side_executed");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_start : -1);
+  lua_setfield(L, -2, "ir_side_start");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_root_start : -1);
+  lua_setfield(L, -2, "ir_root_start");
   lua_pushboolean(L, luar_has_jit() && J != NULL && J->enabled);
   lua_setfield(L, -2, "status");
   return 1;

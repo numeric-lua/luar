@@ -17,13 +17,17 @@ the working JIT can keep shipping while a trace compiler is built.
 - Side-link metadata: depth cap 4, cycle detection against the root loop
   target, reported by `ir_max_depth`/`ir_cycles`.
 - IR type/liveness analysis: **implemented** for integer and table ops.
-- IR-to-x86-64 emission: **implemented for integer root traces**
-  (constants, moves, guards, arithmetic, `FORLOOP`, exit/ret), counted by
-  `jit.stats().ir_compiled/ir_code_bytes`.  The code is compiled as a
-  validation shadow of the existing loop JIT; `jit.trace_ir().exec_selftest()`
-  additionally executes a generated trace and checks its result;
-  `side_exec_selftest()` compiles/executes a non-loop interior segment.
-- Side-trace linker/depth caps/cycle handling: **not implemented**.
+- IR-to-x86-64 emission: **implemented for integer and table root traces**
+  (constants, moves, guards, arithmetic, K-ops, `TGET`/`TSET`, `FORLOOP`,
+  exit/ret), counted by `jit.stats().ir_compiled/ir_code_bytes`.
+- Side-trace linker: **implemented for live guard exits**.  Array→hash
+  changes link from both native exits and IR-root exits; the IR side path
+  executes an interior segment with generic hash lookup, snapshot/restore
+  and `FORLOOP` continuation.  Counted by
+  `ir_side_traces/ir_side_compiled/ir_side_executed`; `ir_side_start` and
+  `ir_root_start` expose the interior start PC.
+- Depth/cycle handling: **implemented and tracked** (`ir_max_depth`,
+  `ir_cycles`); depth 1 side segments execute, root-cycle exits are recorded.
 - Machine-code emission from the IR: **implemented for integer root and
   interior segments**.
 - Table-read IR codegen and helper: **implemented and covered by
@@ -63,9 +67,10 @@ Lua tag bytes and the 8-byte payload for each slot.  Snapshots are short-lived: 
 not cross a GC safepoint because collectable payloads are not rooted.
 Restoring writes stack slots only, so no GC barrier is required.
 
-The existing J2/J3 emitter already reports an exact interior PC in
-`jit.stats().last_exit_pc`; the tracing recorder will use the same resume PC
-and this snapshot format for side exits.
+The J2/J3 emitter reports an exact interior PC in
+`jit.stats().last_exit_pc`; the tracing recorder uses the same resume PC and
+this snapshot format for side exits.  Live side tests assert that
+`ir_side_start > ir_root_start` for prefixed table bodies.
 
 ## Trace-entry state contract
 
@@ -81,14 +86,15 @@ A first live-entry experiment produced an incorrect loop result because a
 DynASM `if/else` scoped the arithmetic store/tag actions incorrectly.  With
 braced action blocks, the loop emitter and live root path now produce the
 correct result.  The guard contract remains the entry check; interior
-side-segment linking is still pending.
+side-segment linking is implemented for table guard exits, including
+prefixed IR bodies recorded through the `MMBINI` bounds fix.
 
 ## Next milestones
 
-1. Extend interior recording to table/call-heavy exits and compile the
-   recorded IR (basic table and K-op recording is already present).
-2. Enforce the entry guard contract in the live hook, then add exit-stub
-   state spilling to the native ABI.
-3. Compile the IR and link side traces with the recorded depth/cycle metadata.
-4. Add differential tests against the interpreter and the existing J2/J3
-   paths.
+1. Extend interior recording to call exits and multi-table bodies.
+2. Add exit-stub state spilling to the native ABI (snapshot/restore is in
+   place for the IR path).
+3. Generalize the side linker beyond array→hash shape changes and enforce
+   explicit depth caps for chained side traces.
+4. Add differential tests against the interpreter and existing J2/J3 paths
+   for all side-exit fixtures.
