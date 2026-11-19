@@ -3179,7 +3179,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
         return 0;
       continue;
     }
-    if (op->kind == LUAR_IR_CGETF) {
+    if (op->kind == LUAR_IR_CGETF ||
+        (op->kind == LUAR_IR_CGETFIELD && op->c == 2)) {
       fslot = op->a;
       sawfloat = 1;
       sawtable = 1;
@@ -3252,7 +3253,8 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
     tag[i] = -1;
   for (i = 0; i < ir->nins; i++) {
     const LuaR_IRIns *in = &ir->ins[i];
-    if (in->kind == LUAR_IR_CGETF)
+    if (in->kind == LUAR_IR_CGETF ||
+        (in->kind == LUAR_IR_CGETFIELD && in->c == 2))
       return 0;
     if (in->kind == LUAR_IR_GUARD) {
       if (in->b != LUAR_IR_TAG_INT && in->b != LUAR_IR_TAG_TABLE)

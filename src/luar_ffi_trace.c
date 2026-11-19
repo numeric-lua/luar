@@ -25,6 +25,8 @@ int luar_ffi_trace_kind (TValue *tv) {
   cd = (CData *)getudatamem(u);
   if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
     return -1;
+  if (cd->ct->kind == CT_STRUCT || cd->ct->kind == CT_UNION)
+    return 3;
   if (cd->ct->kind == CT_ARRAY || cd->ct->kind == CT_POINTER) {
     CType *elem = cd->ct->child;
     if (elem != NULL && elem->kind == CT_INT &&
@@ -228,5 +230,101 @@ int64_t luar_ffi_trace_cset_double (TValue *cdv, TValue *kt, TValue *val) {
   p = (char *)base + (ptrdiff_t)idx * (ptrdiff_t)esz;
   if (esz == 4) { float f = (float)d; memcpy(p, &f, 4); }
   else memcpy(p, &d, 8);
+  return 1;
+}
+
+
+int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
+                          size_t *off, size_t *size) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  uint16_t i;
+  if (cdv == NULL || name == NULL || kind == NULL || off == NULL ||
+      size == NULL || !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
+    return 0;
+  for (i = 0; i < ct->nfields; i++) {
+    CField *f = &ct->fields[i];
+    CType *ft = f->type;
+    if (f->name == NULL || strcmp(f->name, name) != 0)
+      continue;
+    if (f->bitwidth != 0 || ft == NULL)
+      return 0;
+    if (ft->kind == CT_INT &&
+        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+      *kind = 1;
+    else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
+      *kind = 2;
+    else
+      return 0;
+    *off = f->offset;
+    *size = ft->size;
+    return 1;
+  }
+  return 0;
+}
+
+
+int64_t luar_ffi_trace_cget_field_int (TValue *cdv, size_t off, size_t sz,
+                                       TValue *out) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *p;
+  int64_t v = 0;
+  if (cdv == NULL || out == NULL || !ttisfulluserdata(cdv) ||
+      (sz != 1 && sz != 2 && sz != 4 && sz != 8))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size || sz > ct->size - off)
+    return 0;
+  p = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+      cd->v.p : (void *)&cd->v;
+  p = (char *)p + off;
+  if (sz == 1) { int8_t x; memcpy(&x, p, 1); v = x; }
+  else if (sz == 2) { int16_t x; memcpy(&x, p, 2); v = x; }
+  else if (sz == 4) { int32_t x; memcpy(&x, p, 4); v = x; }
+  else memcpy(&v, p, 8);
+  setivalue(out, (lua_Integer)v);
+  return 1;
+}
+
+
+int64_t luar_ffi_trace_cget_field_double (TValue *cdv, size_t off, size_t sz,
+                                          TValue *out) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *p;
+  double d;
+  if (cdv == NULL || out == NULL || !ttisfulluserdata(cdv) ||
+      (sz != 4 && sz != 8))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size || sz > ct->size - off)
+    return 0;
+  p = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+      cd->v.p : (void *)&cd->v;
+  p = (char *)p + off;
+  if (sz == 4) { float f; memcpy(&f, p, 4); d = (double)f; }
+  else memcpy(&d, p, 8);
+  setfltvalue(out, d);
   return 1;
 }

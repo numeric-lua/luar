@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-11-19
+
+### Added
+
+- `CGETFIELD`: scalar signed integer and `float`/`double` struct/union field
+  reads in J4, with bitfield rejection and bounds checks.
+- `tests/ffi/22_trace_cdata.lua` now covers struct int and double fields.
+
 ## [0.17.0] — 2026-11-19
 
 ### Added

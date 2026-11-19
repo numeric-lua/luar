@@ -47,6 +47,25 @@ end
 assert(sumf(d, 1000) == 501000.0)
 assert(jit.stats().ir_executed >= 2)
 
+-- scalar struct fields use CGETFIELD
+ffi.cdef[[struct luar_trace_P { int x; double y; };]]
+local sp = ffi.new("struct luar_trace_P")
+sp.x = 2
+sp.y = 1.5
+local function sfx (p, n)
+  local s = 0
+  for i = 1, n do s = s + p.x end
+  return s
+end
+local function sfy (p, n)
+  local s = 0.0
+  for i = 1, n do s = s + p.y end
+  return s
+end
+assert(sfx(sp, 1000) == 2000)
+assert(sfy(sp, 1000) == 1500.0)
+assert(jit.stats().ir_executed >= 4)
+
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
 local function copy (dst, src, n)

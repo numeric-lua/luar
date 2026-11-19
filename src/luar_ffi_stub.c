@@ -49,3 +49,16 @@ int64_t luar_ffi_trace_cset_int (TValue *cdv, TValue *kt, TValue *val) {
 int64_t luar_ffi_trace_cset_double (TValue *cdv, TValue *kt, TValue *val) {
   (void)cdv; (void)kt; (void)val; return 0;
 }
+
+int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
+                          size_t *off, size_t *size) {
+  (void)cdv; (void)name; (void)kind; (void)off; (void)size; return 0;
+}
+int64_t luar_ffi_trace_cget_field_int (TValue *cdv, size_t off, size_t sz,
+                                       TValue *out) {
+  (void)cdv; (void)off; (void)sz; (void)out; return 0;
+}
+int64_t luar_ffi_trace_cget_field_double (TValue *cdv, size_t off, size_t sz,
+                                          TValue *out) {
+  (void)cdv; (void)off; (void)sz; (void)out; return 0;
+}
