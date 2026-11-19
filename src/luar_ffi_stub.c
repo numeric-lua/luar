@@ -46,3 +46,6 @@ int64_t luar_ffi_trace_cget_double (TValue *cdv, TValue *kt, TValue *out) {
 int64_t luar_ffi_trace_cset_int (TValue *cdv, TValue *kt, TValue *val) {
   (void)cdv; (void)kt; (void)val; return 0;
 }
+int64_t luar_ffi_trace_cset_double (TValue *cdv, TValue *kt, TValue *val) {
+  (void)cdv; (void)kt; (void)val; return 0;
+}

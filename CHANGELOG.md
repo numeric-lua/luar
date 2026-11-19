@@ -6,6 +6,13 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-11-19
+
+### Added
+
+- `CSETF`: float/double cdata array and pointer writes in J4.
+- `tests/ffi/22_trace_cdata.lua` now covers double copies.
+
 ## [0.16.0] — 2026-11-19
 
 ### Added

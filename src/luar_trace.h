@@ -41,7 +41,8 @@ typedef enum {
   LUAR_IR_TGET,
   LUAR_IR_CGETI,	/* FFI cdata integer array read */
   LUAR_IR_CGETF,	/* FFI cdata double array read */
-  LUAR_IR_CSETI,	/* FFI cdata integer array write */		/* a = dest, b = table, c = key */
+  LUAR_IR_CSETI,	/* FFI cdata integer array write */
+  LUAR_IR_CSETF,	/* FFI cdata float/double array write */		/* a = dest, b = table, c = key */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -111,6 +112,7 @@ int luar_ffi_trace_kind (TValue *tv);
 int64_t luar_ffi_trace_cget_int (TValue *cdv, TValue *kt, TValue *out);
 int64_t luar_ffi_trace_cget_double (TValue *cdv, TValue *kt, TValue *out);
 int64_t luar_ffi_trace_cset_int (TValue *cdv, TValue *kt, TValue *val);
+int64_t luar_ffi_trace_cset_double (TValue *cdv, TValue *kt, TValue *val);
 int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_fsub (TValue *a, TValue *b, TValue *c);
 int64_t luar_trace_fdivk (TValue *a, TValue *b, double k);

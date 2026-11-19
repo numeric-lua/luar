@@ -3215,6 +3215,10 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
         continue;
       }
     }
+    if (op->kind == LUAR_IR_CSETF && sawfloat && op->c == fslot) {
+      sawtable = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_ADD && sawfloat &&
         (op->b == fslot || op->c == fslot)) {
       op->kind = LUAR_IR_FADD;

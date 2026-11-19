@@ -47,6 +47,19 @@ end
 assert(sumf(d, 1000) == 501000.0)
 assert(jit.stats().ir_executed >= 2)
 
+-- double cdata writes use CSETF
+local cw = ffi.new("double[?]", 1001)
+local function copy (dst, src, n)
+  local s = 0
+  for i = 1, n do
+    dst[i] = src[i]
+    s = s + dst[i]
+  end
+  return s
+end
+assert(copy(cw, d, 1000) == 501000.0)
+assert(cw[1000] == 1000.5)
+
 jit.flush()
 jit.opt.start("ir=0")
 jit.on()
