@@ -2736,6 +2736,7 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 
 static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
   int ns = p->maxstacksize;
+  if (getenv("LUAR_NO_SIDE") && !p->luar_ir_float) return -1;
   LuaR_IRExitState snap;
   int sr;
   if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
@@ -2798,6 +2799,11 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc) {
     J->ir_side_executed++;
     return sr;
   }
+  if (sr < -1) {
+    int fpc = -sr - 2;
+    if (fpc == p->luar_side_start)
+      return sr;   /* failed before any side mutation */
+  }
   luar_trace_ir_restore(&snap, (TValue *)base);
   return -1;
 }
@@ -2842,6 +2848,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           J->ir_executed++;
           return sr;
         }
+        if (sr < -1)
+          return sr;
         return -(expc + 2);
         }
       }
@@ -3785,7 +3793,7 @@ static int jit_trace_side_fail_selftest (lua_State *L) {
   setivalue(&base[0], 99);
   if (!luar_trace_ir_snapshot(&snap, 5, base, 3)) goto done;
   fn = (int (*)(void *))code;
-  if (fn(base) != -1) goto done;
+  if (fn(base) != -7) goto done;
   setivalue(&base[0], 1234);
   if (!luar_trace_ir_restore(&snap, base)) goto done;
   if (ivalue(&base[0]) != 99) goto done;

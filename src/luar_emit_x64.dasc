@@ -1456,15 +1456,8 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 }
 
 static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
-  int i, forslot = -1, hastget = 0, hastset = 0;
+  int i, forslot = -1;
   int side = t->side;
-  for (i = 0; i < t->nins; i++) {
-    if (t->ins[i].kind == LUAR_IR_TGET ||
-        t->ins[i].kind == LUAR_IR_TGETF)
-      hastget = 1;
-    if (t->ins[i].kind == LUAR_IR_TSET)
-      hastset = 1;
-  }
   | push r15
   | push rbx
   | sub rsp, 8
@@ -1661,7 +1654,9 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   | ret
   |2:
   if (side) {
-    | mov eax, -1
+    | mov eax, r11d
+    | neg eax
+    | sub eax, 2
   }
   else {
     | mov eax, r11d
