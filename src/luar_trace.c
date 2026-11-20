@@ -142,6 +142,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CSETFIELDK:
       case LUAR_IR_CPGETI:
       case LUAR_IR_CPGETF:
+      case LUAR_IR_CPSETI:
+      case LUAR_IR_CPSETF:
         break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
@@ -739,6 +741,44 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           Instruction nxi = p->code[pc + 1];
           size_t poff = 0, pesz = 0;
           int pk = 0;
+          if (GET_OPCODE(nxi) == OP_SETTABLE && GETARG_A(nxi) == a &&
+              ttisinteger(&base[GETARG_B(nxi)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                       &pk, &poff, &pesz)) {
+            int kc = GETARG_B(nxi);
+            int vc = GETARG_C(nxi);
+            TValue *v = &base[vc];
+            if (pk == 1 ? !ttisinteger(v) : !ttisfloat(v)) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (!seen[kc]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)kc;
+              in.b = LUAR_IR_TAG_INT; in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[kc] = 1;
+            }
+            if (!seen[vc]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)vc;
+              in.b = (uint8_t)(pk == 2 ? LUAR_IR_TAG_FLOAT : LUAR_IR_TAG_INT);
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[vc] = 1;
+            }
+            in.kind = pk == 2 ? LUAR_IR_CPSETF : LUAR_IR_CPSETI;
+            in.a = (uint8_t)b; in.b = (uint8_t)kc; in.c = (uint8_t)vc;
+            in.ival = (int64_t)poff;
+            in.nval = (double)pesz;
+            in.pc = pc;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc++;
+            break;
+          }
           if (GET_OPCODE(nxi) == OP_GETTABLE && GETARG_B(nxi) == a &&
               GETARG_C(nxi) < ns && ttisinteger(&base[GETARG_C(nxi)]) &&
               luar_ffi_trace_kind(&base[b]) == 3 &&

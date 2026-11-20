@@ -47,7 +47,9 @@ typedef enum {
   LUAR_IR_CSETFIELD,	/* FFI cdata scalar struct field write */
   LUAR_IR_CSETFIELDK,	/* FFI cdata scalar struct field write, integer K */
   LUAR_IR_CPGETI,	/* FFI cdata pointer-field integer element read */
-  LUAR_IR_CPGETF,	/* FFI cdata pointer-field double element read */		/* a = dest, b = table, c = key */
+  LUAR_IR_CPGETF,	/* FFI cdata pointer-field double element read */
+  LUAR_IR_CPSETI,	/* FFI cdata pointer-field integer element write */
+  LUAR_IR_CPSETF,	/* FFI cdata pointer-field double element write */		/* a = dest, b = table, c = key */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -133,6 +135,10 @@ int64_t luar_ffi_trace_cget_ptr_int (TValue *cdv, size_t off, TValue *kt,
                                      TValue *out);
 int64_t luar_ffi_trace_cget_ptr_double (TValue *cdv, size_t off, TValue *kt,
                                         TValue *out);
+int64_t luar_ffi_trace_cset_ptr_int (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *val);
+int64_t luar_ffi_trace_cset_ptr_double (TValue *cdv, size_t off, TValue *kt,
+                                        TValue *val);
 int64_t luar_ffi_trace_cget_field_int (TValue *cdv, size_t off, size_t sz,
                                        TValue *out);
 int64_t luar_ffi_trace_cget_field_double (TValue *cdv, size_t off, size_t sz,

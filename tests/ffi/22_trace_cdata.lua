@@ -170,7 +170,22 @@ local function pff (s, n)
 end
 assert(pfi(ps, n) == 500500)
 assert(pff(ps, n) == 500000.0)
-assert(jit.stats().ir_executed >= 16)
+
+-- pointer-field writes use CPSETI/CPSETF
+local wps = ffi.new("struct luar_trace_Ptr")
+wps.p = ffi.new("int[?]", n)
+wps.q = ffi.new("double[?]", n)
+local function pwi (s, n)
+  for i = 0, n - 1 do s.p[i] = i end
+end
+local function pwd (s, n, x)
+  for i = 0, n - 1 do s.q[i] = x end
+end
+pwi(wps, n)
+pwd(wps, n, 1.5)
+assert(wps.p[n - 1] == n - 1)
+assert(wps.q[n - 1] == 1.5)
+assert(jit.stats().ir_executed >= 18)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
