@@ -3216,6 +3216,13 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
         return 0;
       continue;
     }
+    if (op->kind == LUAR_IR_GUARD && op->b == LUAR_IR_TAG_FLOAT) {
+      sawfloat = 1;
+      continue;
+    }
+    if (op->kind == LUAR_IR_ADDI ||
+        op->kind == LUAR_IR_LOADI || op->kind == LUAR_IR_SLOAD)
+      continue;
     if (op->kind == LUAR_IR_CGETF || op->kind == LUAR_IR_CPGETF ||
         (op->kind == LUAR_IR_CGETFIELD && op->c == 2)) {
       fslot = op->a;

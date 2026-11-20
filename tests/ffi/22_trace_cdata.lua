@@ -250,7 +250,16 @@ local function pof (s, n)
   return x
 end
 assert(pof(poff, 1001) == 500500)
-assert(jit.stats().ir_executed >= 25)
+
+-- constant-offset pointer writes (integer path)
+local pow = ffi.new("struct luar_trace_Ptr")
+pow.p = ffi.new("int[?]", n + 1)
+local function powf (s, n)
+  for i = 0, n - 2 do (s.p + i + 1)[0] = i end
+end
+powf(pow, 1001)
+assert(pow.p[1000] == 999)
+assert(jit.stats().ir_executed >= 26)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
