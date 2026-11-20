@@ -5,6 +5,10 @@ if not ok then
   return
 end
 local H = dofile("tests/helpers.lua")
+if jit.status() ~= true then
+  print("ffi/25_trace_ccall0: skipped (no native target)")
+  return
+end
 
 ffi.cdef[[int getpid(void);]]
 local getpid = ffi.C.getpid
