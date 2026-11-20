@@ -148,7 +148,29 @@ awf(aw, 1000)
 awk(aw, 1000)
 assert(aw.b.c.x == 1000)
 assert(aw.b.c.y == 2.5)
-assert(jit.stats().ir_executed >= 14)
+
+-- pointer-field elements fold into CPGETI/CPGETF
+ffi.cdef[[struct luar_trace_Ptr { int *p; double *q; };]]
+local n = 1000
+local ai = ffi.new("int[?]", n)
+local ad = ffi.new("double[?]", n)
+local ps = ffi.new("struct luar_trace_Ptr")
+for i = 0, n - 1 do ai[i] = i + 1; ad[i] = i + 0.5 end
+ps.p = ai
+ps.q = ad
+local function pfi (s, n)
+  local x = 0
+  for i = 0, n - 1 do x = x + s.p[i] end
+  return x
+end
+local function pff (s, n)
+  local x = 0.0
+  for i = 0, n - 1 do x = x + s.q[i] end
+  return x
+end
+assert(pfi(ps, n) == 500500)
+assert(pff(ps, n) == 500000.0)
+assert(jit.stats().ir_executed >= 16)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

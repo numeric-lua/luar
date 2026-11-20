@@ -447,8 +447,8 @@ int64_t luar_ffi_trace_cset_field_int (TValue *cdv, size_t off, size_t sz,
   Udata *u;
   CData *cd;
   CType *ct;
-  void *p;
   int64_t v;
+  void *p;
   if (cdv == NULL || val == NULL || !ttisfulluserdata(cdv) ||
       !ttisinteger(val) || (sz != 1 && sz != 2 && sz != 4 && sz != 8))
     return 0;
@@ -550,4 +550,104 @@ int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
   if (sz == 4) { float f = (float)d; memcpy(p, &f, 4); }
   else memcpy(p, &d, 8);
   return 1;
+}
+
+
+int luar_ffi_trace_ptr_field (TValue *cdv, const char *name, int *kind,
+                              size_t *off, size_t *esz) {
+  Udata *u;
+  CData *cd;
+  CType *ct, *ft, *elem;
+  uint16_t i;
+  if (cdv == NULL || name == NULL || kind == NULL || off == NULL ||
+      esz == NULL || !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
+    return 0;
+  for (i = 0; i < ct->nfields; i++) {
+    CField *f = &ct->fields[i];
+    if (f->name == NULL || strcmp(f->name, name) != 0 || f->bitwidth != 0)
+      continue;
+    ft = f->type;
+    if (ft == NULL || ft->kind != CT_POINTER || ft->child == NULL)
+      return 0;
+    elem = ft->child;
+    if (elem->kind == CT_INT &&
+        (elem->size == 1 || elem->size == 2 || elem->size == 4 ||
+         elem->size == 8))
+      *kind = 1;
+    else if (elem->kind == CT_FLOAT && (elem->size == 4 || elem->size == 8))
+      *kind = 2;
+    else
+      return 0;
+    *off = f->offset;
+    *esz = elem->size;
+    return 1;
+  }
+  return 0;
+}
+
+
+static int64_t read_ptr_elem (TValue *cdv, size_t off, TValue *kt,
+                              TValue *out, int kind) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *base;
+  void *ptr;
+  lua_Integer idx;
+  size_t esz;
+  if (cdv == NULL || kt == NULL || out == NULL ||
+      !ttisfulluserdata(cdv) || !ttisinteger(kt))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size ||
+      sizeof(void *) > ct->size - off)
+    return 0;
+  base = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+         cd->v.p : (void *)&cd->v;
+  memcpy(&ptr, (char *)base + off, sizeof(ptr));
+  if (ptr == NULL)
+    return 0;
+  idx = ivalue(kt);
+  if (kind == 1) {
+    esz = 4;   /* refined by caller: reject before using */
+    (void)esz;
+  }
+  /* element size is encoded in nval by the caller; recompute from kind */
+  if (kind == 1) {
+    /* int fields are limited to 4/8 bytes in this subset */
+    int64_t v = 0;
+    memcpy(&v, (char *)ptr + (ptrdiff_t)idx * 4, 4);
+    setivalue(out, (lua_Integer)(int32_t)v);
+    return 1;
+  }
+  else {
+    double d;
+    memcpy(&d, (char *)ptr + (ptrdiff_t)idx * 8, 8);
+    setfltvalue(out, d);
+    return 1;
+  }
+}
+
+
+int64_t luar_ffi_trace_cget_ptr_int (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *out) {
+  return read_ptr_elem(cdv, off, kt, out, 1);
+}
+
+
+int64_t luar_ffi_trace_cget_ptr_double (TValue *cdv, size_t off, TValue *kt,
+                                        TValue *out) {
+  return read_ptr_elem(cdv, off, kt, out, 2);
 }

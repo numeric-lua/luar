@@ -45,7 +45,9 @@ typedef enum {
   LUAR_IR_CSETF,	/* FFI cdata float/double array write */
   LUAR_IR_CGETFIELD,	/* FFI cdata scalar struct field read */
   LUAR_IR_CSETFIELD,	/* FFI cdata scalar struct field write */
-  LUAR_IR_CSETFIELDK,	/* FFI cdata scalar struct field write, integer K */		/* a = dest, b = table, c = key */
+  LUAR_IR_CSETFIELDK,	/* FFI cdata scalar struct field write, integer K */
+  LUAR_IR_CPGETI,	/* FFI cdata pointer-field integer element read */
+  LUAR_IR_CPGETF,	/* FFI cdata pointer-field double element read */		/* a = dest, b = table, c = key */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -125,6 +127,12 @@ int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
 int luar_ffi_trace_field3 (TValue *cdv, const char *n1, const char *n2,
                            const char *n3, int *kind, size_t *off,
                            size_t *size);
+int luar_ffi_trace_ptr_field (TValue *cdv, const char *name, int *kind,
+                              size_t *off, size_t *esz);
+int64_t luar_ffi_trace_cget_ptr_int (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *out);
+int64_t luar_ffi_trace_cget_ptr_double (TValue *cdv, size_t off, TValue *kt,
+                                        TValue *out);
 int64_t luar_ffi_trace_cget_field_int (TValue *cdv, size_t off, size_t sz,
                                        TValue *out);
 int64_t luar_ffi_trace_cget_field_double (TValue *cdv, size_t off, size_t sz,

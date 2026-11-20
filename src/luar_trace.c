@@ -140,6 +140,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CGETFIELD:
       case LUAR_IR_CSETFIELD:
       case LUAR_IR_CSETFIELDK:
+      case LUAR_IR_CPGETI:
+      case LUAR_IR_CPGETF:
         break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
@@ -732,6 +734,42 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         size_t off = 0, fsize = 0;
         if (!ttisstring(&p->k[c])) {
           return 0;
+        }
+        if (pc + 1 <= backedge) {
+          Instruction nxi = p->code[pc + 1];
+          size_t poff = 0, pesz = 0;
+          int pk = 0;
+          if (GET_OPCODE(nxi) == OP_GETTABLE && GETARG_B(nxi) == a &&
+              GETARG_C(nxi) < ns && ttisinteger(&base[GETARG_C(nxi)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                       &pk, &poff, &pesz)) {
+            int da = GETARG_A(nxi);
+            int kc = GETARG_C(nxi);
+            if (da >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (!seen[kc]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)kc;
+              in.b = LUAR_IR_TAG_INT; in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[kc] = 1;
+            }
+            in.kind = pk == 2 ? LUAR_IR_CPGETF : LUAR_IR_CPGETI;
+            in.a = (uint8_t)da; in.b = (uint8_t)b; in.c = (uint8_t)kc;
+            in.ival = (int64_t)poff;
+            in.nval = (double)pesz;
+            in.pc = pc;
+            seen[da] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc++;
+            break;
+          }
         }
         if (pc + 2 <= backedge) {
           Instruction n1i = p->code[pc + 1], n2i = p->code[pc + 2];

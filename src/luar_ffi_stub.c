@@ -94,3 +94,16 @@ int luar_ffi_trace_field3 (TValue *cdv, const char *n1, const char *n2,
   (void)cdv; (void)n1; (void)n2; (void)n3; (void)kind; (void)off;
   (void)size; return 0;
 }
+
+int luar_ffi_trace_ptr_field (TValue *cdv, const char *name, int *kind,
+                              size_t *off, size_t *esz) {
+  (void)cdv; (void)name; (void)kind; (void)off; (void)esz; return 0;
+}
+int64_t luar_ffi_trace_cget_ptr_int (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *out) {
+  (void)cdv; (void)off; (void)kt; (void)out; return 0;
+}
+int64_t luar_ffi_trace_cget_ptr_double (TValue *cdv, size_t off, TValue *kt,
+                                        TValue *out) {
+  (void)cdv; (void)off; (void)kt; (void)out; return 0;
+}
