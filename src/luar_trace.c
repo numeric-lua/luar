@@ -63,6 +63,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_KFLOAT:
         break;
       case LUAR_IR_LOADI:
+      case LUAR_IR_LOADF:
         if (!valid_slot(t, in->a)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad loadi");
           return 0;
@@ -149,6 +150,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CCALL0I:
         break;
       case LUAR_IR_CCALL1DI:
+      case LUAR_IR_CCALL1DD:
       case LUAR_IR_CCALL1I:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -451,6 +453,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_LOADI:
         kind[in->a] = 1;
         break;
+      case LUAR_IR_LOADF:
+        kind[in->a] = 2;
+        break;
       case LUAR_IR_SLOAD:
         kind[in->a] = kind[in->b];
         break;
@@ -482,6 +487,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         kind[in->a] = 1;
         break;
       case LUAR_IR_CCALL1DI:
+        kind[in->a] = 2;
+        break;
+      case LUAR_IR_CCALL1DD:
         kind[in->a] = 2;
         break;
       default:
@@ -669,6 +677,55 @@ static int ir_call_arg_is_int (Proto *p, int pc, int argslot, TValue *base) {
 }
 
 
+/* Record-time proof that a CALL argument slot was just loaded with a
+** double value accepted by CCALL1DD: a MOVE from a live float slot or a
+** LOADK of a float constant.  MMBIN fallback markers are skipped, like in
+** the integer proof above.  CGETF/cdata-element sources are deliberately
+** not accepted (their fallback is still incomplete). */
+static int ir_call_arg_is_double (Proto *p, int pc, int argslot,
+                                  TValue *base) {
+  Instruction prev;
+  int q;
+  if (pc <= 0 || pc > p->sizecode)
+    return 0;
+  q = pc - 1;
+  while (q > 0 &&
+         (GET_OPCODE(p->code[q]) == OP_MMBIN ||
+          GET_OPCODE(p->code[q]) == OP_MMBINI ||
+          GET_OPCODE(p->code[q]) == OP_MMBINK))
+    q--;
+  prev = p->code[q];
+  if (GETARG_A(prev) != argslot)
+    return 0;
+  switch (GET_OPCODE(prev)) {
+    case OP_LOADK: {
+      int k = GETARG_Bx(prev);
+      return k >= 0 && k < p->sizek && ttisfloat(&p->k[k]);
+    }
+    case OP_MOVE: {
+      int src = GETARG_B(prev);
+      return src >= 0 && src < p->maxstacksize && ttisfloat(&base[src]);
+    }
+    default:
+      return 0;
+  }
+}
+
+
+/* Reject traces that read a float out of a cdata element/field: the
+** CCALL1DD argument must be a plain MOVE/LOADK value for now. */
+static int ir_has_cdata_float_read (const LuaR_TraceIR *t) {
+  int i;
+  for (i = 0; i < t->nins; i++) {
+    uint8_t k = t->ins[i].kind;
+    if (k == LUAR_IR_CGETF || k == LUAR_IR_CPGETF ||
+        (k == LUAR_IR_CGETFIELD && t->ins[i].c == 2))
+      return 1;
+  }
+  return 0;
+}
+
+
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
                         LuaR_TraceIR *t, int partial, int *callpc,
                         int suffix) {
@@ -693,7 +750,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       return luar_trace_ir_emit(t, &in);
     }
     if (a >= ns || (b >= ns && GET_OPCODE(ins) != OP_MMBINK &&
-                    GET_OPCODE(ins) != OP_MMBINI) ||
+                    GET_OPCODE(ins) != OP_MMBINI &&
+                    GET_OPCODE(ins) != OP_LOADK) ||
         (c >= ns && (GET_OPCODE(ins) == OP_ADD ||
                      GET_OPCODE(ins) == OP_SUB ||
                      GET_OPCODE(ins) == OP_MUL ||
@@ -718,7 +776,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (luar_ffi_trace_ccall0_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1_kind(&base[b]) > 0 ||
-            luar_ffi_trace_ccall1di_kind(&base[b]) > 0) {
+            luar_ffi_trace_ccall1di_kind(&base[b]) > 0 ||
+            luar_ffi_trace_ccall1dd_kind(&base[b]) > 0) {
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
           fn_src[a] = b;
@@ -741,6 +800,15 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.ival = GETARG_sBx(ins); in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
+      case OP_LOADK: {
+        int k = GETARG_Bx(ins);
+        if (k < 0 || k >= p->sizek || !ttisfloat(&p->k[k]))
+          return 0;
+        in.kind = LUAR_IR_LOADF; in.a = (uint8_t)a;
+        in.nval = fltvalue(&p->k[k]); in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      }
       case OP_ADDI:
         in.kind = LUAR_IR_ADDI; in.a = (uint8_t)a; in.b = (uint8_t)b;
         in.ival = GETARG_sC(ins); in.pc = pc;
@@ -1907,6 +1975,29 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1); in.pc = pc;
           seen[a] = 1;
           in.kind = LUAR_IR_CCALL1DI; /* keep op */
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 2 && c == 2 && a + 1 < ns &&
+            ir_call_arg_is_double(p, pc, a + 1, base) &&
+            !ir_has_cdata_float_read(t) &&
+            luar_ffi_trace_ccall1dd_kind(fv) == 1) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc;
+            in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          /* The preceding MOVE/LOADK has executed by this point in the
+          ** emitted trace; guard the runtime argument type. */
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL1DD; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1); in.pc = pc;
+          seen[a] = 1;
+          seen[a + 1] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
         }

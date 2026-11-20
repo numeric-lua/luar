@@ -26,6 +26,7 @@ typedef enum {
   LUAR_IR_SLOAD,	/* a = destination slot, b = source slot */
   LUAR_IR_SSTORE,	/* a = slot, b = source slot */
   LUAR_IR_LOADI,	/* a = destination slot, ival = constant */
+  LUAR_IR_LOADF,	/* a = destination slot, nval = float constant */
   LUAR_IR_ADDI,		/* a = destination, b = source, ival = immediate */
   LUAR_IR_ADDK,
   LUAR_IR_SUBK,
@@ -55,6 +56,7 @@ typedef enum {
   LUAR_IR_CCALL0I,	/* native zero-argument C call, integer result */		/* a = dest, b = table, c = key */
   LUAR_IR_CCALL1I,	/* native one-integer-argument C call, integer result */
   LUAR_IR_CCALL1DI,	/* native int arg/double return C call */
+  LUAR_IR_CCALL1DD,	/* native double arg/double return C call */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -142,6 +144,8 @@ int64_t luar_ffi_trace_ccall0_int (TValue *fn, TValue *out);
 int luar_ffi_trace_ccall1_kind (TValue *fn);
 int luar_ffi_trace_ccall1di_kind (TValue *fn);
 int64_t luar_ffi_trace_ccall1di (TValue *fn, int64_t arg, TValue *out);
+int luar_ffi_trace_ccall1dd_kind (TValue *fn);
+int64_t luar_ffi_trace_ccall1dd (TValue *fn, double arg, TValue *out);
 int64_t luar_ffi_trace_ccall1i (TValue *fn, int64_t arg, int64_t *out);
 int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
                            int *kind, size_t *off, size_t *size);

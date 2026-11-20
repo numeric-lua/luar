@@ -304,6 +304,7 @@ void ffi_callback_free (lua_State *L, CData *cd);
 int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv);
 int ffi_trace_call1i (CData *fn, int64_t arg, int64_t *out);
 int ffi_trace_call1d_iarg (CData *fn, int64_t arg, double *out);
+int ffi_trace_call1d (CData *fn, double arg, double *out);
 int ffi_callback_free_mt (lua_State *L);
 int ffi_callback_set_mt (lua_State *L);
 
