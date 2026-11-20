@@ -815,6 +815,43 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             break;
           }
         }
+        if (pc + 3 <= backedge) {
+          Instruction q1 = p->code[pc + 1], q2 = p->code[pc + 2];
+          Instruction q3 = p->code[pc + 3];
+          if (GET_OPCODE(q1) == OP_GETFIELD && GETARG_B(q1) == a &&
+              GETARG_C(q1) < p->sizek && ttisstring(&p->k[GETARG_C(q1)]) &&
+              GET_OPCODE(q2) == OP_GETFIELD &&
+              GETARG_B(q2) == GETARG_A(q1) &&
+              GETARG_C(q2) < p->sizek && ttisstring(&p->k[GETARG_C(q2)]) &&
+              GET_OPCODE(q3) == OP_GETFIELD &&
+              GETARG_B(q3) == GETARG_A(q2) &&
+              GETARG_C(q3) < p->sizek && ttisstring(&p->k[GETARG_C(q3)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_field4(&base[b], getstr(tsvalue(&p->k[c])),
+                                    getstr(tsvalue(&p->k[GETARG_C(q1)])),
+                                    getstr(tsvalue(&p->k[GETARG_C(q2)])),
+                                    getstr(tsvalue(&p->k[GETARG_C(q3)])),
+                                    &fk, &off, &fsize)) {
+            int da = GETARG_A(q3);
+            if (da >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            in.kind = LUAR_IR_CGETFIELD; in.a = (uint8_t)da;
+            in.b = (uint8_t)b; in.c = (uint8_t)fk;
+            in.ival = (int64_t)off;
+            in.nval = (double)fsize;
+            in.pc = pc;
+            seen[da] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += 3;
+            break;
+          }
+        }
         if (pc + 2 <= backedge) {
           Instruction n1i = p->code[pc + 1], n2i = p->code[pc + 2];
           if (GET_OPCODE(n1i) == OP_GETFIELD &&

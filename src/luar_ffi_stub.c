@@ -125,3 +125,10 @@ int64_t luar_ffi_trace_cset_ptr_i64 (TValue *cdv, size_t off, TValue *kt,
                                      TValue *val) {
   (void)cdv; (void)off; (void)kt; (void)val; return 0;
 }
+
+int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
+                           const char *n3, const char *n4, int *kind,
+                           size_t *off, size_t *size) {
+  (void)cdv; (void)n1; (void)n2; (void)n3; (void)n4; (void)kind;
+  (void)off; (void)size; return 0;
+}
