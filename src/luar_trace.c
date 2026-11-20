@@ -712,17 +712,25 @@ static int ir_call_arg_is_double (Proto *p, int pc, int argslot,
 }
 
 
-/* Reject traces that read a float out of a cdata element/field: the
-** CCALL1DD argument must be a plain MOVE/LOADK value for now. */
-static int ir_has_cdata_float_read (const LuaR_TraceIR *t) {
-  int i;
-  for (i = 0; i < t->nins; i++) {
-    uint8_t k = t->ins[i].kind;
-    if (k == LUAR_IR_CGETF || k == LUAR_IR_CPGETF ||
-        (k == LUAR_IR_CGETFIELD && t->ins[i].c == 2))
+/* The last recorded IR op must be the cdata float read that writes the
+** CALL argument slot.  This is the direct CGETF/CPGETF/CGETFIELD-float
+** source form; its runtime result carries a float tag. */
+static int ir_last_op_writes_float (const LuaR_TraceIR *t, int slot) {
+  const LuaR_IRIns *last;
+  if (t == NULL || t->nins <= 0)
+    return 0;
+  last = &t->ins[t->nins - 1];
+  if (last->a != slot)
+    return 0;
+  switch (last->kind) {
+    case LUAR_IR_CGETF:
+    case LUAR_IR_CPGETF:
       return 1;
+    case LUAR_IR_CGETFIELD:
+      return last->c == 2;
+    default:
+      return 0;
   }
-  return 0;
 }
 
 
@@ -1979,8 +1987,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           break;
         }
         if (b == 2 && c == 2 && a + 1 < ns &&
-            ir_call_arg_is_double(p, pc, a + 1, base) &&
-            !ir_has_cdata_float_read(t) &&
+            (ir_call_arg_is_double(p, pc, a + 1, base) ||
+             ir_last_op_writes_float(t, a + 1)) &&
             luar_ffi_trace_ccall1dd_kind(fv) == 1) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
@@ -1989,8 +1997,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[fs] = 1;
           }
-          /* The preceding MOVE/LOADK has executed by this point in the
-          ** emitted trace; guard the runtime argument type. */
+          /* The argument producer (MOVE/LOADK or the CGETF/CPGETF/
+          ** CGETFIELD last op) has already executed here, so this guard
+          ** checks the value the helper is about to read. */
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
           in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
           if (!luar_trace_ir_emit(t, &in)) return 0;
