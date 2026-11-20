@@ -1270,6 +1270,13 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
   if (l_unlikely(trap))
     trap = luaG_tracecall(L);
   base = ci->func.p + 1;
+#if !defined(LUAR_JIT_DISABLE)
+  {
+    int cr = luari_jit_continue(L, cl->p, (int)(pc - cl->p->code), base);
+    if (cr > 0) pc = cl->p->code + cr - 1;
+    else if (cr < -1) LUAR_JIT_SET_EXIT_PC(cl->p, pc, cr);
+  }
+#endif
   /* main loop of interpreter */
   for (;;) {
     Instruction i;  /* instruction being executed */
@@ -1811,8 +1818,18 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           L->top.p = ra + b;  /* top signals number of arguments */
         /* else previous instruction set top */
         savepc(ci);  /* in case of errors */
-        if ((newci = luaD_precall(L, ra, nresults)) == NULL)
+        if ((newci = luaD_precall(L, ra, nresults)) == NULL) {
           updatetrap(ci);  /* C call; nothing else to be done */
+#if !defined(LUAR_JIT_DISABLE)
+          base = ci->func.p + 1;
+          {
+            int cr = luari_jit_continue(L, cl->p,
+                                        (int)(pc - cl->p->code), base);
+            if (cr > 0) pc = cl->p->code + cr - 1;
+            else if (cr < -1) LUAR_JIT_SET_EXIT_PC(cl->p, pc, cr);
+          }
+#endif
+        }
         else {  /* Lua call: run function in this same C frame */
           ci = newci;
           goto startfunc;

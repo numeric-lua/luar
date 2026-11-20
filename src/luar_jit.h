@@ -75,6 +75,8 @@ typedef struct LuaR_JIT {
   uint32_t ir_side_compiled;
   uint32_t ir_side_executed;
   uint32_t ir_call_exits;
+  uint32_t ir_cont_compiled;
+  uint32_t ir_cont_runs;
   int ir_side_start;
   int ir_root_start;
   uint32_t ir_yields;
@@ -97,7 +99,8 @@ LUAI_FUNC int luari_jit_hotloop (lua_State *L, Proto *p,
 
 /* Try to run the compiled loop for 'p' on the given stack base.  Returns 1
 ** if the loop was completed natively, 0 to keep interpreting. */
-LUAI_FUNC int luari_jit_try_run (lua_State *L, Proto *p, int pc,
+LUAI_FUNC int luari_jit_continue (lua_State *L, Proto *p, int pc, void *base);
+int luari_jit_try_run (lua_State *L, Proto *p, int pc,
                                 void *base, int expected_base);
 
 

@@ -80,6 +80,8 @@ static void free_code (LuaR_JIT *J) {
   J->ir_side_compiled = 0;
   J->ir_side_executed = 0;
   J->ir_call_exits = 0;
+  J->ir_cont_compiled = 0;
+  J->ir_cont_runs = 0;
   J->ir_side_start = -1;
   J->ir_root_start = -1;
   J->ir_yields = 0;
@@ -2867,6 +2869,26 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
 }
 
 
+int luari_jit_continue (lua_State *L, Proto *p, int pc, void *base) {
+  LuaR_JIT *J = G(L)->luar_jit;
+  int r;
+  if (L == NULL || p == NULL || base == NULL || J == NULL || !J->enabled)
+    return 0;
+  if (L->hookmask != 0 || !J->enable_ir || p->luar_cont_code == NULL ||
+      p->luar_cont_epoch != J->epoch ||
+      p->luar_cont_call_pc < 0 || pc != p->luar_cont_call_pc + 1)
+    return 0;
+  r = ((LuaR_LoopFn)p->luar_cont_code)(base, L);
+  if (r > 0) {
+    J->ir_cont_runs++;
+    return p->luar_cont_backedge + 1;
+  }
+  if (r < -1)
+    return r;
+  return 0;
+}
+
+
 int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                        int expected_base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -3423,6 +3445,26 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
         J->ir_root_start = (int)target;
         p->luar_ir_base = GETARG_A(ins);
         p->luar_ir_epoch = J->epoch;
+        if (partial && callpc >= 0 && callpc + 1 <= (int)off &&
+            p->luar_cont_code == NULL) {
+          LuaR_TraceIR cir;
+          if (luar_trace_record_suffix(p, callpc + 1, (int)off,
+                                       (TValue *)base, &cir)) {
+            int cintok = ir_integer_only(&cir);
+            int cfltok = (!cintok && ir_floatify(p, (TValue *)base, &cir));
+            if ((cintok || cfltok) && J->ncode < LUAR_JIT_MAXCODE &&
+                luari_emit_trace_ir(&cir, &p->luar_cont_code,
+                                    &p->luar_cont_size)) {
+              J->code[J->ncode].code = p->luar_cont_code;
+              J->code[J->ncode].size = p->luar_cont_size;
+              J->ncode++;
+              p->luar_cont_call_pc = callpc;
+              p->luar_cont_backedge = (int)off;
+              p->luar_cont_epoch = J->epoch;
+              J->ir_cont_compiled++;
+            }
+          }
+        }
       }
       else {
         void *ir_code = NULL;
@@ -3729,6 +3771,10 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_side_executed");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_call_exits : 0);
   lua_setfield(L, -2, "ir_call_exits");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_cont_compiled : 0);
+  lua_setfield(L, -2, "ir_cont_compiled");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_cont_runs : 0);
+  lua_setfield(L, -2, "ir_cont_runs");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_start : -1);
   lua_setfield(L, -2, "ir_side_start");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_root_start : -1);

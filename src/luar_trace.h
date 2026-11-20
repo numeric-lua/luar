@@ -108,6 +108,8 @@ int luar_trace_ir_snapshot (LuaR_IRExitState *ex, int32_t pc, TValue *base,
 int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base);
 
 int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen);
+int luar_trace_record_suffix (Proto *p, int start, int backedge,
+                              TValue *base, LuaR_TraceIR *t);
 int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
                                    TValue *base, LuaR_TraceIR *t,
                                    int *callpc);

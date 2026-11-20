@@ -290,6 +290,11 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_ir_elem_tag = 0;
   f->luar_ir_partial = 0;
   f->luar_ir_call_pc = -1;
+  f->luar_cont_code = NULL;
+  f->luar_cont_size = 0;
+  f->luar_cont_call_pc = -1;
+  f->luar_cont_backedge = -1;
+  f->luar_cont_epoch = 0;
   f->luar_ir_base = -1;
   f->luar_ir_epoch = 0;
   f->luar_side_code = NULL;

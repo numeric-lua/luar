@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-11-19
+
+### Added
+
+- Native post-CALL suffix continuation for C and Lua calls, with
+  `ir_cont_compiled`/`ir_cont_runs` stats.
+- `tests/jit/69_call_cont.lua`.
+
 ## [0.24.0] — 2026-11-19
 
 ### Added

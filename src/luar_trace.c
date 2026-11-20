@@ -381,17 +381,23 @@ int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out) {
 
 
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
-                        LuaR_TraceIR *t, int partial, int *callpc);
+                        LuaR_TraceIR *t, int partial, int *callpc,
+                        int suffix);
 
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                             LuaR_TraceIR *t) {
-  return record_loop(p, start, backedge, base, t, 0, NULL);
+  return record_loop(p, start, backedge, base, t, 0, NULL, 0);
 }
 
 int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
                                    TValue *base, LuaR_TraceIR *t,
                                    int *callpc) {
-  return record_loop(p, start, backedge, base, t, 1, callpc);
+  return record_loop(p, start, backedge, base, t, 1, callpc, 0);
+}
+
+int luar_trace_record_suffix (Proto *p, int start, int backedge,
+                              TValue *base, LuaR_TraceIR *t) {
+  return record_loop(p, start, backedge, base, t, 0, NULL, 1);
 }
 
 
@@ -607,7 +613,8 @@ static int inline_leaf_call2 (LuaR_TraceIR *t, int a, TValue *fn,
 
 
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
-                        LuaR_TraceIR *t, int partial, int *callpc) {
+                        LuaR_TraceIR *t, int partial, int *callpc,
+                        int suffix) {
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
   int fn_src[LUAR_IR_MAX_SLOTS];
@@ -624,6 +631,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
     Instruction ins = p->code[pc];
     int a = GETARG_A(ins), b = GETARG_B(ins), c = GETARG_C(ins);
     int r;
+    if (suffix && pc == backedge) {
+      in.kind = LUAR_IR_RET; in.pc = pc;
+      return luar_trace_ir_emit(t, &in);
+    }
     if (a >= ns || (b >= ns && GET_OPCODE(ins) != OP_MMBINK &&
                     GET_OPCODE(ins) != OP_MMBINI) ||
         (c >= ns && (GET_OPCODE(ins) == OP_ADD ||
