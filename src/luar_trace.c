@@ -823,6 +823,57 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
               GET_OPCODE(q2) == OP_GETFIELD &&
               GETARG_B(q2) == GETARG_A(q1) &&
               GETARG_C(q2) < p->sizek && ttisstring(&p->k[GETARG_C(q2)]) &&
+              GET_OPCODE(q3) == OP_SETFIELD &&
+              GETARG_A(q3) == GETARG_A(q2) &&
+              GETARG_B(q3) < p->sizek && ttisstring(&p->k[GETARG_B(q3)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_field4(&base[b], getstr(tsvalue(&p->k[c])),
+                                    getstr(tsvalue(&p->k[GETARG_C(q1)])),
+                                    getstr(tsvalue(&p->k[GETARG_C(q2)])),
+                                    getstr(tsvalue(&p->k[GETARG_B(q3)])),
+                                    &fk, &off, &fsize)) {
+            int isk = GETARG_k(q3);
+            int vc = GETARG_C(q3);
+            TValue *v = isk ? &p->k[vc] : &base[vc];
+            if (fk == 1 ? !ttisinteger(v) : !ttisfloat(v)) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (isk) {
+              in.kind = LUAR_IR_CSETFIELDK; in.a = (uint8_t)b;
+              in.b = (uint8_t)fsize; in.c = (uint8_t)fk;
+              in.ival = (int64_t)off;
+              in.nval = fk == 1 ? (double)ivalue(v) : fltvalue(v);
+              in.pc = pc;
+              r = luar_trace_ir_emit(t, &in);
+              if (r) pc += 3;
+              break;
+            }
+            if (!seen[vc]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)vc;
+              in.b = (uint8_t)(fk == 2 ? LUAR_IR_TAG_FLOAT : LUAR_IR_TAG_INT);
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[vc] = 1;
+            }
+            in.kind = LUAR_IR_CSETFIELD; in.a = (uint8_t)b;
+            in.b = (uint8_t)vc; in.c = (uint8_t)fk;
+            in.ival = (int64_t)off;
+            in.nval = (double)fsize;
+            in.pc = pc;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += 3;
+            break;
+          }
+          if (GET_OPCODE(q1) == OP_GETFIELD && GETARG_B(q1) == a &&
+              GETARG_C(q1) < p->sizek && ttisstring(&p->k[GETARG_C(q1)]) &&
+              GET_OPCODE(q2) == OP_GETFIELD &&
+              GETARG_B(q2) == GETARG_A(q1) &&
+              GETARG_C(q2) < p->sizek && ttisstring(&p->k[GETARG_C(q2)]) &&
               GET_OPCODE(q3) == OP_GETFIELD &&
               GETARG_B(q3) == GETARG_A(q2) &&
               GETARG_C(q3) < p->sizek && ttisstring(&p->k[GETARG_C(q3)]) &&
