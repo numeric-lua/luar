@@ -293,6 +293,21 @@ collectgarbage(); collectgarbage()
 assert(p4wi[1004] == 1000)
 assert(p4wd[1004] == 1.5)
 
+-- runtime two-term pointer offsets: (p + i + j)[0]
+local pv = ffi.new("struct luar_trace_Ptr")
+local pva = ffi.new("int[?]", n)
+for i = 0, n - 1 do pva[i] = i end
+pv.p = pva
+local function pvf (s, n)
+  local x = 0
+  for i = 0, n - 2 do
+    local j = 1
+    x = x + (s.p + i + j)[0]
+  end
+  return x
+end
+assert(pvf(pv, n) == 499500)
+
 -- constant-offset pointer writes (integer path)
 local pow = ffi.new("struct luar_trace_Ptr")
 pow.p = ffi.new("int[?]", n + 1)
