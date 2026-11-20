@@ -53,6 +53,7 @@ typedef enum {
   LUAR_IR_CPGETI64,	/* FFI cdata pointer-field 8-byte int read */
   LUAR_IR_CPSETI64,	/* FFI cdata pointer-field 8-byte int write */
   LUAR_IR_CCALL0I,	/* native zero-argument C call, integer result */		/* a = dest, b = table, c = key */
+  LUAR_IR_CCALL1I,	/* native one-integer-argument C call, integer result */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -137,6 +138,8 @@ int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
                            size_t *off, size_t *size);
 int luar_ffi_trace_ccall0_kind (TValue *fn);
 int64_t luar_ffi_trace_ccall0_int (TValue *fn, TValue *out);
+int luar_ffi_trace_ccall1_kind (TValue *fn);
+int64_t luar_ffi_trace_ccall1i (TValue *fn, int64_t arg, int64_t *out);
 int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
                            int *kind, size_t *off, size_t *size);
 int luar_ffi_trace_field5 (TValue *cdv, const char *n1, const char *n2,

@@ -2669,3 +2669,76 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
   else *dv = ret.d;
   return 1;
 }
+
+
+/* J4 helper: call a one-integer-argument C function with an integer return.
+** Uses libffi directly; no Lua stack, allocation or metamethods.  libffi
+** types are chosen from the declared CType sizes and the raw result is
+** extended according to the declared signedness. */
+int ffi_trace_call1i (CData *fn, int64_t arg, int64_t *out) {
+  CType *ft, *at, *rt;
+  ffi_cif cif;
+  ffi_type *atype, *rtype;
+  ffi_type *atypes[1];
+  void *avalue[1];
+  union {
+    int8_t i8; int16_t i16; int32_t i32; int64_t i64;
+    uint8_t u8; uint16_t u16; uint32_t u32; uint64_t u64;
+  } av, ret;
+  if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
+      (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 || fn->v.p == NULL)
+    return 0;
+  if (fn->ct->kind == CT_FUNC)
+    ft = fn->ct;
+  else if (fn->ct->kind == CT_POINTER && fn->ct->child != NULL &&
+           fn->ct->child->kind == CT_FUNC)
+    ft = fn->ct->child;
+  else
+    return 0;
+  if (ft->nargs != 1 || ft->vararg)
+    return 0;
+  at = ft->args[0];
+  rt = ft->ret;
+  if (at == NULL || rt == NULL || at->kind != CT_INT || rt->kind != CT_INT)
+    return 0;
+  memset(&av, 0, sizeof(av));
+  switch (at->size) {
+    case 1: av.i8 = (int8_t)arg; avalue[0] = &av.i8;
+            atype = &ffi_type_sint8; break;
+    case 2: av.i16 = (int16_t)arg; avalue[0] = &av.i16;
+            atype = &ffi_type_sint16; break;
+    case 4: av.i32 = (int32_t)arg; avalue[0] = &av.i32;
+            atype = &ffi_type_sint32; break;
+    case 8: av.i64 = arg; avalue[0] = &av.i64;
+            atype = &ffi_type_sint64; break;
+    default: return 0;
+  }
+  switch (rt->size) {
+    case 1: rtype = &ffi_type_sint8; break;
+    case 2: rtype = &ffi_type_sint16; break;
+    case 4: rtype = &ffi_type_sint32; break;
+    case 8: rtype = &ffi_type_sint64; break;
+    default: return 0;
+  }
+  atypes[0] = atype;
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, rtype, atypes) != FFI_OK)
+    return 0;
+  memset(&ret, 0, sizeof(ret));
+  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  switch (rt->size) {
+    case 1:
+      *out = rt->is_unsigned ? (int64_t)ret.u8 : (int64_t)ret.i8;
+      break;
+    case 2:
+      *out = rt->is_unsigned ? (int64_t)ret.u16 : (int64_t)ret.i16;
+      break;
+    case 4:
+      *out = rt->is_unsigned ? (int64_t)ret.u32 : (int64_t)ret.i32;
+      break;
+    default:
+      *out = rt->is_unsigned ? (int64_t)ret.u64 : ret.i64;
+      break;
+  }
+  return 1;
+}

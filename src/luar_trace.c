@@ -148,6 +148,13 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CPSETI64:
       case LUAR_IR_CCALL0I:
         break;
+      case LUAR_IR_CCALL1I:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad ccall1i");
+          return 0;
+        }
+        break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -470,6 +477,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_FDIVK:
         kind[in->a] = 2;
         break;
+      case LUAR_IR_CCALL1I:
+        kind[in->a] = 1;
+        break;
       default:
         break;
     }
@@ -619,6 +629,42 @@ static int inline_leaf_call2 (LuaR_TraceIR *t, int a, TValue *fn,
 }
 
 
+/* Record-time proof that a CALL argument slot was just loaded with an
+** integer value.  The live slot cannot be inspected: a cdata call goes
+** through the __call metamethod, whose trampoline shifts the arguments up
+** one slot before the call returns, so after the call base[a+1] holds the
+** function cdata instead of the argument.  Instead, check that the
+** preceding bytecode instruction (skipping MMBIN fallback markers, which
+** the recorder ignores) writes this slot with an integer-producing
+** operation. */
+static int ir_call_arg_is_int (Proto *p, int pc, int argslot, TValue *base) {
+  Instruction prev;
+  int q;
+  if (pc <= 0 || pc > p->sizecode)
+    return 0;
+  q = pc - 1;
+  while (q > 0 &&
+         (GET_OPCODE(p->code[q]) == OP_MMBIN ||
+          GET_OPCODE(p->code[q]) == OP_MMBINI ||
+          GET_OPCODE(p->code[q]) == OP_MMBINK))
+    q--;
+  prev = p->code[q];
+  if (GETARG_A(prev) != argslot)
+    return 0;
+  switch (GET_OPCODE(prev)) {
+    case OP_LOADI:
+    case OP_ADDI:
+      return 1;
+    case OP_MOVE: {
+      int src = GETARG_B(prev);
+      return src >= 0 && src < p->maxstacksize && ttisinteger(&base[src]);
+    }
+    default:
+      return 0;
+  }
+}
+
+
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
                         LuaR_TraceIR *t, int partial, int *callpc,
                         int suffix) {
@@ -666,7 +712,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           r = luar_trace_ir_emit(t, &in);
           break;
         }
-        if (luar_ffi_trace_ccall0_kind(&base[b]) > 0) {
+        if (luar_ffi_trace_ccall0_kind(&base[b]) > 0 ||
+            luar_ffi_trace_ccall1_kind(&base[b]) > 0) {
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
           fn_src[a] = b;
@@ -1835,6 +1882,29 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.kind = LUAR_IR_CCALL0I; in.a = (uint8_t)a;
           in.b = (uint8_t)fs; in.pc = pc;
           seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 2 && c == 2 && a + 1 < ns &&
+            ir_call_arg_is_int(p, pc, a + 1, base) &&
+            luar_ffi_trace_ccall1_kind(fv) == 1) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc;
+            in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          /* The preceding LOADI/ADDI/MOVE has executed by this point in
+          ** the emitted trace; guard the *runtime* argument type before
+          ** reading its payload. */
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_INT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL1I; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1); in.pc = pc;
+          seen[a] = 1;
+          seen[a + 1] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
         }

@@ -597,6 +597,57 @@ int64_t luar_ffi_trace_ccall0_int (TValue *fn, TValue *out) {
 }
 
 
+/* Record-time classification of a safe native C call with exactly one
+** integer argument and an integer return.  Never calls the function. */
+int luar_ffi_trace_ccall1_kind (TValue *fn) {
+  Udata *u;
+  CData *cd;
+  CType *ft, *at, *rt;
+  if (fn == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC ||
+      (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      cd->v.p == NULL || cd->ct == NULL)
+    return 0;
+  if (cd->ct->kind == CT_FUNC)
+    ft = cd->ct;
+  else if (cd->ct->kind == CT_POINTER && cd->ct->child != NULL &&
+           cd->ct->child->kind == CT_FUNC)
+    ft = cd->ct->child;
+  else
+    return 0;
+  if (ft->nargs != 1 || ft->vararg)
+    return 0;
+  at = ft->args[0];
+  rt = ft->ret;
+  if (at == NULL || rt == NULL || at->kind != CT_INT || rt->kind != CT_INT)
+    return 0;
+  if (at->size != 1 && at->size != 2 && at->size != 4 && at->size != 8)
+    return 0;
+  if (rt->size != 1 && rt->size != 2 && rt->size != 4 && rt->size != 8)
+    return 0;
+  return 1;
+}
+
+
+/* J4 helper: call the probed one-integer-argument C function and store the
+** raw integer result.  No Lua stack, allocation or metamethods. */
+int64_t luar_ffi_trace_ccall1i (TValue *fn, int64_t arg, int64_t *out) {
+  Udata *u;
+  CData *cd;
+  if (fn == NULL || out == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC)
+    return 0;
+  return ffi_trace_call1i(cd, arg, out) ? 1 : 0;
+}
+
+
 int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
                            int *kind, size_t *off, size_t *size) {
   Udata *u;

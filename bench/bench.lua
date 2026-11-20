@@ -841,6 +841,24 @@ def {
 }
 
 def {
+  name = "j4/ffi_ccall0", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    ffi.cdef[[int getpid(void);]]
+    j4_ccall = ffi.C.getpid
+    j4_prepare()
+  end,
+  run = function ()
+    local fn = j4_ccall
+    local n = N(500000)
+    local s = 0
+    for i = 1, n do s = s + fn() end
+    return s
+  end,
+}
+
+def {
   name = "j4/ffi_cdata_copy", group = "j4",
   skip = j4_ffi_skip,
   prepare = function ()
