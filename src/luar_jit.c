@@ -100,6 +100,7 @@ static void free_code (LuaR_JIT *J) {
   J->ir_call_exits = 0;
   J->ir_cont_compiled = 0;
   J->ir_cont_runs = 0;
+  J->ir_install_rejects = 0;
   J->ir_side_start = -1;
   J->ir_root_start = -1;
   J->ir_yields = 0;
@@ -3486,15 +3487,8 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
           }
         }
       }
-      else {
-        void *ir_code = NULL;
-        size_t ir_size = 0;
-        if (luari_emit_trace_ir(&ir, &ir_code, &ir_size)) {
-          J->ir_compiled++;
-          J->ir_code_bytes += (uint32_t)ir_size;
-          munmap(ir_code, ir_size);
-        }
-      }
+      else
+        J->ir_install_rejects++;
       if (J->dump_ir) {
         fprintf(stderr, "-- j4 ir: %d ops, %d exits, depth %d\n",
                 ir.nins, ir.nexits, ir.depth);
@@ -3795,6 +3789,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_cont_compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_cont_runs : 0);
   lua_setfield(L, -2, "ir_cont_runs");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_install_rejects : 0);
+  lua_setfield(L, -2, "ir_install_rejects");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_start : -1);
   lua_setfield(L, -2, "ir_side_start");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_root_start : -1);
