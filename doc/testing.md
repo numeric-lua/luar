@@ -66,7 +66,7 @@ embedding API and that `luaL_openlibs` brings up the extensions.
 `tests/shared.sh` (run by `make test-shared`) repeats the embedding test
 against `src/libluar.so` with `-L src -lluar` and `LD_LIBRARY_PATH=src`, and
 links a copy of the CLI itself against the shared library. It checks the
-soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.26.0`), verifies
+soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.27.0`), verifies
 with `nm -D` that only `lua_*`/`luaL_*`/`luaopen_*`/`luar_*` are exported,
 loads the stock `mhello.c` module into the shared-linked CLI, and exercises
 both `pkg-config --libs luar` and `pkg-config --static --libs luar` against
@@ -122,6 +122,13 @@ UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 and runs the semantic and compat suites, the FFI suite when `WITH_FFI=1`,
 the differential guard, and (for FFI builds) the cdef fuzzer. Any sanitizer
 diagnostic aborts the run.
+
+Generated code is entered through raw machine-code pointers, which carry
+none of the type metadata that Clang's `-fsanitize=function` check (part of
+`-fsanitize=undefined`) reads just before an indirect call target.  The
+functions in `src/luar_jit.c` that enter generated code therefore carry
+`no_sanitize("function")`; every other sanitizer still instruments them, and
+the emitted code itself is not instrumented.
 
 The script restores nothing: the tree is left with an ASan+UBSan build. Run
 `make clean` before the next normal build; this also clears the

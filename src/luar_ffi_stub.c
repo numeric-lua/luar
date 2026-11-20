@@ -87,3 +87,10 @@ int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
   (void)cdv; (void)outer; (void)inner; (void)kind; (void)off; (void)size;
   return 0;
 }
+
+int luar_ffi_trace_field3 (TValue *cdv, const char *n1, const char *n2,
+                           const char *n3, int *kind, size_t *off,
+                           size_t *size) {
+  (void)cdv; (void)n1; (void)n2; (void)n3; (void)kind; (void)off;
+  (void)size; return 0;
+}

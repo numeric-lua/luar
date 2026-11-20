@@ -122,7 +122,20 @@ nfw(nw, 1000)
 nfk(nw, 1000)
 assert(nw.inner.x == 1000)
 assert(nw.inner.y == 2.5)
-assert(jit.stats().ir_executed >= 11)
+
+-- three-level scalar reads fold into one CGETFIELD
+ffi.cdef[[struct luar_trace_C { int x; };
+          struct luar_trace_B { struct luar_trace_C c; };
+          struct luar_trace_A { struct luar_trace_B b; };]]
+local ao = ffi.new("struct luar_trace_A")
+ao.b.c.x = 7
+local function af (o, n)
+  local s = 0
+  for i = 1, n do s = s + o.b.c.x end
+  return s
+end
+assert(af(ao, 1000) == 7000)
+assert(jit.stats().ir_executed >= 12)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

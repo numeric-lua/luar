@@ -408,6 +408,7 @@ differential replay and catches IR/mem2reg bugs before machine code exists.
 (must defer, not crash). Abort tests assert no semantic change and a reported reason.
 
 **Sanitizers.** `make test-jit-asan` builds core/recorder/IR with `-fsanitize=address,undefined -fno-omit-frame-pointer`. Generated code is not instrumented:
+indirect calls into it opt out of UBSan's `function` check, which expects a type word just before the callee entry.
 add `LUAR_JIT_DEBUG` emitter assertions (spill-map completeness, stack alignment, exit-id bounds), guard pages around code, and `mprotect(PROT_NONE)` after
 flush. UBSan for mem2reg/IR; ASan for recorder and trace metadata. Leak checking stays disabled for the Lua state as in `doc/testing.md`, but trace
 metadata/code pages are checked explicitly.

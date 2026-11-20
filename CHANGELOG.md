@@ -6,6 +6,12 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Fixed
+
+- Sanitizer builds no longer fault on entry to JIT-compiled code when the
+  compiler's `-fsanitize=undefined` includes the function-type check
+  (recent Clang); generated-code entry points opt out of that check only.
+
 ## [0.26.0] — 2026-11-19
 
 ### Changed

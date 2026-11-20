@@ -37,6 +37,24 @@
 static void pushtrace (lua_State *L, const LuaR_Trace *t);
 static void pushir (lua_State *L, const LuaR_Trace *t);
 
+/*
+** Clang's -fsanitize=function (part of -fsanitize=undefined) checks an
+** indirect call target for a type word stored just before its entry
+** point.  JIT-compiled code has no such word and can start at a mapping
+** boundary, so every function that enters generated code opts out of
+** that one check; the remaining sanitizers still apply.
+*/
+#if defined(__clang__) && defined(__has_attribute)
+#if __has_attribute(no_sanitize)
+#define LUAR_NO_SANITIZE_FUNCTION \
+  __attribute__((no_sanitize("function")))
+#endif
+#endif
+
+#ifndef LUAR_NO_SANITIZE_FUNCTION
+#define LUAR_NO_SANITIZE_FUNCTION
+#endif
+
 
 /* ---------------------------------------------------------------- */
 /* State                                                             */
@@ -2736,6 +2754,7 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua_State *L) {
   int sr, lastpc = expc;
   if (p->luar_side_code == NULL && !p->luar_ir_side_done) {
@@ -2862,6 +2881,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 int luari_jit_continue (lua_State *L, Proto *p, int pc, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
   int r;
@@ -2882,6 +2902,7 @@ int luari_jit_continue (lua_State *L, Proto *p, int pc, void *base) {
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                        int expected_base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -3788,6 +3809,7 @@ static int jit_trace_ir_selftest (lua_State *L) {
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_exec_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3821,6 +3843,7 @@ done:
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_side_exec_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3852,6 +3875,7 @@ done:
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_add_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3909,6 +3933,7 @@ static int jit_trace_snapshot_selftest (lua_State *L) {
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_side_fail_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3946,6 +3971,7 @@ done:
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_loop_exec_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -3980,6 +4006,7 @@ done:
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_tget_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -4020,6 +4047,7 @@ done:
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_side_link_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
@@ -4071,6 +4099,7 @@ static int jit_trace_hash_get_selftest (lua_State *L) {
 }
 
 
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_trace_tget_generic_ir_selftest (lua_State *L) {
   LuaR_TraceIR t;
   LuaR_IRIns in;
