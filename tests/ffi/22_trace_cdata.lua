@@ -238,7 +238,19 @@ pawf(paw, n)
 pawd(paw, n, 1.5)
 assert(paw.p[n - 1] == n - 1)
 assert(paw.q[n - 1] == 1.5)
-assert(jit.stats().ir_executed >= 24)
+
+-- constant-offset pointer arithmetic: (p + i + 1)[0]
+local poff = ffi.new("struct luar_trace_Ptr")
+local oa = ffi.new("int[?]", n + 1)
+for i = 0, n do oa[i] = i end
+poff.p = oa
+local function pof (s, n)
+  local x = 0
+  for i = 0, n - 2 do x = x + (s.p + i + 1)[0] end
+  return x
+end
+assert(pof(poff, 1001) == 500500)
+assert(jit.stats().ir_executed >= 25)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

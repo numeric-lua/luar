@@ -744,6 +744,50 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           Instruction gi = p->code[pc + 3];
           size_t poff = 0, pesz = 0;
           int pk = 0;
+          if (pc + 5 <= backedge) {
+            Instruction q1 = p->code[pc + 1], q2 = p->code[pc + 2];
+            Instruction q3 = p->code[pc + 3], q4 = p->code[pc + 4];
+            Instruction q5 = p->code[pc + 5];
+            if (GET_OPCODE(q1) == OP_ADD && GET_OPCODE(q2) == OP_MMBIN &&
+                GET_OPCODE(q3) == OP_ADDI && GET_OPCODE(q4) == OP_MMBINI &&
+                GET_OPCODE(q5) == OP_GETI &&
+                GETARG_A(q1) == a && GETARG_B(q1) == a &&
+                GETARG_A(q3) == a && GETARG_B(q3) == a &&
+                GETARG_B(q5) == a && GETARG_C(q5) == 0 &&
+                GETARG_C(q1) < ns && ttisinteger(&base[GETARG_C(q1)]) &&
+                luar_ffi_trace_kind(&base[b]) == 3 &&
+                luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                         &pk, &poff, &pesz)) {
+              int da = GETARG_A(q5), ks = GETARG_C(q1);
+              if (da >= ns) return 0;
+              if (!seen[b]) {
+                in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+                in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+                in.pc = pc;
+                if (!luar_trace_ir_emit(t, &in)) return 0;
+                seen[b] = 1;
+              }
+              if (!seen[ks]) {
+                in.kind = LUAR_IR_GUARD; in.a = (uint8_t)ks;
+                in.b = LUAR_IR_TAG_INT; in.pc = pc;
+                if (!luar_trace_ir_emit(t, &in)) return 0;
+                seen[ks] = 1;
+              }
+              in.kind = LUAR_IR_ADDI; in.a = (uint8_t)a;
+              in.b = (uint8_t)ks; in.ival = GETARG_sC(q3); in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[a] = 1;
+              in.kind = pk == 2 ? LUAR_IR_CPGETF :
+                        (pesz == 8 ? LUAR_IR_CPGETI64 : LUAR_IR_CPGETI);
+              in.a = (uint8_t)da; in.b = (uint8_t)b; in.c = (uint8_t)a;
+              in.ival = (int64_t)poff; in.nval = (double)pesz;
+              in.pc = pc;
+              seen[da] = 1;
+              r = luar_trace_ir_emit(t, &in);
+              if (r) pc += 5;
+              break;
+            }
+          }
           if (GET_OPCODE(ai) == OP_ADD && GET_OPCODE(mi) == OP_MMBIN &&
               GET_OPCODE(gi) == OP_SETI &&
               GETARG_A(ai) == a && GETARG_B(ai) == a &&
