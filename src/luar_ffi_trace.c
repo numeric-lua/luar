@@ -553,6 +553,55 @@ int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
 }
 
 
+int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
+                           int *kind, size_t *off, size_t *size) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  size_t total = 0;
+  int i;
+  if (cdv == NULL || names == NULL || n < 2 || kind == NULL ||
+      off == NULL || size == NULL || !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  for (i = 0; i < n - 1; i++) {
+    CType *next;
+    size_t o;
+    if (!find_aggregate_field(ct, names[i], &next, &o))
+      return 0;
+    total += o;
+    ct = next;
+  }
+  {
+    uint16_t j;
+    for (j = 0; j < ct->nfields; j++) {
+      CField *f = &ct->fields[j];
+      CType *ft = f->type;
+      if (f->name == NULL || strcmp(f->name, names[n - 1]) != 0)
+        continue;
+      if (f->bitwidth != 0 || ft == NULL)
+        return 0;
+      if (ft->kind == CT_INT &&
+          (ft->size == 1 || ft->size == 2 || ft->size == 4 ||
+           ft->size == 8))
+        *kind = 1;
+      else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
+        *kind = 2;
+      else
+        return 0;
+      *off = total + f->offset;
+      *size = ft->size;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
                            const char *n3, const char *n4, int *kind,
                            size_t *off, size_t *size) {
@@ -589,6 +638,51 @@ int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
     else
       return 0;
     *off = o1 + o2 + o3 + o4;
+    *size = ft->size;
+    return 1;
+  }
+  return 0;
+}
+
+
+int luar_ffi_trace_field5 (TValue *cdv, const char *n1, const char *n2,
+                           const char *n3, const char *n4, const char *n5,
+                           int *kind, size_t *off, size_t *size) {
+  Udata *u;
+  CData *cd;
+  CType *c1, *c2, *c3, *c4, *c5;
+  size_t o1 = 0, o2 = 0, o3 = 0, o4 = 0, o5 = 0;
+  uint16_t i;
+  if (cdv == NULL || n1 == NULL || n2 == NULL || n3 == NULL || n4 == NULL ||
+      n5 == NULL || kind == NULL || off == NULL || size == NULL ||
+      !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  if (!find_aggregate_field(cd->ct, n1, &c1, &o1) ||
+      !find_aggregate_field(c1, n2, &c2, &o2) ||
+      !find_aggregate_field(c2, n3, &c3, &o3) ||
+      !find_aggregate_field(c3, n4, &c4, &o4))
+    return 0;
+  c5 = c4;
+  for (i = 0; i < c5->nfields; i++) {
+    CField *f = &c5->fields[i];
+    CType *ft = f->type;
+    if (f->name == NULL || strcmp(f->name, n5) != 0)
+      continue;
+    if (f->bitwidth != 0 || ft == NULL)
+      return 0;
+    o5 = f->offset;
+    if (ft->kind == CT_INT &&
+        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+      *kind = 1;
+    else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
+      *kind = 2;
+    else
+      return 0;
+    *off = o1 + o2 + o3 + o4 + o5;
     *size = ft->size;
     return 1;
   }

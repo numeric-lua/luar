@@ -815,6 +815,45 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             break;
           }
         }
+        if (pc + 1 <= backedge && luar_ffi_trace_kind(&base[b]) == 3) {
+          const char *names[8];
+          int chain = 1, cur = a, pp = pc;
+          names[0] = getstr(tsvalue(&p->k[c]));
+          while (chain < 8 && pp + 1 <= backedge) {
+            Instruction nx = p->code[pp + 1];
+            int kc;
+            if (GET_OPCODE(nx) != OP_GETFIELD || GETARG_B(nx) != cur)
+              break;
+            kc = GETARG_C(nx);
+            if (kc >= p->sizek || !ttisstring(&p->k[kc]))
+              break;
+            names[chain] = getstr(tsvalue(&p->k[kc]));
+            cur = GETARG_A(nx);
+            chain++;
+            pp++;
+          }
+          if (chain >= 2 &&
+              luar_ffi_trace_fieldn(&base[b], names, chain, &fk, &off,
+                                    &fsize)) {
+            if (cur >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            in.kind = LUAR_IR_CGETFIELD; in.a = (uint8_t)cur;
+            in.b = (uint8_t)b; in.c = (uint8_t)fk;
+            in.ival = (int64_t)off;
+            in.nval = (double)fsize;
+            in.pc = pc;
+            seen[cur] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += chain - 1;
+            break;
+          }
+        }
         if (pc + 3 <= backedge) {
           Instruction q1 = p->code[pc + 1], q2 = p->code[pc + 2];
           Instruction q3 = p->code[pc + 3];

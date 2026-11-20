@@ -134,6 +134,11 @@ int luar_ffi_trace_field3 (TValue *cdv, const char *n1, const char *n2,
 int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
                            const char *n3, const char *n4, int *kind,
                            size_t *off, size_t *size);
+int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
+                           int *kind, size_t *off, size_t *size);
+int luar_ffi_trace_field5 (TValue *cdv, const char *n1, const char *n2,
+                           const char *n3, const char *n4, const char *n5,
+                           int *kind, size_t *off, size_t *size);
 int luar_ffi_trace_ptr_field (TValue *cdv, const char *name, int *kind,
                               size_t *off, size_t *esz);
 int64_t luar_ffi_trace_cget_ptr_int (TValue *cdv, size_t off, TValue *kt,
