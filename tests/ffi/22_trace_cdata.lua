@@ -251,6 +251,18 @@ local function pof (s, n)
 end
 assert(pof(poff, 1001) == 500500)
 
+-- two-step pointer offset read: (p + i + 1 + 1)[0]
+local p2 = ffi.new("struct luar_trace_Ptr")
+local p2a = ffi.new("int[?]", 1003)
+for i = 0, 1002 do p2a[i] = i end
+p2.p = p2a
+local function p2f (s)
+  local x = 0
+  for i = 0, 1000 do x = x + (s.p + i + 1 + 1)[0] end
+  return x
+end
+assert(p2f(p2) == 502502)
+
 -- constant-offset pointer writes (integer path)
 local pow = ffi.new("struct luar_trace_Ptr")
 pow.p = ffi.new("int[?]", n + 1)

@@ -739,6 +739,56 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (!ttisstring(&p->k[c])) {
           return 0;
         }
+        if (pc + 7 <= backedge) {
+          Instruction a1 = p->code[pc + 1], m1 = p->code[pc + 2];
+          Instruction a2 = p->code[pc + 3], m2 = p->code[pc + 4];
+          Instruction a3 = p->code[pc + 5], m3 = p->code[pc + 6];
+          Instruction g2 = p->code[pc + 7];
+          size_t poff = 0, pesz = 0;
+          int pk = 0;
+          if (GET_OPCODE(a1) == OP_ADD && GET_OPCODE(m1) == OP_MMBIN &&
+              GET_OPCODE(a2) == OP_ADDI && GET_OPCODE(a3) == OP_ADDI &&
+              GET_OPCODE(m2) == OP_MMBINI && GET_OPCODE(m3) == OP_MMBINI &&
+              GET_OPCODE(g2) == OP_GETI &&
+              GETARG_A(a1) == a && GETARG_B(a1) == a &&
+              GETARG_A(a2) == a && GETARG_B(a2) == a &&
+              GETARG_A(a3) == a && GETARG_B(a3) == a &&
+              GETARG_B(g2) == a && GETARG_C(g2) == 0 &&
+              GETARG_C(a1) < ns && ttisinteger(&base[GETARG_C(a1)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                       &pk, &poff, &pesz)) {
+            int da = GETARG_A(g2), ks = GETARG_C(a1);
+            int offsum = GETARG_sC(a2) + GETARG_sC(a3);
+            if (da >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (!seen[ks]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)ks;
+              in.b = LUAR_IR_TAG_INT; in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[ks] = 1;
+            }
+            in.kind = LUAR_IR_ADDI; in.a = (uint8_t)a;
+            in.b = (uint8_t)ks; in.ival = offsum; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[a] = 1;
+            in.kind = pk == 2 ? LUAR_IR_CPGETF :
+                      (pesz == 8 ? LUAR_IR_CPGETI64 : LUAR_IR_CPGETI);
+            in.a = (uint8_t)da; in.b = (uint8_t)b; in.c = (uint8_t)a;
+            in.ival = (int64_t)poff; in.nval = (double)pesz;
+            in.pc = pc;
+            seen[da] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += 7;
+            break;
+          }
+        }
         if (pc + 3 <= backedge) {
           Instruction ai = p->code[pc + 1], mi = p->code[pc + 2];
           Instruction gi = p->code[pc + 3];
