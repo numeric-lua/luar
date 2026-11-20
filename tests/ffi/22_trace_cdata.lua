@@ -124,7 +124,7 @@ assert(nw.inner.x == 1000)
 assert(nw.inner.y == 2.5)
 
 -- three-level scalar reads fold into one CGETFIELD
-ffi.cdef[[struct luar_trace_C { int x; };
+ffi.cdef[[struct luar_trace_C { int x; double y; };
           struct luar_trace_B { struct luar_trace_C c; };
           struct luar_trace_A { struct luar_trace_B b; };]]
 local ao = ffi.new("struct luar_trace_A")
@@ -135,7 +135,20 @@ local function af (o, n)
   return s
 end
 assert(af(ao, 1000) == 7000)
-assert(jit.stats().ir_executed >= 12)
+
+-- three-level scalar writes fold into one CSETFIELD/CSETFIELDK
+local aw = ffi.new("struct luar_trace_A")
+local function awf (o, n)
+  for i = 1, n do o.b.c.x = i end
+end
+local function awk (o, n)
+  for i = 1, n do o.b.c.y = 2.5 end
+end
+awf(aw, 1000)
+awk(aw, 1000)
+assert(aw.b.c.x == 1000)
+assert(aw.b.c.y == 2.5)
+assert(jit.stats().ir_executed >= 14)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
