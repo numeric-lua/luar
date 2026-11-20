@@ -201,7 +201,19 @@ local function lpr (s, n)
 end
 lpw(lps, n)
 assert(tonumber(lpr(lps, n)) == 499500)
-assert(jit.stats().ir_executed >= 20)
+
+-- computed pointer indexes fold an ADDI into the pointer-field read
+local pidx = ffi.new("struct luar_trace_Ptr")
+local ia = ffi.new("int[?]", n + 1)
+for i = 0, n do ia[i] = i end
+pidx.p = ia
+local function pif (s, n)
+  local x = 0
+  for i = 0, n - 1 do x = x + s.p[i + 1] end
+  return x
+end
+assert(pif(pidx, n) == 500500)
+assert(jit.stats().ir_executed >= 21)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

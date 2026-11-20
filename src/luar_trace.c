@@ -739,6 +739,92 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (!ttisstring(&p->k[c])) {
           return 0;
         }
+        if (pc + 3 <= backedge) {
+          Instruction ai = p->code[pc + 1], mi = p->code[pc + 2];
+          Instruction gi = p->code[pc + 3];
+          size_t poff = 0, pesz = 0;
+          int pk = 0;
+          if (GET_OPCODE(ai) == OP_ADDI &&
+              GET_OPCODE(mi) == OP_MMBINI &&
+              GET_OPCODE(gi) == OP_GETTABLE &&
+              GETARG_B(gi) == a && GETARG_A(ai) == GETARG_C(gi) &&
+              GETARG_B(ai) < ns && ttisinteger(&base[GETARG_B(ai)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                       &pk, &poff, &pesz)) {
+            int dest = GETARG_A(ai), da = GETARG_A(gi);
+            int ks = GETARG_B(ai);
+            if (dest >= ns || da >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (!seen[ks]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)ks;
+              in.b = LUAR_IR_TAG_INT; in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[ks] = 1;
+            }
+            in.kind = LUAR_IR_ADDI; in.a = (uint8_t)dest;
+            in.b = (uint8_t)ks; in.ival = GETARG_sC(ai); in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[dest] = 1;
+            in.kind = pk == 2 ? LUAR_IR_CPGETF :
+                      (pesz == 8 ? LUAR_IR_CPGETI64 : LUAR_IR_CPGETI);
+            in.a = (uint8_t)da; in.b = (uint8_t)b; in.c = (uint8_t)dest;
+            in.ival = (int64_t)poff; in.nval = (double)pesz;
+            in.pc = pc;
+            seen[da] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += 3;
+            break;
+          }
+        }
+        if (pc + 2 <= backedge) {
+          Instruction ai = p->code[pc + 1], gi = p->code[pc + 2];
+          size_t poff = 0, pesz = 0;
+          int pk = 0;
+          if (GET_OPCODE(ai) == OP_ADDI &&
+              GET_OPCODE(gi) == OP_GETTABLE &&
+              GETARG_B(gi) == a && GETARG_A(ai) == GETARG_C(gi) &&
+              GETARG_B(ai) < ns && ttisinteger(&base[GETARG_B(ai)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                       &pk, &poff, &pesz)) {
+            int dest = GETARG_A(ai), da = GETARG_A(gi);
+            int ks = GETARG_B(ai);
+            if (dest >= ns || da >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (!seen[ks]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)ks;
+              in.b = LUAR_IR_TAG_INT; in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[ks] = 1;
+            }
+            in.kind = LUAR_IR_ADDI; in.a = (uint8_t)dest;
+            in.b = (uint8_t)ks; in.ival = GETARG_sC(ai); in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[dest] = 1;
+            in.kind = pk == 2 ? LUAR_IR_CPGETF :
+                      (pesz == 8 ? LUAR_IR_CPGETI64 : LUAR_IR_CPGETI);
+            in.a = (uint8_t)da; in.b = (uint8_t)b; in.c = (uint8_t)dest;
+            in.ival = (int64_t)poff; in.nval = (double)pesz;
+            in.pc = pc;
+            seen[da] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += 2;
+            break;
+          }
+        }
         if (pc + 1 <= backedge) {
           Instruction nxi = p->code[pc + 1];
           size_t poff = 0, pesz = 0;
