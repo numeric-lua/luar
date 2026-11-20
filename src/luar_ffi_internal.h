@@ -301,6 +301,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart);
 /* ffi.callback: create a C closure that calls a Lua function. */
 int ffi_callback_new (lua_State *L, FFIState *S, CType *ft, int funcidx);
 void ffi_callback_free (lua_State *L, CData *cd);
+int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv);
 int ffi_callback_free_mt (lua_State *L);
 int ffi_callback_set_mt (lua_State *L);
 

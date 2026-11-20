@@ -2625,3 +2625,47 @@ void ffi_callback_free (lua_State *L, CData *cd) {
     luaL_unref(cb->L, LUA_REGISTRYINDEX, cb->fnref);
   free(cb);
 }
+
+
+/* J4 helper: call a zero-argument C function with a scalar return.
+** Uses libffi directly; no Lua stack, allocation or metamethods. */
+int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
+  CType *ft, *rt;
+  ffi_cif cif;
+  ffi_type *rtype;
+  union { int64_t i; double d; } ret;
+  if (fn == NULL || kind == NULL || iv == NULL || dv == NULL ||
+      fn->magic != LUAR_FFI_MAGIC)
+    return 0;
+  ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
+  if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 0 || ft->vararg)
+    return 0;
+  rt = ft->ret;
+  if (rt == NULL)
+    return 0;
+  memset(&ret, 0, sizeof(ret));
+  if (rt->kind == CT_INT) {
+    switch (rt->size) {
+      case 1: rtype = &ffi_type_sint8; break;
+      case 2: rtype = &ffi_type_sint16; break;
+      case 4: rtype = &ffi_type_sint32; break;
+      case 8: rtype = &ffi_type_sint64; break;
+      default: return 0;
+    }
+    *kind = 1;
+  }
+  else if (rt->kind == CT_FLOAT) {
+    if (rt->size == 4) rtype = &ffi_type_float;
+    else if (rt->size == 8) rtype = &ffi_type_double;
+    else return 0;
+    *kind = 2;
+  }
+  else
+    return 0;
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 0, rtype, NULL) != FFI_OK)
+    return 0;
+  ffi_call(&cif, FFI_FN(fn->v.p), &ret, NULL);
+  if (*kind == 1) *iv = ret.i;
+  else *dv = ret.d;
+  return 1;
+}
