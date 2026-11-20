@@ -275,6 +275,24 @@ local function p4f (s, n)
 end
 assert(p4f(p4, 1005) == 1004)
 
+-- arbitrary constant-offset pointer chains for writes (owners retained)
+local p4wi = ffi.new("int[?]", 1005)
+local p4wd = ffi.new("double[?]", 1005)
+local p4w = ffi.new("struct luar_trace_Ptr")
+p4w.p = p4wi
+p4w.q = p4wd
+local function p4wfi (s, n)
+  for i = 0, n - 5 do (s.p + i + 1 + 1 + 1 + 1)[0] = i end
+end
+local function p4wfd (s, n, x)
+  for i = 0, n - 5 do (s.q + i + 1 + 1 + 1 + 1)[0] = x end
+end
+p4wfi(p4w, 1005)
+p4wfd(p4w, 1005, 1.5)
+collectgarbage(); collectgarbage()
+assert(p4wi[1004] == 1000)
+assert(p4wd[1004] == 1.5)
+
 -- constant-offset pointer writes (integer path)
 local pow = ffi.new("struct luar_trace_Ptr")
 pow.p = ffi.new("int[?]", n + 1)

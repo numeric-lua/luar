@@ -230,6 +230,23 @@ struct/union/array fields and array elements are non-owning cdata objects
 that keep their owner alive through a user value; they remain valid as long
 as the owner is reachable.
 
+### Pointer lifetime and ownership
+
+A cdata pointer stores only an address.  Assigning an owned array or struct
+to a pointer field does **not** keep the owning cdata alive:
+
+```lua
+local s = ffi.new("struct S")
+s.p = ffi.new("int[?]", 1000)   -- wrong: allocation is not retained
+```
+
+Once GC collects the temporary array, `s.p` is dangling.  Keep the owner in
+a Lua variable (or another rooted cdata) for as long as the pointer is
+reachable.  This is the same ownership rule as LuaJIT FFI; J4 traces do not
+add hidden references.  The pointer-lifetime test in
+`tests/ffi/24_pointer_lifetime.lua` exercises the retained case across a
+forced GC.
+
 ### Field and array access
 
 `cdata.field` retrieves a struct/union field (including through a pointer
