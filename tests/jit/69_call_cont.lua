@@ -45,6 +45,12 @@ H.eq(h(math.abs, 1000), 1001000)
 st = jit.stats()
 H.check(st.ir_cont_runs >= 3, "result-consuming continuation not executed")
 
+-- erroring callees must unwind without running the continuation
+local function boom (x) error("boom-" .. x, 0) end
+local okerr, err = pcall(g, boom, 10)
+H.check(not okerr, "erroring call unexpectedly succeeded")
+H.check(tostring(err):find("boom%-") ~= nil, "wrong error from traced call")
+
 jit.flush()
 jit.opt.start("ir=0")
 jit.on()

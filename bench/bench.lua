@@ -690,6 +690,17 @@ local function j4_skip ()
   return nil
 end
 
+local function j4_ffi_skip ()
+  local why = j4_skip()
+  if why then return why end
+  local ok, ffi = pcall(require, "ffi")
+  if not ok or ffi == nil then
+    return "FFI is not available"
+  end
+  return nil
+end
+
+
 local function j4_prepare ()
   jit.opt.start("ir=1")
   jit.on()
@@ -800,6 +811,54 @@ def {
     for i = 1, n do
       t[i] = i
       s = s + t[i]
+    end
+    return s
+  end,
+}
+
+def {
+  name = "j4/ffi_cdata_read", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    jit.off()
+    local n = N(1000000)
+    local a = ffi.new("int[?]", n + 1)
+    local d = ffi.new("double[?]", n + 1)
+    for i = 0, n do a[i] = i; d[i] = i + 0.5 end
+    j4_cdata_i, j4_cdata_d, j4_cdata_n = a, d, n
+    j4_prepare()
+  end,
+  run = function ()
+    local a, d, n = j4_cdata_i, j4_cdata_d, j4_cdata_n
+    local s, x = 0, 0.0
+    for i = 0, n - 1 do
+      s = s + a[i]
+      x = x + d[i]
+    end
+    return s + x
+  end,
+}
+
+def {
+  name = "j4/ffi_cdata_copy", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    jit.off()
+    local n = N(500000)
+    local src = ffi.new("double[?]", n)
+    local dst = ffi.new("double[?]", n)
+    for i = 0, n - 1 do src[i] = i + 0.5 end
+    j4_cdata_i, j4_cdata_d, j4_cdata_n = src, dst, n
+    j4_prepare()
+  end,
+  run = function ()
+    local src, dst, n = j4_cdata_i, j4_cdata_d, j4_cdata_n
+    local s = 0.0
+    for i = 0, n - 1 do
+      dst[i] = src[i]
+      s = s + dst[i]
     end
     return s
   end,
