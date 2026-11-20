@@ -144,6 +144,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CPGETF:
       case LUAR_IR_CPSETI:
       case LUAR_IR_CPSETF:
+      case LUAR_IR_CPGETI64:
+      case LUAR_IR_CPSETI64:
         break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
@@ -770,7 +772,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
               if (!luar_trace_ir_emit(t, &in)) return 0;
               seen[vc] = 1;
             }
-            in.kind = pk == 2 ? LUAR_IR_CPSETF : LUAR_IR_CPSETI;
+            in.kind = pk == 2 ? LUAR_IR_CPSETF :
+                      (pesz == 8 ? LUAR_IR_CPSETI64 : LUAR_IR_CPSETI);
             in.a = (uint8_t)b; in.b = (uint8_t)kc; in.c = (uint8_t)vc;
             in.ival = (int64_t)poff;
             in.nval = (double)pesz;
@@ -800,7 +803,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
               if (!luar_trace_ir_emit(t, &in)) return 0;
               seen[kc] = 1;
             }
-            in.kind = pk == 2 ? LUAR_IR_CPGETF : LUAR_IR_CPGETI;
+            in.kind = pk == 2 ? LUAR_IR_CPGETF :
+                      (pesz == 8 ? LUAR_IR_CPGETI64 : LUAR_IR_CPGETI);
             in.a = (uint8_t)da; in.b = (uint8_t)b; in.c = (uint8_t)kc;
             in.ival = (int64_t)poff;
             in.nval = (double)pesz;

@@ -116,3 +116,12 @@ int64_t luar_ffi_trace_cset_ptr_double (TValue *cdv, size_t off, TValue *kt,
                                         TValue *val) {
   (void)cdv; (void)off; (void)kt; (void)val; return 0;
 }
+
+int64_t luar_ffi_trace_cget_ptr_i64 (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *out) {
+  (void)cdv; (void)off; (void)kt; (void)out; return 0;
+}
+int64_t luar_ffi_trace_cset_ptr_i64 (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *val) {
+  (void)cdv; (void)off; (void)kt; (void)val; return 0;
+}

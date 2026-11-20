@@ -185,7 +185,23 @@ pwi(wps, n)
 pwd(wps, n, 1.5)
 assert(wps.p[n - 1] == n - 1)
 assert(wps.q[n - 1] == 1.5)
-assert(jit.stats().ir_executed >= 18)
+
+-- 8-byte integer pointer elements use CPGETI64/CPSETI64
+ffi.cdef[[struct luar_trace_LongPtr { long *lp; };]]
+local la = ffi.new("long[?]", n)
+local lps = ffi.new("struct luar_trace_LongPtr")
+lps.lp = la
+local function lpw (s, n)
+  for i = 0, n - 1 do s.lp[i] = i end
+end
+local function lpr (s, n)
+  local x = 0
+  for i = 0, n - 1 do x = x + s.lp[i] end
+  return x
+end
+lpw(lps, n)
+assert(tonumber(lpr(lps, n)) == 499500)
+assert(jit.stats().ir_executed >= 20)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

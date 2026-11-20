@@ -705,3 +705,67 @@ int64_t luar_ffi_trace_cset_ptr_double (TValue *cdv, size_t off, TValue *kt,
                                         TValue *val) {
   return write_ptr_elem(cdv, off, kt, val, 2);
 }
+
+
+int64_t luar_ffi_trace_cget_ptr_i64 (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *out) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *base, *ptr;
+  lua_Integer idx;
+  int64_t v;
+  if (cdv == NULL || kt == NULL || out == NULL ||
+      !ttisfulluserdata(cdv) || !ttisinteger(kt))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size ||
+      sizeof(void *) > ct->size - off)
+    return 0;
+  base = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+         cd->v.p : (void *)&cd->v;
+  memcpy(&ptr, (char *)base + off, sizeof(ptr));
+  if (ptr == NULL)
+    return 0;
+  idx = ivalue(kt);
+  memcpy(&v, (char *)ptr + (ptrdiff_t)idx * 8, 8);
+  setivalue(out, (lua_Integer)v);
+  return 1;
+}
+
+
+int64_t luar_ffi_trace_cset_ptr_i64 (TValue *cdv, size_t off, TValue *kt,
+                                     TValue *val) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  void *base, *ptr;
+  lua_Integer idx;
+  uint64_t v;
+  if (cdv == NULL || kt == NULL || val == NULL ||
+      !ttisfulluserdata(cdv) || !ttisinteger(kt) || !ttisinteger(val))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if ((ct->kind != CT_STRUCT && ct->kind != CT_UNION) ||
+      ct->size == FFI_SIZE_UNKNOWN || off > ct->size ||
+      sizeof(void *) > ct->size - off)
+    return 0;
+  base = ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ?
+         cd->v.p : (void *)&cd->v;
+  memcpy(&ptr, (char *)base + off, sizeof(ptr));
+  if (ptr == NULL)
+    return 0;
+  idx = ivalue(kt);
+  v = (uint64_t)ivalue(val);
+  memcpy((char *)ptr + (ptrdiff_t)idx * 8, &v, 8);
+  return 1;
+}
