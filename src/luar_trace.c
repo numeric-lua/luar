@@ -854,6 +854,72 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             break;
           }
         }
+        if (pc + 1 <= backedge && luar_ffi_trace_kind(&base[b]) == 3) {
+          const char *names[8];
+          int chain = 1, cur = a, pp = pc;
+          names[0] = getstr(tsvalue(&p->k[c]));
+          while (chain < 8 && pp + 1 <= backedge) {
+            Instruction nx = p->code[pp + 1];
+            if (GET_OPCODE(nx) == OP_GETFIELD && GETARG_B(nx) == cur) {
+              int kc = GETARG_C(nx);
+              if (kc >= p->sizek || !ttisstring(&p->k[kc]))
+                break;
+              names[chain] = getstr(tsvalue(&p->k[kc]));
+              cur = GETARG_A(nx);
+              chain++;
+              pp++;
+              continue;
+            }
+            if (GET_OPCODE(nx) == OP_SETFIELD && GETARG_A(nx) == cur) {
+              int kc = GETARG_B(nx), isk = GETARG_k(nx), vc = GETARG_C(nx);
+              TValue *v = isk ? &p->k[vc] : &base[vc];
+              if (kc >= p->sizek || !ttisstring(&p->k[kc]))
+                break;
+              names[chain] = getstr(tsvalue(&p->k[kc]));
+              if (!luar_ffi_trace_fieldn(&base[b], names, chain + 1,
+                                         &fk, &off, &fsize))
+                break;
+              if (fk == 1 ? !ttisinteger(v) : !ttisfloat(v))
+                return 0;
+              if (!seen[b]) {
+                in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+                in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+                in.pc = pc;
+                if (!luar_trace_ir_emit(t, &in)) return 0;
+                seen[b] = 1;
+              }
+              if (isk) {
+                in.kind = LUAR_IR_CSETFIELDK; in.a = (uint8_t)b;
+                in.b = (uint8_t)fsize; in.c = (uint8_t)fk;
+                in.ival = (int64_t)off;
+                in.nval = fk == 1 ? (double)ivalue(v) : fltvalue(v);
+                in.pc = pc;
+                r = luar_trace_ir_emit(t, &in);
+                if (r) pc += chain;
+                break;
+              }
+              if (!seen[vc]) {
+                in.kind = LUAR_IR_GUARD; in.a = (uint8_t)vc;
+                in.b = (uint8_t)(fk == 2 ? LUAR_IR_TAG_FLOAT :
+                                          LUAR_IR_TAG_INT);
+                in.pc = pc;
+                if (!luar_trace_ir_emit(t, &in)) return 0;
+                seen[vc] = 1;
+              }
+              in.kind = LUAR_IR_CSETFIELD; in.a = (uint8_t)b;
+              in.b = (uint8_t)vc; in.c = (uint8_t)fk;
+              in.ival = (int64_t)off;
+              in.nval = (double)fsize;
+              in.pc = pc;
+              r = luar_trace_ir_emit(t, &in);
+              if (r) pc += chain;
+              break;
+            }
+            break;
+          }
+          if (r == 1 && pc > pp)
+            break;
+        }
         if (pc + 3 <= backedge) {
           Instruction q1 = p->code[pc + 1], q2 = p->code[pc + 2];
           Instruction q3 = p->code[pc + 3];
