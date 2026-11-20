@@ -272,6 +272,57 @@ int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
 }
 
 
+int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
+                           int *kind, size_t *off, size_t *size) {
+  Udata *u;
+  CData *cd;
+  CType *ct, *oct = NULL;
+  uint16_t i, j;
+  size_t ooff = 0;
+  if (cdv == NULL || outer == NULL || inner == NULL || kind == NULL ||
+      off == NULL || size == NULL || !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
+    return 0;
+  for (i = 0; i < ct->nfields; i++) {
+    CField *f = &ct->fields[i];
+    if (f->name != NULL && strcmp(f->name, outer) == 0 &&
+        f->bitwidth == 0 && f->type != NULL &&
+        (f->type->kind == CT_STRUCT || f->type->kind == CT_UNION)) {
+      oct = f->type;
+      ooff = f->offset;
+      break;
+    }
+  }
+  if (oct == NULL)
+    return 0;
+  for (j = 0; j < oct->nfields; j++) {
+    CField *f = &oct->fields[j];
+    CType *ft = f->type;
+    if (f->name == NULL || strcmp(f->name, inner) != 0)
+      continue;
+    if (f->bitwidth != 0 || ft == NULL)
+      return 0;
+    if (ft->kind == CT_INT &&
+        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+      *kind = 1;
+    else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
+      *kind = 2;
+    else
+      return 0;
+    *off = ooff + f->offset;
+    *size = ft->size;
+    return 1;
+  }
+  return 0;
+}
+
+
 int64_t luar_ffi_trace_cget_field_int (TValue *cdv, size_t off, size_t sz,
                                        TValue *out) {
   Udata *u;

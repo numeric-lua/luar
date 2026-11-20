@@ -81,3 +81,9 @@ int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
                                                 size_t sz, double val) {
   (void)cdv; (void)off; (void)sz; (void)val; return 0;
 }
+
+int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
+                           int *kind, size_t *off, size_t *size) {
+  (void)cdv; (void)outer; (void)inner; (void)kind; (void)off; (void)size;
+  return 0;
+}

@@ -722,6 +722,35 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (!ttisstring(&p->k[c])) {
           return 0;
         }
+        if (pc + 1 <= backedge) {
+          Instruction nx = p->code[pc + 1];
+          if (GET_OPCODE(nx) == OP_GETFIELD && GETARG_B(nx) == a &&
+              GETARG_C(nx) < p->sizek &&
+              ttisstring(&p->k[GETARG_C(nx)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_field2(&base[b], getstr(tsvalue(&p->k[c])),
+                                    getstr(tsvalue(&p->k[GETARG_C(nx)])),
+                                    &fk, &off, &fsize)) {
+            int da = GETARG_A(nx);
+            if (da >= ns) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            in.kind = LUAR_IR_CGETFIELD; in.a = (uint8_t)da;
+            in.b = (uint8_t)b; in.c = (uint8_t)fk;
+            in.ival = (int64_t)off;
+            in.nval = (double)fsize;
+            in.pc = pc;
+            seen[da] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc++;
+            break;
+          }
+        }
         if (luar_ffi_trace_kind(&base[b]) > 0 &&
             luar_ffi_trace_field(&base[b], getstr(tsvalue(&p->k[c])),
                                  &fk, &off, &fsize)) {

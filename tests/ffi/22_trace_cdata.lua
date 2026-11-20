@@ -97,6 +97,19 @@ wff(fp, 1000)
 assert(fp.y == 2.5)
 assert(jit.stats().ir_executed >= 8)
 
+-- two-level scalar field reads are folded into one CGETFIELD
+ffi.cdef[[struct luar_trace_Inner { int x; };
+          struct luar_trace_Outer { struct luar_trace_Inner inner; };]]
+local no = ffi.new("struct luar_trace_Outer")
+no.inner.x = 3
+local function nf (o, n)
+  local s = 0
+  for i = 1, n do s = s + o.inner.x end
+  return s
+end
+assert(nf(no, 1000) == 3000)
+assert(jit.stats().ir_executed >= 9)
+
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
 local function copy (dst, src, n)

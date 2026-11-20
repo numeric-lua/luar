@@ -118,6 +118,8 @@ int64_t luar_ffi_trace_cset_int (TValue *cdv, TValue *kt, TValue *val);
 int64_t luar_ffi_trace_cset_double (TValue *cdv, TValue *kt, TValue *val);
 int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
                           size_t *off, size_t *size);
+int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
+                           int *kind, size_t *off, size_t *size);
 int64_t luar_ffi_trace_cget_field_int (TValue *cdv, size_t off, size_t sz,
                                        TValue *out);
 int64_t luar_ffi_trace_cget_field_double (TValue *cdv, size_t off, size_t sz,
