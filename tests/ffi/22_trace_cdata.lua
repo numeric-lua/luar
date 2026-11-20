@@ -213,7 +213,17 @@ local function pif (s, n)
   return x
 end
 assert(pif(pidx, n) == 500500)
-assert(jit.stats().ir_executed >= 21)
+
+-- cdata pointer arithmetic folds into the pointer-field read
+local par = ffi.new("struct luar_trace_Ptr")
+par.p = ia
+local function paf (s, n)
+  local x = 0
+  for i = 0, n - 1 do x = x + (s.p + i)[0] end
+  return x
+end
+assert(paf(par, n) == 499500)
+assert(jit.stats().ir_executed >= 22)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)
