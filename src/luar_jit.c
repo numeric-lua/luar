@@ -2737,11 +2737,7 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 
 
 static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua_State *L) {
-  int ns = p->maxstacksize;
-  if (getenv("LUAR_NO_SIDE") && !p->luar_ir_float) return -1;
-  LuaR_IRExitState snap;
   int sr, lastpc = expc;
-  if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
   if (p->luar_side_code == NULL && !p->luar_ir_side_done) {
     LuaR_TraceIR ir;
     int link;
@@ -2790,8 +2786,6 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
   }
   if (p->luar_side_code == NULL || p->luar_side_epoch != J->epoch ||
       p->luar_side_pc != pc || p->luar_side_start != expc)
-    return -1;
-  if (!luar_trace_ir_snapshot(&snap, expc, (TValue *)base, ns))
     return -1;
   sr = ((LuaR_LoopFn)p->luar_side_code)(base, L);
   if (sr >= 0) {
@@ -2862,9 +2856,8 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
       break;
     }
   }
-  if (sr < -1)
+  if (lastpc >= 0)
     return -(lastpc + 2);
-  luar_trace_ir_restore(&snap, (TValue *)base);
   return -1;
 }
 

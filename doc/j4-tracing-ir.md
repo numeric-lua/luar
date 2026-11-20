@@ -122,3 +122,17 @@ prefixed IR bodies recorded through the `MMBINI` bounds fix.
    explicit depth caps for chained side traces.
 4. Add differential tests against the interpreter and existing J2/J3 paths
    for all side-exit fixtures.
+
+## Exit state is stored in the stack, not in registers
+
+Every J4 instruction writes its result payload and tag directly to the
+interpreter's stack slot before the next instruction.  No value lives only in
+a machine register across instructions, so a guard or helper failure already
+leaves the frame in an interpreter-consistent state.  Root and side failures
+therefore return the exact failing PC, and side-chain fallback resumes at the
+deepest node start rather than restoring a C-side copy.
+
+`LuaR_IRExitState` remains useful as trace metadata and for selftests, but it
+is not a native register-spill buffer.  A generated spill stub would duplicate
+state that is already in the Lua stack; the J4 design deliberately avoids
+that second copy.

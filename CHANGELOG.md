@@ -6,6 +6,14 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-11-19
+
+### Changed
+
+- Side-chain fallback uses the memory-form exact exit state; the runtime
+  rollback snapshot was removed from the side path.
+- Documented why J4 needs no native register-spill stub.
+
 ## [0.25.0] — 2026-11-19
 
 ### Added
