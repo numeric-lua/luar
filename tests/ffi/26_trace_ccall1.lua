@@ -81,6 +81,21 @@ local function sum_abs_float (n)
 end
 H.eq(sum_abs_float(1000), 250000)
 
+-- integer argument converted to a double parameter, double return
+ffi.cdef[[double sqrt(double);]]
+local expected_sqrt = 0.0
+for i = 1, 1000 do expected_sqrt = expected_sqrt + math.sqrt(i) end
+local function sum_sqrt (n)
+  local sqrt = ffi.C.sqrt
+  local s = 0.0
+  for i = 1, n do s = s + sqrt(i) end
+  return s
+end
+H.eq(sum_sqrt(1000), expected_sqrt)
+st = jit.stats()
+H.check(st.ir_executed >= 1, "int->double C-call trace did not execute")
+H.eq(st.ir_call_exits, 0)
+
 jit.flush()
 jit.opt.start("ir=0")
 jit.on()

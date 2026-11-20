@@ -2742,3 +2742,32 @@ int ffi_trace_call1i (CData *fn, int64_t arg, int64_t *out) {
   }
   return 1;
 }
+
+
+/* J4 helper: call a C function with one integer argument converted to a
+** double parameter, returning a double. */
+int ffi_trace_call1d_iarg (CData *fn, int64_t arg, double *out) {
+  CType *ft, *at, *rt;
+  ffi_cif cif;
+  ffi_type *atype = &ffi_type_double, *rtype;
+  void *avalue[1];
+  double av = (double)arg, ret = 0.0;
+  if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
+      (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK)) != 0 || fn->v.p == NULL)
+    return 0;
+  ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
+  if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 1 || ft->vararg)
+    return 0;
+  at = ft->args[0];
+  rt = ft->ret;
+  if (at == NULL || rt == NULL || at->kind != CT_FLOAT ||
+      at->size != 8 || rt->kind != CT_FLOAT || rt->size != 8)
+    return 0;
+  rtype = &ffi_type_double;
+  avalue[0] = &av;
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, rtype, &atype) != FFI_OK)
+    return 0;
+  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  *out = ret;
+  return 1;
+}

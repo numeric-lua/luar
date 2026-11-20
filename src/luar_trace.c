@@ -148,6 +148,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CPSETI64:
       case LUAR_IR_CCALL0I:
         break;
+      case LUAR_IR_CCALL1DI:
       case LUAR_IR_CCALL1I:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -480,6 +481,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CCALL1I:
         kind[in->a] = 1;
         break;
+      case LUAR_IR_CCALL1DI:
+        kind[in->a] = 2;
+        break;
       default:
         break;
     }
@@ -713,7 +717,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           break;
         }
         if (luar_ffi_trace_ccall0_kind(&base[b]) > 0 ||
-            luar_ffi_trace_ccall1_kind(&base[b]) > 0) {
+            luar_ffi_trace_ccall1_kind(&base[b]) > 0 ||
+            luar_ffi_trace_ccall1di_kind(&base[b]) > 0) {
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
           fn_src[a] = b;
@@ -1882,6 +1887,26 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.kind = LUAR_IR_CCALL0I; in.a = (uint8_t)a;
           in.b = (uint8_t)fs; in.pc = pc;
           seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 2 && c == 2 && a + 1 < ns &&
+            ir_call_arg_is_int(p, pc, a + 1, base) &&
+            luar_ffi_trace_ccall1di_kind(fv) == 1) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc;
+            in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_INT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL1DI; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1); in.pc = pc;
+          seen[a] = 1;
+          in.kind = LUAR_IR_CCALL1DI; /* keep op */
           r = luar_trace_ir_emit(t, &in);
           break;
         }
