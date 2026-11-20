@@ -263,6 +263,18 @@ local function p2f (s)
 end
 assert(p2f(p2) == 502502)
 
+-- arbitrary constant-offset pointer chain (generic resolver)
+local p4 = ffi.new("struct luar_trace_Ptr")
+local p4a = ffi.new("int[?]", 1005)
+for i = 0, 1004 do p4a[i] = i end
+p4.p = p4a
+local function p4f (s, n)
+  local x = 0
+  for i = 0, n - 5 do x = (s.p + i + 1 + 1 + 1 + 1)[0] end
+  return x
+end
+assert(p4f(p4, 1005) == 1004)
+
 -- constant-offset pointer writes (integer path)
 local pow = ffi.new("struct luar_trace_Ptr")
 pow.p = ffi.new("int[?]", n + 1)
