@@ -223,7 +223,22 @@ local function paf (s, n)
   return x
 end
 assert(paf(par, n) == 499500)
-assert(jit.stats().ir_executed >= 22)
+
+-- pointer-arithmetic writes use CPSETI/CPSETF
+local paw = ffi.new("struct luar_trace_Ptr")
+paw.p = ffi.new("int[?]", n)
+paw.q = ffi.new("double[?]", n)
+local function pawf (s, n)
+  for i = 0, n - 1 do (s.p + i)[0] = i end
+end
+local function pawd (s, n, x)
+  for i = 0, n - 1 do (s.q + i)[0] = x end
+end
+pawf(paw, n)
+pawd(paw, n, 1.5)
+assert(paw.p[n - 1] == n - 1)
+assert(paw.q[n - 1] == 1.5)
+assert(jit.stats().ir_executed >= 24)
 
 -- double cdata writes use CSETF
 local cw = ffi.new("double[?]", 1001)

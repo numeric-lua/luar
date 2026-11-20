@@ -745,6 +745,47 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           size_t poff = 0, pesz = 0;
           int pk = 0;
           if (GET_OPCODE(ai) == OP_ADD && GET_OPCODE(mi) == OP_MMBIN &&
+              GET_OPCODE(gi) == OP_SETI &&
+              GETARG_A(ai) == a && GETARG_B(ai) == a &&
+              GETARG_A(gi) == a && GETARG_B(gi) == 0 &&
+              !GETARG_k(gi) &&
+              GETARG_C(ai) < ns && ttisinteger(&base[GETARG_C(ai)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_ptr_field(&base[b], getstr(tsvalue(&p->k[c])),
+                                       &pk, &poff, &pesz)) {
+            int vc = GETARG_C(gi), ks = GETARG_C(ai);
+            TValue *v = &base[vc];
+            if (pk == 1 ? !ttisinteger(v) : !ttisfloat(v)) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (!seen[ks]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)ks;
+              in.b = LUAR_IR_TAG_INT; in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[ks] = 1;
+            }
+            if (!seen[vc]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)vc;
+              in.b = (uint8_t)(pk == 2 ? LUAR_IR_TAG_FLOAT : LUAR_IR_TAG_INT);
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[vc] = 1;
+            }
+            in.kind = pk == 2 ? LUAR_IR_CPSETF :
+                      (pesz == 8 ? LUAR_IR_CPSETI64 : LUAR_IR_CPSETI);
+            in.a = (uint8_t)b; in.b = (uint8_t)ks; in.c = (uint8_t)vc;
+            in.ival = (int64_t)poff; in.nval = (double)pesz;
+            in.pc = pc;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc += 3;
+            break;
+          }
+          if (GET_OPCODE(ai) == OP_ADD && GET_OPCODE(mi) == OP_MMBIN &&
               GET_OPCODE(gi) == OP_GETI &&
               GETARG_A(ai) == a && GETARG_B(ai) == a &&
               GETARG_B(gi) == a && GETARG_C(gi) == 0 &&
