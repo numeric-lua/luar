@@ -724,6 +724,50 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (pc + 1 <= backedge) {
           Instruction nx = p->code[pc + 1];
+          if (GET_OPCODE(nx) == OP_SETFIELD && GETARG_A(nx) == a &&
+              GETARG_B(nx) < p->sizek &&
+              ttisstring(&p->k[GETARG_B(nx)]) &&
+              luar_ffi_trace_kind(&base[b]) == 3 &&
+              luar_ffi_trace_field2(&base[b], getstr(tsvalue(&p->k[c])),
+                                    getstr(tsvalue(&p->k[GETARG_B(nx)])),
+                                    &fk, &off, &fsize)) {
+            int isk = GETARG_k(nx);
+            int vc = GETARG_C(nx);
+            TValue *v = isk ? &p->k[vc] : &base[vc];
+            if (fk == 1 ? !ttisinteger(v) : !ttisfloat(v)) return 0;
+            if (!seen[b]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
+              in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[b] = 1;
+            }
+            if (isk) {
+              in.kind = LUAR_IR_CSETFIELDK; in.a = (uint8_t)b;
+              in.b = (uint8_t)fsize; in.c = (uint8_t)fk;
+              in.ival = (int64_t)off;
+              in.nval = fk == 1 ? (double)ivalue(v) : fltvalue(v);
+              in.pc = pc;
+              r = luar_trace_ir_emit(t, &in);
+              if (r) pc++;
+              break;
+            }
+            if (!seen[vc]) {
+              in.kind = LUAR_IR_GUARD; in.a = (uint8_t)vc;
+              in.b = (uint8_t)(fk == 2 ? LUAR_IR_TAG_FLOAT : LUAR_IR_TAG_INT);
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[vc] = 1;
+            }
+            in.kind = LUAR_IR_CSETFIELD; in.a = (uint8_t)b;
+            in.b = (uint8_t)vc; in.c = (uint8_t)fk;
+            in.ival = (int64_t)off;
+            in.nval = (double)fsize;
+            in.pc = pc;
+            r = luar_trace_ir_emit(t, &in);
+            if (r) pc++;
+            break;
+          }
           if (GET_OPCODE(nx) == OP_GETFIELD && GETARG_B(nx) == a &&
               GETARG_C(nx) < p->sizek &&
               ttisstring(&p->k[GETARG_C(nx)]) &&

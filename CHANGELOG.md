@@ -6,6 +6,15 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-11-19
+
+### Added
+
+- Two-level scalar struct-field writes folded into one `CSETFIELD`/
+  `CSETFIELDK`.
+- `tests/ffi/22_trace_cdata.lua` now covers `o.inner.x = i` and
+  `o.inner.y = 2.5`.
+
 ## [0.23.0] — 2026-11-19
 
 ### Added
