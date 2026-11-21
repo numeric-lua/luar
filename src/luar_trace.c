@@ -170,6 +170,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TSETKB:
+        if (!valid_slot(t, in->a)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetkb");
+          return 0;
+        }
+        break;
       case LUAR_IR_TSETKT:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetkt");
@@ -691,6 +697,19 @@ TValue *luar_trace_tsetkkf (TValue *tv, TString *key, uint64_t bits,
   t = (Table *)tv->value_.gc;
   setsvalue(L, &k, key);
   setfltvalue(&v, d);
+  luaH_set(L, t, &k, &v);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
+TValue *luar_trace_tsetkb (TValue *tv, TString *key, int b, lua_State *L) {
+  Table *t;
+  TValue k, v;
+  if (tv == NULL || !ttistable(tv) || key == NULL || L == NULL)
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  setsvalue(L, &k, key);
+  settt_(&v, b != 0 ? LUA_VTRUE : LUA_VFALSE);
   luaH_set(L, t, &k, &v);
   return (TValue *)(L->ci->func.p + 1);
 }
@@ -2742,6 +2761,19 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.b = (uint8_t)c;
           in.ival = (int64_t)(intptr_t)tsvalue(&p->k[b]);
           in.pc = pc;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (isk && ttisboolean(v)) {
+          if (!seen[a]) {
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
+            in.b = LUAR_IR_TAG_TABLE; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[a] = 1;
+          }
+          in.kind = LUAR_IR_TSETKB; in.a = (uint8_t)a;
+          in.ival = (int64_t)(intptr_t)tsvalue(&p->k[b]);
+          in.nval = ttistrue(v) ? 1.0 : 0.0; in.pc = pc;
           r = luar_trace_ir_emit(t, &in);
           break;
         }
