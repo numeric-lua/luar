@@ -72,6 +72,9 @@ struct Pair pair_make (int a, int b) {
   return p;
 }
 
+double int_double_sum (int a, double b) { return (double)a + b; }
+double double_ret (void) { return 2.5; }
+
 int pair_sum (struct Pair p) { return p.a + p.b; }
 
 struct Pair pair_add (struct Pair p, struct Pair q) {

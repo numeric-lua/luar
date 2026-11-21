@@ -581,6 +581,25 @@ int luar_ffi_trace_ccall0_kind (TValue *fn) {
 }
 
 
+int64_t luar_ffi_trace_ccall0_double (TValue *fn, TValue *out) {
+  Udata *u;
+  CData *cd;
+  int kind = 0;
+  int64_t iv = 0;
+  double dv = 0;
+  if (fn == NULL || out == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0)
+    return 0;
+  if (!ffi_trace_call0(cd, &kind, &iv, &dv) || kind != 2)
+    return 0;
+  setfltvalue(out, dv);
+  return 1;
+}
+
+
 int64_t luar_ffi_trace_ccall0_int (TValue *fn, TValue *out) {
   Udata *u;
   CData *cd;

@@ -3282,6 +3282,12 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawfloat = 1;
       continue;
     }
+    if (op->kind == LUAR_IR_CCALL0D) {
+      fslot = op->a;
+      sawfloat = 1;
+      sawtable = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_CCALL1DI ||
         op->kind == LUAR_IR_CCALL1DD ||
         op->kind == LUAR_IR_CCALL1FF ||
