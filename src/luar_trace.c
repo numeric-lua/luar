@@ -88,6 +88,14 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_ULOAD:
+        if (!valid_slot(t, in->a) || in->ival == 0 ||
+            in->nval < 0.0 || in->nval > 255.0 ||
+            (double)(int)in->nval != in->nval) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad uload");
+          return 0;
+        }
+        break;
       case LUAR_IR_GUARD:
         if (!valid_slot(t, in->a) ||
             in->b < LUAR_IR_TAG_INT || in->b > LUAR_IR_TAG_OTHER) {
@@ -365,6 +373,25 @@ int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
 }
 
 
+int64_t luar_trace_uload (lua_State *L, TValue *out, LClosure *expected,
+                          int idx) {
+  LClosure *cl;
+  UpVal *uv;
+  if (L == NULL || out == NULL || expected == NULL || idx < 0)
+    return 0;
+  if (L->ci == NULL || !ttisLclosure(s2v(L->ci->func.p)))
+    return 0;
+  cl = clLvalue(s2v(L->ci->func.p));
+  if (cl != expected || idx >= (int)cl->nupvalues)
+    return 0;
+  uv = cl->upvals[idx];
+  if (uv == NULL || uv->v.p == NULL)
+    return 0;
+  *out = *uv->v.p;
+  return 1;
+}
+
+
 int64_t luar_trace_tnew (lua_State *L, TValue *out, int asize, int hsize) {
   Table *t;
   if (L == NULL || out == NULL || asize < 0 || hsize < 0)
@@ -512,23 +539,23 @@ int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out) {
 
 
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
-                        LuaR_TraceIR *t, int partial, int *callpc,
-                        int suffix);
+                        lua_State *L, LuaR_TraceIR *t, int partial,
+                        int *callpc, int suffix);
 
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
-                            LuaR_TraceIR *t) {
-  return record_loop(p, start, backedge, base, t, 0, NULL, 0);
+                            lua_State *L, LuaR_TraceIR *t) {
+  return record_loop(p, start, backedge, base, L, t, 0, NULL, 0);
 }
 
 int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
-                                   TValue *base, LuaR_TraceIR *t,
-                                   int *callpc) {
-  return record_loop(p, start, backedge, base, t, 1, callpc, 0);
+                                   TValue *base, lua_State *L,
+                                   LuaR_TraceIR *t, int *callpc) {
+  return record_loop(p, start, backedge, base, L, t, 1, callpc, 0);
 }
 
 int luar_trace_record_suffix (Proto *p, int start, int backedge,
-                              TValue *base, LuaR_TraceIR *t) {
-  return record_loop(p, start, backedge, base, t, 0, NULL, 1);
+                              TValue *base, lua_State *L, LuaR_TraceIR *t) {
+  return record_loop(p, start, backedge, base, L, t, 0, NULL, 1);
 }
 
 
@@ -572,6 +599,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_SLOAD:
         kind[in->a] = kind[in->b];
+        break;
+      case LUAR_IR_ULOAD:
+        kind[in->a] = 0;
         break;
       case LUAR_IR_ADDI:
       case LUAR_IR_ADDK:
@@ -902,6 +932,7 @@ static int ir_call_args2_are_double (Proto *p, int pc, int arg1, int arg2,
 static int ir_writes_slot (uint8_t kind) {
   switch (kind) {
     case LUAR_IR_SLOAD:
+    case LUAR_IR_ULOAD:
     case LUAR_IR_SSTORE:
     case LUAR_IR_LOADI:
     case LUAR_IR_LOADF:
@@ -939,6 +970,21 @@ static int ir_writes_slot (uint8_t kind) {
     default:
       return 0;
   }
+}
+
+
+/* True when the latest IR writer of `slot` before the current end is an op
+** of `kind`.  Used to ensure a recorded ULOAD value is still the current
+** function-slot value at CALL time. */
+static int ir_latest_writer_is (const LuaR_TraceIR *t, int slot,
+                                uint8_t kind) {
+  int i;
+  for (i = t->nins - 1; i >= 0; i--) {
+    if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
+      continue;
+    return t->ins[i].kind == kind;
+  }
+  return 0;
 }
 
 
@@ -1033,12 +1079,36 @@ static int ir_call_args3_are_double (Proto *p, int pc, int arg1, int arg2,
 }
 
 
+static LClosure *ir_current_closure (lua_State *L) {
+  CallInfo *ci;
+  if (L == NULL || (ci = L->ci) == NULL)
+    return NULL;
+  if (!ttisLclosure(s2v(ci->func.p)))
+    return NULL;
+  return clLvalue(s2v(ci->func.p));
+}
+
+
+static int ir_is_cdata_function (TValue *v) {
+  return luar_ffi_trace_ccall0_kind(v) > 0 ||
+         luar_ffi_trace_ccall1_kind(v) > 0 ||
+         luar_ffi_trace_ccall1di_kind(v) > 0 ||
+         luar_ffi_trace_ccall1dd_kind(v) > 0 ||
+         luar_ffi_trace_ccall2dd_kind(v) > 0 ||
+         luar_ffi_trace_ccall2di_kind(v) > 0 ||
+         luar_ffi_trace_ccall2ii_kind(v) > 0 ||
+         luar_ffi_trace_ccall3dd_kind(v) > 0;
+}
+
+
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
-                        LuaR_TraceIR *t, int partial, int *callpc,
-                        int suffix) {
+                        lua_State *L, LuaR_TraceIR *t, int partial,
+                        int *callpc, int suffix) {
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
   int fn_src[LUAR_IR_MAX_SLOTS];
+  int known[LUAR_IR_MAX_SLOTS];
+  TValue known_fn[LUAR_IR_MAX_SLOTS];
   LuaR_IRIns in;
   LuaR_IRExitState ex;
   int sawloop = 0, partial_done = 0;
@@ -1047,6 +1117,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   luar_trace_ir_init(t, p, start, ns, 0);
   memset(seen, 0, sizeof(seen));
   memset(fn_src, -1, sizeof(fn_src));
+  memset(known, 0, sizeof(known));
+  memset(known_fn, 0, sizeof(known_fn));
   memset(&in, 0, sizeof(in));
   for (pc = start; pc <= backedge; pc++) {
     Instruction ins = p->code[pc];
@@ -1070,6 +1142,25 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       return 0;
     }
     switch (GET_OPCODE(ins)) {
+      case OP_GETUPVAL: {
+        LClosure *cl = ir_current_closure(L);
+        TValue uv;
+        int idx = b;
+        if (cl == NULL || idx < 0 || idx >= (int)cl->nupvalues ||
+            cl->upvals[idx] == NULL || cl->upvals[idx]->v.p == NULL)
+          return 0;
+        uv = *cl->upvals[idx]->v.p;
+        if (!ir_is_cdata_function(&uv))
+          return 0;
+        in.kind = LUAR_IR_ULOAD; in.a = (uint8_t)a;
+        in.ival = (int64_t)(intptr_t)cl;
+        in.nval = (double)idx;
+        in.pc = pc;
+        known_fn[a] = uv;
+        known[a] = 1;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      }
       case OP_MOVE:
         if (ttisLclosure(&base[b])) {
           fn_src[a] = b;
@@ -2375,8 +2466,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_CALL: {
         int mark = t->nins;
         int fs = fn_src[a] >= 0 ? fn_src[a] : a;
-        TValue *fv = &base[fs];
-        TValue *fn = &base[fs];
+        int use_known = known[a] &&
+                        ir_latest_writer_is(t, a, LUAR_IR_ULOAD);
+        TValue *fv = use_known ? &known_fn[a] : &base[fs];
+        TValue *fn = fv;
         int inline_ok = (c == 2 && (b == 2 || b == 3) &&
                          a + b - 1 < ns && ttisLclosure(fv) &&
                          ttisinteger(&base[a + 1]) &&

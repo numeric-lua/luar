@@ -24,6 +24,7 @@ typedef enum {
   LUAR_IR_KINT = 1,	/* value = signed integer constant */
   LUAR_IR_KFLOAT,	/* value = IEEE double constant */
   LUAR_IR_SLOAD,	/* a = destination slot, b = source slot */
+  LUAR_IR_ULOAD,	/* a = dest, ival = LClosure*, nval = upvalue index */
   LUAR_IR_SSTORE,	/* a = slot, b = source slot */
   LUAR_IR_LOADI,	/* a = destination slot, ival = constant */
   LUAR_IR_LOADF,	/* a = destination slot, nval = float constant */
@@ -129,10 +130,11 @@ int luar_trace_ir_restore (const LuaR_IRExitState *ex, TValue *base);
 
 int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen);
 int luar_trace_record_suffix (Proto *p, int start, int backedge,
-                              TValue *base, LuaR_TraceIR *t);
+                              TValue *base, lua_State *L,
+                              LuaR_TraceIR *t);
 int luar_trace_record_call_prefix (Proto *p, int start, int backedge,
-                                   TValue *base, LuaR_TraceIR *t,
-                                   int *callpc);
+                                   TValue *base, lua_State *L,
+                                   LuaR_TraceIR *t, int *callpc);
 int luar_ffi_trace_kind (TValue *tv);
 int64_t luar_ffi_trace_cget_int (TValue *cdv, TValue *kt, TValue *out);
 int64_t luar_ffi_trace_cget_double (TValue *cdv, TValue *kt, TValue *out);
@@ -207,6 +209,8 @@ int64_t luar_trace_fmulk (TValue *a, TValue *b, double k);
 int luar_trace_table_elem_tag (TValue *tv, lua_Integer key);
 int64_t luar_trace_tgetf_generic (TValue *tv, lua_Integer key, double *out);
 int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key, int64_t *out);
+int64_t luar_trace_uload (lua_State *L, TValue *out, LClosure *expected,
+                          int idx);
 int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val);
 int64_t luar_trace_tset_hash (TValue *tv, lua_Integer key, TValue *val);
 int64_t luar_trace_tnew (lua_State *L, TValue *out, int asize, int hsize);
@@ -221,7 +225,7 @@ int64_t luar_trace_tgetk (TValue *tv, TString *key, TValue *out);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);
 int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start);
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
-                            LuaR_TraceIR *t);
+                            lua_State *L, LuaR_TraceIR *t);
 int luar_trace_ir_selftest (void);
 
 #endif

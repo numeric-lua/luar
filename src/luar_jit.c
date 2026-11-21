@@ -2785,7 +2785,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
     int link;
     p->luar_ir_side_done = 1;
     if (expc < 0 || expc > pc ||
-        !luar_trace_record_loop(p, expc, pc, (TValue *)base, &ir))
+        !luar_trace_record_loop(p, expc, pc, (TValue *)base, L, &ir))
       return -1;
     {
       int floatized = p->luar_ir_float &&
@@ -2849,7 +2849,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
           (p->luar_side_block & (1ull << (startpc & 63))))
         break;
       if (p->luar_child_code[level] == NULL) {
-        if (!luar_trace_record_loop(p, startpc, pc, (TValue *)base, &cir))
+        if (!luar_trace_record_loop(p, startpc, pc, (TValue *)base, L, &cir))
           break;
         if (!luar_trace_ir_link(&cir, level + 1, p->luar_ir_start))
           break;
@@ -3138,7 +3138,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             LuaR_TraceIR ir;
             p->luar_ir_side_done = 1;
             if (expc >= 0 && expc <= pc &&
-                luar_trace_record_loop(p, expc, pc, (TValue *)base, &ir)) {
+                luar_trace_record_loop(p, expc, pc, (TValue *)base, L, &ir)) {
               int link = luar_trace_ir_link(&ir, 0,
                                             p->luar_code_start[i]);
               (void)luar_trace_ir_analyze(&ir, NULL, 0);
@@ -3473,10 +3473,10 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     LuaR_TraceIR ir;
     int callpc = -1, partial = 0;
     int recorded = luar_trace_record_loop(p, (int)target, (int)off,
-                                          (TValue *)base, &ir);
+                                          (TValue *)base, L, &ir);
     if (!recorded) {
       partial = luar_trace_record_call_prefix(p, (int)target, (int)off,
-                                              (TValue *)base, &ir, &callpc);
+                                              (TValue *)base, L, &ir, &callpc);
       recorded = partial;
     }
     if (recorded && ir_has_tnew(&ir) && !J->enable_alloc) {
@@ -3534,7 +3534,7 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
             p->luar_cont_code == NULL) {
           LuaR_TraceIR cir;
           if (luar_trace_record_suffix(p, callpc + 1, (int)off,
-                                       (TValue *)base, &cir)) {
+                                       (TValue *)base, L, &cir)) {
             int cintok = ir_integer_only(&cir);
             int cfltok = (!cintok && ir_floatify(p, (TValue *)base, &cir));
             if ((cintok || cfltok) && J->ncode < LUAR_JIT_MAXCODE &&

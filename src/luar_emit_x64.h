@@ -40,7 +40,7 @@
 #define DASM_MAXSECTION		1
 #line 27 "src/luar_emit_x64.dasc"
 //|.actionlist luar_emit_actions
-static const unsigned char luar_emit_actions[2617] = {
+static const unsigned char luar_emit_actions[2647] = {
   128,187,233,235,15,133,244,249,255,72,139,131,233,252,242,72,15,42,192,255,
   252,242,15,16,131,233,255,252,242,15,17,131,233,198,131,233,235,255,72,139,
   131,233,72,137,131,233,138,131,233,136,131,233,255,72,184,237,237,72,137,
@@ -126,48 +126,49 @@ static const unsigned char luar_emit_actions[2617] = {
   72,137,139,233,252,233,244,1,248,2,184,1,0,0,0,91,195,248,3,49,192,91,195,
   255,65,84,65,87,83,72,131,252,236,16,72,137,252,251,73,137,252,244,65,191,
   0,1,0,0,65,187,237,248,1,255,65,187,237,128,187,233,235,15,133,244,248,255,
-  72,141,187,233,72,141,179,233,72,141,147,233,72,184,237,237,252,255,208,65,
-  187,237,133,192,15,132,244,248,255,72,141,187,233,72,141,179,233,72,184,237,
-  237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,72,139,
-  179,233,72,141,147,233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,
-  244,248,255,72,141,187,233,252,242,15,16,131,233,72,141,179,233,72,184,237,
-  237,252,255,208,65,187,237,133,192,15,132,244,248,255,76,137,231,72,141,179,
-  233,186,237,185,237,72,184,237,237,252,255,208,65,187,237,133,192,15,132,
-  244,248,255,72,141,187,233,72,190,237,237,72,141,147,233,72,184,237,237,252,
-  255,208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,72,190,237,237,
-  72,141,147,233,76,137,225,72,184,237,237,252,255,208,65,187,237,72,133,192,
-  15,132,244,248,72,137,195,255,72,141,187,233,72,199,198,237,72,141,147,233,
-  72,184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,187,
-  233,72,199,198,237,72,141,147,233,76,137,225,72,184,237,237,252,255,208,65,
-  187,237,72,133,192,15,132,244,248,72,137,195,255,72,141,187,233,139,179,233,
-  139,147,233,72,141,139,233,72,184,237,237,252,255,208,65,187,237,133,192,
-  15,132,244,248,255,72,141,187,233,252,243,15,126,131,233,72,139,179,233,72,
+  76,137,231,72,141,179,233,72,186,237,237,185,237,72,184,237,237,252,255,208,
+  65,187,237,133,192,15,132,244,248,255,72,141,187,233,72,141,179,233,72,141,
+  147,233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,255,
+  72,141,187,233,72,141,179,233,72,184,237,237,252,255,208,65,187,237,133,192,
+  15,132,244,248,255,72,141,187,233,72,139,179,233,72,141,147,233,72,184,237,
+  237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,252,
+  242,15,16,131,233,72,141,179,233,72,184,237,237,252,255,208,65,187,237,133,
+  192,15,132,244,248,255,76,137,231,72,141,179,233,186,237,185,237,72,184,237,
+  237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,72,190,
+  237,237,72,141,147,233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,
+  244,248,255,72,141,187,233,72,190,237,237,72,141,147,233,76,137,225,72,184,
+  237,237,252,255,208,65,187,237,72,133,192,15,132,244,248,72,137,195,255,72,
+  141,187,233,72,199,198,237,72,141,147,233,72,184,237,237,252,255,208,65,187,
+  237,133,192,15,132,244,248,255,72,141,187,233,72,199,198,237,72,141,147,233,
+  76,137,225,72,184,237,237,252,255,208,65,187,237,72,133,192,15,132,244,248,
+  72,137,195,255,72,141,187,233,139,179,233,139,147,233,72,141,139,233,72,184,
+  237,237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,
+  252,243,15,126,131,233,72,139,179,233,72,141,147,233,72,184,237,237,252,255,
+  208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,252,242,15,16,131,
+  233,252,242,15,16,139,233,72,141,179,233,72,184,237,237,252,255,208,65,187,
+  237,133,192,15,132,244,248,255,72,141,187,233,252,242,15,16,131,233,252,242,
+  15,16,139,233,252,242,15,16,147,233,72,141,179,233,72,184,237,237,252,255,
+  208,65,187,237,133,192,15,132,244,248,255,72,141,187,233,72,139,179,233,72,
   141,147,233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,
-  255,72,141,187,233,252,242,15,16,131,233,252,242,15,16,139,233,72,141,179,
+  198,131,233,235,255,72,141,187,233,72,199,198,237,72,141,147,233,72,141,139,
   233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,
-  187,233,252,242,15,16,131,233,252,242,15,16,139,233,252,242,15,16,147,233,
-  72,141,179,233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,
-  255,72,141,187,233,72,139,179,233,72,141,147,233,72,184,237,237,252,255,208,
-  65,187,237,133,192,15,132,244,248,198,131,233,235,255,72,141,187,233,72,199,
-  198,237,72,141,147,233,72,141,139,233,72,184,237,237,252,255,208,65,187,237,
-  133,192,15,132,244,248,255,72,141,187,233,72,199,198,237,72,199,194,237,255,
-  72,199,193,237,255,72,141,187,233,72,199,198,237,72,199,194,237,72,141,139,
-  233,72,184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,255,72,141,
-  187,233,72,139,179,233,72,141,147,233,255,72,184,237,237,255,72,141,187,233,
-  72,139,179,233,72,141,147,233,76,137,225,72,184,237,237,252,255,208,65,187,
-  237,72,133,192,15,132,244,248,72,137,195,255,65,187,237,72,139,131,233,72,
-  185,237,237,72,57,200,15,133,244,254,255,72,141,187,233,72,141,179,233,72,
-  184,237,237,102,72,15,110,192,72,184,237,237,252,255,208,65,187,237,133,192,
-  15,132,244,248,255,65,187,237,252,233,244,254,255,72,139,131,233,72,133,192,
-  15,132,244,251,72,252,255,200,72,137,131,233,72,139,139,233,72,3,139,233,
-  72,137,139,233,49,192,72,131,196,16,91,65,95,65,92,195,248,5,184,1,0,0,0,
-  72,131,196,16,91,65,95,65,92,195,255,72,139,131,233,72,133,192,15,132,244,
-  249,72,252,255,200,72,137,131,233,72,139,139,233,72,3,139,233,72,137,139,
-  233,65,252,255,207,15,132,244,252,252,233,244,1,255,248,3,184,1,0,0,0,72,
-  131,196,16,91,65,95,65,92,195,248,2,255,68,137,216,252,247,216,131,232,2,
-  255,72,131,196,16,91,65,95,65,92,195,248,6,184,2,0,0,0,72,131,196,16,91,65,
-  95,65,92,195,248,8,68,137,216,252,247,216,131,232,2,72,131,196,16,91,65,95,
-  65,92,195,255
+  187,233,72,199,198,237,72,199,194,237,255,72,199,193,237,255,72,141,187,233,
+  72,199,198,237,72,199,194,237,72,141,139,233,72,184,237,237,252,255,208,65,
+  187,237,133,192,15,132,244,248,255,72,141,187,233,72,139,179,233,72,141,147,
+  233,255,72,184,237,237,255,72,141,187,233,72,139,179,233,72,141,147,233,76,
+  137,225,72,184,237,237,252,255,208,65,187,237,72,133,192,15,132,244,248,72,
+  137,195,255,65,187,237,72,139,131,233,72,185,237,237,72,57,200,15,133,244,
+  254,255,72,141,187,233,72,141,179,233,72,184,237,237,102,72,15,110,192,72,
+  184,237,237,252,255,208,65,187,237,133,192,15,132,244,248,255,65,187,237,
+  252,233,244,254,255,72,139,131,233,72,133,192,15,132,244,251,72,252,255,200,
+  72,137,131,233,72,139,139,233,72,3,139,233,72,137,139,233,49,192,72,131,196,
+  16,91,65,95,65,92,195,248,5,184,1,0,0,0,72,131,196,16,91,65,95,65,92,195,
+  255,72,139,131,233,72,133,192,15,132,244,249,72,252,255,200,72,137,131,233,
+  72,139,139,233,72,3,139,233,72,137,139,233,65,252,255,207,15,132,244,252,
+  252,233,244,1,255,248,3,184,1,0,0,0,72,131,196,16,91,65,95,65,92,195,248,
+  2,255,68,137,216,252,247,216,131,232,2,255,72,131,196,16,91,65,95,65,92,195,
+  248,6,184,2,0,0,0,72,131,196,16,91,65,95,65,92,195,248,8,68,137,216,252,247,
+  216,131,232,2,72,131,196,16,91,65,95,65,92,195,255
 };
 
 #line 28 "src/luar_emit_x64.dasc"
@@ -2147,31 +2148,44 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         dasm_put(Dst, 38, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->a)), ((int)LUAR_TAG(in->b)), ((int)LUAR_TAG(in->a)));
 #line 1509 "src/luar_emit_x64.dasc"
         break;
+      case LUAR_IR_ULOAD:
+        //| mov rdi, r12
+        //| lea rsi, [rbx + ((int)LUAR_SLOT(in->a))]
+        //| mov64 rdx, in->ival
+        //| mov ecx, ((int)in->nval)
+        //| mov64 rax, (int64_t)(intptr_t)&luar_trace_uload
+        //| call rax
+        //| mov r11d, ((int)in->pc)
+        //| test eax, eax
+        //| jz >2
+        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->a)), (unsigned int)(in->ival), (unsigned int)((in->ival)>>32), ((int)in->nval), (unsigned int)((int64_t)(intptr_t)&luar_trace_uload), (unsigned int)(((int64_t)(intptr_t)&luar_trace_uload)>>32), ((int)in->pc));
+#line 1520 "src/luar_emit_x64.dasc"
+        break;
       case LUAR_IR_ADD:
       case LUAR_IR_SUB:
       case LUAR_IR_MUL:
         //| mov rax, qword [rbx + ((int)LUAR_SLOT(in->b))]
         dasm_put(Dst, 185, ((int)LUAR_SLOT(in->b)));
-#line 1514 "src/luar_emit_x64.dasc"
+#line 1525 "src/luar_emit_x64.dasc"
         if (in->kind == LUAR_IR_ADD) {
           //| add rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
           dasm_put(Dst, 248, ((int)LUAR_SLOT(in->c)));
-#line 1516 "src/luar_emit_x64.dasc"
+#line 1527 "src/luar_emit_x64.dasc"
         }
         else if (in->kind == LUAR_IR_SUB) {
           //| sub rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
           dasm_put(Dst, 253, ((int)LUAR_SLOT(in->c)));
-#line 1519 "src/luar_emit_x64.dasc"
+#line 1530 "src/luar_emit_x64.dasc"
         }
         else {
           //| imul rax, qword [rbx + ((int)LUAR_SLOT(in->c))]
           dasm_put(Dst, 258, ((int)LUAR_SLOT(in->c)));
-#line 1522 "src/luar_emit_x64.dasc"
+#line 1533 "src/luar_emit_x64.dasc"
         }
         //| mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
         //| mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         dasm_put(Dst, 57, ((int)LUAR_SLOT(in->a)), ((int)LUAR_TAG(in->a)), LUA_VNUMINT);
-#line 1525 "src/luar_emit_x64.dasc"
+#line 1536 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CGETF:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2182,8 +2196,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cget_double), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cget_double)>>32), ((int)in->pc));
-#line 1535 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1813, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cget_double), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cget_double)>>32), ((int)in->pc));
+#line 1546 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CPSETI:
       case LUAR_IR_CPSETF:
@@ -2195,8 +2209,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1812, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall0_int), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall0_int)>>32), ((int)in->pc));
-#line 1546 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1842, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall0_int), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall0_int)>>32), ((int)in->pc));
+#line 1557 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CCALL1DI:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2207,8 +2221,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1837, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall1di), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall1di)>>32), ((int)in->pc));
-#line 1556 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1867, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall1di), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall1di)>>32), ((int)in->pc));
+#line 1567 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CCALL1DD:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2219,8 +2233,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1866, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall1dd), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall1dd)>>32), ((int)in->pc));
-#line 1566 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1896, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall1dd), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall1dd)>>32), ((int)in->pc));
+#line 1577 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TNEW:
         //| mov rdi, r12
@@ -2232,8 +2246,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1897, ((int)LUAR_SLOT(in->a)), ((int)in->ival), ((int)in->nval), (unsigned int)((int64_t)(intptr_t)&luar_trace_tnew), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tnew)>>32), ((int)in->pc));
-#line 1577 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1927, ((int)LUAR_SLOT(in->a)), ((int)in->ival), ((int)in->nval), (unsigned int)((int64_t)(intptr_t)&luar_trace_tnew), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tnew)>>32), ((int)in->pc));
+#line 1588 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TGETK:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2244,8 +2258,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1925, ((int)LUAR_SLOT(in->b)), (unsigned int)(in->ival), (unsigned int)((in->ival)>>32), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tgetk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tgetk)>>32), ((int)in->pc));
-#line 1587 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1955, ((int)LUAR_SLOT(in->b)), (unsigned int)(in->ival), (unsigned int)((in->ival)>>32), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tgetk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tgetk)>>32), ((int)in->pc));
+#line 1598 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TSETK:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
@@ -2258,8 +2272,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| test rax, rax
         //| jz >2
         //| mov rbx, rax
-        dasm_put(Dst, 1954, ((int)LUAR_SLOT(in->a)), (unsigned int)(in->ival), (unsigned int)((in->ival)>>32), ((int)LUAR_SLOT(in->b)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tsetk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tsetk)>>32), ((int)in->pc));
-#line 1599 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1984, ((int)LUAR_SLOT(in->a)), (unsigned int)(in->ival), (unsigned int)((in->ival)>>32), ((int)LUAR_SLOT(in->b)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tsetk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tsetk)>>32), ((int)in->pc));
+#line 1610 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TGETI:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2270,8 +2284,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1990, ((int)LUAR_SLOT(in->b)), in->ival, ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tgeti), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tgeti)>>32), ((int)in->pc));
-#line 1609 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2020, ((int)LUAR_SLOT(in->b)), in->ival, ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tgeti), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tgeti)>>32), ((int)in->pc));
+#line 1620 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TSETI:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
@@ -2284,8 +2298,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| test rax, rax
         //| jz >2
         //| mov rbx, rax
-        dasm_put(Dst, 2019, ((int)LUAR_SLOT(in->a)), in->ival, ((int)LUAR_SLOT(in->b)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tseti), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tseti)>>32), ((int)in->pc));
-#line 1621 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2049, ((int)LUAR_SLOT(in->a)), in->ival, ((int)LUAR_SLOT(in->b)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tseti), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tseti)>>32), ((int)in->pc));
+#line 1632 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CCALL2II:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2297,8 +2311,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2055, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT((int)in->ival)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall2ii), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall2ii)>>32), ((int)in->pc));
-#line 1632 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2085, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT((int)in->ival)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall2ii), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall2ii)>>32), ((int)in->pc));
+#line 1643 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CCALL2DI:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2310,8 +2324,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2086, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT((int)in->ival)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall2di), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall2di)>>32), ((int)in->pc));
-#line 1643 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2116, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT((int)in->ival)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall2di), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall2di)>>32), ((int)in->pc));
+#line 1654 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CCALL2DD:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2323,8 +2337,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2121, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->ival)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall2dd), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall2dd)>>32), ((int)in->pc));
-#line 1654 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2151, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->ival)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall2dd), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall2dd)>>32), ((int)in->pc));
+#line 1665 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CCALL3DD: {
         int a2 = (int)(in->ival & 0xff);
@@ -2339,8 +2353,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2158, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(a2)), ((int)LUAR_SLOT(a3)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall3dd), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall3dd)>>32), ((int)in->pc));
-#line 1668 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2188, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(a2)), ((int)LUAR_SLOT(a3)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall3dd), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall3dd)>>32), ((int)in->pc));
+#line 1679 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CCALL1I:
@@ -2353,8 +2367,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| test eax, eax
         //| jz >2
         //| mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
-        dasm_put(Dst, 2201, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall1i), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall1i)>>32), ((int)in->pc), ((int)LUAR_TAG(in->a)), LUA_VNUMINT);
-#line 1680 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2231, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_ccall1i), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_ccall1i)>>32), ((int)in->pc), ((int)LUAR_TAG(in->a)), LUA_VNUMINT);
+#line 1691 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CPSETI64: {
         const void *setfn = (in->kind == LUAR_IR_CPSETF) ?
@@ -2371,8 +2385,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2234, ((int)LUAR_SLOT(in->a)), ((int64_t)in->ival), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)setfn), (unsigned int)(((int64_t)(intptr_t)setfn)>>32), ((int)in->pc));
-#line 1696 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2264, ((int)LUAR_SLOT(in->a)), ((int64_t)in->ival), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)setfn), (unsigned int)(((int64_t)(intptr_t)setfn)>>32), ((int)in->pc));
+#line 1707 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CPGETI:
@@ -2392,8 +2406,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2234, ((int)LUAR_SLOT(in->b)), ((int64_t)in->ival), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)getfn), (unsigned int)(((int64_t)(intptr_t)getfn)>>32), ((int)in->pc));
-#line 1715 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2264, ((int)LUAR_SLOT(in->b)), ((int64_t)in->ival), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)getfn), (unsigned int)(((int64_t)(intptr_t)getfn)>>32), ((int)in->pc));
+#line 1726 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CSETFIELDK: {
@@ -2406,26 +2420,26 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         //| mov rsi, ((int64_t)in->ival)
         //| mov rdx, ((int64_t)in->b)
-        dasm_put(Dst, 2267, ((int)LUAR_SLOT(in->a)), ((int64_t)in->ival), ((int64_t)in->b));
-#line 1727 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2297, ((int)LUAR_SLOT(in->a)), ((int64_t)in->ival), ((int64_t)in->b));
+#line 1738 "src/luar_emit_x64.dasc"
         if (isf) {
           //| mov64 rax, bits
           //| movq xmm0, rax
           dasm_put(Dst, 89, (unsigned int)(bits), (unsigned int)((bits)>>32));
-#line 1730 "src/luar_emit_x64.dasc"
+#line 1741 "src/luar_emit_x64.dasc"
         }
         else {
           //| mov rcx, ((int64_t)in->nval)
-          dasm_put(Dst, 2280, ((int64_t)in->nval));
-#line 1733 "src/luar_emit_x64.dasc"
+          dasm_put(Dst, 2310, ((int64_t)in->nval));
+#line 1744 "src/luar_emit_x64.dasc"
         }
         //| mov64 rax, (int64_t)(intptr_t)cfn
         //| call rax
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1795, (unsigned int)((int64_t)(intptr_t)cfn), (unsigned int)(((int64_t)(intptr_t)cfn)>>32), ((int)in->pc));
-#line 1739 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1796, (unsigned int)((int64_t)(intptr_t)cfn), (unsigned int)(((int64_t)(intptr_t)cfn)>>32), ((int)in->pc));
+#line 1750 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CSETFIELD: {
@@ -2441,8 +2455,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2285, ((int)LUAR_SLOT(in->a)), ((int64_t)in->ival), ((int64_t)in->nval), ((int)LUAR_SLOT(in->b)), (unsigned int)((int64_t)(intptr_t)setfn), (unsigned int)(((int64_t)(intptr_t)setfn)>>32), ((int)in->pc));
-#line 1754 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2315, ((int)LUAR_SLOT(in->a)), ((int64_t)in->ival), ((int64_t)in->nval), ((int)LUAR_SLOT(in->b)), (unsigned int)((int64_t)(intptr_t)setfn), (unsigned int)(((int64_t)(intptr_t)setfn)>>32), ((int)in->pc));
+#line 1765 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CGETFIELD: {
@@ -2458,8 +2472,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2285, ((int)LUAR_SLOT(in->b)), ((int64_t)in->ival), ((int64_t)in->nval), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)getfn), (unsigned int)(((int64_t)(intptr_t)getfn)>>32), ((int)in->pc));
-#line 1769 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2315, ((int)LUAR_SLOT(in->b)), ((int64_t)in->ival), ((int64_t)in->nval), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)getfn), (unsigned int)(((int64_t)(intptr_t)getfn)>>32), ((int)in->pc));
+#line 1780 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CSETF:
@@ -2471,8 +2485,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cset_double), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cset_double)>>32), ((int)in->pc));
-#line 1780 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1813, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cset_double), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cset_double)>>32), ((int)in->pc));
+#line 1791 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CSETI:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
@@ -2483,8 +2497,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cset_int), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cset_int)>>32), ((int)in->pc));
-#line 1790 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1813, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cset_int), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cset_int)>>32), ((int)in->pc));
+#line 1801 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CGETI:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2495,32 +2509,32 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cget_int), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cget_int)>>32), ((int)in->pc));
-#line 1800 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1813, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_ffi_trace_cget_int), (unsigned int)(((int64_t)(intptr_t)&luar_ffi_trace_cget_int)>>32), ((int)in->pc));
+#line 1811 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TGET:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
         //| mov rsi, qword [rbx + ((int)LUAR_SLOT(in->c))]
         //| lea rdx, [rbx + ((int)LUAR_SLOT(in->a))]
-        dasm_put(Dst, 2318, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)));
-#line 1805 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2348, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)));
+#line 1816 "src/luar_emit_x64.dasc"
         if (side) {
           //| mov64 rax, (int64_t)(intptr_t)&luar_trace_tget_generic
-          dasm_put(Dst, 2331, (unsigned int)((int64_t)(intptr_t)&luar_trace_tget_generic), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tget_generic)>>32));
-#line 1807 "src/luar_emit_x64.dasc"
+          dasm_put(Dst, 2361, (unsigned int)((int64_t)(intptr_t)&luar_trace_tget_generic), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tget_generic)>>32));
+#line 1818 "src/luar_emit_x64.dasc"
         }
         else {
           //| mov64 rax, (int64_t)(intptr_t)&luar_trace_tget_int
-          dasm_put(Dst, 2331, (unsigned int)((int64_t)(intptr_t)&luar_trace_tget_int), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tget_int)>>32));
-#line 1810 "src/luar_emit_x64.dasc"
+          dasm_put(Dst, 2361, (unsigned int)((int64_t)(intptr_t)&luar_trace_tget_int), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tget_int)>>32));
+#line 1821 "src/luar_emit_x64.dasc"
         }
         //| call rax
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
         //| mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
-        dasm_put(Dst, 2217, ((int)in->pc), ((int)LUAR_TAG(in->a)), LUA_VNUMINT);
-#line 1816 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2247, ((int)in->pc), ((int)LUAR_TAG(in->a)), LUA_VNUMINT);
+#line 1827 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TSET: {
         const void *tsetfn = (const void *)&luar_trace_tset_insert;
@@ -2534,8 +2548,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| test rax, rax
         //| jz >2
         //| mov rbx, rax
-        dasm_put(Dst, 2336, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)tsetfn), (unsigned int)(((int64_t)(intptr_t)tsetfn)>>32), ((int)in->pc));
-#line 1829 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2366, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)tsetfn), (unsigned int)(((int64_t)(intptr_t)tsetfn)>>32), ((int)in->pc));
+#line 1840 "src/luar_emit_x64.dasc"
         /* GC may have relocated the stack. */
         break;
       }
@@ -2544,26 +2558,26 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
       case LUAR_IR_MULK:
         //| mov rax, qword [rbx + ((int)LUAR_SLOT(in->b))]
         dasm_put(Dst, 185, ((int)LUAR_SLOT(in->b)));
-#line 1836 "src/luar_emit_x64.dasc"
+#line 1847 "src/luar_emit_x64.dasc"
         if (in->kind == LUAR_IR_ADDK) {
           //| add rax, in->ival
           dasm_put(Dst, 190, in->ival);
-#line 1838 "src/luar_emit_x64.dasc"
+#line 1849 "src/luar_emit_x64.dasc"
         }
         else if (in->kind == LUAR_IR_SUBK) {
           //| sub rax, in->ival
           dasm_put(Dst, 195, in->ival);
-#line 1841 "src/luar_emit_x64.dasc"
+#line 1852 "src/luar_emit_x64.dasc"
         }
         else {
           //| imul rax, in->ival
           dasm_put(Dst, 200, in->ival);
-#line 1844 "src/luar_emit_x64.dasc"
+#line 1855 "src/luar_emit_x64.dasc"
         }
         //| mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
         //| mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         dasm_put(Dst, 57, ((int)LUAR_SLOT(in->a)), ((int)LUAR_TAG(in->a)), LUA_VNUMINT);
-#line 1847 "src/luar_emit_x64.dasc"
+#line 1858 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CGUARD:
         //| mov r11d, ((int)in->pc)
@@ -2571,8 +2585,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov64 rcx, (int64_t)(in->ival)
         //| cmp rax, rcx
         //| jne >8
-        dasm_put(Dst, 2372, ((int)in->pc), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(in->ival)), (unsigned int)(((int64_t)(in->ival))>>32));
-#line 1854 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2402, ((int)in->pc), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(in->ival)), (unsigned int)(((int64_t)(in->ival))>>32));
+#line 1865 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_TGETF:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
@@ -2584,8 +2598,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| test eax, eax
         //| jz >2
         //| mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMFLT
-        dasm_put(Dst, 2201, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tgetf_generic), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tgetf_generic)>>32), ((int)in->pc), ((int)LUAR_TAG(in->a)), LUA_VNUMFLT);
-#line 1865 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2231, ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), ((int)LUAR_SLOT(in->a)), (unsigned int)((int64_t)(intptr_t)&luar_trace_tgetf_generic), (unsigned int)(((int64_t)(intptr_t)&luar_trace_tgetf_generic)>>32), ((int)in->pc), ((int)LUAR_TAG(in->a)), LUA_VNUMFLT);
+#line 1876 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_FMULK: {
         int64_t bits;
@@ -2599,8 +2613,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2391, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), (unsigned int)(bits), (unsigned int)((bits)>>32), (unsigned int)((int64_t)(intptr_t)&luar_trace_fmulk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fmulk)>>32), ((int)in->pc));
-#line 1878 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2421, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), (unsigned int)(bits), (unsigned int)((bits)>>32), (unsigned int)((int64_t)(intptr_t)&luar_trace_fmulk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fmulk)>>32), ((int)in->pc));
+#line 1889 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_FADD:
@@ -2612,8 +2626,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_trace_fadd), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fadd)>>32), ((int)in->pc));
-#line 1889 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1813, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_trace_fadd), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fadd)>>32), ((int)in->pc));
+#line 1900 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_FSUB:
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
@@ -2624,8 +2638,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 1783, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_trace_fsub), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fsub)>>32), ((int)in->pc));
-#line 1899 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 1813, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), ((int)LUAR_SLOT(in->c)), (unsigned int)((int64_t)(intptr_t)&luar_trace_fsub), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fsub)>>32), ((int)in->pc));
+#line 1910 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_FDIVK: {
         int64_t bits;
@@ -2639,15 +2653,15 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| mov r11d, ((int)in->pc)
         //| test eax, eax
         //| jz >2
-        dasm_put(Dst, 2391, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), (unsigned int)(bits), (unsigned int)((bits)>>32), (unsigned int)((int64_t)(intptr_t)&luar_trace_fdivk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fdivk)>>32), ((int)in->pc));
-#line 1912 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2421, ((int)LUAR_SLOT(in->a)), ((int)LUAR_SLOT(in->b)), (unsigned int)(bits), (unsigned int)((bits)>>32), (unsigned int)((int64_t)(intptr_t)&luar_trace_fdivk), (unsigned int)(((int64_t)(intptr_t)&luar_trace_fdivk)>>32), ((int)in->pc));
+#line 1923 "src/luar_emit_x64.dasc"
         break;
       }
       case LUAR_IR_CALLEXIT:
         //| mov r11d, ((int)in->pc)
         //| jmp >8
-        dasm_put(Dst, 2425, ((int)in->pc));
-#line 1917 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2455, ((int)in->pc));
+#line 1928 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_FORLOOP:
         if (forslot >= 0)
@@ -2675,8 +2689,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
           //| pop r15
           //| pop r12
           //| ret
-          dasm_put(Dst, 2433, ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot + 2)), ((int)LUAR_SLOT(forslot + 1)), ((int)LUAR_SLOT(forslot + 2)));
-#line 1944 "src/luar_emit_x64.dasc"
+          dasm_put(Dst, 2463, ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot + 2)), ((int)LUAR_SLOT(forslot + 1)), ((int)LUAR_SLOT(forslot + 2)));
+#line 1955 "src/luar_emit_x64.dasc"
           break;
         }
         //| mov rax, qword [rbx + ((int)LUAR_SLOT(forslot))]
@@ -2690,8 +2704,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         //| dec r15d
         //| jz >6
         //| jmp <1
-        dasm_put(Dst, 2494, ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot + 2)), ((int)LUAR_SLOT(forslot + 1)), ((int)LUAR_SLOT(forslot + 2)));
-#line 1957 "src/luar_emit_x64.dasc"
+        dasm_put(Dst, 2524, ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot)), ((int)LUAR_SLOT(forslot + 2)), ((int)LUAR_SLOT(forslot + 1)), ((int)LUAR_SLOT(forslot + 2)));
+#line 1968 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_EXIT:
       case LUAR_IR_RET:
@@ -2708,21 +2722,21 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   //| pop r12
   //| ret
   //|2:
-  dasm_put(Dst, 2538);
-#line 1973 "src/luar_emit_x64.dasc"
+  dasm_put(Dst, 2568);
+#line 1984 "src/luar_emit_x64.dasc"
   if (side) {
     //| mov eax, r11d
     //| neg eax
     //| sub eax, 2
-    dasm_put(Dst, 2558);
-#line 1977 "src/luar_emit_x64.dasc"
+    dasm_put(Dst, 2588);
+#line 1988 "src/luar_emit_x64.dasc"
   }
   else {
     //| mov eax, r11d
     //| neg eax
     //| sub eax, 2
-    dasm_put(Dst, 2558);
-#line 1982 "src/luar_emit_x64.dasc"
+    dasm_put(Dst, 2588);
+#line 1993 "src/luar_emit_x64.dasc"
   }
   //| add rsp, 16
   //| pop rbx
@@ -2745,8 +2759,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
   //| pop r15
   //| pop r12
   //| ret
-  dasm_put(Dst, 2568);
-#line 2004 "src/luar_emit_x64.dasc"
+  dasm_put(Dst, 2598);
+#line 2015 "src/luar_emit_x64.dasc"
   return 1;
 }
 

@@ -13,6 +13,12 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.68.0 update.**  `GETUPVAL` is now traceable through `LUAR_IR_ULOAD`,
+which carries the expected `LClosure` pointer and upvalue index.  The
+runtime helper verifies the current closure identity before copying the
+upvalue, so a trace cannot read another closure's upvalue.  This closes the
+top-level `local abs = ffi.C.abs` native-call gap.
+
 **0.67.0 update.**  Constant-string table fields are traceable:
 `GETFIELD`/`SETFIELD` lower to `TGETK`/`TSETK` with the interned `TString`
 pointer from the Proto constant table.  Reads use `luaH_getstr`; writes use
