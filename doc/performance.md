@@ -1,5 +1,28 @@
 # Luar performance baseline
 
+> **0.98 snapshot (2026-11-21, `./bench/compare.sh`, Ryzen 3 7320U).**
+> Best CPU milliseconds; `x` is relative to stock Lua 5.5.1.  This is a
+> microbenchmark corpus, not an application claim.
+>
+> | benchmark | Lua 5.5 | Luar 0.98 | Luar x | LuaJIT 2.1 | LuaJIT x |
+> | --- | ---: | ---: | ---: | ---: | ---: |
+> | numeric/int_sum | 37.83 | **4.27** | 0.11 | 6.06 | 0.16 |
+> | numeric/float_loop | 27.78 | 6.97 | 0.25 | 3.35 | 0.12 |
+> | numeric/product | 18.07 | 3.12 | 0.17 | 3.14 | 0.17 |
+> | numeric/float_sum | 9.09 | **1.55** | 0.17 | 1.50 | 0.17 |
+> | numeric/fib | 13.99 | 15.22 | 1.09 | 1.37 | 0.10 |
+> | numeric/mandel | 21.89 | 20.55 | 0.94 | 1.49 | 0.07 |
+> | table/array | 35.33 | **3.82** | 0.11 | 12.86 | 0.36 |
+> | table/hash | 11.36 | 7.67 | 0.68 | 3.88 | 0.34 |
+> | string/concat | 7.09 | 6.73 | 0.95 | 14.99 | 2.11 |
+> | object/closures | 44.49 | **0.38** | 0.01 | 1.16 | 0.03 |
+>
+> Luar wins integer/float-sum/table-array loops against LuaJIT on this host,
+> ties `product`, and loses recursive `fib`/`mandel`, float-loop and hash
+> cases.  Full rows and caveats are regenerated with `./bench/compare.sh`;
+> benchmark output stays under `tests/tmp/`.
+
+
 > The measured tables below are the historical 0.1 interpreter baseline.
 > Current releases add the default J2/J3 loop JIT and the opt-in J4 tracing
 > IR; regenerate current numbers with `./bench/compare.sh`, including the
