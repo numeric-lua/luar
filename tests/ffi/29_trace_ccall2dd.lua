@@ -1,12 +1,12 @@
--- tests/ffi/31_trace_ccall2dd.lua -- two-double-argument C calls in J4.
+-- tests/ffi/29_trace_ccall2dd.lua -- two-double-argument C calls in J4.
 local ok, ffi = pcall(require, "ffi")
 if not ok then
-  print("ffi/31_trace_ccall2dd: skipped (FFI unavailable)")
+  print("ffi/29_trace_ccall2dd: skipped (FFI unavailable)")
   return
 end
 local H = dofile("tests/helpers.lua")
 if jit.status() ~= true then
-  print("ffi/31_trace_ccall2dd: skipped (no native target)")
+  print("ffi/29_trace_ccall2dd: skipped (no native target)")
   return
 end
 
@@ -85,4 +85,4 @@ H.eq(jit.stats().ir_call_exits, call_exits,
 jit.flush()
 jit.opt.start("ir=0")
 jit.on()
-print("ffi/31_trace_ccall2dd ok")
+print("ffi/29_trace_ccall2dd ok")
