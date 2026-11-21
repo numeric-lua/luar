@@ -13,6 +13,11 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.66.0 update.**  Constant-index table access is traceable:
+`GETI`/`SETI` lower to `TGETI`/`TSETI`; reads use the array part with a
+`luaH_getint` fallback and never allocate, writes reuse the relocation-safe
+insert helper.
+
 **0.65.0 update.**  Sized `NEWTABLE` and `SETLIST` are traceable:
 array literals such as `{i}` allocate through `TNEW` (array/hash hints in
 `ival`/`nval`), then write through `TSETI`; the table is published to its
