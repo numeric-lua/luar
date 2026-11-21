@@ -2756,6 +2756,19 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 
 
 LUAR_NO_SANITIZE_FUNCTION
+static int luari_run_j4 (Proto *p, void *code, void *base, lua_State *L) {
+  StkId oldtop = L->top.p;
+  StackValue *want = (StackValue *)base + p->maxstacksize;
+  int r;
+  if (want > oldtop && want <= L->stack_last.p)
+    L->top.p = want;   /* root every frame slot while native helpers may GC */
+  r = ((LuaR_LoopFn)code)(base, L);
+  L->top.p = oldtop;
+  return r;
+}
+
+
+LUAR_NO_SANITIZE_FUNCTION
 static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua_State *L) {
   int sr, lastpc = expc;
   if (p->luar_side_code == NULL && !p->luar_ir_side_done) {
@@ -2807,7 +2820,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
   if (p->luar_side_code == NULL || p->luar_side_epoch != J->epoch ||
       p->luar_side_pc != pc || p->luar_side_start != expc)
     return -1;
-  sr = ((LuaR_LoopFn)p->luar_side_code)(base, L);
+  sr = luari_run_j4(p, p->luar_side_code, base, L);
   if (sr >= 0) {
     J->ir_side_executed++;
     return sr;
@@ -2855,7 +2868,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
           p->luar_child_pc[level] != pc ||
           p->luar_child_start[level] != startpc)
         break;
-      csr = ((LuaR_LoopFn)p->luar_child_code[level])(base, L);
+      csr = luari_run_j4(p, p->luar_child_code[level], base, L);
       if (csr == 2) {
         J->ir_yields++;
         return 0;
@@ -2892,7 +2905,7 @@ int luari_jit_continue (lua_State *L, Proto *p, int pc, void *base) {
       p->luar_cont_epoch != J->epoch ||
       p->luar_cont_call_pc < 0 || pc != p->luar_cont_call_pc + 1)
     return 0;
-  r = ((LuaR_LoopFn)p->luar_cont_code)(base, L);
+  r = luari_run_j4(p, p->luar_cont_code, base, L);
   if (r > 0) {
     J->ir_cont_runs++;
     return p->luar_cont_backedge + 1;
@@ -2922,7 +2935,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       p->luar_ir_call_pc = -1;
     }
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
-      int irr = ((LuaR_LoopFn)p->luar_ir_code)(base, L);
+      int irr = luari_run_j4(p, p->luar_ir_code, base, L);
       if (irr == 2) {
         J->ir_yields++;
         return 0;
@@ -3104,7 +3117,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           return 0;
       }
       any = 1;
-      r = ((LuaR_LoopFn)p->luar_code[i])(base, L);
+      r = luari_run_j4(p, p->luar_code[i], base, L);
       if (r != 0) {
         if (r < -1) {
           int expc = -r - 2;
@@ -3161,7 +3174,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             int ns = p->maxstacksize;
             if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
             if (luar_trace_ir_snapshot(&snap, expc, (TValue *)base, ns)) {
-              int sr = ((LuaR_LoopFn)p->luar_side_code)(base, L);
+              int sr = luari_run_j4(p, p->luar_side_code, base, L);
               if (sr >= 0) {
                 J->ir_side_executed++;
                 return sr;
