@@ -206,7 +206,7 @@ int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val);
 int64_t luar_trace_tset_hash (TValue *tv, lua_Integer key, TValue *val);
 int64_t luar_trace_tnew (lua_State *L, TValue *out);
-int64_t luar_trace_tset_insert (TValue *tv, lua_Integer key, TValue *val,
+TValue *luar_trace_tset_insert (TValue *tv, lua_Integer key, TValue *val,
                                 lua_State *L);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);
 int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start);

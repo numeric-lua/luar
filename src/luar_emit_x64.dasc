@@ -1777,8 +1777,10 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | mov64 rax, (int64_t)(intptr_t)tsetfn
         | call rax
         | mov r11d, ((int)in->pc)
-        | test eax, eax
+        | test rax, rax
         | jz >2
+        | mov rbx, rax
+        /* GC may have relocated the stack. */
         break;
       }
       case LUAR_IR_ADDK:

@@ -13,6 +13,13 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.63.0 update.**  `luar_trace_tset_insert` now copies the value before
+calling `luaH_setint` and returns the (possibly relocated) frame base to the
+emitter, which reloads `rbx`.  A hash/array growth that steps the GC can
+therefore move the Lua stack without leaving the trace using a stale base.
+The helper still allocates, so a general allocation safepoint remains
+future work.
+
 **0.62.0 update.**  The first allocation opcode is implemented:
 `LUAR_IR_TNEW` allocates one empty table behind `jit.opt.start("alloc=1")`.
 It uses `luaH_new` without `luaC_checkGC`, publishes the table to its stack
