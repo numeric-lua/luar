@@ -572,3 +572,35 @@ that dereferences a NULL pointer, and freeing memory through `ffi.C.free`
 while another cdata still points into it.  Variadic arguments are likewise
 unchecked: passing a value whose promoted type does not match the callee's
 `va_arg` type or format specifier is undefined behavior.
+
+## J4 native C-call matrix
+
+J4 can execute these C calls without creating a Lua CALL frame; every form
+is behind `jit.opt.start("ir=1")` and still has interpreter fallbacks.
+
+| Signature | IR op | Example |
+| --- | --- | --- |
+| `int(void)` | `CCALL0I` | `getpid()` |
+| `int(int)` | `CCALL1I` | `abs(i)` |
+| `double(int)` | `CCALL1DI` | `sqrt(i)` |
+| `double(double)` | `CCALL1DD` | `fabs(x)`, `fabs(a[i])` |
+| `float(float)` | `CCALL1FF` | `sqrtf(x)` |
+| `int(int,int)` | `CCALL2II` | `kill(pid, 0)` |
+| `double(double,double)` | `CCALL2DD` | `fmin(x, y)` |
+| `double(double,int)` | `CCALL2DI` | `ldexp(x, e)` |
+| `double(double,double,double)` | `CCALL3DD` | `fma(x, y, z)` |
+| `float(float,float)` | `CCALL2FF` | `hypotf(x, y)` |
+
+Recorded arguments come from `MOVE`, `LOADK`/`LOADF`, supported float
+arithmetic, and direct cdata reads (`CGETF`/`CPGETF`/float field reads).
+Runtime guards check function identity and argument tags. Callback cdata is
+always rejected.
+
+Known J4 boundaries:
+
+- `float(float)` accepts MOVE/LOADF/arithmetic arguments, but a direct
+  cdata-array read used as a float32 argument can still fail installation.
+- `B == 0` multret calls, varargs, aggregate arguments/returns, and general
+  `ffi.new` calls remain interpreter-side.
+- A C function loaded via `GETUPVAL` traces only through the guarded
+  `ULOAD` closure-identity path.
