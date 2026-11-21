@@ -193,6 +193,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CONCAT3:
+        if (in->a + 2 >= t->maxslots) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad concat3");
+          return 0;
+        }
+        break;
       case LUAR_IR_CONCAT2:
         if (in->a + 1 >= t->maxslots) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad concat2");
@@ -457,6 +463,49 @@ int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out) {
   if (!ttisfloat(&v))
     return 0;
   setfltvalue(out, fltvalue(&v));
+  return 1;
+}
+
+
+static int concat_part (TValue *v, const char **p, char *buf, size_t *len) {
+  if (ttisstring(v)) {
+    *p = getstr(tsvalue(v));
+    *len = tsslen(tsvalue(v));
+    return 1;
+  }
+  if (ttisnumber(v)) {
+    *len = luaO_tostringbuff(v, buf);
+    *p = buf;
+    return 1;
+  }
+  return 0;
+}
+
+
+int64_t luar_trace_concat3 (TValue *base, int a, lua_State *L) {
+  const char *p[3];
+  char nb[3][LUA_N2SBUFFSZ];
+  size_t l[3], len, off;
+  char *buf;
+  TString *r;
+  int i;
+  if (base == NULL || L == NULL || a < 0)
+    return 0;
+  for (i = 0; i < 3; i++)
+    if (!concat_part(&base[a + i], &p[i], nb[i], &l[i]))
+      return 0;
+  len = l[0] + l[1] + l[2];
+  buf = (char *)malloc(len > 0 ? len : 1);
+  if (buf == NULL)
+    return 0;
+  off = 0;
+  for (i = 0; i < 3; i++) {
+    memcpy(buf + off, p[i], l[i]);
+    off += l[i];
+  }
+  r = luaS_newlstr(L, buf, len);
+  free(buf);
+  setsvalue(L, &base[a], r);
   return 1;
 }
 
@@ -2731,9 +2780,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         r = 1;
         break;
       case OP_CONCAT: {
-        if (GETARG_B(ins) != 2 || a + 1 >= ns)
+        int n = GETARG_B(ins);
+        if ((n != 2 && n != 3) || a + n > ns)
           return 0;
-        in.kind = LUAR_IR_CONCAT2; in.a = (uint8_t)a; in.pc = pc;
+        in.kind = n == 3 ? LUAR_IR_CONCAT3 : LUAR_IR_CONCAT2;
+        in.a = (uint8_t)a; in.pc = pc;
         seen[a] = 1;
         r = luar_trace_ir_emit(t, &in);
         break;
