@@ -3011,3 +3011,38 @@ int ffi_trace_call1f (CData *fn, double arg, double *out) {
   *out = (double)ret;
   return 1;
 }
+
+
+/* J4 helper: two float32 arguments, float32 return. */
+int ffi_trace_call2f (CData *fn, double a0, double a1, double *out) {
+  CType *ft, *at0, *at1, *rt;
+  ffi_cif cif;
+  ffi_type *atypes[2], *rtype = &ffi_type_float;
+  void *avalue[2];
+  float av0 = (float)a0, av1 = (float)a1, ret = 0.0f;
+  if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
+      (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      fn->v.p == NULL || fn->ct == NULL)
+    return 0;
+  ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
+  if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 2 || ft->vararg)
+    return 0;
+  at0 = ft->args[0];
+  at1 = ft->args[1];
+  rt = ft->ret;
+  if (at0 == NULL || at1 == NULL || rt == NULL ||
+      at0->kind != CT_FLOAT || at0->size != 4 ||
+      at1->kind != CT_FLOAT || at1->size != 4 ||
+      rt->kind != CT_FLOAT || rt->size != 4)
+    return 0;
+  atypes[0] = &ffi_type_float;
+  atypes[1] = &ffi_type_float;
+  avalue[0] = &av0;
+  avalue[1] = &av1;
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
+    return 0;
+  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  *out = (double)ret;
+  return 1;
+}

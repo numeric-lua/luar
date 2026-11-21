@@ -307,6 +307,7 @@ int ffi_trace_call1d_iarg (CData *fn, int64_t arg, double *out);
 int ffi_trace_call1d (CData *fn, double arg, double *out);
 int ffi_trace_call1f (CData *fn, double arg, double *out);
 int ffi_trace_call2d (CData *fn, double arg1, double arg2, double *out);
+int ffi_trace_call2f (CData *fn, double arg1, double arg2, double *out);
 int ffi_trace_call3d (CData *fn, double arg1, double arg2, double arg3,
                       double *out);
 int ffi_trace_call2di (CData *fn, double arg1, int64_t arg2, double *out);

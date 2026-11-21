@@ -985,6 +985,53 @@ int luar_ffi_trace_ccall1ff_kind (TValue *fn) {
 }
 
 
+int luar_ffi_trace_ccall2ff_kind (TValue *fn) {
+  Udata *u;
+  CData *cd;
+  CType *ft, *r;
+  if (fn == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC ||
+      (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      cd->v.p == NULL || cd->ct == NULL)
+    return 0;
+  ft = (cd->ct->kind == CT_FUNC) ? cd->ct : cd->ct->child;
+  if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 2 || ft->vararg)
+    return 0;
+  r = ft->ret;
+  if (r == NULL || r->kind != CT_FLOAT || r->size != 4 ||
+      ft->args[0] == NULL || ft->args[1] == NULL ||
+      ft->args[0]->kind != CT_FLOAT || ft->args[0]->size != 4 ||
+      ft->args[1]->kind != CT_FLOAT || ft->args[1]->size != 4)
+    return 0;
+  return 1;
+}
+
+
+int64_t luar_ffi_trace_ccall2ff (TValue *fn, double a0, double a1,
+                                 TValue *out) {
+  Udata *u;
+  CData *cd;
+  double v;
+  if (fn == NULL || out == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC ||
+      (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      cd->v.p == NULL || cd->ct == NULL)
+    return 0;
+  if (!ffi_trace_call2f(cd, a0, a1, &v))
+    return 0;
+  setfltvalue(out, v);
+  return 1;
+}
+
+
 int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
                            int *kind, size_t *off, size_t *size) {
   Udata *u;
