@@ -3335,6 +3335,10 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawtable = 1;
       continue;
     }
+    if (op->kind == LUAR_IR_TSETDYN) {
+      sawtable = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_TSETKF ||
         op->kind == LUAR_IR_TSETKKF ||
         op->kind == LUAR_IR_TSETKKS) {

@@ -182,6 +182,13 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TSETDYN:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetdyn");
+          return 0;
+        }
+        break;
       case LUAR_IR_TSETKB:
         if (!valid_slot(t, in->a)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetkb");
@@ -729,6 +736,23 @@ TValue *luar_trace_tsetkkf (TValue *tv, TString *key, uint64_t bits,
   t = (Table *)tv->value_.gc;
   setsvalue(L, &k, key);
   setfltvalue(&v, d);
+  luaH_set(L, t, &k, &v);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
+TValue *luar_trace_tsetdyn (TValue *tv, TValue *key, TValue *val,
+                            lua_State *L) {
+  Table *t;
+  TValue k, v;
+  if (tv == NULL || !ttistable(tv) || key == NULL || val == NULL ||
+      ttisnil(val) || !ttisstring(key) || L == NULL)
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL)
+    return NULL;
+  k = *key;
+  v = *val;
   luaH_set(L, t, &k, &v);
   return (TValue *)(L->ci->func.p + 1);
 }
@@ -2975,6 +2999,17 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_SETTABLE: {
+        if (ttistable(&base[a]) &&
+            ((Table *)base[a].value_.gc)->metatable == NULL &&
+            b < ns && c < ns && ttisstring(&base[b]) &&
+            !ttisnil(&base[c]) &&
+            ir_latest_writer_is(t, b, LUAR_IR_ULOAD)) {
+          in.kind = LUAR_IR_TSETDYN; in.a = (uint8_t)a;
+          in.b = (uint8_t)b; in.c = (uint8_t)c; in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         int fk = luar_ffi_trace_kind(&base[a]);
         if (fk > 0 && ttisinteger(&base[b]) &&
             (fk == 1 ? ttisinteger(&base[c]) : ttisfloat(&base[c]))) {

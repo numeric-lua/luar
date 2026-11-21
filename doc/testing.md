@@ -67,7 +67,7 @@ embedding API and that `luaL_openlibs` brings up the extensions.
 `tests/shared.sh` (run by `make test-shared`) repeats the embedding test
 against `src/libluar.so` with `-L src -lluar` and `LD_LIBRARY_PATH=src`, and
 links a copy of the CLI itself against the shared library. It checks the
-soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.99.0`), verifies
+soname chain (`libluar.so` → `libluar.so.0` → `libluar.so.0.100.0`), verifies
 with `nm -D` that only `lua_*`/`luaL_*`/`luaopen_*`/`luar_*` are exported,
 loads the stock `mhello.c` module into the shared-linked CLI, and exercises
 both `pkg-config --libs luar` and `pkg-config --static --libs luar` against
