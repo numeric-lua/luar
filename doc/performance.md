@@ -352,3 +352,34 @@ REPEAT=7 WARMUP=3 PASSES=4 ./bench/compare.sh
 `tests/tmp/bench-results.md`.  The exact numbers above are a snapshot:
 other builds, other interpreters on `PATH`, or a different thermal state
 will move them.  Regenerate rather than quoting them as constants.
+
+## JIT-on/JIT-off snapshot (2026-11-21, 0.72.0)
+
+`make bench-jit` compares the `j4` group with `LUAR_BENCH_NOJIT=1`
+(`REPEAT=3 WARMUP=1 SCALE=0.05`).  The numbers are a report, not a gate.
+
+```
+benchmark                           jit      nojit  speedup
+j4/call_exit                      0.005      0.002     0.45x
+j4/call_leaf                      0.000      0.002     9.27x
+j4/call_twoarg                    0.000      0.002     8.04x
+j4/ffi_ccall0                     0.006      0.010     1.70x
+j4/ffi_ccall1dd                   0.002      0.006     4.19x
+j4/ffi_ccall1dd_cgetf             0.009      0.008     0.86x
+j4/ffi_ccall2dd                   0.002      0.006     3.68x
+j4/ffi_ccall2di                   0.002      0.006     3.49x
+j4/ffi_ccall2ii                   0.007      0.012     1.65x
+j4/ffi_ccall3dd                   0.002      0.007     3.51x
+j4/ffi_cdata_copy                 0.001      0.010    20.23x
+j4/ffi_cdata_read                 0.014      0.015     1.06x
+j4/float_table                    0.000      0.001     2.00x
+j4/hash_insert                    0.000      0.000     2.62x
+j4/int_sum                        0.001      0.003     5.27x
+j4/multi_table                    0.001      0.005     7.87x
+j4/table_hash_side                0.001      0.002     1.43x
+j4/table_read                     0.000      0.001     2.59x
+```
+
+`call_exit` is slower with the tracer because the loop still exits at the
+CALL and pays the native entry/exit cost.  It is retained as a visible
+regression rather than hidden; no hard threshold is applied.

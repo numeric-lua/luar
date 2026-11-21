@@ -160,6 +160,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_CCALL1DI:
       case LUAR_IR_CCALL1DD:
+      case LUAR_IR_CCALL1FF:
       case LUAR_IR_CCALL1I:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -637,6 +638,7 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         kind[in->a] = 2;
         break;
       case LUAR_IR_CCALL1DD:
+      case LUAR_IR_CCALL1FF:
         kind[in->a] = 2;
         break;
       case LUAR_IR_CCALL2DD:
@@ -859,6 +861,8 @@ static int ir_find_arg_double (Proto *p, int q, int argslot, TValue *base) {
   if (GETARG_A(prev) != argslot)
     return -1;
   switch (GET_OPCODE(prev)) {
+    case OP_LOADF:
+      return q;
     case OP_LOADK: {
       int k = GETARG_Bx(prev);
       if (k >= 0 && k < p->sizek && ttisfloat(&p->k[k]))
@@ -961,6 +965,7 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_CCALL1I:
     case LUAR_IR_CCALL1DI:
     case LUAR_IR_CCALL1DD:
+    case LUAR_IR_CCALL1FF:
     case LUAR_IR_CCALL2II:
     case LUAR_IR_CCALL2DD:
     case LUAR_IR_CCALL3DD:
@@ -1021,6 +1026,7 @@ static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth) {
     case LUAR_IR_CPGETF:
     case LUAR_IR_CCALL1DI:
     case LUAR_IR_CCALL1DD:
+    case LUAR_IR_CCALL1FF:
     case LUAR_IR_CCALL2DD:
     case LUAR_IR_CCALL3DD:
     case LUAR_IR_TGETF:
@@ -1097,6 +1103,7 @@ static int ir_is_cdata_function (TValue *v) {
          luar_ffi_trace_ccall1_kind(v) > 0 ||
          luar_ffi_trace_ccall1di_kind(v) > 0 ||
          luar_ffi_trace_ccall1dd_kind(v) > 0 ||
+         luar_ffi_trace_ccall1ff_kind(v) > 0 ||
          luar_ffi_trace_ccall2dd_kind(v) > 0 ||
          luar_ffi_trace_ccall2di_kind(v) > 0 ||
          luar_ffi_trace_ccall2ii_kind(v) > 0 ||
@@ -1191,6 +1198,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             luar_ffi_trace_ccall1_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1di_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1dd_kind(&base[b]) > 0 ||
+            luar_ffi_trace_ccall1ff_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall2dd_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall2di_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall2ii_kind(&base[b]) > 0 ||
@@ -1215,6 +1223,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_LOADI:
         in.kind = LUAR_IR_LOADI; in.a = (uint8_t)a;
         in.ival = GETARG_sBx(ins); in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      case OP_LOADF:
+        in.kind = LUAR_IR_LOADF; in.a = (uint8_t)a;
+        in.nval = (double)GETARG_sBx(ins); in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
       case OP_LOADK: {
@@ -2646,6 +2659,26 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           seen[a + 1] = 1;
           seen[a + 2] = 1;
           seen[a + 3] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 2 && c == 2 && a + 1 < ns &&
+            ir_call_arg_is_double(p, pc, a + 1, base) &&
+            luar_ffi_trace_ccall1ff_kind(fv) == 1) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc;
+            in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL1FF; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1); in.pc = pc;
+          seen[a] = 1;
+          seen[a + 1] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
         }

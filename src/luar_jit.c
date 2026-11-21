@@ -3247,7 +3247,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       continue;
     }
     if (op->kind == LUAR_IR_ADDI ||
-        op->kind == LUAR_IR_LOADI || op->kind == LUAR_IR_SLOAD)
+        op->kind == LUAR_IR_LOADI || op->kind == LUAR_IR_SLOAD ||
+        op->kind == LUAR_IR_ULOAD)
       continue;
     if (op->kind == LUAR_IR_LOADF) {
       /* A constant slot is not a flowing float producer: leave fslot to a
@@ -3258,6 +3259,7 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
     }
     if (op->kind == LUAR_IR_CCALL1DI ||
         op->kind == LUAR_IR_CCALL1DD ||
+        op->kind == LUAR_IR_CCALL1FF ||
         op->kind == LUAR_IR_CCALL2DD ||
         op->kind == LUAR_IR_CCALL2DI ||
         op->kind == LUAR_IR_CCALL3DD) {
@@ -3356,6 +3358,7 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
     const LuaR_IRIns *in = &ir->ins[i];
     if (in->kind == LUAR_IR_CGETF || in->kind == LUAR_IR_CPGETF ||
         in->kind == LUAR_IR_CCALL1DI || in->kind == LUAR_IR_CCALL1DD ||
+        in->kind == LUAR_IR_CCALL1FF ||
         in->kind == LUAR_IR_CCALL2DD || in->kind == LUAR_IR_CCALL3DD ||
         in->kind == LUAR_IR_LOADF || in->kind == LUAR_IR_CPSETF ||
         ((in->kind == LUAR_IR_CGETFIELD ||
