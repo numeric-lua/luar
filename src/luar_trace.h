@@ -28,6 +28,7 @@ typedef enum {
   LUAR_IR_SSTORE,	/* a = slot, b = source slot */
   LUAR_IR_LOADI,	/* a = destination slot, ival = constant */
   LUAR_IR_LOADF,	/* a = destination slot, nval = float constant */
+  LUAR_IR_KSTR,		/* a = destination slot, ival = TString pointer */
   LUAR_IR_ADDI,		/* a = destination, b = source, ival = immediate */
   LUAR_IR_ADDK,
   LUAR_IR_SUBK,
@@ -65,6 +66,8 @@ typedef enum {
   LUAR_IR_CCALL2II,	/* native (int,int) C call, integer return */
   LUAR_IR_TNEW,		/* allocate a table (sizes in ival/nval) */
   LUAR_IR_TSETI,	/* table[ival] = b, relocated base returned */
+  LUAR_IR_TSETIF,	/* table[ival] = float slot b */
+  LUAR_IR_TSETIS,	/* table[ival] = string slot b */
   LUAR_IR_TGETI,	/* a = table[ival], integer result */
   LUAR_IR_TGETK,	/* a = table[key string ptr in ival] */
   LUAR_IR_TGETKF,	/* a = table[key string ptr], float result */
@@ -241,6 +244,10 @@ TValue *luar_trace_tset_insert (TValue *tv, lua_Integer key, TValue *val,
                                 lua_State *L);
 TValue *luar_trace_tseti (TValue *tv, lua_Integer key, TValue *val,
                           lua_State *L);
+TValue *luar_trace_tsetif (TValue *tv, lua_Integer key, TValue *val,
+                           lua_State *L);
+TValue *luar_trace_tsetis (TValue *tv, lua_Integer key, TValue *val,
+                           lua_State *L);
 int64_t luar_trace_tgeti (TValue *tv, lua_Integer key, TValue *out);
 TValue *luar_trace_tsetk (TValue *tv, TString *key, TValue *val,
                           lua_State *L);
@@ -263,6 +270,7 @@ int64_t luar_trace_tgetks (TValue *tv, TString *key, TValue *out);
 int64_t luar_trace_concat2 (TValue *base, int a, lua_State *L);
 int64_t luar_trace_concat3 (TValue *base, int a, lua_State *L);
 int64_t luar_trace_concatn (TValue *base, int a, int n, lua_State *L);
+int64_t luar_trace_kstr (TValue *out, TString *s, lua_State *L);
 int64_t luar_trace_strlen (TValue *v, TValue *out);
 int64_t luar_trace_tlen (TValue *v, TValue *out, lua_State *L);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);

@@ -3253,6 +3253,14 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
         op->kind == LUAR_IR_LOADI || op->kind == LUAR_IR_SLOAD ||
         op->kind == LUAR_IR_ULOAD)
       continue;
+    if (op->kind == LUAR_IR_KSTR)
+      continue;
+    if (op->kind == LUAR_IR_TSETI ||
+        op->kind == LUAR_IR_TSETIF ||
+        op->kind == LUAR_IR_TSETIS) {
+      sawtable = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_LOADF) {
       /* A constant slot is not a flowing float producer: leave fslot to a
       ** CCALL1DD (or another float op) so a later reused-slot ADD cannot be
