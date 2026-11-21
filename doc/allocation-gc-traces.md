@@ -13,6 +13,11 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.70.0 update.**  Table upvalues can now be TSET/TGET targets: the
+integer analyzer treats TGET results as unknown instead of inheriting the
+table tag, so guarded ULOAD + table access traces.  Different table
+upvalues are separated by the closure identity guard.
+
 **0.69.0 update.**  `ULOAD` now handles any non-function upvalue as well:
 the recorder emits the load followed by a tag guard, so numeric/table
 upvalues can participate in traces while type changes exit cleanly.

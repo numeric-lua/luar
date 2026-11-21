@@ -3366,6 +3366,10 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
         return 0;
       tag[in->a] = (uint8_t)in->b;
     }
+    else if (in->kind == LUAR_IR_TGETK || in->kind == LUAR_IR_TGETI)
+      tag[in->a] = LUAR_IR_TAG_INT;
+    else if (in->kind == LUAR_IR_TGET)
+      tag[in->a] = -1;   /* dynamic value; following guards decide */
   }
   for (i = 0; i < ir->nins; i++) {
     const LuaR_IRIns *in = &ir->ins[i];
