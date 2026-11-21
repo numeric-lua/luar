@@ -91,6 +91,7 @@ typedef enum {
   LUAR_IR_TSETDYN,	/* table[b] = c, dynamic string key */
   LUAR_IR_CCALL3DD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
+  LUAR_IR_FADDI,	/* a = float base[b] + constant (nval) */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
   LUAR_IR_FSUB,		/* float subtract */
@@ -235,6 +236,7 @@ int64_t luar_trace_tget_int (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_fsub (TValue *a, TValue *b, TValue *c);
 int64_t luar_trace_fdivk (TValue *a, TValue *b, double k);
 int64_t luar_trace_fadd (TValue *a, TValue *b, TValue *c);
+int64_t luar_trace_faddk (TValue *out, TValue *src, double k);
 int64_t luar_trace_fmulk (TValue *a, TValue *b, double k);
 int luar_trace_table_elem_tag (TValue *tv, lua_Integer key);
 int64_t luar_trace_tgetf_generic (TValue *tv, lua_Integer key, double *out);

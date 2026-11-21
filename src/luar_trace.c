@@ -147,6 +147,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_FADDI:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad faddi");
+          return 0;
+        }
+        break;
       case LUAR_IR_FMULK:
       case LUAR_IR_FADD:
       case LUAR_IR_FSUB:
@@ -626,6 +632,18 @@ int64_t luar_trace_kstr (TValue *out, TString *s, lua_State *L) {
   if (out == NULL || s == NULL || L == NULL)
     return 0;
   setsvalue(L, out, s);
+  return 1;
+}
+
+
+int64_t luar_trace_faddk (TValue *out, TValue *src, double k) {
+  double x;
+  if (out == NULL || src == NULL)
+    return 0;
+  if (ttisfloat(src)) x = fltvalue(src);
+  else if (ttisinteger(src)) x = (double)ivalue(src);
+  else return 0;
+  setfltvalue(out, x + k);
   return 1;
 }
 
@@ -1736,6 +1754,13 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_ADDI:
+        if (ttisfloat(&base[b])) {
+          in.kind = LUAR_IR_FADDI; in.a = (uint8_t)a;
+          in.b = (uint8_t)b; in.nval = (double)c; in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         in.kind = LUAR_IR_ADDI; in.a = (uint8_t)a; in.b = (uint8_t)b;
         in.ival = GETARG_sC(ins); in.pc = pc;
         r = luar_trace_ir_emit(t, &in);

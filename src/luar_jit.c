@@ -3269,6 +3269,11 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawtable = 1;
       continue;
     }
+    if (op->kind == LUAR_IR_FADDI) {
+      fslot = op->a;
+      sawfloat = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_LOADF) {
       /* A constant slot is not a flowing float producer: leave fslot to a
       ** CCALL1DD (or another float op) so a later reused-slot ADD cannot be
@@ -3394,7 +3399,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
 static int ir_integer_only (const LuaR_TraceIR *ir) {
   int i, tag[LUAR_IR_MAX_SLOTS];
   for (i = 0; i < ir->nins; i++)
-    if (ir->ins[i].kind == LUAR_IR_CPGETI64 ||
+    if (ir->ins[i].kind == LUAR_IR_FADDI ||
+        ir->ins[i].kind == LUAR_IR_CPGETI64 ||
         ir->ins[i].kind == LUAR_IR_CPSETI64)
       return 0;
   for (i = 0; i < LUAR_IR_MAX_SLOTS; i++)
@@ -3406,7 +3412,8 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
         in->kind == LUAR_IR_CCALL1FF ||
         in->kind == LUAR_IR_CCALL2DD ||
         in->kind == LUAR_IR_CCALL2FF || in->kind == LUAR_IR_CCALL3DD ||
-        in->kind == LUAR_IR_LOADF || in->kind == LUAR_IR_TSETKF ||
+        in->kind == LUAR_IR_LOADF || in->kind == LUAR_IR_FADDI ||
+        in->kind == LUAR_IR_TSETKF ||
         in->kind == LUAR_IR_TGETKF ||
         in->kind == LUAR_IR_TSETKKF ||
         in->kind == LUAR_IR_CPSETF ||
