@@ -1179,8 +1179,10 @@ void luaV_finishOp (lua_State *L) {
   if (GETARG_sJ(ni) < 0) { \
     int luarjr; \
     LUAR_JIT_HOT(L, cl->p, luarjb, (void *)base); \
+    updatebase(ci); \
     luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarjb - cl->p->code), \
                           (void *)base, -1); \
+    updatebase(ci); \
     if (luarjr > 0) \
       pc = luarjb + 1; \
     else if (luarjr < -1) \
@@ -1716,8 +1718,10 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         if (GETARG_sJ(i) < 0) {  /* LUAR: backward jump */
           int luarjr;
           LUAR_JIT_HOT(L, cl->p, luarback, (void *)base);
+          updatebase(ci);
           luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarback - cl->p->code),
                                 (void *)base, -1);
+          updatebase(ci);
           if (luarjr > 0)
             pc = luarback + 1;  /* LUAR: native while loop finished */
           else if (luarjr < -1)
@@ -1825,6 +1829,7 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
           {
             int cr = luari_jit_continue(L, cl->p,
                                         (int)(pc - cl->p->code), base);
+            updatebase(ci);
             if (cr > 0) pc = cl->p->code + cr - 1;
             else if (cr < -1) LUAR_JIT_SET_EXIT_PC(cl->p, pc, cr);
           }
@@ -1947,8 +1952,10 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
 #if !defined(LUAR_JIT_DISABLE)
             int luarjr;
             LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
+            updatebase(ci);
             luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarb - cl->p->code),
                                   (void *)base, GETARG_A(i));
+            updatebase(ci);
             if (luarjr > 0)
               pc = luarb + 1;  /* LUAR: the native loop finished it */
             else if (luarjr < -1)

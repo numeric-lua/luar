@@ -2635,7 +2635,10 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
   ffi_type *rtype;
   union { int64_t i; double d; } ret;
   if (fn == NULL || kind == NULL || iv == NULL || dv == NULL ||
-      fn->magic != LUAR_FFI_MAGIC)
+      fn->magic != LUAR_FFI_MAGIC ||
+      (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      fn->v.p == NULL || fn->ct == NULL)
     return 0;
   ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
   if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 0 || ft->vararg)

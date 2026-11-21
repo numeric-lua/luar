@@ -561,7 +561,10 @@ int luar_ffi_trace_ccall0_kind (TValue *fn) {
     return 0;
   u = (Udata *)fn->value_.gc;
   cd = (CData *)getudatamem(u);
-  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0)
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0 ||
+      (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      cd->v.p == NULL || cd->ct == NULL)
     return 0;
   ft = (cd->ct->kind == CT_FUNC) ? cd->ct : cd->ct->child;
   if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 0 || ft->vararg)
@@ -588,7 +591,10 @@ int64_t luar_ffi_trace_ccall0_int (TValue *fn, TValue *out) {
     return 0;
   u = (Udata *)fn->value_.gc;
   cd = (CData *)getudatamem(u);
-  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0)
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0 ||
+      (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      cd->v.p == NULL || cd->ct == NULL)
     return 0;
   if (!ffi_trace_call0(cd, &kind, &iv, &dv) || kind != 1)
     return 0;

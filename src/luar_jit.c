@@ -2757,13 +2757,13 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 
 LUAR_NO_SANITIZE_FUNCTION
 static int luari_run_j4 (Proto *p, void *code, void *base, lua_State *L) {
-  StkId oldtop = L->top.p;
+  ptrdiff_t topoff = (char *)L->top.p - (char *)L->stack.p;
   StackValue *want = (StackValue *)base + p->maxstacksize;
   int r;
-  if (want > oldtop && want <= L->stack_last.p)
+  if (want > L->top.p && want <= L->stack_last.p)
     L->top.p = want;   /* root every frame slot while native helpers may GC */
   r = ((LuaR_LoopFn)code)(base, L);
-  L->top.p = oldtop;
+  L->top.p = (StkId)((char *)L->stack.p + topoff);
   return r;
 }
 
@@ -2821,6 +2821,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
       p->luar_side_pc != pc || p->luar_side_start != expc)
     return -1;
   sr = luari_run_j4(p, p->luar_side_code, base, L);
+  base = (void *)(L->ci->func.p + 1);
   if (sr >= 0) {
     J->ir_side_executed++;
     return sr;
@@ -2869,6 +2870,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
           p->luar_child_start[level] != startpc)
         break;
       csr = luari_run_j4(p, p->luar_child_code[level], base, L);
+      base = (void *)(L->ci->func.p + 1);
       if (csr == 2) {
         J->ir_yields++;
         return 0;
@@ -2936,6 +2938,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     }
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
       int irr = luari_run_j4(p, p->luar_ir_code, base, L);
+      base = (void *)(L->ci->func.p + 1);  /* stack may have moved */
       if (irr == 2) {
         J->ir_yields++;
         return 0;

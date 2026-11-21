@@ -2,9 +2,10 @@
 
 Status: design/decision note, 2026-11-21.  No implementation is included in
 this change.  This note is normative for the first allocation work in J4.
-Baseline: the 0.57.0 J4 core.  0.58.0 adds only the unrelated `CCALL3DD`
-native-call form, which does not change any argument below.  Line anchors
-are from the 0.58.0 tree; they drift by a few lines in 0.57.0.
+Baseline: the 0.57.0 J4 core.  0.58.0 adds the unrelated `CCALL3DD`
+native-call form and 0.59.0 adds the rooted J4 entry wrapper; neither
+changes the arguments below.  Line anchors are approximate (0.58.0/0.59.0
+tree); function and macro names are authoritative.
 
 The J4 tracing IR is documented in `doc/j4-tracing-ir.md`; the interpreter
 remains the semantic authority (`doc/architecture.md`, `doc/jit-design.md`).
@@ -20,6 +21,16 @@ point described in §1.2 is therefore rooted today, and
 supported allocator, does not add deferred `jit.flush()`, and does not close
 the callback re-entry hole; those remain prerequisites for the first real
 allocation opcode.
+
+The wrapper also has a stack-move caveat that matters as soon as an
+allocation helper runs a normal GC step.  `luari_run_j4` saves the incoming
+top as a raw `StkId` and restores that pointer; if a helper calls
+`luaC_checkGC` and the stack is reallocated, the saved pointer is into the
+old stack.  The interpreter's local `base` is likewise not reloaded after
+`LUAR_JIT_RUN`.  This is mostly latent today because the TSET-growth path
+does not call `luaC_checkGC` (only an emergency allocation failure can move
+the stack), but it must be fixed in phase 0.2 before `TNEW` calls
+`luaC_checkGC`.
 
 Short answer: allocation is a **safepoint**, not an ordinary arithmetic
 operation.  A trace may allocate only through a small VM-owned helper that
@@ -54,7 +65,7 @@ The current call/continuation design is important context:
 * On a CALL exit the interpreter executes the CALL normally.  For a C
   callee only, `OP_CALL` then calls `luari_jit_continue`, which may run a
   separately recorded suffix starting at `callpc + 1`
-  (`src/lvm.c:1275`, `:1826`; `src/luar_jit.c:2886-2903`).
+  (`src/lvm.c:1275`, `:1826`; `src/luar_jit.c:2899-2916`).
 * A Lua callee replaces the current frame and never returns through that
   hook, so a Lua CALL is a full interpreter exit, not a native
   continuation.
@@ -65,7 +76,7 @@ The current call/continuation design is important context:
 
 The JIT state currently does not have an active-entry depth or a deferred
 flush.  `jit.flush()` bumps the epoch and calls `free_code()` immediately
-(`src/luar_jit.c:3565-3574`; `free_code` at `:81`).  That is safe only
+(`src/luar_jit.c:3578-3587`; `free_code` at `:81`).  That is safe only
 while no trace helper can run arbitrary Lua/GC; it is a prerequisite to
 fix before adding a GC-capable helper.  The same is true of `jit.off()`
 from a finalizer: the old code remains mapped until flush, but a flush
@@ -109,13 +120,13 @@ helper must reject callbacks explicitly.  This is a pre-existing
 call-safety hole, not an allocation feature; it must not be left for the
 allocation patch to discover.
 
-### 1.3 Allocation matrix (0.57.0/0.58.0)
+### 1.3 Allocation matrix (0.57.0-0.59.0)
 
 | Trace path | Lua heap allocation | Status |
 | --- | --- | --- |
 | Integer/float arithmetic, `FORLOOP` | no | trace-side |
 | `TGET`/`TGETF`, existing array or hash cell | no | trace-side; helper uses `luaH_get*`, which does not allocate |
-| `TSET` existing array cell or existing hash node | no | trace-side; integer values only, no barrier needed |
+| `TSET` existing array cell or existing non-nil hash cell | no | trace-side; integer values only, no barrier needed |
 | `TSET` absent out-of-array key | **can allocate** via `luaH_setint` | trace-side gap; fix before adding allocators |
 | FFI `CGET*`/`CSET*`/`CCALL*` | no Lua allocation | trace-side; helpers revalidate ctype/signature; scalar signatures only |
 | Inlined leaf Lua call | no | trace-side; arithmetic whitelist only |
@@ -150,9 +161,10 @@ Consequences:
   assume the interpreter's `L->top` is already at the frame top; `OP_FORLOOP`
   and `OP_JMP` do not raise it.  The safe wrapper is to set
   `L->top = base + p->maxstacksize` for the duration of the native call and
-  restore the incoming top afterwards.  A wrapper of that shape is being
-  added independently; this note assumes it, and the first allocation patch
-  must not land without it.
+  restore the incoming top afterwards.  0.59.0 implements this shape in
+  `luari_run_j4`, but saves the incoming top as a raw `StkId` (see the
+  stack-move caveat above); phase 0.2 must make that offset-based before an
+  allocation helper calls `luaC_checkGC`.
 * Restoring the incoming `top` at trace exit is correct because the
   interpreter re-establishes the top it needs at the next instruction (and
   before any call/`Protect`).  Restoring it while still *inside* the trace is
@@ -168,6 +180,15 @@ base returned by the helper) and re-read values from slots.  No `Table *`,
 `TString *`, `LClosure *`, `CData *`, or `UpVal *` may be cached across such
 a helper.  Cdata headers are not moved, but a pointer to one is only valid
 while the object is rooted.
+
+Reloading inside the trace is not sufficient.  `luaV_execute` keeps `base`
+in a C local, and the `LUAR_JIT_RUN` hook does not update it after the
+native call (`src/lvm.c:1944-1956` is the `OP_FORLOOP` site; the `OP_JMP`
+and continuation sites have the same shape).  If a trace helper moved the
+stack, the interpreter would continue with a stale `base`; every hook that
+can enter an allocation-capable trace must call `updatebase(ci)` after the
+native call.  `luari_jit_try_run` must likewise reload `base` before a side
+trace attempt.
 
 ### 2.3 Barriers
 
@@ -288,13 +309,19 @@ emitted.
      A finalizer is allowed to call `jit.flush()`/`jit.off()`; it is not
      allowed to unmap the running trace.  This is a correctness fix even
      for the existing `TSET` allocation path.
-0.2. Establish the top/root wrapper: native J4 execution runs with
-     `L->top` covering the frame and restores the incoming top on return.
+0.2. Make the 0.59.0 top/root wrapper stack-move safe.  Save the incoming
+     top as a stack offset (`savestack`/`restorestack`), not a raw `StkId`,
+     and reload `base` after the native call.  Add `updatebase(ci)` (or an
+     equivalent reload) at every `LUAR_JIT_RUN`/continuation site in
+     `src/lvm.c` and before a side-trace attempt in `luari_jit_try_run`.
+     The current wrapper restores a raw pointer and leaves the interpreter's
+     `base` local untouched; that is acceptable only while no trace helper
+     moves the stack.
 0.3. Make `TSET` non-allocating for the current supported shapes.  The
      simplest safe rule is: record `TSET` only when the interpreter's fast
-     path would store into an existing array cell or an existing hash node;
-     any absent/growing key exits before the store.  This removes the
-     accidental allocation and is independently testable.
+     path would store into an existing array cell or an existing non-nil
+     hash cell; any absent/growing key exits before the store.  This removes
+     the accidental allocation and is independently testable.
 0.4. Add `ntop`/top metadata to the exit path only if a trace changes
      `L->top`.  If phase 0.2 restores the top on every return, root traces
      do not need it; continuations and side segments may, because their
@@ -424,7 +451,10 @@ only for `OP_NEWTABLE` when all of the following hold:
   table write after the allocation aborts the whole trace.  This keeps
   `TSET` growth and collectable stores out of the first patch;
 * the trace is a root trace (`side == 0`).  Side traces and continuations
-  containing `TNEW` are rejected at install time in phase 1.
+  containing `TNEW` are rejected at install time in phase 1;
+* the trace is not a partial/CALL prefix (`t->partial == 0`).  A `TNEW`
+  before a terminal `CALLEXIT` is rejected, so a continuation cannot observe
+  a table created by its prefix.
 
 Everything else falls back exactly as today.  `ir=1` remains the gate;
 add `alloc=1` (default off) as a second opt-in so a build can ship the
@@ -456,8 +486,9 @@ Implementation sketch:
 
 1. Validate `L`, `base`, and `slot < L->ci->top - base` (or an equivalent
    frame check).  Return `NULL` on failure; no allocation has happened.
-2. Set `L->top` to cover the frame (or rely on the phase-0 wrapper; the
-   helper must assert the invariant).
+2. Require the phase-0 wrapper to have already set `L->top` to cover the
+   frame.  Assert that invariant; do not shrink `top` inside the helper, or
+   the next allocation would lose roots.
 3. `Table *t = luaH_new(L);`
 4. Publish immediately: `sethvalue2s(L, current_base + slot, t);`
 5. Optionally `luaC_checkGC(L);` (the helper may allocate, so it must
@@ -578,7 +609,7 @@ short-lived and must not cross a GC safepoint
 
 At runtime, J4 root/side exits are PC-based.  The J2 side path uses a
 snapshot/restore pair around a side attempt
-(`src/luar_jit.c:3160-3170`).  That is safe only while the side code cannot
+(`src/luar_jit.c:3173-3183`).  That is safe only while the side code cannot
 allocate; it is not a model for allocation deoptimization.
 
 ### 7.2 Rules
@@ -627,11 +658,20 @@ identity (`CType *`, `Proto *`) or exit.
    accidental `luaH_setint` allocation and for the top wrapper.  A
    deterministic test can use a fixed loop count and `collectgarbage`
    settings chosen before the loop; no wall-clock dependence.
-2. **Flush from a finalizer.**  With `WITH_FFI=1`, create a cdata with
+   `tests/jit/72_trace_tset_gc.lua` is the 0.59.0 starting point; extend it
+   with live locals above the frame top rather than only checking the table.
+2. **Stack move during a helper.**  With `WITH_FFI=1`, install a cdata
+   finalizer that calls a recursive/deep Lua function, drop the cdata, and
+   force GC from a `TNEW` helper.  The stack must move under the trace;
+   assert the incoming `top` is restored as an offset and the interpreter's
+   `base` is reloaded.  Without this test, the raw-`StkId` restore in
+   `luari_run_j4` can pass every existing test and fail only under a
+   finalizer that grows the stack.
+3. **Flush from a finalizer.**  With `WITH_FFI=1`, create a cdata with
    `ffi.gc(obj, function() jit.flush() end)`, drop it, then run an
    allocating traced loop.  The flush must defer; no crash and no stale
    code execution.  Skip without FFI.
-3. **Hook interaction.**  Set a debug hook while a finalizer runs; the
+4. **Hook interaction.**  Set a debug hook while a finalizer runs; the
    trace must leave at the next safe PC and the hook must see the normal
    interpreter events.
 
@@ -647,6 +687,8 @@ before printing `ok`.
 * **`63_ir_alloc_gc.lua`**: the same loop with GC pressure; keep live
   table/string values in locals above the frame top and assert they are
   unchanged after the loop.  This catches missing roots and stale `base`.
+  With FFI, add a cdata finalizer that grows the stack during the `TNEW`
+  helper so the test also covers the stack-move path.
 * **`64_ir_alloc_exit.lua`**: force a guard exit after `TNEW` (change a
   non-table operand type between iterations); assert the interpreter
   result is identical to `jit.off()` and that no table is lost or
@@ -753,16 +795,18 @@ under stress.
    helper revalidation.  Do not expand their use before deciding.
 6. **Side-trace snapshots.**  The current restore path must be removed or
    gated before allocation reaches side traces; the first patch avoids it
-   by rejecting `TNEW` in side segments, but the in-flight top wrapper
-   touches the same code.
+   by rejecting `TNEW` in side segments.  The 0.59.0 top wrapper touches
+   the same entry points, so the snapshot/restore path must be updated in
+   the same phase-0 change that makes top restoration offset-based.
 
 ## 11. Decision summary
 
 * Allocation is a safepoint with a VM helper, not a new arithmetic op.
 * The stack slot is the only publication point; no shadow roots, no
   rollback, no snapshot restore after GC.
-* Fix the accidental `TSET` allocation, add active-depth/deferred flush,
-  and establish the top/root wrapper before enabling any allocator.
+* Fix the accidental `TSET` allocation and the callback re-entry hole, add
+  active-depth/deferred flush, and make the 0.59.0 top/root wrapper
+  stack-move safe before enabling any allocator.
 * First implementation: `TNEW` for empty tables only, root traces only,
   behind `ir=1,alloc=1`; explicit non-goals as listed in section 5.5.
 * `ffi.new` stays interpreter-side via CALL exit/continuation until a
