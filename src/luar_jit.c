@@ -3313,7 +3313,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       continue;
     }
     if (op->kind == LUAR_IR_TSETKF ||
-        op->kind == LUAR_IR_TSETKKF) {
+        op->kind == LUAR_IR_TSETKKF ||
+        op->kind == LUAR_IR_TSETKKS) {
       sawtable = 1;
       sawfloat = 1;
       continue;

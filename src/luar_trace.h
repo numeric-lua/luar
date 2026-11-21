@@ -71,6 +71,7 @@ typedef enum {
   LUAR_IR_TSETKK,	/* table[key string ptr] = constant int (nval) */
   LUAR_IR_TSETKF,	/* table[key string ptr] = float slot b */
   LUAR_IR_TSETKKF,	/* table[key string ptr] = constant float (nval) */
+  LUAR_IR_TSETKKS,	/* table[key] = constant string (nval pointer bits) */
   LUAR_IR_CCALL3DD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
@@ -236,6 +237,8 @@ TValue *luar_trace_tsetkk (TValue *tv, TString *key, lua_Integer val,
 TValue *luar_trace_tsetkf (TValue *tv, TString *key, TValue *val,
                            lua_State *L);
 TValue *luar_trace_tsetkkf (TValue *tv, TString *key, uint64_t bits,
+                            lua_State *L);
+TValue *luar_trace_tsetkks (TValue *tv, TString *key, uint64_t bits,
                             lua_State *L);
 int64_t luar_trace_tgetk (TValue *tv, TString *key, TValue *out);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);
