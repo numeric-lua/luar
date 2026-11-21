@@ -3390,7 +3390,8 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
           in->kind == LUAR_IR_CSETFIELDK) && in->c == 2))
       return 0;
     if (in->kind == LUAR_IR_GUARD) {
-      if (in->b != LUAR_IR_TAG_INT && in->b != LUAR_IR_TAG_TABLE)
+      if (in->b != LUAR_IR_TAG_INT && in->b != LUAR_IR_TAG_TABLE &&
+          in->b != LUAR_IR_TAG_STRING)
         return 0;
       tag[in->a] = (uint8_t)in->b;
     }

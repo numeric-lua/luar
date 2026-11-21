@@ -97,7 +97,8 @@ enum {
   LUAR_IR_TAG_INT = 1,
   LUAR_IR_TAG_FLOAT = 2,
   LUAR_IR_TAG_TABLE = 3,
-  LUAR_IR_TAG_OTHER = 4
+  LUAR_IR_TAG_OTHER = 4,
+  LUAR_IR_TAG_STRING = 5
 };
 
 typedef struct LuaR_IRIns {

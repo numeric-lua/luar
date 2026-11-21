@@ -100,7 +100,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_GUARD:
         if (!valid_slot(t, in->a) ||
-            in->b < LUAR_IR_TAG_INT || in->b > LUAR_IR_TAG_OTHER) {
+            in->b < LUAR_IR_TAG_INT || in->b > LUAR_IR_TAG_STRING) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad guard");
           return 0;
         }
@@ -857,6 +857,8 @@ static int abstract_tag (const TValue *v) {
   if (ttisinteger(v)) return LUAR_IR_TAG_INT;
   if (ttisfloat(v)) return LUAR_IR_TAG_FLOAT;
   if (ttistable(v)) return LUAR_IR_TAG_TABLE;
+  if (ttisstring(v) && tsslen(tsvalue(v)) <= LUAI_MAXSHORTLEN)
+    return LUAR_IR_TAG_STRING;
   return LUAR_IR_TAG_OTHER;
 }
 
@@ -975,6 +977,8 @@ static int ir_tag (const TValue *v) {
   if (ttisinteger(v)) return LUAR_IR_TAG_INT;
   if (ttisfloat(v)) return LUAR_IR_TAG_FLOAT;
   if (ttistable(v)) return LUAR_IR_TAG_TABLE;
+  if (ttisstring(v) && tsslen(tsvalue(v)) <= LUAI_MAXSHORTLEN)
+    return LUAR_IR_TAG_STRING;
   return LUAR_IR_TAG_OTHER;
 }
 
@@ -1425,6 +1429,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
     Instruction ins = p->code[pc];
     int a = GETARG_A(ins), b = GETARG_B(ins), c = GETARG_C(ins);
     int r;
+    if (getenv("LUAR_REC89_DEBUG"))
+      fprintf(stderr, "rec pc=%d op=%d a=%d b=%d c=%d\n", pc,
+              (int)GET_OPCODE(ins), a, b, c);
     if (suffix && pc == backedge) {
       in.kind = LUAR_IR_RET; in.pc = pc;
       return luar_trace_ir_emit(t, &in);
