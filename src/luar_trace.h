@@ -71,7 +71,7 @@ typedef enum {
   LUAR_IR_TGETKS,	/* a = table[key string ptr], string result */
   LUAR_IR_CONCAT2,	/* a = base[a] .. base[a+1] */
   LUAR_IR_CONCAT3,	/* a = base[a] .. base[a+1] .. base[a+2] */
-  LUAR_IR_CONCATN,	/* a = base[a] .. ... base[a+ival-1], ival 2..8 */
+  LUAR_IR_CONCATN,	/* a = base[a] .. ... base[a+ival-1], ival 2..32 */
   LUAR_IR_STRLEN,	/* a = #base[b], string */
   LUAR_IR_TLEN,		/* a = #base[b], table without __len */
   LUAR_IR_TSETK,	/* table[key string ptr] = b, relocated base */

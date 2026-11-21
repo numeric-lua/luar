@@ -206,7 +206,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         }
         break;
       case LUAR_IR_CONCATN:
-        if (in->ival < 2 || in->ival > 8 ||
+        if (in->ival < 2 || in->ival > 32 ||
             in->a + in->ival > t->maxslots) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad concatn");
           return 0;
@@ -489,13 +489,13 @@ int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out) {
 static int concat_part (TValue *v, const char **p, char *buf, size_t *len);
 
 int64_t luar_trace_concatn (TValue *base, int a, int n, lua_State *L) {
-  const char *p[8];
-  char nb[8][LUA_N2SBUFFSZ];
-  size_t l[8], len, off;
+  const char *p[32];
+  char nb[32][LUA_N2SBUFFSZ];
+  size_t l[32], len, off;
   char *buf;
   TString *r;
   int i;
-  if (base == NULL || L == NULL || a < 0 || n < 2 || n > 8)
+  if (base == NULL || L == NULL || a < 0 || n < 2 || n > 32)
     return 0;
   for (i = 0; i < n; i++)
     if (!concat_part(&base[a + i], &p[i], nb[i], &l[i]))
@@ -2869,7 +2869,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       }
       case OP_CONCAT: {
         int n = GETARG_B(ins);
-        if (n < 2 || n > 8 || a + n > ns)
+        if (n < 2 || n > 32 || a + n > ns)
           return 0;
         in.kind = (n == 2) ? LUAR_IR_CONCAT2 :
                   (n == 3) ? LUAR_IR_CONCAT3 : LUAR_IR_CONCATN;
