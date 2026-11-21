@@ -179,6 +179,12 @@ int64_t luar_ffi_trace_ccall2dd (TValue *fn, double arg1, double arg2,
   (void)fn; (void)arg1; (void)arg2; (void)out; return 0;
 }
 
+int luar_ffi_trace_ccall2id_kind (TValue *fn) { (void)fn; return 0; }
+int64_t luar_ffi_trace_ccall2id (TValue *fn, int64_t a0, double a1,
+                                 TValue *out) {
+  (void)fn; (void)a0; (void)a1; (void)out; return 0;
+}
+
 int luar_ffi_trace_ccall2di_kind (TValue *fn) { (void)fn; return 0; }
 int64_t luar_ffi_trace_ccall2di (TValue *fn, double a0, int64_t a1,
                                  TValue *out) {

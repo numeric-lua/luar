@@ -308,6 +308,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_CCALL2II:
       case LUAR_IR_CCALL2DI:
+      case LUAR_IR_CCALL2ID:
       case LUAR_IR_CCALL2FF:
       case LUAR_IR_CCALL2DD:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
@@ -1132,6 +1133,7 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CCALL2DD:
       case LUAR_IR_CCALL2FF:
       case LUAR_IR_CCALL2DI:
+      case LUAR_IR_CCALL2ID:
         kind[in->a] = 2;
         break;
       case LUAR_IR_CCALL2II:
@@ -1374,6 +1376,15 @@ static int ir_find_arg_double (Proto *p, int q, int argslot, TValue *base) {
 }
 
 
+static int ir_find_arg_int (Proto *p, int q, int argslot, TValue *base);
+
+static int ir_call_args_id (Proto *p, int q, int argbase, TValue *base) {
+  int qd = ir_find_arg_double(p, q - 1, argbase + 1, base);
+  int qi = qd >= 0 ? ir_find_arg_int(p, qd - 1, argbase, base) : -1;
+  return qd >= 0 && qi >= 0;
+}
+
+
 static int ir_find_arg_int (Proto *p, int q, int argslot, TValue *base) {
   Instruction prev;
   if (q < 0 || q >= p->sizecode)
@@ -1600,6 +1611,7 @@ static int ir_is_cdata_function (TValue *v) {
          luar_ffi_trace_ccall1ff_kind(v) > 0 ||
          luar_ffi_trace_ccall2dd_kind(v) > 0 ||
          luar_ffi_trace_ccall2di_kind(v) > 0 ||
+         luar_ffi_trace_ccall2id_kind(v) > 0 ||
          luar_ffi_trace_ccall2ii_kind(v) > 0 ||
          luar_ffi_trace_ccall3dd_kind(v) > 0;
 }
@@ -3304,6 +3316,28 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             r = luar_trace_ir_emit(t, &in);
             break;
           }
+        }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            luar_ffi_trace_ccall2id_kind(fv) == 1 &&
+            ir_call_args_id(p, pc, a + 1, base)) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_INT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL2ID; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2); in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2di_kind(fv) == 1) {
