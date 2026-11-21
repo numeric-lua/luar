@@ -1,9 +1,10 @@
 # Luar performance baseline
 
-> **J4 additions (0.109).**  The corpus now includes `j4/float_addi`, which
-> exercises `s = s + (v + 1)` through `FADDI`.  On the development host it
-> measured **1.83x** JIT-on versus JIT-off in `make bench-jit`.  This is a
-> microbenchmark, not a wall-clock claim.
+> **J4 additions (0.109–0.110).**  The corpus includes `j4/float_addi`
+> (`s = s + (v + 1)` through `FADDI`) and `j4/long_loop` (a 220-statement
+> loop body).  On the development host `make bench-jit` measured
+> **1.50x** for `float_addi` and **4.13x** for `long_loop`, JIT-on versus
+> JIT-off.  These are microbenchmarks, not wall-clock claims.
 
 
 > **0.98 snapshot (2026-11-21, `./bench/compare.sh`, Ryzen 3 7320U).**
