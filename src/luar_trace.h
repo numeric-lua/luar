@@ -78,6 +78,7 @@ typedef enum {
   LUAR_IR_TGETK,	/* a = table[key string ptr in ival] */
   LUAR_IR_TGETKF,	/* a = table[key string ptr], float result */
   LUAR_IR_TGETKS,	/* a = table[key string ptr], string result */
+  LUAR_IR_TGETKB,	/* a = table[key string ptr], boolean result */
   LUAR_IR_CONCAT2,	/* a = base[a] .. base[a+1] */
   LUAR_IR_CONCAT3,	/* a = base[a] .. base[a+1] .. base[a+2] */
   LUAR_IR_CONCATN,	/* a = base[a] .. ... base[a+ival-1], ival 2..32 */
@@ -291,6 +292,7 @@ TValue *luar_trace_tsetkdb (TValue *tv, TString *key, TValue *val,
 TValue *luar_trace_tsetkb (TValue *tv, TString *key, int b, lua_State *L);
 int64_t luar_trace_tgetk (TValue *tv, TString *key, TValue *out);
 int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out);
+int64_t luar_trace_tgetkb (TValue *tv, TString *key, TValue *out);
 int64_t luar_trace_tgetks (TValue *tv, TString *key, TValue *out);
 int64_t luar_trace_concat2 (TValue *base, int a, lua_State *L);
 int64_t luar_trace_concat3 (TValue *base, int a, lua_State *L);
