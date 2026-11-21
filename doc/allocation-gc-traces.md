@@ -13,6 +13,13 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.61.0 update.**  `LuaR_JIT` now tracks `active_depth`; `jit.flush()`
+seen while a native trace runs sets `flush_pending` and the outermost
+`luari_run_j4` return performs `free_code()` only after generated code is
+off the C stack.  `tests/jit/73_flush_deferred.lua` exercises finalizers
+requesting a flush during traced TSET growth.  The first allocation opcode
+still requires the rest of §6 (non-allocating TSET split and `TNEW`).
+
 **0.59.0 update.**  J4 trace entry now wraps every native call in
 `luari_run_j4` (`src/luar_jit.c`), which raises `L->top` to cover the whole
 frame while the trace runs and restores it on return.  The TSET-growth GC

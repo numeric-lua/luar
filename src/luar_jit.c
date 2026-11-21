@@ -2757,12 +2757,21 @@ static int entry_sig_matches (Proto *p, int slot, TValue *base) {
 
 LUAR_NO_SANITIZE_FUNCTION
 static int luari_run_j4 (Proto *p, void *code, void *base, lua_State *L) {
+  LuaR_JIT *J = G(L)->luar_jit;
   ptrdiff_t topoff = (char *)L->top.p - (char *)L->stack.p;
   StackValue *want = (StackValue *)base + p->maxstacksize;
   int r;
   if (want > L->top.p && want <= L->stack_last.p)
     L->top.p = want;   /* root every frame slot while native helpers may GC */
+  if (J != NULL) J->active_depth++;
   r = ((LuaR_LoopFn)code)(base, L);
+  if (J != NULL) {
+    J->active_depth--;
+    if (J->active_depth == 0 && J->flush_pending) {
+      J->flush_pending = 0;
+      free_code(J);
+    }
+  }
   L->top.p = (StkId)((char *)L->stack.p + topoff);
   return r;
 }
@@ -3585,7 +3594,10 @@ static int jit_flush (lua_State *L) {
     J->hotloops = 0;
     J->traces = 0;
     J->aborts = 0;
-    free_code(J);
+    if (J->active_depth > 0)
+      J->flush_pending = 1;   /* cannot unmap code that is still running */
+    else
+      free_code(J);
   }
   return 0;
 }

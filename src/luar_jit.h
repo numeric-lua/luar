@@ -85,6 +85,8 @@ typedef struct LuaR_JIT {
   int enable_ir;
   size_t mcode;			/* executable bytes */
   int ncode;
+  int active_depth;		/* native traces currently executing */
+  int flush_pending;		/* jit.flush() requested during a trace */
   LuaR_Code code[LUAR_JIT_MAXCODE];
   LuaR_Trace trace[LUAR_JIT_MAXTRACES];
 } LuaR_JIT;
