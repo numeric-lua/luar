@@ -27,7 +27,7 @@
 /* Trace storage bounds.  J1 keeps bytecode snapshots, not Proto pointers,
 ** so a trace never keeps a collectable object alive or dangles. */
 #define LUAR_JIT_MAXTRACES	64
-#define LUAR_JIT_MAXINS		192
+#define LUAR_JIT_MAXINS		1024
 
 #define LUAR_JIT_MAXCODE	64
 

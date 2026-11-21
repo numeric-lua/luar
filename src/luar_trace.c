@@ -1634,6 +1634,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                     GET_OPCODE(ins) != OP_LOADK &&
                     GET_OPCODE(ins) != OP_LOADI &&
                     GET_OPCODE(ins) != OP_LOADF &&
+                    GET_OPCODE(ins) != OP_FORLOOP &&
                     GET_OPCODE(ins) != OP_NEWTABLE &&
                     GET_OPCODE(ins) != OP_SETLIST) ||
         (c >= ns && (GET_OPCODE(ins) == OP_ADD ||
