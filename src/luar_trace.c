@@ -275,6 +275,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TGETKT:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tgetkt");
+          return 0;
+        }
+        break;
       case LUAR_IR_TGETKB:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tgetkb");
@@ -708,6 +714,19 @@ int64_t luar_trace_concat2 (TValue *base, int a, lua_State *L) {
   r = luaS_newlstr(L, buf, len);
   free(buf);
   setsvalue(L, &base[a], r);
+  return 1;
+}
+
+
+int64_t luar_trace_tgetkt (TValue *tv, TString *key, TValue *out) {
+  Table *t; TValue v;
+  if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
+    return 0;
+  t = (Table *)tv->value_.gc;
+  luaH_getstr(t, key, &v);
+  if (!ttistable(&v))
+    return 0;
+  *out = v;
   return 1;
 }
 
@@ -1897,7 +1916,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           TValue curv;
           luaH_getstr((Table *)base[b].value_.gc, sname, &curv);
           if (!ttisinteger(&curv) && !ttisfloat(&curv) &&
-              !ttisstring(&curv) && !ttisboolean(&curv))
+              !ttisstring(&curv) && !ttisboolean(&curv) &&
+              !ttistable(&curv))
             return 0;
           if (!seen[b]) {
             in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
@@ -1907,7 +1927,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           }
           in.kind = ttisstring(&curv) ? LUAR_IR_TGETKS :
                     ttisfloat(&curv) ? LUAR_IR_TGETKF :
-                    ttisboolean(&curv) ? LUAR_IR_TGETKB : LUAR_IR_TGETK;
+                    ttisboolean(&curv) ? LUAR_IR_TGETKB :
+                    ttistable(&curv) ? LUAR_IR_TGETKT : LUAR_IR_TGETK;
           in.a = (uint8_t)a;
           in.b = (uint8_t)b;
           in.ival = (int64_t)(intptr_t)sname;
