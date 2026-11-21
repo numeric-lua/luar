@@ -13,6 +13,12 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.65.0 update.**  Sized `NEWTABLE` and `SETLIST` are traceable:
+array literals such as `{i}` allocate through `TNEW` (array/hash hints in
+`ival`/`nval`), then write through `TSETI`; the table is published to its
+stack slot before `luaH_resize`.  Constructor sizes with the `k` extra-arg
+form remain interpreter-side.
+
 **0.64.0 update.**  A traced `TNEW` table can be filled through the
 existing `TSET` path and read back in the same loop; `tests/jit/75` covers
 the combination, including GC and `alloc=0` fallback.
