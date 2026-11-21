@@ -58,6 +58,30 @@ Exit criteria:
 
 Estimated: 2–4 weeks.
 
+## 0.3+ — incremental J4/FFI releases (0.50–0.81, shipped)
+
+The original 0.3/0.4 plan was delivered as small, independently verified
+releases rather than one cut:
+
+* **Native C calls (0.50–0.55, 0.68, 0.73–0.74)**: zero/one/two/three
+  argument scalar calls, int/double/float32 and mixed forms, cdata-read
+  arguments, guarded `GETUPVAL` function loading, callback rejection.
+* **Allocation/GC (0.59–0.67, 0.75–0.81)**: rooted `L->top` during traces,
+  stack-offset restore, base reloads, deferred `jit.flush()`, relocated
+  TSET base, empty/sized `TNEW`, `SETLIST`/`TSETI`, `GETI`/`SETI`,
+  string-key int/float/string constructors and field reads.
+* **Performance (0.71–0.73)**: `make bench-jit` JIT-on/off report and a
+  committed snapshot.
+
+Exit criteria for this tier: all local matrices + ASan + upstream suite
+green; every release tagged, asset-checksum verified, and CI green on
+Linux and macOS.  These are met through 0.81.0.
+
+Still outside this tier: general `B == 0` calls, varargs/aggregate C
+signatures, strings/closures/`ffi.new` allocation, and sinking.  These
+require the allocation-safepoint design in
+`doc/allocation-gc-traces.md`, not more edge-case folding.
+
 ## 0.3 — Distribution and ABI hardening (released 2026-11-19)
 
 * `libluar.so` exporting the Lua 5.5 C API, with a documented soname and
