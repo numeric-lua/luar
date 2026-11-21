@@ -158,6 +158,13 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CCALL2DD:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c) || !valid_slot(t, (int)in->ival)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad ccall2dd");
+          return 0;
+        }
+        break;
       case LUAR_IR_TGET:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -492,6 +499,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CCALL1DD:
         kind[in->a] = 2;
         break;
+      case LUAR_IR_CCALL2DD:
+        kind[in->a] = 2;
+        break;
       default:
         break;
     }
@@ -680,15 +690,12 @@ static int ir_call_arg_is_int (Proto *p, int pc, int argslot, TValue *base) {
 /* Record-time proof that a CALL argument slot was just loaded with a
 ** double value accepted by CCALL1DD: a MOVE from a live float slot or a
 ** LOADK of a float constant.  MMBIN fallback markers are skipped, like in
-** the integer proof above.  CGETF/cdata-element sources are deliberately
-** not accepted (their fallback is still incomplete). */
-static int ir_call_arg_is_double (Proto *p, int pc, int argslot,
-                                  TValue *base) {
+** the integer proof above.  Cdata reads and float arithmetic are proved
+** from the recorded IR instead (see ir_last_op_writes_float). */
+static int ir_find_arg_double (Proto *p, int q, int argslot, TValue *base) {
   Instruction prev;
-  int q;
-  if (pc <= 0 || pc > p->sizecode)
-    return 0;
-  q = pc - 1;
+  if (q < 0 || q >= p->sizecode)
+    return -1;
   while (q > 0 &&
          (GET_OPCODE(p->code[q]) == OP_MMBIN ||
           GET_OPCODE(p->code[q]) == OP_MMBINI ||
@@ -696,41 +703,163 @@ static int ir_call_arg_is_double (Proto *p, int pc, int argslot,
     q--;
   prev = p->code[q];
   if (GETARG_A(prev) != argslot)
-    return 0;
+    return -1;
   switch (GET_OPCODE(prev)) {
     case OP_LOADK: {
       int k = GETARG_Bx(prev);
-      return k >= 0 && k < p->sizek && ttisfloat(&p->k[k]);
+      if (k >= 0 && k < p->sizek && ttisfloat(&p->k[k]))
+        return q;
+      return -1;
     }
     case OP_MOVE: {
       int src = GETARG_B(prev);
-      return src >= 0 && src < p->maxstacksize && ttisfloat(&base[src]);
+      if (src >= 0 && src < p->maxstacksize && ttisfloat(&base[src]))
+        return q;
+      return -1;
     }
+    default:
+      return -1;
+  }
+}
+
+
+static int ir_call_arg_is_double (Proto *p, int pc, int argslot,
+                                  TValue *base) {
+  if (pc <= 0 || pc > p->sizecode)
+    return 0;
+  return ir_find_arg_double(p, pc - 1, argslot, base) >= 0;
+}
+
+
+/* Two-argument form: arg2 is the last argument-producing instruction
+** before CALL, arg1 immediately precedes it (MMBIN markers skipped). */
+static int ir_call_args2_are_double (Proto *p, int pc, int arg1, int arg2,
+                                     TValue *base) {
+  int q2, q1;
+  if (pc <= 0 || pc > p->sizecode)
+    return 0;
+  q2 = ir_find_arg_double(p, pc - 1, arg2, base);
+  if (q2 < 0)
+    return 0;
+  q1 = ir_find_arg_double(p, q2 - 1, arg1, base);
+  return q1 >= 0;
+}
+
+
+/* True when instruction `kind` writes a stack slot in `a`.  Mutating
+** instructions (stores, table writes, guards and control flow) keep their
+** operand in `a`, so a backward scan for the producer of a value slot must
+** step over them instead of treating them as writes. */
+static int ir_writes_slot (uint8_t kind) {
+  switch (kind) {
+    case LUAR_IR_SLOAD:
+    case LUAR_IR_SSTORE:
+    case LUAR_IR_LOADI:
+    case LUAR_IR_LOADF:
+    case LUAR_IR_ADDI:
+    case LUAR_IR_ADDK:
+    case LUAR_IR_SUBK:
+    case LUAR_IR_MULK:
+    case LUAR_IR_DIVK:
+    case LUAR_IR_MODK:
+    case LUAR_IR_IDIVK:
+    case LUAR_IR_ADD:
+    case LUAR_IR_SUB:
+    case LUAR_IR_MUL:
+    case LUAR_IR_DIV:
+    case LUAR_IR_TGET:
+    case LUAR_IR_CGETI:
+    case LUAR_IR_CGETF:
+    case LUAR_IR_CGETFIELD:
+    case LUAR_IR_CPGETI:
+    case LUAR_IR_CPGETI64:
+    case LUAR_IR_CPGETF:
+    case LUAR_IR_CCALL0I:
+    case LUAR_IR_CCALL1I:
+    case LUAR_IR_CCALL1DI:
+    case LUAR_IR_CCALL1DD:
+    case LUAR_IR_CCALL2DD:
+    case LUAR_IR_TGETF:
+    case LUAR_IR_FMULK:
+    case LUAR_IR_FADD:
+    case LUAR_IR_FSUB:
+    case LUAR_IR_FDIVK:
+      return 1;
     default:
       return 0;
   }
 }
 
 
-/* The last recorded IR op must be the cdata float read that writes the
-** CALL argument slot.  This is the direct CGETF/CPGETF/CGETFIELD-float
-** source form; its runtime result carries a float tag. */
-static int ir_last_op_writes_float (const LuaR_TraceIR *t, int slot) {
-  const LuaR_IRIns *last;
-  if (t == NULL || t->nins <= 0)
+static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth);
+
+
+/* Does the latest writer of `slot` before instruction `end` carry a float
+** tag at runtime?  Only ops whose result is provably a Lua float qualify:
+** `/` is always float, `*` is float with a float constant or a float
+** operand, and `+`/`-` are float when either operand is float.  Unknown
+** producers return false so the call stays on the interpreter path. */
+static int ir_slot_is_float (const LuaR_TraceIR *t, int slot, int end,
+                             int depth) {
+  int i;
+  if (depth > 8)
     return 0;
-  last = &t->ins[t->nins - 1];
-  if (last->a != slot)
-    return 0;
-  switch (last->kind) {
+  for (i = end - 1; i >= 0; i--) {
+    if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
+      continue;
+    return ir_ins_is_float(t, i, depth);
+  }
+  return 0;
+}
+
+
+static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth) {
+  const LuaR_IRIns *in = &t->ins[i];
+  switch (in->kind) {
+    case LUAR_IR_LOADF:
     case LUAR_IR_CGETF:
     case LUAR_IR_CPGETF:
+    case LUAR_IR_CCALL1DI:
+    case LUAR_IR_CCALL1DD:
+    case LUAR_IR_CCALL2DD:
+    case LUAR_IR_TGETF:
+    case LUAR_IR_FMULK:
+    case LUAR_IR_FADD:
+    case LUAR_IR_FSUB:
+    case LUAR_IR_FDIVK:
       return 1;
     case LUAR_IR_CGETFIELD:
-      return last->c == 2;
+      return in->c == 2;
+    case LUAR_IR_DIVK:
+      return 1;   /* Lua `/` always produces a float */
+    case LUAR_IR_MULK:
+      return in->nval != (double)in->ival ||
+             ir_slot_is_float(t, in->b, i, depth + 1);
+    case LUAR_IR_ADD:
+    case LUAR_IR_SUB:
+      return ir_slot_is_float(t, in->b, i, depth + 1) ||
+             ir_slot_is_float(t, in->c, i, depth + 1);
+    case LUAR_IR_SLOAD:
+      return ir_slot_is_float(t, in->b, i, depth + 1);
     default:
       return 0;
   }
+}
+
+
+/* The last recorded IR op must produce the float that the CALL argument
+** slot holds.  This covers direct cdata reads (CGETF/CPGETF/
+** CGETFIELD-float) and float arithmetic on them (MULK, DIVK, ADD, SUB);
+** ir_floatify later turns the arithmetic into the corresponding float op.
+** The guard emitted before CCALL1DD still validates the runtime tag. */
+static int ir_last_op_writes_float (const LuaR_TraceIR *t, int slot) {
+  int last;
+  if (t == NULL || t->nins <= 0)
+    return 0;
+  last = t->nins - 1;
+  if (t->ins[last].a != slot || !ir_writes_slot(t->ins[last].kind))
+    return 0;
+  return ir_ins_is_float(t, last, 0);
 }
 
 
@@ -763,8 +892,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         (c >= ns && (GET_OPCODE(ins) == OP_ADD ||
                      GET_OPCODE(ins) == OP_SUB ||
                      GET_OPCODE(ins) == OP_MUL ||
-                     GET_OPCODE(ins) == OP_DIV)))
+                     GET_OPCODE(ins) == OP_DIV))) {
       return 0;
+    }
     switch (GET_OPCODE(ins)) {
       case OP_MOVE:
         if (ttisLclosure(&base[b])) {
@@ -785,7 +915,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (luar_ffi_trace_ccall0_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1di_kind(&base[b]) > 0 ||
-            luar_ffi_trace_ccall1dd_kind(&base[b]) > 0) {
+            luar_ffi_trace_ccall1dd_kind(&base[b]) > 0 ||
+            luar_ffi_trace_ccall2dd_kind(&base[b]) > 0) {
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
           fn_src[a] = b;
@@ -2010,6 +2141,31 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           r = luar_trace_ir_emit(t, &in);
           break;
         }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            ir_call_args2_are_double(p, pc, a + 1, a + 2, base) &&
+            luar_ffi_trace_ccall2dd_kind(fv) == 1) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc;
+            in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL2DD; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2); in.pc = pc;
+          seen[a] = 1;
+          seen[a + 1] = 1;
+          seen[a + 2] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         if (b == 2 && c == 2 && a + 1 < ns &&
             ir_call_arg_is_int(p, pc, a + 1, base) &&
             luar_ffi_trace_ccall1_kind(fv) == 1) {
@@ -2060,8 +2216,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             break;
           }
         }
-        if (!partial || pc <= start || b == 0)
+        if (!partial || pc <= start || b == 0) {
           return 0;
+        }
         t->nins = mark;   /* discard speculative inline guards */
         in.kind = LUAR_IR_CALLEXIT; in.pc = pc;
         if (!luar_trace_ir_emit(t, &in)) return 0;

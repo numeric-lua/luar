@@ -2807,3 +2807,46 @@ int ffi_trace_call1d (CData *fn, double arg, double *out) {
   *out = ret;
   return 1;
 }
+
+
+/* J4 helper: call a C function with two double arguments and a double
+** return.  No Lua stack, allocation or metamethods. */
+int ffi_trace_call2d (CData *fn, double arg1, double arg2, double *out) {
+  CType *ft, *at1, *at2, *rt;
+  ffi_cif cif;
+  ffi_type *atypes[2];
+  void *avalue[2];
+  double av1 = arg1, av2 = arg2, ret = 0.0;
+  if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
+      (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      fn->v.p == NULL || fn->ct == NULL)
+    return 0;
+  if (fn->ct->kind == CT_FUNC)
+    ft = fn->ct;
+  else if (fn->ct->kind == CT_POINTER && fn->ct->child != NULL &&
+           fn->ct->child->kind == CT_FUNC)
+    ft = fn->ct->child;
+  else
+    return 0;
+  if (ft->nargs != 2 || ft->vararg)
+    return 0;
+  at1 = ft->args[0];
+  at2 = ft->args[1];
+  rt = ft->ret;
+  if (at1 == NULL || at2 == NULL || rt == NULL ||
+      at1->kind != CT_FLOAT || at1->size != 8 ||
+      at2->kind != CT_FLOAT || at2->size != 8 ||
+      rt->kind != CT_FLOAT || rt->size != 8)
+    return 0;
+  atypes[0] = &ffi_type_double;
+  atypes[1] = &ffi_type_double;
+  avalue[0] = &av1;
+  avalue[1] = &av2;
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, &ffi_type_double,
+                   atypes) != FFI_OK)
+    return 0;
+  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  *out = ret;
+  return 1;
+}

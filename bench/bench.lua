@@ -841,6 +841,42 @@ def {
 }
 
 def {
+  name = "j4/ffi_ccall2dd", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    ffi.cdef[[double fmin(double, double);]]
+    j4_ccall = ffi.C.fmin
+    j4_prepare()
+  end,
+  run = function ()
+    local fn = j4_ccall
+    local x, y, n, s = 2.5, 1.5, N(400000), 0.0
+    for i = 1, n do s = s + fn(x, y) end
+    return s
+  end,
+}
+
+def {
+  name = "j4/ffi_ccall1dd_cgetf", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    ffi.cdef[[double fabs(double);]]
+    j4_ccall = ffi.C.fabs
+    j4_arr = ffi.new("double[?]", 1000)
+    for i = 0, 999 do j4_arr[i] = i - 500 end
+    j4_prepare()
+  end,
+  run = function ()
+    local fn, a = j4_ccall, j4_arr
+    local n, s = N(400000), 0.0
+    for i = 0, n - 1 do s = s + fn(a[i % 1000]) end
+    return s
+  end,
+}
+
+def {
   name = "j4/ffi_ccall1dd", group = "j4",
   skip = j4_ffi_skip,
   prepare = function ()
