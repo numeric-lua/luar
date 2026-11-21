@@ -13,6 +13,12 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.67.0 update.**  Constant-string table fields are traceable:
+`GETFIELD`/`SETFIELD` lower to `TGETK`/`TSETK` with the interned `TString`
+pointer from the Proto constant table.  Reads use `luaH_getstr`; writes use
+`luaH_set` with a value copy and return the relocated base.  This covers
+`{x = i}` and `t.x = i; ... t.x`.
+
 **0.66.0 update.**  Constant-index table access is traceable:
 `GETI`/`SETI` lower to `TGETI`/`TSETI`; reads use the array part with a
 `luaH_getint` fallback and never allocate, writes reuse the relocation-safe

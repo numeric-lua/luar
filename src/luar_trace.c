@@ -158,6 +158,14 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TGETK:
+      case LUAR_IR_TSETK:
+        if (!valid_slot(t, in->a) ||
+            (in->kind == LUAR_IR_TSETK && !valid_slot(t, in->b))) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetk");
+          return 0;
+        }
+        break;
       case LUAR_IR_TGETI:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tgeti");
@@ -425,6 +433,35 @@ int64_t luar_trace_tgeti (TValue *tv, lua_Integer key, TValue *out) {
 }
 
 
+TValue *luar_trace_tsetk (TValue *tv, TString *key, TValue *val,
+                          lua_State *L) {
+  Table *t;
+  TValue k, v;
+  if (tv == NULL || !ttistable(tv) || key == NULL || val == NULL ||
+      !ttisinteger(val) || L == NULL)
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  setsvalue(L, &k, key);
+  v = *val;
+  luaH_set(L, t, &k, &v);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
+int64_t luar_trace_tgetk (TValue *tv, TString *key, TValue *out) {
+  Table *t;
+  TValue v;
+  if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
+    return 0;
+  t = (Table *)tv->value_.gc;
+  luaH_getstr(t, key, &v);
+  if (!ttisinteger(&v))
+    return 0;
+  setivalue(out, ivalue(&v));
+  return 1;
+}
+
+
 int64_t luar_trace_tset_hash (TValue *tv, lua_Integer key, TValue *val) {
   Table *t;
   TValue old;
@@ -574,6 +611,10 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         kind[in->a] = 2;
         break;
       case LUAR_IR_CCALL2II:
+        kind[in->a] = 1;
+        break;
+      case LUAR_IR_TGETK:
+      case LUAR_IR_TGETI:
         kind[in->a] = 1;
         break;
       case LUAR_IR_TNEW:
@@ -1142,6 +1183,21 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         size_t off = 0, fsize = 0;
         if (!ttisstring(&p->k[c])) {
           return 0;
+        }
+        if (ttistable(&base[b])) {
+          if (!seen[b]) {
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+            in.b = LUAR_IR_TAG_TABLE; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[b] = 1;
+          }
+          in.kind = LUAR_IR_TGETK; in.a = (uint8_t)a;
+          in.b = (uint8_t)b;
+          in.ival = (int64_t)(intptr_t)tsvalue(&p->k[c]);
+          in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
         }
         if (pc + 5 <= backedge &&
             luar_ffi_trace_kind(&base[b]) == 3) {
@@ -2146,6 +2202,26 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.b = (uint8_t)c; in.c = (uint8_t)fk;
           in.ival = (int64_t)off;
           in.nval = (double)fsize;
+          in.pc = pc;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (!isk && ttisinteger(v)) {
+          if (!seen[a]) {
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
+            in.b = LUAR_IR_TAG_TABLE; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[a] = 1;
+          }
+          if (!seen[c]) {
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
+            in.b = LUAR_IR_TAG_INT; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[c] = 1;
+          }
+          in.kind = LUAR_IR_TSETK; in.a = (uint8_t)a;
+          in.b = (uint8_t)c;
+          in.ival = (int64_t)(intptr_t)tsvalue(&p->k[b]);
           in.pc = pc;
           r = luar_trace_ir_emit(t, &in);
           break;
