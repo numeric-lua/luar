@@ -1596,6 +1596,16 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | test eax, eax
         | jz >2
         break;
+      case LUAR_IR_TLEN:
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
+        | lea rsi, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov rdx, r12
+        | mov64 rax, (int64_t)(intptr_t)&luar_trace_tlen
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
       case LUAR_IR_STRLEN:
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
         | lea rsi, [rbx + ((int)LUAR_SLOT(in->a))]

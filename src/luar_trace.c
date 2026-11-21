@@ -193,6 +193,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TLEN:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tlen");
+          return 0;
+        }
+        break;
       case LUAR_IR_STRLEN:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad strlen");
@@ -550,6 +556,18 @@ int64_t luar_trace_concat3 (TValue *base, int a, lua_State *L) {
   r = luaS_newlstr(L, buf, len);
   free(buf);
   setsvalue(L, &base[a], r);
+  return 1;
+}
+
+
+int64_t luar_trace_tlen (TValue *v, TValue *out, lua_State *L) {
+  Table *t;
+  if (v == NULL || out == NULL || !ttistable(v) || L == NULL)
+    return 0;
+  t = (Table *)v->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_LEN))
+    return 0;
+  setivalue(out, (lua_Integer)luaH_getn(L, t));
   return 1;
 }
 
@@ -2832,7 +2850,16 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         r = 1;
         break;
       case OP_LEN: {
-        if (b >= ns || !ttisstring(&base[b]))
+        if (b >= ns)
+          return 0;
+        if (ttistable(&base[b])) {
+          in.kind = LUAR_IR_TLEN; in.a = (uint8_t)a;
+          in.b = (uint8_t)b; in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (!ttisstring(&base[b]))
           return 0;
         in.kind = LUAR_IR_STRLEN; in.a = (uint8_t)a;
         in.b = (uint8_t)b; in.pc = pc;

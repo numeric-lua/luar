@@ -72,7 +72,8 @@ typedef enum {
   LUAR_IR_CONCAT2,	/* a = base[a] .. base[a+1] */
   LUAR_IR_CONCAT3,	/* a = base[a] .. base[a+1] .. base[a+2] */
   LUAR_IR_CONCATN,	/* a = base[a] .. ... base[a+ival-1], ival 2..8 */
-  LUAR_IR_STRLEN,	/* a = #base[b] */
+  LUAR_IR_STRLEN,	/* a = #base[b], string */
+  LUAR_IR_TLEN,		/* a = #base[b], table without __len */
   LUAR_IR_TSETK,	/* table[key string ptr] = b, relocated base */
   LUAR_IR_TSETKK,	/* table[key string ptr] = constant int (nval) */
   LUAR_IR_TSETKF,	/* table[key string ptr] = float slot b */
@@ -253,6 +254,7 @@ int64_t luar_trace_concat2 (TValue *base, int a, lua_State *L);
 int64_t luar_trace_concat3 (TValue *base, int a, lua_State *L);
 int64_t luar_trace_concatn (TValue *base, int a, int n, lua_State *L);
 int64_t luar_trace_strlen (TValue *v, TValue *out);
+int64_t luar_trace_tlen (TValue *v, TValue *out, lua_State *L);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);
 int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start);
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
