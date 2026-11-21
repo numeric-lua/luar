@@ -841,6 +841,23 @@ def {
 }
 
 def {
+  name = "j4/ffi_ccall3dd", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    ffi.cdef[[double fma(double, double, double);]]
+    j4_ccall = ffi.C.fma
+    j4_prepare()
+  end,
+  run = function ()
+    local fn = j4_ccall
+    local x, y, z, n, s = 2.5, 4.0, 1.0, N(400000), 0.0
+    for i = 1, n do s = s + fn(x, y, z) end
+    return s
+  end,
+}
+
+def {
   name = "j4/ffi_ccall2ii", group = "j4",
   skip = j4_ffi_skip,
   prepare = function ()

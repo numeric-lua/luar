@@ -180,3 +180,8 @@ int64_t luar_ffi_trace_ccall2ii (TValue *fn, int64_t a0, int64_t a1,
                                  TValue *out) {
   (void)fn; (void)a0; (void)a1; (void)out; return 0;
 }
+int luar_ffi_trace_ccall3dd_kind (TValue *fn) { (void)fn; return 0; }
+int64_t luar_ffi_trace_ccall3dd (TValue *fn, double a0, double a1,
+                                 double a2, TValue *out) {
+  (void)fn; (void)a0; (void)a1; (void)a2; (void)out; return 0;
+}

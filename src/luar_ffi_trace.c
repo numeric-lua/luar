@@ -793,6 +793,62 @@ int luar_ffi_trace_ccall2dd_kind (TValue *fn) {
 }
 
 
+int64_t luar_ffi_trace_ccall3dd (TValue *fn, double arg1, double arg2,
+                                 double arg3, TValue *out) {
+  Udata *u;
+  CData *cd;
+  double v;
+  if (fn == NULL || out == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC)
+    return 0;
+  if (!ffi_trace_call3d(cd, arg1, arg2, arg3, &v))
+    return 0;
+  setfltvalue(out, v);
+  return 1;
+}
+
+
+/* Record-time classification of a C function with three double arguments
+** and a double return.  Never calls the function. */
+int luar_ffi_trace_ccall3dd_kind (TValue *fn) {
+  Udata *u;
+  CData *cd;
+  CType *ft, *at1, *at2, *at3, *rt;
+  if (fn == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC ||
+      (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK |
+                    CDATA_OWNED | CDATA_REF)) != 0 ||
+      cd->v.p == NULL || cd->ct == NULL)
+    return 0;
+  if (cd->ct->kind == CT_FUNC)
+    ft = cd->ct;
+  else if (cd->ct->kind == CT_POINTER && cd->ct->child != NULL &&
+           cd->ct->child->kind == CT_FUNC)
+    ft = cd->ct->child;
+  else
+    return 0;
+  if (ft->nargs != 3 || ft->vararg)
+    return 0;
+  at1 = ft->args[0];
+  at2 = ft->args[1];
+  at3 = ft->args[2];
+  rt = ft->ret;
+  if (at1 == NULL || at2 == NULL || at3 == NULL || rt == NULL ||
+      at1->kind != CT_FLOAT || at1->size != 8 ||
+      at2->kind != CT_FLOAT || at2->size != 8 ||
+      at3->kind != CT_FLOAT || at3->size != 8 ||
+      rt->kind != CT_FLOAT || rt->size != 8)
+    return 0;
+  return 1;
+}
+
+
 int luar_ffi_trace_ccall2di_kind (TValue *fn) {
   Udata *u;
   CData *cd;
