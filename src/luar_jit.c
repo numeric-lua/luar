@@ -101,6 +101,7 @@ static void free_code (LuaR_JIT *J) {
   J->ir_cont_compiled = 0;
   J->ir_cont_runs = 0;
   J->ir_install_rejects = 0;
+  J->ir_alloc_tables = 0;
   J->ir_side_start = -1;
   J->ir_root_start = -1;
   J->ir_yields = 0;
@@ -3852,6 +3853,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_code_bytes");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_executed : 0);
   lua_setfield(L, -2, "ir_executed");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_alloc_tables : 0);
+  lua_setfield(L, -2, "ir_alloc_tables");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_compiled : 0);
   lua_setfield(L, -2, "ir_side_compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_executed : 0);

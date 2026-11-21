@@ -14,6 +14,7 @@
 #include "ltable.h"
 #include "ltm.h"
 #include "luar_trace.h"
+#include "luar_jit.h"
 
 void luar_trace_ir_init (LuaR_TraceIR *t, Proto *proto, int32_t startpc,
                          int32_t maxslots, int depth) {
@@ -398,6 +399,8 @@ int64_t luar_trace_tnew (lua_State *L, TValue *out, int asize, int hsize) {
     return 0;
   t = luaH_new(L);
   sethvalue(L, out, t);   /* anchor before resize can trigger GC */
+  if (G(L)->luar_jit != NULL)
+    G(L)->luar_jit->ir_alloc_tables++;
   if (asize > 0 || hsize > 0)
     luaH_resize(L, t, (unsigned)asize, (unsigned)hsize);
   return 1;

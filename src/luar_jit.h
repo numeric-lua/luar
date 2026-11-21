@@ -78,6 +78,7 @@ typedef struct LuaR_JIT {
   uint32_t ir_cont_compiled;
   uint32_t ir_cont_runs;
   uint32_t ir_install_rejects;
+  unsigned long long ir_alloc_tables;	/* trace-side TNEW allocations */
   int ir_side_start;
   int ir_root_start;
   uint32_t ir_yields;
