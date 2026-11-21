@@ -13,6 +13,10 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.64.0 update.**  A traced `TNEW` table can be filled through the
+existing `TSET` path and read back in the same loop; `tests/jit/75` covers
+the combination, including GC and `alloc=0` fallback.
+
 **0.63.0 update.**  `luar_trace_tset_insert` now copies the value before
 calling `luaH_setint` and returns the (possibly relocated) frame base to the
 emitter, which reloads `rbx`.  A hash/array growth that steps the GC can
