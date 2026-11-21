@@ -760,6 +760,19 @@ def {
 }
 
 def {
+  name = "j4/float_addi", group = "j4",
+  skip = j4_skip,
+  prepare = j4_prepare,
+  run = function ()
+    local n = N(4000000)
+    local v = 2.5
+    local s = 0.0
+    for _ = 1, n do s = s + (v + 1) end
+    return s
+  end,
+}
+
+def {
   name = "j4/table_read", group = "j4",
   skip = j4_skip,
   prepare = function ()

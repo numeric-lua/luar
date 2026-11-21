@@ -1,5 +1,11 @@
 # Luar performance baseline
 
+> **J4 additions (0.109).**  The corpus now includes `j4/float_addi`, which
+> exercises `s = s + (v + 1)` through `FADDI`.  On the development host it
+> measured **1.83x** JIT-on versus JIT-off in `make bench-jit`.  This is a
+> microbenchmark, not a wall-clock claim.
+
+
 > **0.98 snapshot (2026-11-21, `./bench/compare.sh`, Ryzen 3 7320U).**
 > Best CPU milliseconds; `x` is relative to stock Lua 5.5.1.  This is a
 > microbenchmark corpus, not an application claim.
