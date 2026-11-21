@@ -13,6 +13,11 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.69.0 update.**  `ULOAD` now handles any non-function upvalue as well:
+the recorder emits the load followed by a tag guard, so numeric/table
+upvalues can participate in traces while type changes exit cleanly.
+Function/cdata upvalues keep the identity-only path used by native calls.
+
 **0.68.0 update.**  `GETUPVAL` is now traceable through `LUAR_IR_ULOAD`,
 which carries the expected `LClosure` pointer and upvalue index.  The
 runtime helper verifies the current closure identity before copying the

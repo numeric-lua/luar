@@ -1150,15 +1150,22 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             cl->upvals[idx] == NULL || cl->upvals[idx]->v.p == NULL)
           return 0;
         uv = *cl->upvals[idx]->v.p;
-        if (!ir_is_cdata_function(&uv))
-          return 0;
         in.kind = LUAR_IR_ULOAD; in.a = (uint8_t)a;
         in.ival = (int64_t)(intptr_t)cl;
         in.nval = (double)idx;
         in.pc = pc;
-        known_fn[a] = uv;
-        known[a] = 1;
         r = luar_trace_ir_emit(t, &in);
+        if (!r) return 0;
+        if (ir_is_cdata_function(&uv)) {
+          known_fn[a] = uv;
+          known[a] = 1;
+        }
+        else {
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
+          in.b = (uint8_t)ir_tag(&uv); in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+        }
         break;
       }
       case OP_MOVE:
