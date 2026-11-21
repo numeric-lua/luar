@@ -74,6 +74,7 @@ struct Pair pair_make (int a, int b) {
 
 double int_double_sum (int a, double b) { return (double)a + b; }
 double double_ret (void) { return 2.5; }
+float scale_fi (float x, int n) { return x * (float)n; }
 
 int pair_sum (struct Pair p) { return p.a + p.b; }
 
