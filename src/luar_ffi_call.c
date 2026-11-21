@@ -2850,3 +2850,39 @@ int ffi_trace_call2d (CData *fn, double arg1, double arg2, double *out) {
   *out = ret;
   return 1;
 }
+
+
+/* J4 helper: call a C function with (double, int) arguments and double
+** return. */
+int ffi_trace_call2di (CData *fn, double a0, int64_t a1, double *out) {
+  CType *ft, *at0, *at1, *rt;
+  ffi_cif cif;
+  ffi_type *atypes[2], *rtype = &ffi_type_double;
+  void *avalue[2];
+  double av0 = a0, ret = 0.0;
+  int32_t av1;
+  if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
+      (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK)) != 0 || fn->v.p == NULL)
+    return 0;
+  ft = (fn->ct->kind == CT_FUNC) ? fn->ct : fn->ct->child;
+  if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 2 || ft->vararg)
+    return 0;
+  at0 = ft->args[0];
+  at1 = ft->args[1];
+  rt = ft->ret;
+  if (at0 == NULL || at1 == NULL || rt == NULL ||
+      at0->kind != CT_FLOAT || at0->size != 8 ||
+      at1->kind != CT_INT || at1->size != 4 ||
+      rt->kind != CT_FLOAT || rt->size != 8)
+    return 0;
+  atypes[0] = &ffi_type_double;
+  atypes[1] = &ffi_type_sint32;
+  av1 = (int32_t)a1;
+  avalue[0] = &av0;
+  avalue[1] = &av1;
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
+    return 0;
+  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  *out = ret;
+  return 1;
+}

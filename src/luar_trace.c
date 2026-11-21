@@ -158,6 +158,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CCALL2DI:
       case LUAR_IR_CCALL2DD:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c) || !valid_slot(t, (int)in->ival)) {
@@ -500,6 +501,7 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         kind[in->a] = 2;
         break;
       case LUAR_IR_CCALL2DD:
+      case LUAR_IR_CCALL2DI:
         kind[in->a] = 2;
         break;
       default:
@@ -723,6 +725,34 @@ static int ir_find_arg_double (Proto *p, int q, int argslot, TValue *base) {
 }
 
 
+static int ir_find_arg_int (Proto *p, int q, int argslot, TValue *base) {
+  Instruction prev;
+  if (q < 0 || q >= p->sizecode)
+    return -1;
+  while (q > 0 &&
+         (GET_OPCODE(p->code[q]) == OP_MMBIN ||
+          GET_OPCODE(p->code[q]) == OP_MMBINI ||
+          GET_OPCODE(p->code[q]) == OP_MMBINK))
+    q--;
+  prev = p->code[q];
+  if (GETARG_A(prev) != argslot)
+    return -1;
+  switch (GET_OPCODE(prev)) {
+    case OP_LOADI:
+    case OP_ADDI:
+      return q;
+    case OP_MOVE: {
+      int src = GETARG_B(prev);
+      if (src >= 0 && src < p->maxstacksize && ttisinteger(&base[src]))
+        return q;
+      return -1;
+    }
+    default:
+      return -1;
+  }
+}
+
+
 static int ir_call_arg_is_double (Proto *p, int pc, int argslot,
                                   TValue *base) {
   if (pc <= 0 || pc > p->sizecode)
@@ -916,7 +946,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             luar_ffi_trace_ccall1_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1di_kind(&base[b]) > 0 ||
             luar_ffi_trace_ccall1dd_kind(&base[b]) > 0 ||
-            luar_ffi_trace_ccall2dd_kind(&base[b]) > 0) {
+            luar_ffi_trace_ccall2dd_kind(&base[b]) > 0 ||
+            luar_ffi_trace_ccall2di_kind(&base[b]) > 0) {
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
           fn_src[a] = b;
@@ -2140,6 +2171,32 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           seen[a + 1] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
+        }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            luar_ffi_trace_ccall2di_kind(fv) == 1) {
+          int q2 = ir_find_arg_int(p, pc - 1, a + 2, base);
+          int q1 = q2 >= 0 ? ir_find_arg_double(p, q2 - 1, a + 1, base) : -1;
+          if (q1 >= 0) {
+            if (!seen[fs]) {
+              in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+              in.ival = (int64_t)(intptr_t)fv->value_.gc;
+              in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
+              seen[fs] = 1;
+            }
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+            in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
+            in.b = LUAR_IR_TAG_INT; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            in.kind = LUAR_IR_CCALL2DI; in.a = (uint8_t)a;
+            in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+            in.ival = (int64_t)(a + 2); in.pc = pc;
+            seen[a] = 1;
+            r = luar_trace_ir_emit(t, &in);
+            break;
+          }
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             ir_call_args2_are_double(p, pc, a + 1, a + 2, base) &&

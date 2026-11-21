@@ -841,6 +841,23 @@ def {
 }
 
 def {
+  name = "j4/ffi_ccall2di", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    ffi.cdef[[double ldexp(double, int);]]
+    j4_ccall = ffi.C.ldexp
+    j4_prepare()
+  end,
+  run = function ()
+    local fn = j4_ccall
+    local x, e, n, s = 1.5, 3, N(400000), 0.0
+    for i = 1, n do s = s + fn(x, e) end
+    return s
+  end,
+}
+
+def {
   name = "j4/ffi_ccall2dd", group = "j4",
   skip = j4_ffi_skip,
   prepare = function ()
