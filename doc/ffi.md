@@ -612,7 +612,8 @@ so a loop such as `x = x + s.lp[i]` accumulates cdata.  J4 has no cdata
 arithmetic IR; it deliberately declines these traces and leaves them to the
 interpreter.  Forcing `TAG_USERDATA` onto struct/pointer cdata makes the
 recorder accept the trace and then treat the cdata payload as an integer,
-which is a miscompile.  The userdata guard is therefore restricted to cdata
-**arrays**: `sqrtf(arr[i])`, `fabs(arr[i])`, int-array reads and direct
-array loops can trace, while struct/pointer field chains stay
+which is a miscompile.  Struct/pointer cdata may trace when every field read is a 32-bit
+integer or double (`int *`, `int`/`double` struct fields).  Reads that
+would produce cdata int64 (`long`, `int64_t`, pointer-sized integers) are
+rejected in both the integer and float analyzers and stay
 interpreter-side until cdata arithmetic is modelled.

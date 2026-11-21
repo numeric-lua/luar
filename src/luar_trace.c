@@ -1085,11 +1085,8 @@ static int ir_tag (const TValue *v) {
   if (ttistable(v)) return LUAR_IR_TAG_TABLE;
   if (ttisstring(v) && tsslen(tsvalue(v)) <= LUAI_MAXSHORTLEN)
     return LUAR_IR_TAG_STRING;
-  if (ttisfulluserdata(v)) {
-    int ck = luar_ffi_trace_kind((TValue *)v);
-    if (ck == 1 || ck == 2)
-      return LUAR_IR_TAG_USERDATA;
-  }
+  if (ttisfulluserdata(v))
+    return LUAR_IR_TAG_USERDATA;
   return LUAR_IR_TAG_OTHER;
 }
 
@@ -1583,11 +1580,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.b = (uint8_t)ir_tag(&uv); in.pc = pc;
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
-          if (r) {
-            int ck = luar_ffi_trace_kind(&uv);
-            if (ck == 1 || ck == 2)
-              known_cval[a] = uv;
-          }
+          if (r && luar_ffi_trace_kind(&uv) > 0)
+            known_cval[a] = uv;
         }
         break;
       }
@@ -2649,12 +2643,16 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             break;
           }
         }
-        if (luar_ffi_trace_kind(&base[b]) > 0 &&
-            luar_ffi_trace_field(&base[b], getstr(tsvalue(&p->k[c])),
-                                 &fk, &off, &fsize)) {
-          if (!seen[b]) {
+        {
+          int tracked = ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
+                        known_cval[b].tt_ != 0;
+          TValue *cdv = tracked ? &known_cval[b] : &base[b];
+          if (luar_ffi_trace_kind(cdv) > 0 &&
+              luar_ffi_trace_field(cdv, getstr(tsvalue(&p->k[c])),
+                                   &fk, &off, &fsize)) {
+          if (!seen[b] || tracked) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
-            in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+            in.ival = (int64_t)(intptr_t)cdv->value_.gc;
             in.pc = pc;
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[b] = 1;
@@ -2667,6 +2665,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
+          }
         }
         return 0;
       }

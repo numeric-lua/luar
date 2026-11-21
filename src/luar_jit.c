@@ -3235,6 +3235,12 @@ LUA_API int luar_has_jit (void) {
 static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
   int i, fslot = -1, sawtable = 0, sawfloat = 0;
   for (i = 0; i < ir->nins; i++) {
+    if (ir->ins[i].kind == LUAR_IR_CPGETI64 ||
+        ir->ins[i].kind == LUAR_IR_CPSETI64)
+      return 0;
+    if (ir->ins[i].kind == LUAR_IR_CPGETI64 ||
+        ir->ins[i].kind == LUAR_IR_CPSETI64)
+      return 0;
     LuaR_IRIns *op = &ir->ins[i];
     if (op->kind == LUAR_IR_GUARD) {
       if (op->b != LUAR_IR_TAG_INT && op->b != LUAR_IR_TAG_FLOAT &&
@@ -3381,6 +3387,10 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
 
 static int ir_integer_only (const LuaR_TraceIR *ir) {
   int i, tag[LUAR_IR_MAX_SLOTS];
+  for (i = 0; i < ir->nins; i++)
+    if (ir->ins[i].kind == LUAR_IR_CPGETI64 ||
+        ir->ins[i].kind == LUAR_IR_CPSETI64)
+      return 0;
   for (i = 0; i < LUAR_IR_MAX_SLOTS; i++)
     tag[i] = -1;
   for (i = 0; i < ir->nins; i++) {
