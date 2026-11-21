@@ -158,6 +158,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TNEW:
+        if (!valid_slot(t, in->a)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tnew");
+          return 0;
+        }
+        break;
       case LUAR_IR_CCALL2II:
       case LUAR_IR_CCALL2DI:
       case LUAR_IR_CCALL2DD:
@@ -335,6 +341,16 @@ int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key,
   if (luaH_get(t, &k, &res) != LUA_VNUMINT)
     return 0;
   *out = ivalue(&res);
+  return 1;
+}
+
+
+int64_t luar_trace_tnew (lua_State *L, TValue *out) {
+  Table *t;
+  if (L == NULL || out == NULL)
+    return 0;
+  t = luaH_new(L);
+  sethvalue(L, out, t);
   return 1;
 }
 
@@ -518,6 +534,9 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_CCALL2II:
         kind[in->a] = 1;
+        break;
+      case LUAR_IR_TNEW:
+        kind[in->a] = 3;
         break;
       case LUAR_IR_CCALL3DD:
         kind[in->a] = 2;
@@ -2146,6 +2165,18 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_MMBIN:
       case OP_MMBINI:
       case OP_MMBINK:
+        r = 1;
+        break;
+      case OP_NEWTABLE:
+        if (suffix || partial || GETARG_B(ins) != 0 ||
+            GETARG_C(ins) != 0)
+          return 0;
+        in.kind = LUAR_IR_TNEW; in.a = (uint8_t)a; in.pc = pc;
+        seen[a] = 1;
+        r = luar_trace_ir_emit(t, &in);
+        if (r) pc++;   /* skip the paired EXTRAARG */
+        break;
+      case OP_EXTRAARG:
         r = 1;
         break;
       case OP_CALL: {

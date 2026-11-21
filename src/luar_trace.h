@@ -60,6 +60,7 @@ typedef enum {
   LUAR_IR_CCALL2DD,	/* native two-double-arg/double-return C call */
   LUAR_IR_CCALL2DI,	/* native (double,int) C call, double return */
   LUAR_IR_CCALL2II,	/* native (int,int) C call, integer return */
+  LUAR_IR_TNEW,		/* allocate one empty table */
   LUAR_IR_CCALL3DD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FMULK,	/* float multiply by nval */
@@ -204,6 +205,7 @@ int64_t luar_trace_tgetf_generic (TValue *tv, lua_Integer key, double *out);
 int64_t luar_trace_tget_generic (TValue *tv, lua_Integer key, int64_t *out);
 int64_t luar_trace_tset_int (TValue *tv, lua_Integer key, TValue *val);
 int64_t luar_trace_tset_hash (TValue *tv, lua_Integer key, TValue *val);
+int64_t luar_trace_tnew (lua_State *L, TValue *out);
 int64_t luar_trace_tset_insert (TValue *tv, lua_Integer key, TValue *val,
                                 lua_State *L);
 int luar_trace_ir_guards_match (const LuaR_TraceIR *t, TValue *base);

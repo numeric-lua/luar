@@ -83,6 +83,7 @@ typedef struct LuaR_JIT {
   uint32_t ir_yields;
   int ir_side_depth;
   int enable_ir;
+  int enable_alloc;		/* opt-in trace-side allocation (TNEW) */
   size_t mcode;			/* executable bytes */
   int ncode;
   int active_depth;		/* native traces currently executing */

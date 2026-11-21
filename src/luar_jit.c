@@ -3390,6 +3390,15 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
 }
 
 
+static int ir_has_tnew (const LuaR_TraceIR *ir) {
+  int i;
+  for (i = 0; i < ir->nins; i++)
+    if (ir->ins[i].kind == LUAR_IR_TNEW)
+      return 1;
+  return 0;
+}
+
+
 int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
                        void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -3469,6 +3478,10 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
       partial = luar_trace_record_call_prefix(p, (int)target, (int)off,
                                               (TValue *)base, &ir, &callpc);
       recorded = partial;
+    }
+    if (recorded && ir_has_tnew(&ir) && !J->enable_alloc) {
+      J->ir_aborts++;
+      recorded = 0;
     }
     if (recorded) {
       J->ir_traces++;
@@ -3637,6 +3650,8 @@ static int jit_opt_start (lua_State *L) {
     const char *opt = luaL_checkstring(L, i);
     if (J != NULL && strncmp(opt, "ir=", 3) == 0)
       J->enable_ir = (opt[3] != '0');
+    else if (J != NULL && strncmp(opt, "alloc=", 6) == 0)
+      J->enable_alloc = (opt[6] != '0');
     else if (J != NULL && strncmp(opt, "table=", 6) == 0) {
       J->enable_table = (opt[6] != '0');
       J->enable_tint = (opt[6] != '0');

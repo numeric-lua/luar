@@ -13,6 +13,13 @@ This note does not restate the whole tracing design.  It answers one
 question: how can a J4 trace create collectable objects without weakening
 the correctness contract?
 
+**0.62.0 update.**  The first allocation opcode is implemented:
+`LUAR_IR_TNEW` allocates one empty table behind `jit.opt.start("alloc=1")`.
+It uses `luaH_new` without `luaC_checkGC`, publishes the table to its stack
+slot under the rooted `L->top` protocol, and is restricted to full root
+traces with empty `NEWTABLE`.  General allocation, `SETLIST`, `ffi.new`,
+side-trace allocation and sinking remain out of scope.
+
 **0.61.0 update.**  `LuaR_JIT` now tracks `active_depth`; `jit.flush()`
 seen while a native trace runs sets `flush_pending` and the outermost
 `luari_run_j4` return performs `free_code()` only after generated code is
