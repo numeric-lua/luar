@@ -1757,7 +1757,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_ADDI:
         if (ttisfloat(&base[b])) {
           in.kind = LUAR_IR_FADDI; in.a = (uint8_t)a;
-          in.b = (uint8_t)b; in.nval = (double)c; in.pc = pc;
+          in.b = (uint8_t)b; in.nval = (double)GETARG_sC(ins);
+          in.pc = pc;
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;

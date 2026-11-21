@@ -3272,6 +3272,7 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
     if (op->kind == LUAR_IR_FADDI) {
       fslot = op->a;
       sawfloat = 1;
+      sawtable = 1;
       continue;
     }
     if (op->kind == LUAR_IR_LOADF) {
