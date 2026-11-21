@@ -1459,6 +1459,7 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_CCALL2DD:
     case LUAR_IR_CCALL3DD:
     case LUAR_IR_TGETF:
+    case LUAR_IR_FADDI:
     case LUAR_IR_FMULK:
     case LUAR_IR_FADD:
     case LUAR_IR_FSUB:
@@ -1667,7 +1668,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.b = (uint8_t)ir_tag(&uv); in.pc = pc;
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
-          if (r && luar_ffi_trace_kind(&uv) > 0)
+          if (r)
             known_cval[a] = uv;
         }
         break;
@@ -1754,8 +1755,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         r = luar_trace_ir_emit(t, &in);
         break;
       }
-      case OP_ADDI:
-        if (ttisfloat(&base[b])) {
+      case OP_ADDI: {
+        TValue *sv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
+                      known_cval[b].tt_ != 0) ?
+                     &known_cval[b] : &base[b];
+        if (ttisfloat(sv)) {
           in.kind = LUAR_IR_FADDI; in.a = (uint8_t)a;
           in.b = (uint8_t)b; in.nval = (double)GETARG_sC(ins);
           in.pc = pc;
@@ -1767,6 +1771,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.ival = GETARG_sC(ins); in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
+      }
       case OP_ADD:
       case OP_SUB:
       case OP_MUL:
@@ -3213,6 +3218,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (b == 2 && c == 2 && a + 1 < ns &&
             ir_call_arg_is_int(p, pc, a + 1, base) &&
+            !ir_last_op_writes_float(t, a + 1) &&
             luar_ffi_trace_ccall1di_kind(fv) == 1) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
