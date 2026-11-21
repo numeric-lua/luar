@@ -14,7 +14,7 @@
 
 #include "lobject.h"
 
-#define LUAR_IR_MAX_INS		64
+#define LUAR_IR_MAX_INS		256
 #define LUAR_IR_MAX_EXITS	4
 #define LUAR_IR_MAX_SLOTS	64
 #define LUAR_IR_VERSION		1

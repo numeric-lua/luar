@@ -3108,9 +3108,15 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_SETLIST: {
         int n = GETARG_vB(ins), last = GETARG_vC(ins);
         int j;
-        if (suffix || partial || n <= 0 || TESTARG_k(ins) ||
-            a + n >= ns)
+        if (suffix || partial || n <= 0 || a + n >= ns)
           return 0;
+        if (TESTARG_k(ins)) {
+          if (pc + 1 > backedge ||
+              GET_OPCODE(p->code[pc + 1]) != OP_EXTRAARG)
+            return 0;
+          last = GETARG_Ax(p->code[pc + 1]);
+          pc++;
+        }
         if (!seen[a]) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
           in.b = LUAR_IR_TAG_TABLE; in.pc = pc;
