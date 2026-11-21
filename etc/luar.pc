@@ -6,7 +6,7 @@ includedir=${prefix}/include/luar
 Name: luar
 URL: https://github.com/numeric-lua/luar
 Description: Luar, a Lua 5.5-forward runtime with LuaJIT-style extensions
-Version: 0.70.0
+Version: 0.71.0
 Libs: -L${libdir} -lluar -lm
 Libs.private: -ldl
 Cflags: -I${includedir}

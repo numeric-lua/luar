@@ -677,6 +677,10 @@ def {
   end,
 }
 
+local BENCH_NOJIT = os.getenv("LUAR_BENCH_NOJIT") ~= nil and
+                   os.getenv("LUAR_BENCH_NOJIT") ~= "" and
+                   os.getenv("LUAR_BENCH_NOJIT") ~= "0"
+
 -- j4 (Luar tracing IR) ---------------------------------------------
 
 local function j4_skip ()
@@ -702,6 +706,10 @@ end
 
 
 local function j4_prepare ()
+  if BENCH_NOJIT then
+    jit.off()
+    return
+  end
   jit.opt.start("ir=1")
   jit.on()
 end
@@ -712,7 +720,7 @@ local function j4_make_array (n)
   jit.off()
   local t = {}
   for i = 1, n do t[i] = i end
-  jit.on()
+  if not BENCH_NOJIT then jit.on() end
   return t
 end
 
@@ -720,7 +728,7 @@ local function j4_make_hash (n)
   jit.off()
   local t = table.new(0, n)
   for i = 1, n do t[i] = i end
-  jit.on()
+  if not BENCH_NOJIT then jit.on() end
   return t
 end
 

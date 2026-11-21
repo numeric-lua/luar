@@ -12,7 +12,7 @@ WITH_JIT?= $(JIT)
 MAKE?= make
 RM= rm -f
 
-VERSION= 0.70.0
+VERSION= 0.71.0
 LUAVER= 5.5
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 UNAME_S:= $(shell uname -s)
@@ -139,6 +139,9 @@ bench: build
 # Full cross-interpreter comparison (lua, luajit, luajit -joff, luar).
 bench-compare: build
 	./bench/compare.sh
+
+bench-jit: build
+	./tools/bench-jit-compare.sh
 
 install: build shared
 	mkdir -p $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_PC) \
