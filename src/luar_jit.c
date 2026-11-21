@@ -3240,6 +3240,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       if (op->b != LUAR_IR_TAG_INT && op->b != LUAR_IR_TAG_FLOAT &&
           op->b != LUAR_IR_TAG_TABLE)
         return 0;
+      if (op->b == LUAR_IR_TAG_FLOAT)
+        sawfloat = 1;
       continue;
     }
     if (op->kind == LUAR_IR_GUARD && op->b == LUAR_IR_TAG_FLOAT) {
@@ -3310,6 +3312,14 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawtable = 1;
       continue;
     }
+    if (op->kind == LUAR_IR_TSETKF) {
+      sawtable = 1;
+      continue;
+    }
+    if (op->kind == LUAR_IR_TNEW) {
+      sawtable = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_CPSETF) {
       sawtable = 1;
       sawfloat = 1;
@@ -3362,7 +3372,8 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
         in->kind == LUAR_IR_CCALL1FF ||
         in->kind == LUAR_IR_CCALL2DD ||
         in->kind == LUAR_IR_CCALL2FF || in->kind == LUAR_IR_CCALL3DD ||
-        in->kind == LUAR_IR_LOADF || in->kind == LUAR_IR_CPSETF ||
+        in->kind == LUAR_IR_LOADF || in->kind == LUAR_IR_TSETKF ||
+        in->kind == LUAR_IR_CPSETF ||
         ((in->kind == LUAR_IR_CGETFIELD ||
           in->kind == LUAR_IR_CSETFIELD ||
           in->kind == LUAR_IR_CSETFIELDK) && in->c == 2))
@@ -3500,6 +3511,14 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
       {
         int intok = ir_integer_only(&ir);
         int fltok = (!intok && ir_floatify(p, (TValue *)base, &ir));
+        if (getenv("LUAR_F32_DEBUG")) {
+          int di;
+          fprintf(stderr, "f32 intok=%d fltok=%d n=%d\n", intok, fltok, ir.nins);
+          for (di = 0; di < ir.nins; di++)
+            fprintf(stderr, "  [%d] k=%d a=%d b=%d c=%d\n", di,
+                    (int)ir.ins[di].kind, (int)ir.ins[di].a,
+                    (int)ir.ins[di].b, (int)ir.ins[di].c);
+        }
         if (J->enable_ir && p->luar_ir_code == NULL &&
             GET_OPCODE(ins) == OP_FORLOOP && (intok || fltok)) {
           if (luari_emit_trace_ir(&ir, &p->luar_ir_code,
