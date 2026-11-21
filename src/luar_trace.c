@@ -462,22 +462,39 @@ int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out) {
 
 
 int64_t luar_trace_concat2 (TValue *base, int a, lua_State *L) {
-  TString *s1, *s2, *r;
+  TString *r;
+  const char *p1, *p2;
+  char n1[LUA_N2SBUFFSZ], n2[LUA_N2SBUFFSZ];
   size_t l1, l2, len;
   char *buf;
-  if (base == NULL || L == NULL || a < 0 || !ttisstring(&base[a]) ||
-      !ttisstring(&base[a + 1]))
+  if (base == NULL || L == NULL || a < 0)
     return 0;
-  s1 = tsvalue(&base[a]);
-  s2 = tsvalue(&base[a + 1]);
-  l1 = tsslen(s1);
-  l2 = tsslen(s2);
+  if (ttisstring(&base[a])) {
+    p1 = getstr(tsvalue(&base[a]));
+    l1 = tsslen(tsvalue(&base[a]));
+  }
+  else if (ttisnumber(&base[a])) {
+    l1 = luaO_tostringbuff(&base[a], n1);
+    p1 = n1;
+  }
+  else
+    return 0;
+  if (ttisstring(&base[a + 1])) {
+    p2 = getstr(tsvalue(&base[a + 1]));
+    l2 = tsslen(tsvalue(&base[a + 1]));
+  }
+  else if (ttisnumber(&base[a + 1])) {
+    l2 = luaO_tostringbuff(&base[a + 1], n2);
+    p2 = n2;
+  }
+  else
+    return 0;
   len = l1 + l2;
   buf = (char *)malloc(len > 0 ? len : 1);
   if (buf == NULL)
     return 0;
-  memcpy(buf, getstr(s1), l1);
-  memcpy(buf + l1, getstr(s2), l2);
+  memcpy(buf, p1, l1);
+  memcpy(buf + l1, p2, l2);
   r = luaS_newlstr(L, buf, len);
   free(buf);
   setsvalue(L, &base[a], r);
