@@ -192,6 +192,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TGETKF:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tgetkf");
+          return 0;
+        }
+        break;
       case LUAR_IR_TGETK:
       case LUAR_IR_TSETK:
         if (!valid_slot(t, in->a) ||
@@ -429,6 +435,20 @@ int64_t luar_trace_tnew (lua_State *L, TValue *out, int asize, int hsize) {
     G(L)->luar_jit->ir_alloc_tables++;
   if (asize > 0 || hsize > 0)
     luaH_resize(L, t, (unsigned)asize, (unsigned)hsize);
+  return 1;
+}
+
+
+int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out) {
+  Table *t;
+  TValue v;
+  if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
+    return 0;
+  t = (Table *)tv->value_.gc;
+  luaH_getstr(t, key, &v);
+  if (!ttisfloat(&v))
+    return 0;
+  setfltvalue(out, fltvalue(&v));
   return 1;
 }
 
@@ -1389,15 +1409,21 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           return 0;
         }
         if (ttistable(&base[b])) {
+          TString *sname = tsvalue(&p->k[c]);
+          TValue curv;
+          luaH_getstr((Table *)base[b].value_.gc, sname, &curv);
+          if (!ttisinteger(&curv) && !ttisfloat(&curv))
+            return 0;
           if (!seen[b]) {
             in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
             in.b = LUAR_IR_TAG_TABLE; in.pc = pc;
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[b] = 1;
           }
-          in.kind = LUAR_IR_TGETK; in.a = (uint8_t)a;
+          in.kind = ttisfloat(&curv) ? LUAR_IR_TGETKF : LUAR_IR_TGETK;
+          in.a = (uint8_t)a;
           in.b = (uint8_t)b;
-          in.ival = (int64_t)(intptr_t)tsvalue(&p->k[c]);
+          in.ival = (int64_t)(intptr_t)sname;
           in.pc = pc;
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
