@@ -12,6 +12,7 @@
 #include "lstate.h"
 #include "lopcodes.h"
 #include "ltable.h"
+#include "lstring.h"
 #include "ltm.h"
 #include "luar_trace.h"
 #include "luar_jit.h"
@@ -189,6 +190,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_TSETKK:
         if (!valid_slot(t, in->a)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetkk");
+          return 0;
+        }
+        break;
+      case LUAR_IR_CONCAT2:
+        if (in->a + 1 >= t->maxslots) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad concat2");
           return 0;
         }
         break;
@@ -450,6 +457,30 @@ int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out) {
   if (!ttisfloat(&v))
     return 0;
   setfltvalue(out, fltvalue(&v));
+  return 1;
+}
+
+
+int64_t luar_trace_concat2 (TValue *base, int a, lua_State *L) {
+  TString *s1, *s2, *r;
+  size_t l1, l2, len;
+  char *buf;
+  if (base == NULL || L == NULL || a < 0 || !ttisstring(&base[a]) ||
+      !ttisstring(&base[a + 1]))
+    return 0;
+  s1 = tsvalue(&base[a]);
+  s2 = tsvalue(&base[a + 1]);
+  l1 = tsslen(s1);
+  l2 = tsslen(s2);
+  len = l1 + l2;
+  buf = (char *)malloc(len > 0 ? len : 1);
+  if (buf == NULL)
+    return 0;
+  memcpy(buf, getstr(s1), l1);
+  memcpy(buf + l1, getstr(s2), l2);
+  r = luaS_newlstr(L, buf, len);
+  free(buf);
+  setsvalue(L, &base[a], r);
   return 1;
 }
 
@@ -1335,7 +1366,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           r = luar_trace_ir_emit(t, &in);
           break;
         }
-        if (!seen[b] && b < ns) {
+        if (!seen[b] && b < ns && !ttisstring(&base[b])) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
           in.b = (uint8_t)ir_tag(&base[b]); in.pc = pc;
           if (!luar_trace_ir_emit(t, &in)) return 0;
@@ -2682,6 +2713,14 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_EXTRAARG:
         r = 1;
         break;
+      case OP_CONCAT: {
+        if (GETARG_B(ins) != 2 || a + 1 >= ns)
+          return 0;
+        in.kind = LUAR_IR_CONCAT2; in.a = (uint8_t)a; in.pc = pc;
+        seen[a] = 1;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      }
       case OP_CALL: {
         int mark = t->nins;
         int fs = fn_src[a] >= 0 ? fn_src[a] : a;
