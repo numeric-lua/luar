@@ -1488,6 +1488,15 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | mov qword [rbx + ((int)LUAR_SLOT(in->a))], rax
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         break;
+      case LUAR_IR_KBOOL:
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov esi, ((int)in->nval)
+        | mov64 rax, (int64_t)(intptr_t)&luar_trace_kbool
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
       case LUAR_IR_KSTR:
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         | mov64 rsi, in->ival
@@ -1801,10 +1810,16 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | jz >2
         break;
       case LUAR_IR_TSETIF:
-      case LUAR_IR_TSETIS: {
+      case LUAR_IR_TSETIS:
+      case LUAR_IR_TSETIB:
+      case LUAR_IR_TSETIT: {
         const void *fn = (in->kind == LUAR_IR_TSETIF) ?
           (const void *)&luar_trace_tsetif :
-          (const void *)&luar_trace_tsetis;
+          (in->kind == LUAR_IR_TSETIS) ?
+          (const void *)&luar_trace_tsetis :
+          (in->kind == LUAR_IR_TSETIB) ?
+          (const void *)&luar_trace_tsetib :
+          (const void *)&luar_trace_tsetit;
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         | mov64 rsi, in->ival
         | lea rdx, [rbx + ((int)LUAR_SLOT(in->b))]

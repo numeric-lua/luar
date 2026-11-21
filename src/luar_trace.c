@@ -65,6 +65,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_KFLOAT:
         break;
       case LUAR_IR_LOADI:
+      case LUAR_IR_KBOOL:
+        if (!valid_slot(t, in->a)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad kbool");
+          return 0;
+        }
+        break;
       case LUAR_IR_KSTR:
         if (!valid_slot(t, in->a)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad kstr");
@@ -272,6 +278,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_TSETIF:
       case LUAR_IR_TSETIS:
+      case LUAR_IR_TSETIB:
+      case LUAR_IR_TSETIT:
       case LUAR_IR_TSETI:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tseti");
@@ -599,6 +607,14 @@ int64_t luar_trace_tlen (TValue *v, TValue *out, lua_State *L) {
 }
 
 
+int64_t luar_trace_kbool (TValue *out, int b) {
+  if (out == NULL)
+    return 0;
+  settt_(out, b != 0 ? LUA_VTRUE : LUA_VFALSE);
+  return 1;
+}
+
+
 int64_t luar_trace_kstr (TValue *out, TString *s, lua_State *L) {
   if (out == NULL || s == NULL || L == NULL)
     return 0;
@@ -772,6 +788,34 @@ TValue *luar_trace_tsetkf (TValue *tv, TString *key, TValue *val,
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
+TValue *luar_trace_tsetib (TValue *tv, lua_Integer key, TValue *val,
+                           lua_State *L) {
+  Table *t;
+  TValue v;
+  if (tv == NULL || !ttistable(tv) || val == NULL || !ttisboolean(val) ||
+      key < 1 || L == NULL)
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  v = *val;
+  luaH_setint(L, t, key, &v);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
+TValue *luar_trace_tsetit (TValue *tv, lua_Integer key, TValue *val,
+                           lua_State *L) {
+  Table *t;
+  TValue v;
+  if (tv == NULL || !ttistable(tv) || val == NULL || !ttistable(val) ||
+      key < 1 || L == NULL)
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  v = *val;
+  luaH_setint(L, t, key, &v);
   return (TValue *)(L->ci->func.p + 1);
 }
 
@@ -1638,6 +1682,14 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.nval = (double)GETARG_sBx(ins); in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
+      case OP_LOADTRUE:
+      case OP_LOADFALSE: {
+        in.kind = LUAR_IR_KBOOL; in.a = (uint8_t)a;
+        in.nval = GET_OPCODE(ins) == OP_LOADTRUE ? 1.0 : 0.0;
+        in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      }
       case OP_LOADK: {
         int k = GETARG_Bx(ins);
         if (k < 0 || k >= p->sizek)
@@ -1649,6 +1701,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         else if (ttisstring(&p->k[k])) {
           in.kind = LUAR_IR_KSTR; in.a = (uint8_t)a;
           in.ival = (int64_t)(intptr_t)tsvalue(&p->k[k]); in.pc = pc;
+        }
+        else if (ttisboolean(&p->k[k])) {
+          in.kind = LUAR_IR_KBOOL; in.a = (uint8_t)a;
+          in.nval = ttistrue(&p->k[k]) ? 1.0 : 0.0; in.pc = pc;
         }
         else
           return 0;
@@ -3011,6 +3067,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             vk = LUAR_IR_TSETIF;
           else if (ttisstring(&base[vs]))
             vk = LUAR_IR_TSETIS;
+          else if (ttisboolean(&base[vs]))
+            vk = LUAR_IR_TSETIB;
+          else if (ttistable(&base[vs]))
+            vk = LUAR_IR_TSETIT;
           else
             return 0;
           if (vk == LUAR_IR_TSETI && !seen[vs]) {
