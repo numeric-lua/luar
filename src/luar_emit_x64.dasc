@@ -1474,7 +1474,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         int tag = (in->b == LUAR_IR_TAG_INT) ? LUA_VNUMINT :
                   (in->b == LUAR_IR_TAG_FLOAT) ? LUA_VNUMFLT :
                   (in->b == LUAR_IR_TAG_TABLE) ? ctb(LUA_VTABLE) :
-                  (in->b == LUAR_IR_TAG_STRING) ? ctb(LUA_VSHRSTR) : 0;
+                  (in->b == LUAR_IR_TAG_STRING) ? ctb(LUA_VSHRSTR) :
+                  (in->b == LUAR_IR_TAG_USERDATA) ? ctb(LUA_VUSERDATA) : 0;
         if (tag == 0)
           return 0;
         | mov r11d, ((int)in->pc)

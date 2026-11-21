@@ -3238,7 +3238,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
     LuaR_IRIns *op = &ir->ins[i];
     if (op->kind == LUAR_IR_GUARD) {
       if (op->b != LUAR_IR_TAG_INT && op->b != LUAR_IR_TAG_FLOAT &&
-          op->b != LUAR_IR_TAG_TABLE)
+          op->b != LUAR_IR_TAG_TABLE && op->b != LUAR_IR_TAG_STRING &&
+          op->b != LUAR_IR_TAG_USERDATA)
         return 0;
       if (op->b == LUAR_IR_TAG_FLOAT)
         sawfloat = 1;
@@ -3391,7 +3392,8 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
       return 0;
     if (in->kind == LUAR_IR_GUARD) {
       if (in->b != LUAR_IR_TAG_INT && in->b != LUAR_IR_TAG_TABLE &&
-          in->b != LUAR_IR_TAG_STRING)
+          in->b != LUAR_IR_TAG_STRING &&
+          in->b != LUAR_IR_TAG_USERDATA)
         return 0;
       tag[in->a] = (uint8_t)in->b;
     }
@@ -3523,14 +3525,6 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
       {
         int intok = ir_integer_only(&ir);
         int fltok = (!intok && ir_floatify(p, (TValue *)base, &ir));
-        if (getenv("LUAR_F32_DEBUG")) {
-          int di;
-          fprintf(stderr, "f32 intok=%d fltok=%d n=%d\n", intok, fltok, ir.nins);
-          for (di = 0; di < ir.nins; di++)
-            fprintf(stderr, "  [%d] k=%d a=%d b=%d c=%d\n", di,
-                    (int)ir.ins[di].kind, (int)ir.ins[di].a,
-                    (int)ir.ins[di].b, (int)ir.ins[di].c);
-        }
         if (J->enable_ir && p->luar_ir_code == NULL &&
             GET_OPCODE(ins) == OP_FORLOOP && (intok || fltok)) {
           if (luari_emit_trace_ir(&ir, &p->luar_ir_code,

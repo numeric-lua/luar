@@ -100,7 +100,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_GUARD:
         if (!valid_slot(t, in->a) ||
-            in->b < LUAR_IR_TAG_INT || in->b > LUAR_IR_TAG_STRING) {
+            in->b < LUAR_IR_TAG_INT ||
+            in->b > LUAR_IR_TAG_USERDATA) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad guard");
           return 0;
         }
@@ -1000,6 +1001,11 @@ static int ir_tag (const TValue *v) {
   if (ttistable(v)) return LUAR_IR_TAG_TABLE;
   if (ttisstring(v) && tsslen(tsvalue(v)) <= LUAI_MAXSHORTLEN)
     return LUAR_IR_TAG_STRING;
+  if (ttisfulluserdata(v)) {
+    int ck = luar_ffi_trace_kind((TValue *)v);
+    if (ck == 1 || ck == 2)
+      return LUAR_IR_TAG_USERDATA;
+  }
   return LUAR_IR_TAG_OTHER;
 }
 
@@ -1435,6 +1441,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   int fn_src[LUAR_IR_MAX_SLOTS];
   int known[LUAR_IR_MAX_SLOTS];
   TValue known_fn[LUAR_IR_MAX_SLOTS];
+  TValue known_cval[LUAR_IR_MAX_SLOTS];
   LuaR_IRIns in;
   LuaR_IRExitState ex;
   int sawloop = 0, partial_done = 0;
@@ -1445,14 +1452,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   memset(fn_src, -1, sizeof(fn_src));
   memset(known, 0, sizeof(known));
   memset(known_fn, 0, sizeof(known_fn));
+  memset(known_cval, 0, sizeof(known_cval));
   memset(&in, 0, sizeof(in));
   for (pc = start; pc <= backedge; pc++) {
     Instruction ins = p->code[pc];
     int a = GETARG_A(ins), b = GETARG_B(ins), c = GETARG_C(ins);
     int r;
-    if (getenv("LUAR_REC89_DEBUG"))
-      fprintf(stderr, "rec pc=%d op=%d a=%d b=%d c=%d\n", pc,
-              (int)GET_OPCODE(ins), a, b, c);
     if (suffix && pc == backedge) {
       in.kind = LUAR_IR_RET; in.pc = pc;
       return luar_trace_ir_emit(t, &in);
@@ -1494,6 +1499,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.b = (uint8_t)ir_tag(&uv); in.pc = pc;
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
+          if (r) {
+            int ck = luar_ffi_trace_kind(&uv);
+            if (ck == 1 || ck == 2)
+              known_cval[a] = uv;
+          }
         }
         break;
       }
@@ -2569,11 +2579,14 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         return 0;
       }
       case OP_GETTABLE: {
-        int fk = luar_ffi_trace_kind(&base[b]);
-        if (fk > 0 && ttisinteger(&base[c])) {
-          if (!seen[b]) {
+        int tracked = ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
+                      known_cval[b].tt_ != 0;
+        TValue *cdv = tracked ? &known_cval[b] : &base[b];
+        int fk = luar_ffi_trace_kind(cdv);
+        if (fk > 0) {
+          if (!seen[b] || tracked) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)b;
-            in.ival = (int64_t)(intptr_t)base[b].value_.gc;
+            in.ival = (int64_t)(intptr_t)cdv->value_.gc;
             in.pc = pc;
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[b] = 1;
@@ -3120,7 +3133,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           break;
         }
         if (b == 2 && c == 2 && a + 1 < ns &&
-            ir_call_arg_is_double(p, pc, a + 1, base) &&
+            (ir_call_arg_is_double(p, pc, a + 1, base) ||
+             ir_last_op_writes_float(t, a + 1)) &&
             luar_ffi_trace_ccall1ff_kind(fv) == 1) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
