@@ -262,3 +262,7 @@ int64_t luar_ffi_trace_add_i64 (TValue *a, TValue *k, int64_t d) {
 int64_t luar_ffi_trace_set_i64 (TValue *a, TValue *k, TValue *v) {
   (void)a; (void)k; (void)v; return 0;
 }
+
+int64_t luar_ffi_trace_mul_i64 (TValue *a, TValue *k, int64_t f) {
+  (void)a; (void)k; (void)f; return 0;
+}

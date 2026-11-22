@@ -80,6 +80,32 @@ int64_t luar_ffi_trace_set_i64 (TValue *arrv, TValue *key, TValue *val) {
 }
 
 
+int64_t luar_ffi_trace_mul_i64 (TValue *arrv, TValue *key, int64_t factor) {
+  Udata *u; CData *cd; CType *ct, *elem; void *base; lua_Integer idx;
+  size_t len = 0; uint64_t v;
+  if (arrv == NULL || key == NULL || !ttisfulluserdata(arrv) ||
+      !ttisinteger(key)) return 0;
+  u = (Udata *)arrv->value_.gc; cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0) return 0;
+  ct = cd->ct; if (ct == NULL) return 0;
+  if (ct->kind != CT_ARRAY && ct->kind != CT_POINTER) return 0;
+  elem = ct->child;
+  if (elem == NULL || elem->kind != CT_INT || elem->size != 8) return 0;
+  base = (ct->kind == CT_POINTER) ? cd->v.p :
+         ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ? cd->v.p :
+         (void *)&cd->v;
+  if (base == NULL) return 0;
+  if (ct->kind == CT_ARRAY) len = ct->vla ? cd->len : ct->length;
+  idx = ivalue(key);
+  if (ct->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)len))
+    return 0;
+  memcpy(&v, (char *)base + (ptrdiff_t)idx * 8, 8);
+  v = (uint64_t)((int64_t)v * factor);
+  memcpy((char *)base + (ptrdiff_t)idx * 8, &v, 8);
+  return 1;
+}
+
+
 int64_t luar_ffi_trace_add_i64 (TValue *arrv, TValue *key, int64_t delta) {
   Udata *u; CData *cd; CType *ct, *elem; void *base; lua_Integer idx;
   size_t len = 0; uint64_t v;
