@@ -337,6 +337,39 @@ static void emit_cmp (dasm_State **Dst, const LuaR_LoopDesc *d,
     return;
   }
 
+  /* Mixed integer/float comparisons are exact in Lua: a large integer
+  ** may not be representable as a double.  If either integer operand is
+  ** outside [-2^53, 2^53], exit to the interpreter at this instruction
+  ** instead of comparing rounded doubles.  Earlier body operations are
+  ** already applied to the stack slots, so resuming here is exact. */
+  if (op->ta == LUAR_T_INT) {
+    | mov r11d, ((int)op->pc)
+    | mov rax, qword [rbx + ((int)LUAR_SLOT(a))]
+    | mov64 rcx, 9007199254740992
+    | cmp rax, rcx
+    | jg >3
+    | mov64 rcx, -9007199254740992
+    | cmp rax, rcx
+    | jl >3
+  }
+  if (op->tb == LUAR_T_INT && b == 0xFF) {
+    if (op->imm > 9007199254740992LL ||
+        op->imm < -9007199254740992LL) {
+      | mov r11d, ((int)op->pc)
+      | jmp >3
+    }
+  }
+  else if (op->tb == LUAR_T_INT) {
+    | mov r11d, ((int)op->pc)
+    | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+    | mov64 rcx, 9007199254740992
+    | cmp rax, rcx
+    | jg >3
+    | mov64 rcx, -9007199254740992
+    | cmp rax, rcx
+    | jl >3
+  }
+
   /* At least one operand is a double: convert both and use ucomisd. */
   load_double(Dst, a, op->ta);
   if (b == 0xFF) {

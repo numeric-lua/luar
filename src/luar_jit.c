@@ -3148,6 +3148,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         if (r < -1) {
           int expc = -r - 2;
           J->last_exit_pc = expc;
+          /* An exit at the loop entry is the ordinary tag-guard exit that
+          ** drives polymorphic variants.  A later exit (a mid-body guard)
+          ** cannot be retried safely: re-entering the loop would hit the
+          ** same guard after every backedge.  Drop this native loop and let
+          ** the interpreter finish it. */
+          if (expc != p->luar_code_start[i]) {
+            p->luar_code[i] = NULL;
+            p->luar_code_epoch[i] = 0;
+            return r;
+          }
           if (!p->luar_ir_side_done) {
             LuaR_TraceIR ir;
             p->luar_ir_side_done = 1;
