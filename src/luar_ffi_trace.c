@@ -157,8 +157,13 @@ static int64_t divmod_i64 (TValue *arrv, TValue *key, int64_t divisor,
     v = (int64_t)(op == 0 ? (a % b) : (a / b));
   }
   else {
-    /* cdata signed division/modulo truncate toward zero, like C. */
-    v = (op == 0) ? (v % divisor) : (v / divisor);
+    /* cdata signed division/modulo truncate toward zero, like C.  C
+    ** leaves INT64_MIN / -1 undefined (and x86 idiv faults); cdata
+    ** semantics wrap the quotient and return a zero remainder. */
+    if (divisor == -1)
+      v = (op == 0) ? 0 : (int64_t)(0 - (uint64_t)v);
+    else
+      v = (op == 0) ? (v % divisor) : (v / divisor);
   }
   memcpy((char *)base + (ptrdiff_t)idx * 8, &v, 8);
   return 1;
@@ -205,7 +210,8 @@ int64_t luar_ffi_trace_mul_i64 (TValue *arrv, TValue *key, int64_t factor) {
   if (ct->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)len))
     return 0;
   memcpy(&v, (char *)base + (ptrdiff_t)idx * 8, 8);
-  v = (uint64_t)((int64_t)v * factor);
+  /* cdata int64 arithmetic wraps; unsigned math keeps C overflow UB out. */
+  v = v * (uint64_t)factor;
   memcpy((char *)base + (ptrdiff_t)idx * 8, &v, 8);
   return 1;
 }
@@ -231,7 +237,7 @@ int64_t luar_ffi_trace_add_i64 (TValue *arrv, TValue *key, int64_t delta) {
   if (ct->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)len))
     return 0;
   memcpy(&v, (char *)base + (ptrdiff_t)idx * 8, 8);
-  v = (uint64_t)((int64_t)v + delta);
+  v = v + (uint64_t)delta;
   memcpy((char *)base + (ptrdiff_t)idx * 8, &v, 8);
   return 1;
 }
