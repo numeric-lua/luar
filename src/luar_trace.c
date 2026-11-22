@@ -2060,7 +2060,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                         int *callpc, int suffix) {
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
-  int pend_i64_src = -1, pend_i64_key = -1;
+  int pend_i64_src = -1, pend_i64_key = -1, pend_i64_dst = -1;
+  int pend_i64_pc = -1;
   int fn_src[LUAR_IR_MAX_SLOTS];
   int known[LUAR_IR_MAX_SLOTS];
   TValue known_fn[LUAR_IR_MAX_SLOTS];
@@ -3282,12 +3283,19 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         return 0;
       }
       case OP_GETTABLE: {
+        /* A pending int64 load is only materialized by the fused
+        ** GETTABLE/SETTABLE pair.  A second GETTABLE would silently drop
+        ** the first value, so reject the trace instead of overwriting it. */
+        if (pend_i64_src >= 0)
+          return 0;
         if (c >= 0 && c < ns && ttisinteger(&base[c])) {
           TValue *stv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
                          known_cval[b].tt_ != 0) ? &known_cval[b] : &base[b];
           if (luar_ffi_trace_i64_array(stv)) {
             pend_i64_src = b;
             pend_i64_key = c;
+            pend_i64_dst = a;
+            pend_i64_pc = pc;
             break;
           }
         }
@@ -3609,12 +3617,21 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       }
       case OP_SETTABLE: {
         if (pend_i64_src >= 0) {
-          if (b != pend_i64_key || !luar_ffi_trace_i64_array(&base[a]))
+          /* Fuse only the canonical `dst[k] = src[k]` shape: the store
+          ** must immediately follow the load and store the loaded
+          ** register itself.  Anything else (a constant value, an
+          ** arithmetic result, an intervening instruction) keeps using
+          ** the missing load slot, so reject the trace. */
+          if (TESTARG_k(ins) || pc != pend_i64_pc + 1 ||
+              c < 0 || c >= ns || c != pend_i64_dst ||
+              b != pend_i64_key || !luar_ffi_trace_i64_array(&base[a]))
             return 0;
           in.kind = LUAR_IR_CCPYI64; in.a = (uint8_t)a;
           in.b = (uint8_t)pend_i64_src; in.c = (uint8_t)pend_i64_key;
-          in.pc = pc;
+          /* On helper failure the interpreter must redo the load too. */
+          in.pc = pend_i64_pc;
           pend_i64_src = -1; pend_i64_key = -1;
+          pend_i64_dst = -1; pend_i64_pc = -1;
           r = luar_trace_ir_emit(t, &in);
           break;
         }
