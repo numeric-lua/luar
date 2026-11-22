@@ -1905,16 +1905,51 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
+      case OP_GETTABUP: {
+        LClosure *cl = ir_current_closure(L);
+        TValue uv, curv;
+        TString *sname;
+        if (cl == NULL || b < 0 || b >= (int)cl->nupvalues ||
+            cl->upvals[b] == NULL || cl->upvals[b]->v.p == NULL ||
+            c >= p->sizek || !ttisstring(&p->k[c]))
+          return 0;
+        uv = *cl->upvals[b]->v.p;
+        sname = tsvalue(&p->k[c]);
+        if (!ttistable(&uv))
+          return 0;
+        luaH_getstr((Table *)uv.value_.gc, sname, &curv);
+        if (!ttisinteger(&curv) && !ttisfloat(&curv) &&
+            !ttisstring(&curv) && !ttisboolean(&curv) &&
+            !ttistable(&curv))
+          return 0;
+        in.kind = LUAR_IR_ULOAD; in.a = (uint8_t)a;
+        in.ival = (int64_t)(intptr_t)cl; in.nval = (double)b;
+        in.pc = pc;
+        if (!luar_trace_ir_emit(t, &in)) return 0;
+        in.kind = ttisstring(&curv) ? LUAR_IR_TGETKS :
+                  ttisfloat(&curv) ? LUAR_IR_TGETKF :
+                  ttisboolean(&curv) ? LUAR_IR_TGETKB :
+                  ttistable(&curv) ? LUAR_IR_TGETKT : LUAR_IR_TGETK;
+        in.a = (uint8_t)a; in.b = (uint8_t)a;
+        in.ival = (int64_t)(intptr_t)sname; in.pc = pc;
+        seen[a] = 1;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      }
       case OP_GETFIELD: {
         int fk;
         size_t off = 0, fsize = 0;
         if (!ttisstring(&p->k[c])) {
           return 0;
         }
-        if (ttistable(&base[b])) {
+        {
+          TValue *tv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
+                        known_cval[b].tt_ != 0) ?
+                       &known_cval[b] : &base[b];
+        if (ttistable(tv)) {
           TString *sname = tsvalue(&p->k[c]);
           TValue curv;
-          luaH_getstr((Table *)base[b].value_.gc, sname, &curv);
+          luaH_getstr((Table *)tv->value_.gc, sname, &curv);
           if (!ttisinteger(&curv) && !ttisfloat(&curv) &&
               !ttisstring(&curv) && !ttisboolean(&curv) &&
               !ttistable(&curv))
@@ -1936,6 +1971,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
+        }
         }
         if (pc + 5 <= backedge &&
             luar_ffi_trace_kind(&base[b]) == 3) {
