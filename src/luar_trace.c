@@ -169,6 +169,14 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CBANDI64:
+      case LUAR_IR_CBORI64:
+      case LUAR_IR_CBXORI64:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cbiti64");
+          return 0;
+        }
+        break;
       case LUAR_IR_CMODI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cmodi64");
@@ -2296,6 +2304,19 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
+      case OP_BANDK:
+      case OP_BORK:
+      case OP_BXORK:
+        if (pend_i64_src >= 0 && pend_i64_addpc < 0 &&
+            a == pend_i64_dst && b == pend_i64_dst &&
+            c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
+          pend_i64_delta = (int)ivalue(&p->k[c]);
+          pend_i64_addpc = pc;
+          pend_i64_op = GET_OPCODE(ins) == OP_BANDK ? 5 :
+                        GET_OPCODE(ins) == OP_BORK ? 6 : 7;
+          break;
+        }
+        return 0;
       case OP_ADDK:
       case OP_SUBK:
       case OP_MULK:
@@ -3698,7 +3719,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             return 0;
           in.kind = (pend_i64_op == 2) ? LUAR_IR_CMULI64 :
                     (pend_i64_op == 3) ? LUAR_IR_CDIVI64 :
-                    (pend_i64_op == 4) ? LUAR_IR_CMODI64 : LUAR_IR_CADDI64;
+                    (pend_i64_op == 4) ? LUAR_IR_CMODI64 :
+                    (pend_i64_op == 5) ? LUAR_IR_CBANDI64 :
+                    (pend_i64_op == 6) ? LUAR_IR_CBORI64 :
+                    (pend_i64_op == 7) ? LUAR_IR_CBXORI64 : LUAR_IR_CADDI64;
           in.a = (uint8_t)pend_i64_src;
           in.b = (uint8_t)pend_i64_key; in.nval = (double)pend_i64_delta;
           in.pc = pend_i64_pc;
