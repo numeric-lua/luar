@@ -3469,6 +3469,10 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
         ir->ins[i].kind == LUAR_IR_CPGETI64 ||
         ir->ins[i].kind == LUAR_IR_CPSETI64)
       return 0;
+  for (i = 0; i < ir->nins; i++)
+    if (ir->ins[i].kind == LUAR_IR_CCPYI64 ||
+        ir->ins[i].kind == LUAR_IR_CADDI64)
+      continue;
   for (i = 0; i < LUAR_IR_MAX_SLOTS; i++)
     tag[i] = -1;
   for (i = 0; i < ir->nins; i++) {

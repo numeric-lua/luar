@@ -169,6 +169,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CADDI64:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad caddi64");
+          return 0;
+        }
+        break;
       case LUAR_IR_CCPYI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -2061,7 +2067,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
   int pend_i64_src = -1, pend_i64_key = -1, pend_i64_dst = -1;
-  int pend_i64_pc = -1;
+  int pend_i64_pc = -1, pend_i64_delta = 0, pend_i64_addpc = -1;
   int fn_src[LUAR_IR_MAX_SLOTS];
   int known[LUAR_IR_MAX_SLOTS];
   TValue known_fn[LUAR_IR_MAX_SLOTS];
@@ -2218,6 +2224,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_ADDI: {
+        if (pend_i64_src >= 0 && pend_i64_addpc < 0 &&
+            a == pend_i64_dst && b == pend_i64_dst) {
+          pend_i64_delta = (int)GETARG_sC(ins);
+          pend_i64_addpc = pc;
+          break;
+        }
         TValue *sv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
                       known_cval[b].tt_ != 0) ?
                      &known_cval[b] : &base[b];
@@ -3296,6 +3308,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             pend_i64_key = c;
             pend_i64_dst = a;
             pend_i64_pc = pc;
+            pend_i64_delta = 0;
+            pend_i64_addpc = -1;
             break;
           }
         }
@@ -3616,6 +3630,29 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_SETTABLE: {
+        if (pend_i64_src >= 0 && pend_i64_addpc >= 0) {
+          {
+            TValue *dv = (ir_latest_writer_is(t, a, LUAR_IR_ULOAD) &&
+                          known_cval[a].tt_ != 0) ? &known_cval[a] : &base[a];
+            TValue *sv = (ir_latest_writer_is(t, pend_i64_src, LUAR_IR_ULOAD) &&
+                          known_cval[pend_i64_src].tt_ != 0) ?
+                         &known_cval[pend_i64_src] : &base[pend_i64_src];
+            if (!ttisfulluserdata(dv) || !ttisfulluserdata(sv) ||
+                dv->value_.gc != sv->value_.gc)
+              return 0;
+          }
+          if (TESTARG_k(ins) || pc != pend_i64_addpc + 2 ||
+              b != pend_i64_key || c < 0 || c >= ns || c != pend_i64_dst)
+            return 0;
+          in.kind = LUAR_IR_CADDI64; in.a = (uint8_t)pend_i64_src;
+          in.b = (uint8_t)pend_i64_key; in.nval = (double)pend_i64_delta;
+          in.pc = pend_i64_pc;
+          pend_i64_src = -1; pend_i64_key = -1;
+          pend_i64_dst = -1; pend_i64_pc = -1;
+          pend_i64_delta = 0; pend_i64_addpc = -1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         if (pend_i64_src >= 0) {
           /* Fuse only the canonical `dst[k] = src[k]` shape: the store
           ** must immediately follow the load and store the loaded
@@ -3749,6 +3786,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_MMBIN:
       case OP_MMBINI:
       case OP_MMBINK:
+        if (pend_i64_src >= 0 && pend_i64_addpc >= 0) {
+          r = 1;
+          break;
+        }
         r = 1;
         break;
       case OP_NEWTABLE: {

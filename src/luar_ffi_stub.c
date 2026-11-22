@@ -254,3 +254,7 @@ int luar_ffi_trace_i64_array (TValue *tv) { (void)tv; return 0; }
 int64_t luar_ffi_trace_copy_i64 (TValue *d, TValue *s, TValue *k) {
   (void)d; (void)s; (void)k; return 0;
 }
+
+int64_t luar_ffi_trace_add_i64 (TValue *a, TValue *k, int64_t d) {
+  (void)a; (void)k; (void)d; return 0;
+}
