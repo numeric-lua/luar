@@ -114,6 +114,7 @@ typedef enum {
   LUAR_IR_CCALL3DID,
   LUAR_IR_CCALL3IDD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
+  LUAR_IR_ITOF,
   LUAR_IR_FADDI,	/* a = float base[b] + constant (nval) */
   LUAR_IR_FMULK,	/* float multiply by nval */
   LUAR_IR_FADD,		/* float add */
@@ -342,6 +343,7 @@ int64_t luar_trace_tsetupv (int idx, TString *key, TValue *val,
 int64_t luar_trace_tsetupt (int idx, TString *key, TValue *val,
                                 lua_State *L);
 int64_t luar_trace_tsetupkn (int idx, TString *key, lua_State *L);
+int64_t luar_trace_itof (TValue *out, TValue *in);
 int64_t luar_trace_tsetupkf (int idx, TString *key, double v,
                                 lua_State *L);
 TValue *luar_trace_tsetkdb (TValue *tv, TString *key, TValue *val,

@@ -147,6 +147,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_ITOF:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad itof");
+          return 0;
+        }
+        break;
       case LUAR_IR_FADDI:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad faddi");
@@ -1053,6 +1059,21 @@ int64_t luar_trace_tsetupkn (int idx, TString *key, lua_State *L) {
 }
 
 
+int64_t luar_trace_itof (TValue *out, TValue *in) {
+  if (out == NULL || in == NULL)
+    return 0;
+  if (ttisinteger(in)) {
+    setfltvalue(out, (double)ivalue(in));
+    return 1;
+  }
+  if (ttisfloat(in)) {
+    *out = *in;
+    return 1;
+  }
+  return 0;
+}
+
+
 int64_t luar_trace_tsetupkf (int idx, TString *key, double v,
                                 lua_State *L) {
   LClosure *cl;
@@ -1823,6 +1844,7 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_CCALL3DID:
     case LUAR_IR_CCALL3IDD:
     case LUAR_IR_TGETF:
+    case LUAR_IR_ITOF:
     case LUAR_IR_FADDI:
     case LUAR_IR_FMULK:
     case LUAR_IR_FADD:
@@ -1873,6 +1895,26 @@ static int ir_slot_const_int (const LuaR_TraceIR *t, int slot,
 
 
 
+static int ir_slot_is_int (const LuaR_TraceIR *t, int slot, int end,
+                           int depth) {
+  int i;
+  if (depth > 8)
+    return 0;
+  for (i = end - 1; i >= 0; i--) {
+    if (t->ins[i].kind == LUAR_IR_GUARD && t->ins[i].a == slot)
+      return t->ins[i].b == LUAR_IR_TAG_INT;
+    if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
+      continue;
+    if (t->ins[i].kind == LUAR_IR_LOADI)
+      return 1;
+    if (t->ins[i].kind == LUAR_IR_SLOAD)
+      return ir_slot_is_int(t, t->ins[i].b, i, depth + 1);
+    return 0;
+  }
+  return 0;
+}
+
+
 static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth);
 
 
@@ -1907,6 +1949,7 @@ static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth) {
     case LUAR_IR_CCALL2DD:
     case LUAR_IR_CCALL3DD:
     case LUAR_IR_TGETF:
+    case LUAR_IR_ITOF:
     case LUAR_IR_FADDI:
     case LUAR_IR_FMULK:
     case LUAR_IR_FADD:
@@ -4064,6 +4107,31 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           if (!luar_trace_ir_emit(t, &in)) return 0;
           in.kind = LUAR_IR_LOADF; in.a = (uint8_t)(a + 2);
           in.nval = (double)iv2; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL2FF; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2); in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
+            (ir_slot_is_int(t, a + 1, t->nins, 0) ||
+             ir_slot_is_float(t, a + 1, t->nins, 0)) &&
+            (ir_slot_is_int(t, a + 2, t->nins, 0) ||
+             ir_slot_is_float(t, a + 2, t->nins, 0))) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_ITOF; in.a = (uint8_t)(a + 1);
+          in.b = (uint8_t)(a + 1); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_ITOF; in.a = (uint8_t)(a + 2);
+          in.b = (uint8_t)(a + 2); in.pc = pc;
           if (!luar_trace_ir_emit(t, &in)) return 0;
           in.kind = LUAR_IR_CCALL2FF; in.a = (uint8_t)a;
           in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);

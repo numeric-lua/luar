@@ -2396,6 +2396,15 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | jz >2
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMFLT
         break;
+      case LUAR_IR_ITOF:
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
+        | lea rsi, [rbx + ((int)LUAR_SLOT(in->b))]
+        | mov64 rax, (int64_t)(intptr_t)&luar_trace_itof
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
       case LUAR_IR_FADDI: {
         uint64_t bits;
         memcpy(&bits, &in->nval, sizeof(bits));
