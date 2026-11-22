@@ -95,6 +95,7 @@ typedef enum {
   LUAR_IR_TSETKB,	/* table[key string ptr] = boolean (ival) */
   LUAR_IR_TSETKDB,	/* table[key string ptr] = boolean slot b */
   LUAR_IR_TSETUPKF,	/* closure upvalue table[key] = constant float */
+  LUAR_IR_TSETUPKI,	/* closure upvalue table[key] = constant int */
   LUAR_IR_TSETDYN,	/* table[b] = c, dynamic string key */
   LUAR_IR_CCALL3DD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
@@ -289,6 +290,8 @@ TValue *luar_trace_tsetkt (TValue *tv, TString *key, TValue *val,
                            lua_State *L);
 TValue *luar_trace_tsetdyn (TValue *tv, TValue *key, TValue *val,
                             lua_State *L);
+int64_t luar_trace_tsetupki (int idx, TString *key, int64_t v,
+                                lua_State *L);
 int64_t luar_trace_tsetupkf (int idx, TString *key, double v,
                                 lua_State *L);
 TValue *luar_trace_tsetkdb (TValue *tv, TString *key, TValue *val,
