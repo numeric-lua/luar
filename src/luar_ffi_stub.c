@@ -293,3 +293,9 @@ int64_t luar_ffi_trace_bor_i64 (TValue *a, TValue *k, int64_t f) {
 int64_t luar_ffi_trace_bxor_i64 (TValue *a, TValue *k, int64_t f) {
   (void)a; (void)k; (void)f; return 0;
 }
+int64_t luar_ffi_trace_shl_i64 (TValue *a, TValue *k, int64_t c) {
+  (void)a; (void)k; (void)c; return 0;
+}
+int64_t luar_ffi_trace_shr_i64 (TValue *a, TValue *k, int64_t c) {
+  (void)a; (void)k; (void)c; return 0;
+}

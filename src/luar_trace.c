@@ -172,6 +172,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CBANDI64:
       case LUAR_IR_CBORI64:
       case LUAR_IR_CBXORI64:
+      case LUAR_IR_CSHLI64:
+      case LUAR_IR_CSHRI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cbiti64");
           return 0;
@@ -2284,6 +2286,28 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         r = luar_trace_ir_emit(t, &in);
         break;
       }
+      case OP_SHRI: {
+        Instruction nx;
+        int event, imm;
+        if (pend_i64_src < 0 || pend_i64_addpc >= 0 ||
+            a != pend_i64_dst || b != pend_i64_dst)
+          return 0;
+        if (pc + 1 > backedge)
+          return 0;
+        nx = p->code[pc + 1];
+        if (GET_OPCODE(nx) != OP_MMBINI)
+          return 0;
+        event = GETARG_C(nx);
+        if (event != TM_SHL && event != TM_SHR)
+          return 0;
+        imm = GETARG_sB(nx);
+        /* The opcode direction and the cdata metamethod argument come
+        ** from the paired MMBINI; cdata shifts mask the count to 6 bits. */
+        pend_i64_delta = (int64_t)imm;
+        pend_i64_addpc = pc;
+        pend_i64_op = (event == TM_SHL) ? 8 : 9;
+        break;
+      }
       case OP_ADD:
       case OP_SUB:
       case OP_MUL:
@@ -3729,7 +3753,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                                                  LUAR_IR_CMODI64) :
                     (pend_i64_op == 5) ? LUAR_IR_CBANDI64 :
                     (pend_i64_op == 6) ? LUAR_IR_CBORI64 :
-                    (pend_i64_op == 7) ? LUAR_IR_CBXORI64 : LUAR_IR_CADDI64;
+                    (pend_i64_op == 7) ? LUAR_IR_CBXORI64 :
+                    (pend_i64_op == 8) ? LUAR_IR_CSHLI64 :
+                    (pend_i64_op == 9) ? LUAR_IR_CSHRI64 :
+                                         LUAR_IR_CADDI64;
           in.a = (uint8_t)pend_i64_src;
           /* 64-bit constants travel in ival: a double cannot represent
           ** every int64 value exactly. */
