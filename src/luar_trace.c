@@ -3854,6 +3854,24 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           break;
         }
         if (b == 2 && c == 2 && a + 1 < ns &&
+            luar_ffi_trace_ccall1dd_kind(fv) == 1 &&
+            ir_slot_is_int(t, a + 1, t->nins, 0)) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_ITOF; in.a = (uint8_t)(a + 1);
+          in.b = (uint8_t)(a + 1); in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL1DD; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1); in.pc = pc;
+          seen[a] = 1; seen[a + 1] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 2 && c == 2 && a + 1 < ns &&
             (ir_call_arg_is_double(p, pc, a + 1, base) ||
              ir_last_op_writes_float(t, a + 1)) &&
             luar_ffi_trace_ccall1dd_kind(fv) == 1) {
