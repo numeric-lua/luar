@@ -596,6 +596,7 @@ is behind `jit.opt.start("ir=1")` and still has interpreter fallbacks.
 | `double(float,double)` | `CCALL2FD` | `float_double_scale(a, b)` |
 | `double(double,float)` | `CCALL2DF` | `double_float_scale(a, b)` |
 | `double(double,double,double)` | `CCALL3DD` | `fma(x, y, z)` |
+| `double(double,double,int)` | `CCALL3DDI` | `ddi_scale(x, y, n)` |
 
 Recorded arguments come from `MOVE`, `LOADK`/`LOADF`, supported float
 arithmetic, and direct cdata reads (`CGETF`/`CPGETF`/float field reads).

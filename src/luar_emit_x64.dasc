@@ -2140,6 +2140,21 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | test eax, eax
         | jz >2
         break;
+      case LUAR_IR_CCALL3DDI: {
+        int a2 = (int)(in->ival & 0xff);
+        int a3 = (int)((in->ival >> 8) & 0xff);
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
+        | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        | movsd xmm1, qword [rbx + ((int)LUAR_SLOT(a2))]
+        | mov rsi, qword [rbx + ((int)LUAR_SLOT(a3))]
+        | lea rdx, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov64 rax, (int64_t)(intptr_t)&luar_ffi_trace_ccall3ddi
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
+      }
       case LUAR_IR_CCALL3DD: {
         int a2 = (int)(in->ival & 0xff);
         int a3 = (int)((in->ival >> 8) & 0xff);
