@@ -1490,6 +1490,15 @@ decode_done:
       }
       else ok = 0;
     }
+    /* The fast path keeps the limit and the accumulator in registers for
+    ** the whole run.  If the source reuses one register for both, or for
+    ** the induction variable, the native loop would compare against the
+    ** stale limit instead of the value the body writes. */
+    if (ok && (acc == idx ||
+               (limit >= 0 && (limit == acc || limit == idx)) ||
+               (temp >= 0 && (temp == acc || temp == idx ||
+                              (limit >= 0 && temp == limit)))))
+      ok = 0;
     if (ok && acc >= 0 && idx >= 0 && accum_i >= 0 && inc_i > accum_i &&
         (limit >= 0 || has_imm)) {
       memset(seen, 0, sizeof(seen));
@@ -1850,6 +1859,12 @@ decode_done:
         acc = -1;
         left = 0;
       }
+      /* Same aliasing rule as the fast while path: the cached limit must
+      ** be a different register from the accumulator and the counter. */
+      if (acc == idx || (limit >= 0 && (limit == acc || limit == idx)) ||
+          (temp >= 0 && (temp == acc || temp == idx ||
+                         (limit >= 0 && temp == limit))))
+        acc = -1;
       if (acc >= 0 && !is_control_reg(acc, -1)) {
         memset(seen, 0, sizeof(seen));
         d.nguards = 0;
