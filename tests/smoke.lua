@@ -6,7 +6,7 @@ end
 
 -- identity
 check(type(luar) == "table", "missing luar table")
-check(luar.version == "0.120.0", "unexpected luar.version: " .. tostring(luar.version))
+check(luar.version == "0.121.0", "unexpected luar.version: " .. tostring(luar.version))
 check(luar.lua_version == "Lua 5.5.1", "unexpected Lua base: " .. tostring(luar.lua_version))
 check(_VERSION == "Lua 5.5", "unexpected _VERSION: " .. tostring(_VERSION))
 check(luar.arch == "x64" or luar.arch == "arm64", "unknown arch " .. tostring(luar.arch))
