@@ -54,6 +54,19 @@ int luar_ffi_trace_i64_array (TValue *tv) {
   return elem != NULL && elem->kind == CT_INT && elem->size == 8;
 }
 
+int luar_ffi_trace_i64_unsigned (TValue *tv) {
+  Udata *u; CData *cd; CType *ct, *elem;
+  if (tv == NULL || !ttisfulluserdata(tv)) return 0;
+  u = (Udata *)tv->value_.gc; cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0) return 0;
+  ct = cd->ct;
+  if (ct == NULL) return 0;
+  if (ct->kind != CT_ARRAY && ct->kind != CT_POINTER) return 0;
+  elem = ct->child;
+  if (elem == NULL || elem->kind != CT_INT || elem->size != 8) return 0;
+  return elem->is_unsigned != 0;
+}
+
 int64_t luar_ffi_trace_set_i64 (TValue *arrv, TValue *key, TValue *val) {
   Udata *u; CData *cd; CType *ct, *elem; void *base; lua_Integer idx;
   size_t len = 0; uint64_t v;
@@ -118,9 +131,10 @@ int64_t luar_ffi_trace_bxor_i64 (TValue *a, TValue *k, int64_t f) {
 }
 
 
-int64_t luar_ffi_trace_mod_i64 (TValue *arrv, TValue *key, int64_t divisor) {
+static int64_t divmod_i64 (TValue *arrv, TValue *key, int64_t divisor,
+                           int op, int uns) {
   Udata *u; CData *cd; CType *ct, *elem; void *base; lua_Integer idx;
-  size_t len = 0; int64_t v, r;
+  size_t len = 0; int64_t v;
   if (arrv == NULL || key == NULL || !ttisfulluserdata(arrv) ||
       !ttisinteger(key) || divisor == 0) return 0;
   u = (Udata *)arrv->value_.gc; cd = (CData *)getudatamem(u);
@@ -138,38 +152,36 @@ int64_t luar_ffi_trace_mod_i64 (TValue *arrv, TValue *key, int64_t divisor) {
   if (ct->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)len))
     return 0;
   memcpy(&v, (char *)base + (ptrdiff_t)idx * 8, 8);
-  /* cdata % truncates toward zero, like C. */
-  r = v % divisor;
-  memcpy((char *)base + (ptrdiff_t)idx * 8, &r, 8);
+  if (uns) {
+    uint64_t a = (uint64_t)v, b = (uint64_t)divisor;
+    v = (int64_t)(op == 0 ? (a % b) : (a / b));
+  }
+  else {
+    /* cdata signed division/modulo truncate toward zero, like C. */
+    v = (op == 0) ? (v % divisor) : (v / divisor);
+  }
+  memcpy((char *)base + (ptrdiff_t)idx * 8, &v, 8);
   return 1;
 }
 
 
+int64_t luar_ffi_trace_mod_i64 (TValue *arrv, TValue *key, int64_t divisor) {
+  return divmod_i64(arrv, key, divisor, 0, 0);
+}
+
+
+int64_t luar_ffi_trace_umod_i64 (TValue *arrv, TValue *key, int64_t divisor) {
+  return divmod_i64(arrv, key, divisor, 0, 1);
+}
+
+
 int64_t luar_ffi_trace_div_i64 (TValue *arrv, TValue *key, int64_t divisor) {
-  Udata *u; CData *cd; CType *ct, *elem; void *base; lua_Integer idx;
-  size_t len = 0; int64_t v, q, r;
-  if (arrv == NULL || key == NULL || !ttisfulluserdata(arrv) ||
-      !ttisinteger(key) || divisor == 0) return 0;
-  u = (Udata *)arrv->value_.gc; cd = (CData *)getudatamem(u);
-  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0) return 0;
-  ct = cd->ct; if (ct == NULL) return 0;
-  if (ct->kind != CT_ARRAY && ct->kind != CT_POINTER) return 0;
-  elem = ct->child;
-  if (elem == NULL || elem->kind != CT_INT || elem->size != 8) return 0;
-  base = (ct->kind == CT_POINTER) ? cd->v.p :
-         ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0) ? cd->v.p :
-         (void *)&cd->v;
-  if (base == NULL) return 0;
-  if (ct->kind == CT_ARRAY) len = ct->vla ? cd->len : ct->length;
-  idx = ivalue(key);
-  if (ct->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)len))
-    return 0;
-  memcpy(&v, (char *)base + (ptrdiff_t)idx * 8, 8);
-  /* LuaJIT cdata int64 division truncates toward zero. */
-  q = v / divisor;
-  (void)r;
-  memcpy((char *)base + (ptrdiff_t)idx * 8, &q, 8);
-  return 1;
+  return divmod_i64(arrv, key, divisor, 1, 0);
+}
+
+
+int64_t luar_ffi_trace_udiv_i64 (TValue *arrv, TValue *key, int64_t divisor) {
+  return divmod_i64(arrv, key, divisor, 1, 1);
 }
 
 

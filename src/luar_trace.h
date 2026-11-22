@@ -44,15 +44,17 @@ typedef enum {
   LUAR_IR_DIV,
   LUAR_IR_TGET,
   LUAR_IR_CGETI,	/* FFI cdata integer array read */
-  LUAR_IR_CCPYI64,
-  LUAR_IR_CADDI64,
-  LUAR_IR_CMULI64,
-  LUAR_IR_CDIVI64,
-  LUAR_IR_CMODI64,
+  LUAR_IR_CCPYI64,	/* dst[key] = src[key], raw int64 copy */
+  LUAR_IR_CADDI64,	/* cdata int64 array element += delta */
+  LUAR_IR_CMULI64,	/* cdata int64 array element *= factor */
+  LUAR_IR_CDIVI64,	/* signed cdata int64 array element //= factor */
+  LUAR_IR_CUDIVI64,	/* unsigned cdata int64 array element //= factor */
+  LUAR_IR_CMODI64,	/* signed cdata int64 array element %= factor */
+  LUAR_IR_CUMODI64,	/* unsigned cdata int64 array element %= factor */
   LUAR_IR_CBANDI64,	/* cdata int64 array element &= factor */
   LUAR_IR_CBORI64,	/* cdata int64 array element |= factor */
-  LUAR_IR_CBXORI64,	/* cdata int64 array element ^= factor */	/* cdata int64 array element %= factor */	/* cdata int64 array element //= factor */	/* cdata int64 array element *= factor */
-  LUAR_IR_CSETI64,	/* cdata int64 array element = Lua integer */	/* cdata int64 array element += delta */	/* dst[key] = src[key], raw int64 copy */
+  LUAR_IR_CBXORI64,	/* cdata int64 array element ^= factor */
+  LUAR_IR_CSETI64,	/* cdata int64 array element = Lua integer */
   LUAR_IR_CGETF,	/* FFI cdata double array read */
   LUAR_IR_CSETI,	/* FFI cdata integer array write */
   LUAR_IR_CSETF,	/* FFI cdata float/double array write */
@@ -377,6 +379,7 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
 int luar_trace_ir_selftest (void);
 
 int luar_ffi_trace_i64_array (TValue *tv);
+int luar_ffi_trace_i64_unsigned (TValue *tv);
 int64_t luar_ffi_trace_copy_i64 (TValue *dst, TValue *src, TValue *key);
 
 int64_t luar_ffi_trace_add_i64 (TValue *arr, TValue *key, int64_t delta);
@@ -387,7 +390,11 @@ int64_t luar_ffi_trace_mul_i64 (TValue *arr, TValue *key, int64_t factor);
 
 int64_t luar_ffi_trace_div_i64 (TValue *arr, TValue *key, int64_t divisor);
 
+int64_t luar_ffi_trace_udiv_i64 (TValue *arr, TValue *key, int64_t divisor);
+
 int64_t luar_ffi_trace_mod_i64 (TValue *arr, TValue *key, int64_t divisor);
+
+int64_t luar_ffi_trace_umod_i64 (TValue *arr, TValue *key, int64_t divisor);
 
 int64_t luar_ffi_trace_band_i64 (TValue *arr, TValue *key, int64_t factor);
 int64_t luar_ffi_trace_bor_i64 (TValue *arr, TValue *key, int64_t factor);

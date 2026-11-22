@@ -178,12 +178,14 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         }
         break;
       case LUAR_IR_CMODI64:
+      case LUAR_IR_CUMODI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cmodi64");
           return 0;
         }
         break;
       case LUAR_IR_CDIVI64:
+      case LUAR_IR_CUDIVI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cdivi64");
           return 0;
@@ -3705,6 +3707,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       }
       case OP_SETTABLE: {
         if (pend_i64_src >= 0 && pend_i64_addpc >= 0) {
+          int uns;
           {
             TValue *dv = (ir_latest_writer_is(t, a, LUAR_IR_ULOAD) &&
                           known_cval[a].tt_ != 0) ? &known_cval[a] : &base[a];
@@ -3714,13 +3717,16 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             if (!ttisfulluserdata(dv) || !ttisfulluserdata(sv) ||
                 dv->value_.gc != sv->value_.gc)
               return 0;
+            uns = luar_ffi_trace_i64_unsigned(sv);
           }
           if (TESTARG_k(ins) || pc != pend_i64_addpc + 2 ||
               b != pend_i64_key || c < 0 || c >= ns || c != pend_i64_dst)
             return 0;
           in.kind = (pend_i64_op == 2) ? LUAR_IR_CMULI64 :
-                    (pend_i64_op == 3) ? LUAR_IR_CDIVI64 :
-                    (pend_i64_op == 4) ? LUAR_IR_CMODI64 :
+                    (pend_i64_op == 3) ? (uns ? LUAR_IR_CUDIVI64 :
+                                                 LUAR_IR_CDIVI64) :
+                    (pend_i64_op == 4) ? (uns ? LUAR_IR_CUMODI64 :
+                                                 LUAR_IR_CMODI64) :
                     (pend_i64_op == 5) ? LUAR_IR_CBANDI64 :
                     (pend_i64_op == 6) ? LUAR_IR_CBORI64 :
                     (pend_i64_op == 7) ? LUAR_IR_CBXORI64 : LUAR_IR_CADDI64;
