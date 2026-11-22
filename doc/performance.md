@@ -1,5 +1,22 @@
 # Luar performance baseline
 
+> **0.129 refresh (2026-11-22, `./bench/compare.sh`, Ryzen 3 7320U).**
+> Best CPU milliseconds; `x` relative to stock Lua 5.5.1.
+>
+> | benchmark | Lua 5.5 | Luar 0.129 | Luar x | LuaJIT 2.1 | LuaJIT x |
+> | --- | ---: | ---: | ---: | ---: | ---: |
+> | numeric/int_sum | 35.48 | **3.99** | 0.11 | 5.99 | 0.17 |
+> | numeric/float_sum | 8.52 | **1.52** | 0.18 | 1.48 | 0.17 |
+> | numeric/product | 17.62 | **2.96** | 0.17 | 2.95 | 0.17 |
+> | numeric/fib | 13.42 | 15.42 | 1.15 | 1.40 | 0.10 |
+> | table/array | 33.97 | **3.80** | 0.11 | 12.00 | 0.35 |
+> | table/hash | 9.19 | 5.17 | 0.56 | 3.56 | 0.39 |
+> | string/concat | n/a in this run | - | - | - | - |
+>
+> These remain microbenchmarks.  Luar wins the integer/table-array loops,
+> ties `product`, and loses recursive `fib` and hash insertion.
+
+
 > **J4 additions (0.109–0.110).**  The corpus includes `j4/float_addi`
 > (`s = s + (v + 1)` through `FADDI`) and `j4/long_loop` (a 220-statement
 > loop body).  On the development host `make bench-jit` measured
