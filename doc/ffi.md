@@ -581,6 +581,7 @@ is behind `jit.opt.start("ir=1")` and still has interpreter fallbacks.
 | Signature | IR op | Example |
 | --- | --- | --- |
 | `int(void)` | `CCALL0I` | `getpid()` |
+| `double(void)` | `CCALL0D` | `double_ret()` |
 | `int(int)` | `CCALL1I` | `abs(i)` |
 | `double(int)` | `CCALL1DI` | `sqrt(i)` |
 | `double(double)` | `CCALL1DD` | `fabs(x)`, `fabs(a[i])` |
@@ -588,8 +589,13 @@ is behind `jit.opt.start("ir=1")` and still has interpreter fallbacks.
 | `int(int,int)` | `CCALL2II` | `kill(pid, 0)` |
 | `double(double,double)` | `CCALL2DD` | `fmin(x, y)` |
 | `double(double,int)` | `CCALL2DI` | `ldexp(x, e)` |
-| `double(double,double,double)` | `CCALL3DD` | `fma(x, y, z)` |
+| `double(int,double)` | `CCALL2ID` | `int_double_sum(a, b)` |
 | `float(float,float)` | `CCALL2FF` | `hypotf(x, y)` |
+| `float(float,int)` | `CCALL2FI` | `scale_fi(x, n)` |
+| `float(int,float)` | `CCALL2IF` | `int_float_scale(n, x)` |
+| `double(float,double)` | `CCALL2FD` | `float_double_scale(a, b)` |
+| `double(double,float)` | `CCALL2DF` | `double_float_scale(a, b)` |
+| `double(double,double,double)` | `CCALL3DD` | `fma(x, y, z)` |
 
 Recorded arguments come from `MOVE`, `LOADK`/`LOADF`, supported float
 arithmetic, and direct cdata reads (`CGETF`/`CPGETF`/float field reads).
@@ -598,12 +604,14 @@ always rejected.
 
 Known J4 boundaries:
 
-- `float(float)` accepts MOVE/LOADF/arithmetic arguments, but a direct
-  cdata-array read used as a float32 argument can still fail installation.
+- `float(float)` accepts MOVE/LOADF/arithmetic and direct cdata-array
+  reads (`sqrtf(arr[i])`).
 - `B == 0` multret calls, varargs, aggregate arguments/returns, and general
   `ffi.new` calls remain interpreter-side.
 - A C function loaded via `GETUPVAL` traces only through the guarded
   `ULOAD` closure-identity path.
+- Struct/pointer cdata fields trace for 32-bit int and double reads;
+  64-bit reads stay interpreter-side until cdata arithmetic exists.
 
 ### Cdata fields and 64-bit reads
 
