@@ -922,10 +922,10 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   for (i = 0; i < n - 1; i++) {
     Instruction ins = p->code[start + i];
     LuaR_Op *op = &ops[i];
-    op->pc = (int)(start + i);
     int tb, tc;
     OpCode opc = GET_OPCODE(ins);
     memset(op, 0, sizeof(*op));
+    op->pc = (int)(start + i);
     if (opc == OP_EQ || opc == OP_LT || opc == OP_LE ||
         opc == OP_EQK || opc == OP_EQI || opc == OP_LTI ||
         opc == OP_LEI || opc == OP_GTI || opc == OP_GEI) {
