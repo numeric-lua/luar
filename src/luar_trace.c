@@ -2308,6 +2308,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         pend_i64_delta = (int64_t)imm;
         pend_i64_addpc = pc;
         pend_i64_op = (event == TM_SHL) ? 8 : 9;
+        r = 1;
         break;
       }
       case OP_UNM:
@@ -2319,6 +2320,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         pend_i64_delta = 0;
         pend_i64_addpc = pc;
         pend_i64_op = (GET_OPCODE(ins) == OP_UNM) ? 10 : 11;
+        r = 1;
         break;
       }
       case OP_ADD:
