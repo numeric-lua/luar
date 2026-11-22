@@ -858,6 +858,8 @@ int64_t luar_trace_tsetupki (int idx, TString *key, int64_t v,
   if (!ttistable(uv))
     return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   setivalue(&val, (lua_Integer)v);
   luaH_set(L, t, &k, &val);
@@ -876,6 +878,8 @@ int64_t luar_trace_tsetupks (int idx, TString *key, TString *v,
   uv = cl->upvals[idx]->v.p;
   if (!ttistable(uv)) return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   setsvalue(L, &val, v);
   luaH_set(L, t, &k, &val);
@@ -894,6 +898,8 @@ int64_t luar_trace_tsetupkb (int idx, TString *key, int b,
   uv = cl->upvals[idx]->v.p;
   if (!ttistable(uv)) return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   settt_(&val, b != 0 ? LUA_VTRUE : LUA_VFALSE);
   luaH_set(L, t, &k, &val);
@@ -913,6 +919,8 @@ int64_t luar_trace_tsetupv (int idx, TString *key, TValue *val,
   uv = cl->upvals[idx]->v.p;
   if (!ttistable(uv)) return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -932,6 +940,8 @@ int64_t luar_trace_tsetupt (int idx, TString *key, TValue *val,
   uv = cl->upvals[idx]->v.p;
   if (!ttistable(uv)) return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -949,6 +959,8 @@ int64_t luar_trace_tsetupkn (int idx, TString *key, lua_State *L) {
   uv = cl->upvals[idx]->v.p;
   if (!ttistable(uv)) return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   setnilvalue(&v);
   luaH_set(L, t, &k, &v);
@@ -974,6 +986,8 @@ int64_t luar_trace_tsetupkf (int idx, TString *key, double v,
   if (!ttistable(uv))
     return 0;
   t = (Table *)uv->value_.gc;
+  if (t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
   setsvalue(L, &k, key);
   setfltvalue(&val, v);
   luaH_set(L, t, &k, &val);
