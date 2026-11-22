@@ -183,6 +183,19 @@ enum HelperColor helper_color_next (enum HelperColor c) {
 int helper_color_value (enum HelperColor c) { return (int)c; }
 _Bool helper_bool_not (_Bool b) { return !b; }
 
+/* _Bool fields, including one-bit bitfields, for conversion tests. */
+struct BoolBits { _Bool a : 1; _Bool b : 1; _Bool c; };
+int size_BoolBits (void) { return (int)sizeof(struct BoolBits); }
+int boolbits_get_a (struct BoolBits *p) { return (int)p->a; }
+int boolbits_get_b (struct BoolBits *p) { return (int)p->b; }
+int boolbits_get_c (struct BoolBits *p) { return (int)p->c; }
+void boolbits_set_a (struct BoolBits *p, _Bool v) { p->a = v; }
+void boolbits_set_b (struct BoolBits *p, _Bool v) { p->b = v; }
+void boolbits_set_c (struct BoolBits *p, _Bool v) { p->c = v; }
+int boolbits_by_value (struct BoolBits p) {
+  return (int)p.a + (int)p.b + (int)p.c;
+}
+
 /* Variadic probes: check the vararg conversions without depending on a
 ** particular printf implementation. */
 int vararg_first_is_null (int tag, ...) {

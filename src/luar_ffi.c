@@ -153,6 +153,54 @@ static void *value_addr (CData *cd) {
   return (void *)&cd->v;
 }
 
+/* C scalar-to-_Bool conversion: every non-zero scalar (including a
+** fractional or infinite float) becomes 1, and a NULL pointer becomes 0.
+** Truncating to an integer first would turn 0.5 into 0, which is not what
+** the C compiler does for a _Bool assignment or argument. */
+static int ffi_scalar_truth (lua_State *L, FFIState *S, int idx, int *ok) {
+  int t = lua_type(L, idx);
+  (void)S;
+  if (ok != NULL) *ok = 1;
+  if (t == LUA_TBOOLEAN)
+    return lua_toboolean(L, idx);
+  if (t == LUA_TNUMBER) {
+    if (lua_isinteger(L, idx))
+      return lua_tointeger(L, idx) != 0;
+    return lua_tonumber(L, idx) != 0.0;   /* NaN is non-zero */
+  }
+  if (t == LUA_TLIGHTUSERDATA)
+    return lua_touserdata(L, idx) != NULL;
+  if (t == LUA_TUSERDATA) {
+    CData *cd = ffi_tocdata(L, idx);
+    if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0) {
+      CType *ct = cd->ct;
+      void *p = value_addr(cd);
+      if (ct->kind == CT_POINTER || ct->kind == CT_FUNC ||
+          ct->kind == CT_ARRAY)
+        return cd->v.p != NULL;
+      if (ct->kind == CT_FLOAT) {
+        if (ct->size == 4) {
+          float f;
+          memcpy(&f, p, sizeof(f));
+          return f != 0.0f;
+        }
+        else {
+          double d;
+          memcpy(&d, p, sizeof(d));
+          return d != 0.0;
+        }
+      }
+      if (ffi_is_numeric(ct)) {
+        if (ct->is_unsigned)
+          return ffi_load_uint(p, ct->size) != 0;
+        return ffi_load_int(p, ct->size) != 0;
+      }
+    }
+  }
+  if (ok != NULL) *ok = 0;
+  return 0;
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Conversions                                                       */
@@ -343,16 +391,11 @@ int ffi_convert (lua_State *L, FFIState *S, CType *ct, void *dst,
   int t = lua_type(L, idx);
   switch (ct->kind) {
     case CT_BOOL: {
-      uint64_t v;
-      int ok;
-      if (t == LUA_TBOOLEAN) {
-        ffi_store_uint(dst, ct->size, lua_toboolean(L, idx) ? 1u : 0u);
-        return 1;
-      }
-      v = ffi_to_uint(L, S, idx, &ok);
+      int ok, truth = ffi_scalar_truth(L, S, idx, &ok);
+      (void)t;
       if (!ok)
         conv_error(L, S, ct, idx, what);
-      ffi_store_uint(dst, ct->size, v != 0);
+      ffi_store_uint(dst, ct->size, truth != 0);
       return 1;
     }
     case CT_ENUM:
@@ -567,8 +610,10 @@ static uint64_t bitfield_load (const CField *f, const void *p) {
   else
     raw = (lo >> off) | (hi << (64 - off));
   raw &= mask;
+  if (f->type->kind == CT_BOOL)
+    return (raw != 0);
   if (f->bitwidth < 64 && !f->type->is_unsigned &&
-      f->type->kind != CT_BOOL && (raw & ((uint64_t)1 << (f->bitwidth - 1))))
+      (raw & ((uint64_t)1 << (f->bitwidth - 1))))
     raw |= ~mask;
   return raw;
 }
@@ -583,9 +628,11 @@ static void bitfield_store (lua_State *L, FFIState *S, const CField *f,
   uint64_t lo, hi, v;
   uint64_t mlo, mhi, vlo, vhi;
   int ok = 0;
-  if (f->type->kind == CT_BOOL && lua_isboolean(L, idx))
-    v = (uint64_t)lua_toboolean(L, idx);
-  else if (f->type->is_unsigned || f->type->kind == CT_BOOL)
+  if (f->type->kind == CT_BOOL) {
+    int truth = ffi_scalar_truth(L, S, idx, &ok);
+    v = (uint64_t)(truth != 0);
+  }
+  else if (f->type->is_unsigned)
     v = ffi_to_uint(L, S, idx, &ok);
   else
     v = (uint64_t)ffi_to_int(L, S, idx, &ok);
