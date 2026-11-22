@@ -169,6 +169,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CDIVI64:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cdivi64");
+          return 0;
+        }
+        break;
       case LUAR_IR_CMULI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cmuli64");
@@ -2290,6 +2296,14 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_DIVK:
       case OP_MODK:
       case OP_IDIVK:
+        if (GET_OPCODE(ins) == OP_IDIVK && pend_i64_src >= 0 &&
+            pend_i64_addpc < 0 && a == pend_i64_dst && b == pend_i64_dst &&
+            c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
+          pend_i64_delta = (int)ivalue(&p->k[c]);
+          pend_i64_addpc = pc;
+          pend_i64_op = 3;
+          break;
+        }
         if (GET_OPCODE(ins) == OP_MULK && pend_i64_src >= 0 &&
             pend_i64_addpc < 0 && a == pend_i64_dst && b == pend_i64_dst &&
             c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
@@ -3668,7 +3682,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           if (TESTARG_k(ins) || pc != pend_i64_addpc + 2 ||
               b != pend_i64_key || c < 0 || c >= ns || c != pend_i64_dst)
             return 0;
-          in.kind = (pend_i64_op == 2) ? LUAR_IR_CMULI64 : LUAR_IR_CADDI64;
+          in.kind = (pend_i64_op == 2) ? LUAR_IR_CMULI64 :
+                    (pend_i64_op == 3) ? LUAR_IR_CDIVI64 : LUAR_IR_CADDI64;
           in.a = (uint8_t)pend_i64_src;
           in.b = (uint8_t)pend_i64_key; in.nval = (double)pend_i64_delta;
           in.pc = pend_i64_pc;
