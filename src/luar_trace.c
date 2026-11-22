@@ -196,6 +196,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TSETUPKF:
+        if (in->a > 255) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetupkf");
+          return 0;
+        }
+        break;
       case LUAR_IR_TSETKDB:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetkdb");
@@ -820,6 +826,31 @@ TValue *luar_trace_tsetdyn (TValue *tv, TValue *key, TValue *val,
   v = *val;
   luaH_set(L, t, &k, &v);
   return (TValue *)(L->ci->func.p + 1);
+}
+
+
+int64_t luar_trace_tsetupkf (int idx, TString *key, double v,
+                                lua_State *L) {
+  LClosure *cl;
+  TValue *uv;
+  Table *t;
+  TValue k, val;
+  if (L == NULL || key == NULL || idx < 0)
+    return 0;
+  if (!ttisLclosure(s2v(L->ci->func.p)))
+    return 0;
+  cl = clLvalue(s2v(L->ci->func.p));
+  if (idx >= (int)cl->nupvalues || cl->upvals[idx] == NULL ||
+      cl->upvals[idx]->v.p == NULL)
+    return 0;
+  uv = cl->upvals[idx]->v.p;
+  if (!ttistable(uv))
+    return 0;
+  t = (Table *)uv->value_.gc;
+  setsvalue(L, &k, key);
+  setfltvalue(&val, v);
+  luaH_set(L, t, &k, &val);
+  return 1;
 }
 
 
@@ -2945,6 +2976,18 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         in.kind = LUAR_IR_TGET; in.a = (uint8_t)a; in.b = (uint8_t)b;
         in.c = (uint8_t)c; in.pc = pc;
+        r = luar_trace_ir_emit(t, &in);
+        break;
+      }
+      case OP_SETTABUP: {
+        int idx = a;
+        int kc = b, kv = c;
+        if (idx < 0 || kc < 0 || kc >= p->sizek || kv >= p->sizek ||
+            !ttisstring(&p->k[kc]) || !ttisfloat(&p->k[kv]))
+          return 0;
+        in.kind = LUAR_IR_TSETUPKF; in.a = (uint8_t)idx;
+        in.ival = (int64_t)(intptr_t)tsvalue(&p->k[kc]);
+        in.nval = fltvalue(&p->k[kv]); in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;
       }
