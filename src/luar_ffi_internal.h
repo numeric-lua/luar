@@ -312,6 +312,8 @@ int ffi_trace_call3d (CData *fn, double arg1, double arg2, double arg3,
                       double *out);
 int ffi_trace_call3di (CData *fn, double arg1, double arg2, int64_t arg3,
                        double *out);
+int ffi_trace_call3did (CData *fn, double arg1, int64_t arg2, double arg3,
+                        double *out);
 int ffi_trace_call2di (CData *fn, double arg1, int64_t arg2, double *out);
 int ffi_trace_call2id (CData *fn, int64_t arg1, double arg2, double *out);
 int ffi_trace_call2fi (CData *fn, double arg1, int64_t arg2, double *out);

@@ -110,7 +110,8 @@ typedef enum {
   LUAR_IR_TSETDYN_KI,	/* table[b] = constant int (nval bits) */
   LUAR_IR_TSETDYN_KB,	/* table[b] = constant bool (ival) */
   LUAR_IR_CCALL3DD,
-  LUAR_IR_CCALL3DDI,	/* native three-double-arg/double-return C call */
+  LUAR_IR_CCALL3DDI,
+  LUAR_IR_CCALL3DID,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FADDI,	/* a = float base[b] + constant (nval) */
   LUAR_IR_FMULK,	/* float multiply by nval */
@@ -208,6 +209,9 @@ int luar_ffi_trace_ccall1ff_kind (TValue *fn);
 int64_t luar_ffi_trace_ccall1ff (TValue *fn, double arg, TValue *out);
 int64_t luar_ffi_trace_ccall1dd (TValue *fn, double arg, TValue *out);
 int luar_ffi_trace_ccall2dd_kind (TValue *fn);
+int luar_ffi_trace_ccall3did_kind (TValue *fn);
+int64_t luar_ffi_trace_ccall3did (TValue *fn, double arg1, int64_t arg2,
+                                  double arg3, TValue *out);
 int luar_ffi_trace_ccall3ddi_kind (TValue *fn);
 int64_t luar_ffi_trace_ccall3ddi (TValue *fn, double arg1, double arg2,
                                   int64_t arg3, TValue *out);

@@ -365,6 +365,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CCALL3DID:
       case LUAR_IR_CCALL3DDI:
       case LUAR_IR_CCALL3DD: {
         int a2 = (int)(in->ival & 0xff);
@@ -1467,6 +1468,7 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
         break;
       case LUAR_IR_CCALL3DD:
       case LUAR_IR_CCALL3DDI:
+      case LUAR_IR_CCALL3DID:
         kind[in->a] = 2;
         break;
       default:
@@ -1816,6 +1818,7 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_CCALL2DD:
     case LUAR_IR_CCALL3DD:
     case LUAR_IR_CCALL3DDI:
+    case LUAR_IR_CCALL3DID:
     case LUAR_IR_TGETF:
     case LUAR_IR_FADDI:
     case LUAR_IR_FMULK:
@@ -1961,6 +1964,7 @@ static int ir_is_cdata_function (TValue *v) {
          luar_ffi_trace_ccall2fd_kind(v) > 0 ||
          luar_ffi_trace_ccall2df_kind(v) > 0 ||
          luar_ffi_trace_ccall3ddi_kind(v) > 0 ||
+         luar_ffi_trace_ccall3did_kind(v) > 0 ||
          luar_ffi_trace_ccall2ii_kind(v) > 0 ||
          luar_ffi_trace_ccall3dd_kind(v) > 0;
 }
@@ -4023,6 +4027,33 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           seen[a] = 1;
           seen[a + 1] = 1;
           seen[a + 2] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 4 && c == 2 && a + 3 < ns &&
+            luar_ffi_trace_ccall3did_kind(fv) == 1 &&
+            ir_slot_is_float(t, a + 1, t->nins, 0) &&
+            ir_slot_is_float(t, a + 3, t->nins, 0)) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 2);
+          in.b = LUAR_IR_TAG_INT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 3);
+          in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL3DID; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2) | ((int64_t)(a + 3) << 8);
+          in.pc = pc;
+          seen[a] = 1;
           r = luar_trace_ir_emit(t, &in);
           break;
         }

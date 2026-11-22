@@ -838,6 +838,32 @@ int64_t luar_ffi_trace_ccall3dd (TValue *fn, double arg1, double arg2,
 
 /* Record-time classification of a C function with three double arguments
 ** and a double return.  Never calls the function. */
+int luar_ffi_trace_ccall3did_kind (TValue *fn) {
+  Udata *u; CData *cd; CType *ft, *a0, *a1, *a2, *rt;
+  if (fn == NULL || !ttisfulluserdata(fn)) return 0;
+  u = (Udata *)fn->value_.gc; cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0) return 0;
+  ft = (cd->ct->kind == CT_FUNC) ? cd->ct : cd->ct->child;
+  if (ft == NULL || ft->kind != CT_FUNC || ft->nargs != 3 || ft->vararg) return 0;
+  a0 = ft->args[0]; a1 = ft->args[1]; a2 = ft->args[2]; rt = ft->ret;
+  if (a0 == NULL || a1 == NULL || a2 == NULL || rt == NULL ||
+      a0->kind != CT_FLOAT || a0->size != 8 ||
+      a1->kind != CT_INT || a1->size != 4 ||
+      a2->kind != CT_FLOAT || a2->size != 8 ||
+      rt->kind != CT_FLOAT || rt->size != 8) return 0;
+  return 1;
+}
+
+int64_t luar_ffi_trace_ccall3did (TValue *fn, double a0, int64_t a1,
+                                  double a2, TValue *out) {
+  Udata *u; CData *cd; double v;
+  if (fn == NULL || out == NULL || !ttisfulluserdata(fn)) return 0;
+  u = (Udata *)fn->value_.gc; cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_FUNC) == 0) return 0;
+  if (!ffi_trace_call3did(cd, a0, a1, a2, &v)) return 0;
+  setfltvalue(out, v); return 1;
+}
+
 int luar_ffi_trace_ccall3ddi_kind (TValue *fn) {
   Udata *u; CData *cd; CType *ft, *a0, *a1, *a2, *rt;
   if (fn == NULL || !ttisfulluserdata(fn)) return 0;

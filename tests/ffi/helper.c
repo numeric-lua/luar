@@ -79,6 +79,7 @@ float int_float_scale (int n, float x) { return (float)n * x; }
 double float_double_scale (float a, double b) { return (double)a * b; }
 double double_float_scale (double a, float b) { return a * (double)b; }
 double ddi_scale (double a, double b, int n) { return a * b * (double)n; }
+double did_scale (double a, int n, double b) { return a * (double)n * b; }
 
 int pair_sum (struct Pair p) { return p.a + p.b; }
 
