@@ -6,8 +6,22 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.191.0] — 2026-11-22
+
+### Added
+
+- J4 fuses int64 array shifts (`CSHLI64`/`CSHRI64`), unary minus
+  (`CNEGI64`) and bitwise not (`CBNOTI64`) in addition to the existing
+  add/multiply/divide/modulo/bitwise forms.
+
 ### Fixed
 
+- Fused int64 operations keep full 64-bit constant operands; constants
+  above `INT_MAX` or `2^53` no longer truncate or lose precision.
+- Fused `//`/`%` on `uint64_t` arrays use unsigned semantics.
+- Fused int64 add/multiply use wrap-defined unsigned arithmetic, and
+  `INT64_MIN / -1` / `% -1` no longer raise `SIGFPE` or invoke C undefined
+  behaviour.
 - Sanitizer builds no longer fault on entry to JIT-compiled code when the
   compiler's `-fsanitize=undefined` includes the function-type check
   (recent Clang); generated-code entry points opt out of that check only.

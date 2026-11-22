@@ -614,17 +614,45 @@ Known J4 boundaries:
 - A C function loaded via `GETUPVAL` traces only through the guarded
   `ULOAD` closure-identity path.
 - Struct/pointer cdata fields trace for 32-bit int and double reads;
-  64-bit reads stay interpreter-side until cdata arithmetic exists.
+  64-bit reads stay interpreter-side except for the fused in-place forms
+  below.
+
+### Fused int64 array operations
+
+J4 recognises the canonical in-place shape `a[k] = a[k] <op> const` (plus
+`a[k] = b[k]`, `a[k] = <unary> a[k]` and `a[k] = <Lua integer>`) and runs
+it as one allocation-free helper call per iteration:
+
+| Source shape | IR op | Semantics |
+| --- | --- | --- |
+| `a[k] = a[k] + n`, `- n` | `CADDI64` | two's-complement wrap |
+| `a[k] = a[k] * n` | `CMULI64` | two's-complement wrap |
+| `a[k] = a[k] // n` | `CDIVI64` / `CUDIVI64` | truncates toward zero; unsigned for `uint64_t` |
+| `a[k] = a[k] % n` | `CMODI64` / `CUMODI64` | truncates toward zero; unsigned for `uint64_t` |
+| `a[k] = a[k] & n` (also OR/XOR) | `CBANDI64`, `CBORI64`, `CBXORI64` | 64-bit bitwise |
+| `a[k] = a[k] << n`, `>> n` | `CSHLI64`, `CSHRI64` | logical shift, count masked to six bits |
+| `a[k] = -a[k]`, `~a[k]` | `CNEGI64`, `CBNOTI64` | wrap-defined negation / bitwise not |
+| `a[k] = b[k]` | `CCPYI64` | raw 8-byte copy |
+| `a[k] = <Lua integer>` | `CSETI64` | integer conversion |
+
+Constants are kept as full 64-bit values.  Signed division and modulo wrap
+`INT64_MIN / -1` to `INT64_MIN` and return `0` for `INT64_MIN % -1`, as the
+interpreter does, rather than invoking C undefined behaviour.  The shape
+must be adjacent in the bytecode and use the same array object; anything
+else (a different destination, an intervening instruction, a metamethod, or
+a dynamic operand) falls back to the interpreter at the original PC.
 
 ### Cdata fields and 64-bit reads
 
 `long`/`int64_t` array reads yield **cdata int64 values**, not Lua integers,
-so a loop such as `x = x + s.lp[i]` accumulates cdata.  J4 has no cdata
-arithmetic IR; it deliberately declines these traces and leaves them to the
-interpreter.  Forcing `TAG_USERDATA` onto struct/pointer cdata makes the
-recorder accept the trace and then treat the cdata payload as an integer,
-which is a miscompile.  Struct/pointer cdata may trace when every field read is a 32-bit
-integer or double (`int *`, `int`/`double` struct fields).  Reads that
-would produce cdata int64 (`long`, `int64_t`, pointer-sized integers) are
-rejected in both the integer and float analyzers and stay
-interpreter-side until cdata arithmetic is modelled.
+so a loop such as `x = x + s.lp[i]` accumulates cdata.  J4 does not model
+general cdata arithmetic values: only the fused in-place array forms above
+are compiled, and a loop that materialises cdata in a register stays
+interpreter-side.  Forcing `TAG_USERDATA` onto struct/pointer cdata makes
+the recorder accept the trace and then treat the cdata payload as an
+integer, which is a miscompile.  Struct/pointer cdata may trace when every
+field read is a 32-bit integer or double (`int *`, `int`/`double` struct
+fields).  Reads that would produce cdata int64 (`long`, `int64_t`,
+pointer-sized integers) are rejected in both the integer and float
+analyzers and stay interpreter-side until general cdata arithmetic is
+modelled.

@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.190.0. This document describes the system as built and the design
+Status: 0.191.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -90,6 +90,10 @@ make correct against an unmodified VM.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact
   bytecode PC; there is no deoptimisation of compiled frames, because
   trace state is always representable as interpreter stack + PC.
+* **J4** (opt-in `ir=1`) adds an allocation-free tracing tier on top: fused
+  in-place int64 array arithmetic (add/subtract, multiply, signed/unsigned
+  divide and modulo, bitwise, logical shifts, unary minus/not, copy and
+  integer stores), with full 64-bit constants and two's-complement wrap.
 * **T3** removes helper-call overhead for FFI-heavy code, the main use case
   of the numeric-Lua ecosystem.
 
@@ -177,7 +181,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.190.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.191.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.
