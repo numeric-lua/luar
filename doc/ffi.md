@@ -591,6 +591,7 @@ is behind `jit.opt.start("ir=1")` and still has interpreter fallbacks.
 | `double(double,int)` | `CCALL2DI` | `ldexp(x, e)` |
 | `double(int,double)` | `CCALL2ID` | `int_double_sum(a, b)` |
 | `float(float,int)` | `CCALL2FI` | `scale_fi(x, n)` |
+| `float(float,float)` | `CCALL2FF` | `hypotf(x, y)` |
 | `float(int,float)` | `CCALL2IF` | `int_float_scale(n, x)` |
 | `double(float,double)` | `CCALL2FD` | `float_double_scale(a, b)` |
 | `double(double,float)` | `CCALL2DF` | `double_float_scale(a, b)` |
@@ -605,10 +606,6 @@ Runtime guards check function identity and argument tags. Callback cdata is
 always rejected.
 
 Known J4 boundaries:
-
-- `float(float,float)` calls currently record but do not install: the
-  `CCALL2FF` probe rejects valid function cdata, so these calls stay on the
-  interpreter path.
 
 - `float(float)` accepts MOVE/LOADF/arithmetic and direct cdata-array
   reads (`sqrtf(arr[i])`).

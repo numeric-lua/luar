@@ -1960,6 +1960,7 @@ static int ir_is_cdata_function (TValue *v) {
          luar_ffi_trace_ccall1dd_kind(v) > 0 ||
          luar_ffi_trace_ccall1ff_kind(v) > 0 ||
          luar_ffi_trace_ccall2dd_kind(v) > 0 ||
+         luar_ffi_trace_ccall2ff_kind(v) > 0 ||
          luar_ffi_trace_ccall2di_kind(v) > 0 ||
          luar_ffi_trace_ccall2id_kind(v) > 0 ||
          luar_ffi_trace_ccall2fi_kind(v) > 0 ||
@@ -3985,7 +3986,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           }
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
-            ir_call_args2_are_double(p, pc, a + 1, a + 2, base) &&
+            (ir_call_args2_are_double(p, pc, a + 1, a + 2, base) ||
+             (ir_slot_is_float(t, a + 1, t->nins, 0) &&
+              ir_slot_is_float(t, a + 2, t->nins, 0))) &&
             luar_ffi_trace_ccall2ff_kind(fv) == 1) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
