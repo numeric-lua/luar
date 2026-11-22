@@ -498,7 +498,10 @@ Call features:
   zero-width alignment fields are supported (the zero-width type affects
   the next offset but not the struct alignment, as in GCC).  Union
   bitfields share offset zero and can be read, written and passed by
-  value.  Struct bitfield storage runs are grouped into synthetic integer
+  value.  A packed union of bitfields occupies only the bytes needed for
+  its widest field (for example `{ unsigned a:3; unsigned int b:17; }` is
+  3 bytes, not 4), matching GCC.  Struct bitfield storage runs are grouped
+  into synthetic integer
   fields for by-value passing, so bitfield structs work too.  `long double`, complex numbers, vectors and packing
   attributes are not implemented.  `ffi.callback`
   supports non-variadic types, including struct and scalar-union by-value

@@ -82,9 +82,10 @@ make correct against an unmodified VM.
   implemented: hot counters, selection, bytecode snapshots, `jit.stats()`
   and `jit.trace()`; **T2 exists for x86-64 numeric loops** (J2): a
   whitelisted loop body is emitted with DynASM and runs the remaining
-  iterations on the stack slots, with int/double tag guards, numeric
-  comparisons/forward branches, simple `while` loops, experimental
-  register-cached prefix/square-sum loops, opt-in integer array lookups/stores,
+  iterations on the stack slots, with int/double tag guards, exact numeric
+  comparisons/forward branches, integer bitwise/unary-not and constant
+  shifts, simple `while` loops, experimental register-cached
+  prefix/square-sum loops, opt-in integer array lookups/stores,
   up to two compiled loops per Proto,
   and a fixed register ABI.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact

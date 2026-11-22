@@ -6,6 +6,22 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Added
+
+- J2 compiles integer `&`, `|`, `~`, unary `~` and constant `<<`/`>>`
+  loop bodies, including the `BANDK`/`BORK`/`BXORK` and `SHRI` forms.
+
+### Fixed
+
+- J2 keeps full-width integer constants in `ADDK`/`SUBK`/`MULK` and the
+  inlined `__index` multiplier; operands no longer truncate to 32 bits.
+- J2 compares mixed integer/float operands exactly, falling back to the
+  interpreter at the `2^53` boundary instead of comparing rounded doubles.
+- Packed unions of bitfields are sized by the bytes their bits occupy,
+  matching the C compiler and `_Alignof`.
+- `table.new` rejects negative and `INT_MAX`-overflowing array/record
+  sizes instead of ignoring or wrapping them.
+
 ## [0.191.0] — 2026-11-22
 
 ### Added
