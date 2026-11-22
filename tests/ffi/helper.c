@@ -275,6 +275,23 @@ struct PadBit { unsigned a : 3; unsigned : 2; unsigned b : 3; };
 int size_PadBit (void) { return (int)sizeof(struct PadBit); }
 unsigned padbit_a_ptr (const struct PadBit *p) { return p->a; }
 unsigned padbit_b_ptr (const struct PadBit *p) { return p->b; }
+/* Packed union bitfields use only the bytes the bits occupy. */
+union __attribute__((packed)) PackedBitU {
+  unsigned char a : 3;
+  unsigned int b : 17;
+};
+int size_PackedBitU (void) { return (int)sizeof(union PackedBitU); }
+int align_PackedBitU (void) { return (int)_Alignof(union PackedBitU); }
+unsigned packedbitu_b_ptr (const union PackedBitU *p) { return p->b; }
+union __attribute__((packed)) PackedBitWide {
+  unsigned long long a : 40;
+  unsigned char c;
+};
+int size_PackedBitWide (void) { return (int)sizeof(union PackedBitWide); }
+int align_PackedBitWide (void) { return (int)_Alignof(union PackedBitWide); }
+unsigned long long packedbitwide_a_ptr (const union PackedBitWide *p) {
+  return p->a;
+}
 union PairU { double d[2]; };
 double pairu_sum (union PairU u) { return u.d[0] + u.d[1]; }
 union PairU pairu_make (double a, double b) { union PairU u; u.d[0] = a; u.d[1] = b; return u; }

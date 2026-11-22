@@ -412,8 +412,16 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
     if (ct->kind == CT_UNION) {
       f->offset = 0;
       f->bitoffset = 0;
-      if (!f->zero_width && fsz > maxsize)
-        maxsize = fsz;
+      if (!f->zero_width) {
+        size_t usz = fsz;
+        /* A packed union of bitfields is only as wide as the bits it
+        ** actually stores; GCC does not reserve the base type's full
+        ** storage unit for it.  Non-packed unions keep the base size. */
+        if (f->bitwidth != 0 && ct->pack == 1)
+          usz = ((size_t)f->bitwidth + 7) / 8;
+        if (usz > maxsize)
+          maxsize = usz;
+      }
       continue;
     }
     if (f->zero_width) {
