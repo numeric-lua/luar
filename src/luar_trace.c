@@ -4025,7 +4025,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (b == 4 && c == 2 && a + 3 < ns &&
             luar_ffi_trace_ccall3ddi_kind(fv) == 1 &&
-            ir_call_args_ddi(p, pc, a + 1, base)) {
+            (ir_call_args_ddi(p, pc, a + 1, base) ||
+             (ir_slot_is_float(t, a + 1, t->nins, 0) &&
+              ir_slot_is_float(t, a + 2, t->nins, 0)))) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
             in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
