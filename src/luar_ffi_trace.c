@@ -73,8 +73,7 @@ int64_t luar_ffi_trace_cget_int (TValue *cdv, TValue *kt, TValue *out) {
   else
     return 0;
   if (elem == NULL || elem->kind != CT_INT ||
-      (elem->size != 1 && elem->size != 2 &&
-       elem->size != 4 && elem->size != 8))
+      (elem->size != 1 && elem->size != 2 && elem->size != 4))
     return 0;
   idx = ivalue(kt);
   if (ct->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)len))
