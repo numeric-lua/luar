@@ -610,6 +610,7 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
       case LUAR_OP_BXORK:
       case LUAR_OP_BNOT:
       case LUAR_OP_SHRI:
+      case LUAR_OP_SHLI:
         ok = loop_type_check(types, op->b, LUAR_T_INT) &&
              loop_type_check(types, op->a, LUAR_T_INT);
         break;
@@ -1185,6 +1186,20 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         cur[op->a] = LUAR_T_INT;
         def[op->a] = 1;
         break;
+      case OP_SHLI: {
+        int ka = GETARG_A(ins);
+        if (is_control_reg(ka, for_a)) return 0;
+        if (slot_type(b, cur, def, GETARG_B(ins)) != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        op->kind = LUAR_OP_SHLI;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)GETARG_B(ins);
+        op->imm = (int64_t)GETARG_sC(ins);
+        op->ta = op->tb = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
+        break;
+      }
       case OP_SHL:
       case OP_SHR: {
         int ka = GETARG_A(ins);
@@ -1838,8 +1853,9 @@ decode_done:
         case LUAR_OP_BXORK:
         case LUAR_OP_BNOT:
         case LUAR_OP_SHRI:
+        case LUAR_OP_SHLI:
         case LUAR_OP_UNM:
-          reads[nr] = op->b; types[nr++] = op->tb; break;
+          reads[nr] = op->b; types[nr++] = LUAR_T_INT; break;
         case LUAR_OP_SHL:
         case LUAR_OP_SHR:
           reads[nr] = op->b; types[nr++] = LUAR_T_INT;
@@ -1893,6 +1909,7 @@ decode_done:
         case LUAR_OP_BNOT:
         case LUAR_OP_UNM:
         case LUAR_OP_SHRI:
+        case LUAR_OP_SHLI:
         case LUAR_OP_SHL:
         case LUAR_OP_SHR:
         case LUAR_OP_GETTABLE:

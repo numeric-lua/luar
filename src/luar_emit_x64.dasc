@@ -390,6 +390,32 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d, int fail)
           | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_flt)
         }
         break;
+      case LUAR_OP_SHLI: {
+        /* SHLI shifts a small constant by a register count. */
+        int lneg = 4096 + op->pc * 4;
+        int lzero = lneg + 1;
+        int ldone = lneg + 2;
+        | mov64 rax, op->imm
+        | mov rcx, qword [rbx + ((int)LUAR_SLOT(op->b))]
+        | test rcx, rcx
+        | js =>lneg
+        | cmp rcx, 64
+        | jge =>lzero
+        | shl rax, cl
+        | jmp =>ldone
+        |=>lneg:
+        | cmp rcx, -64
+        | jle =>lzero
+        | neg rcx
+        | shr rax, cl
+        | jmp =>ldone
+        |=>lzero:
+        | xor eax, eax
+        |=>ldone:
+        | mov qword [rbx + ((int)LUAR_SLOT(op->a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(op->a))], ((int)d->tag_int)
+        break;
+      }
       case LUAR_OP_SHL:
       case LUAR_OP_SHR: {
         /* Lua shifts by a negative count in the other direction and by
@@ -3013,7 +3039,8 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
     int i;
     for (i = 0; i < d->nops; i++) {
       const LuaR_Op *op = &d->ops[i];
-      if (op->kind == LUAR_OP_SHL || op->kind == LUAR_OP_SHR) {
+      if (op->kind == LUAR_OP_SHL || op->kind == LUAR_OP_SHR ||
+          op->kind == LUAR_OP_SHLI) {
         unsigned need = 4096u + (unsigned)op->pc * 4u + 3u;
         if (need > maxpc)
           maxpc = need;
