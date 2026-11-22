@@ -42,9 +42,13 @@ H.eq(t.key, 2)
 table.clear(t)
 H.eq(next(t), nil)
 
--- table.new defaults / negative checks
+-- table.new defaults / size validation
 H.eq(type(table.new()), "table")
 H.raises(function() table.clear(42) end, "table expected")
+H.raises(function() table.new(-1, 0) end, "array size must be non%-negative")
+H.raises(function() table.new(0, -1) end, "record size must be non%-negative")
+H.raises(function() table.new(2147483648, 0) end, "array size is too large")
+H.raises(function() table.new(0, 2147483648) end, "record size is too large")
 
 -- 5.5 native bitwise operators replace the 5.1-era bit library
 H.eq(0xff & 0x0f, 15)

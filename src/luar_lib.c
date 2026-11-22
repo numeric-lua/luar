@@ -10,6 +10,7 @@
 
 #include "lprefix.h"
 
+#include <limits.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -27,6 +28,17 @@
 static int table_new (lua_State *L) {
   lua_Integer narr = luaL_optinteger(L, 1, 0);
   lua_Integer nrec = luaL_optinteger(L, 2, 0);
+  /* lua_createtable takes int sizes.  Reject negative or wrapped values
+  ** instead of silently ignoring them or turning them into huge unsigned
+  ** reservations (the LuaJIT table.new surface has no 64-bit size). */
+  if (narr < 0)
+    luaL_error(L, "table.new: array size must be non-negative");
+  if (nrec < 0)
+    luaL_error(L, "table.new: record size must be non-negative");
+  if (narr > INT_MAX)
+    luaL_error(L, "table.new: array size is too large");
+  if (nrec > INT_MAX)
+    luaL_error(L, "table.new: record size is too large");
   lua_createtable(L, (int)narr, (int)nrec);
   return 1;
 }
