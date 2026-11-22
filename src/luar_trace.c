@@ -4042,11 +4042,14 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2di_kind(fv) == 1) {
           int q2 = ir_find_arg_int(p, pc - 1, a + 2, base);
-          int q1 = -1;
+          int q1 = -1, q1i = 0;
           if (q2 >= 0) {
             if (ir_find_arg_double(p, q2 - 1, a + 1, base) >= 0 ||
                 ir_slot_is_float(t, a + 1, t->nins, 0))
               q1 = 1;
+            else if (ir_slot_is_int(t, a + 1, t->nins, 0)) {
+              q1 = 1; q1i = 1;
+            }
           }
           if (q1 >= 0) {
             if (!seen[fs]) {
@@ -4055,6 +4058,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
               in.pc = pc;
               if (!luar_trace_ir_emit(t, &in)) return 0;
               seen[fs] = 1;
+            }
+            if (q1i) {
+              in.kind = LUAR_IR_ITOF; in.a = (uint8_t)(a + 1);
+              in.b = (uint8_t)(a + 1); in.pc = pc;
+              if (!luar_trace_ir_emit(t, &in)) return 0;
             }
             in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
             in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
