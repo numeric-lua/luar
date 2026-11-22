@@ -1,5 +1,15 @@
 # Luar performance baseline
 
+> **0.196 refresh (2026-11-22, development host).**  Best CPU milliseconds
+> in the usual harness.  Mandelbrot now compiles its inner `while` loop
+> after the outer loop is rejected: `numeric/mandel` 20.9 → **13.5 ms**
+> (~1.55x), still short of the 3x gate.  `table/new_clear` uses the new
+> in-place C clear and measures **3.5–4.2 ms** (previously ~10.3 ms).
+> J4 scalar FFI calls drop the per-call `ffi_prep_cif`: `ffi_ccall3dd`
+> 30.8 → 22.5 ms, `ffi_ccall2dd` 29.1 → 20.6 ms, `ffi_faddi_call`
+> 25.0 → 16.1 ms.  These are microbenchmarks on a shared laptop-class
+> host, not application claims; regenerate with `./bench/compare.sh`.
+
 > **0.155 refresh (2026-11-22, `./bench/compare.sh`, Ryzen 3 7320U).**
 > Best CPU milliseconds; `x` relative to stock Lua 5.5.1.
 >

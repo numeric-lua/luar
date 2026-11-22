@@ -6,6 +6,46 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.196.0] — 2026-11-22
+
+### Added
+
+- J2 folds a constant string-key field read (`t.x`) when the table is a
+  local register and the loop cannot mutate a table.  A per-entry value
+  guard compares the live field, so a changed or removed field invalidates
+  the native variant and returns to the interpreter; missing fields and
+  `__index` stay on the interpreter.  A field loop now runs natively instead
+  of merely being recorded.
+- `jit.stats().ir_side_parent` reports the root-loop start that produced an
+  interior side exit, so side-trace tests remain meaningful when another
+  Proto has since compiled its own root.
+- FFI caches the prepared libffi call interface for scalar signatures, both
+  for ordinary `ffi.C`/`ffi.load` calls and for the J4 trace call helpers.
+  Repeated calls no longer rebuild the `ffi_cif` each time.
+- `table.clear` clears the array and hash parts in C, preserving capacity
+  and never invoking `__index`/`__newindex`.
+
+### Fixed
+
+- A hot loop that J2 cannot compile no longer blacklists every other loop
+  in the same Proto.  Rejected backedges are remembered individually, so an
+  inner `while` or a sibling numeric loop still gets compiled (this is what
+  makes `numeric/mandel` run natively).
+- `jit.flush()` resets the per-Proto hot state through the existing epoch
+  field.  A flushed loop becomes hot and compiles again instead of staying
+  permanently disabled; stale code/intrinsic slots are discarded on the
+  next compile.
+
+### Performance
+
+- `numeric/mandel` best CPU time fell from about 20.9 ms to 13.5 ms on the
+  development host because the inner `while` loop now compiles.
+- `table/new_clear` fell from about 10.3 ms to 3.5–4.2 ms in the same
+  harness.
+- J4 scalar C calls improved by roughly 25–35% (`ffi_ccall3dd` 30.8→22.5 ms,
+  `ffi_ccall2dd` 29.1→20.6 ms, `ffi_faddi_call` 25.0→16.1 ms); the same
+  cached interfaces are used by ordinary calls.
+
 ## [0.195.0] — 2026-11-22
 
 ### Added

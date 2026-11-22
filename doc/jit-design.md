@@ -46,9 +46,12 @@ is provably observationally equivalent to that interpreter.
   Full side traces remain future work.  The code cache is capped
   at 64 mappings and released by `jit.flush`/state close.
 - **Gate status.**  `numeric/int_sum` is ~9x faster than the interpreter
-  (ahead of LuaJIT), `numeric/float_loop` ~4x, and `mandel` is near parity
-  (~1.0x) after the `-O3` default.  The J2 gate asks for ≥3x on
-  `mandelbrot`, so it is still not met; `fib` remains call-bound (~1.0x).
+  (ahead of LuaJIT), `numeric/float_loop` ~4x, and `numeric/mandel` is now
+  ~1.5x (13.5 ms versus 20.9 ms on the development host) because a rejected
+  outer loop no longer prevents the inner `while` from compiling.  The J2
+  gate still asks for ≥3x on `mandelbrot`; `fib` remains call-bound
+  (~1.0x).  `jit.flush()` now resets per-Proto hot state through the epoch,
+  so flushed loops become hot and recompile instead of staying disabled.
 
 ## 1. Goals, non-goals and the correctness contract
 
