@@ -20,6 +20,11 @@
 #include "lualib.h"
 #include "luar.h"
 
+/* LUAR: table.clear reaches the table internals directly. */
+#include "lobject.h"
+#include "lstate.h"
+#include "ltable.h"
+
 
 /* ---------------------------------------------------------------- */
 /* table.new / table.clear (LuaJIT extensions)                      */
@@ -45,17 +50,12 @@ static int table_new (lua_State *L) {
 
 
 static int table_clear (lua_State *L) {
+  int n;
   luaL_checktype(L, 1, LUA_TTABLE);
-  lua_pushnil(L);
-  /* Setting an existing field to nil while traversing is explicitly
-  ** allowed; the key stays valid for the next lua_next().
-  */
-  while (lua_next(L, 1) != 0) {
-    lua_pop(L, 1);              /* remove value, keep key */
-    lua_pushvalue(L, -1);       /* duplicate key */
-    lua_pushnil(L);
-    lua_settable(L, 1);         /* t[key] = nil */
-  }
+  n = lua_gettop(L);
+  /* LUAR: clear the array and hash parts in C, without metamethods and
+  ** without losing the table's capacity.  Arg 1 is the bottom stack slot. */
+  luaH_clear(hvalue(s2v(L->top.p - n)));
   return 0;
 }
 

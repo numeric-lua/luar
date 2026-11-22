@@ -825,6 +825,36 @@ void luaH_free (lua_State *L, Table *t) {
 }
 
 
+/*
+** LUAR: clear every array and hash entry in place, keeping the allocated
+** capacity.  This backs the LuaJIT-compatible table.clear(); it must not
+** run metamethods or shrink the table.  Empty array tags make the GC stop
+** treating the stale payloads as reachable, and dropped hash keys are reset
+** to nil so collectable keys are released.  The hash free-position cursor
+** is rewound to the end.
+*/
+void luaH_clear (Table *t) {
+  unsigned i;
+  if (t->array != NULL) {
+    for (i = 0; i < t->asize; i++) {
+      getArrVal(t, i)->gc = NULL;
+      *getArrTag(t, i) = LUA_VEMPTY;
+    }
+    *lenhint(t) = 0;
+  }
+  if (!isdummy(t)) {
+    Node *n = gnode(t, 0);
+    Node *limit = gnode(t, sizenode(t));
+    for (; n < limit; n++) {
+      setempty(gval(n));
+      setnilkey(n);
+    }
+    if (haslastfree(t))
+      getlastfree(t) = gnode(t, sizenode(t));
+  }
+}
+
+
 static Node *getfreepos (Table *t) {
   if (haslastfree(t)) {  /* does it have 'lastfree' information? */
     /* look for a spot before 'lastfree', updating 'lastfree' */
