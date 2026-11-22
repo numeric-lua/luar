@@ -524,3 +524,39 @@ int size_ZWPack6 (void) { return (int)sizeof(struct ZWPack6); }
 int off_ZWPack6_b (void) { return (int)offsetof(struct ZWPack6, b); }
 int size_ZWPack7 (void) { return (int)sizeof(struct ZWPack7); }
 int align_ZWPack7 (void) { return (int)_Alignof(struct ZWPack7); }
+
+/* #pragma pack(n) packs consecutive bitfields without retiring to the
+** base type's storage unit, while non-bitfield members still use the
+** reduced alignment. */
+#pragma pack(push, 2)
+struct PPack2A {
+  unsigned short f0 : 6;
+  unsigned short f1 : 15;
+  signed char f2 : 7;
+};
+struct PPack2B {
+  unsigned int f0 : 21;
+  long long f1;
+  unsigned short f2 : 13;
+  short f3 : 14;
+  unsigned char f4 : 4;
+};
+union PPack2U { unsigned long long : 0; long long f1 : 23; unsigned char f2 : 4; };
+#pragma pack(pop)
+#pragma pack(push, 8)
+struct PPack8A { char a; unsigned int b : 31; unsigned int c : 31; char d; };
+struct PPack8B {
+  unsigned short f0 : 6;
+  unsigned short f1 : 15;
+  signed char f2 : 7;
+};
+#pragma pack(pop)
+
+int size_PPack2A (void) { return (int)sizeof(struct PPack2A); }
+int align_PPack2A (void) { return (int)_Alignof(struct PPack2A); }
+int size_PPack2B (void) { return (int)sizeof(struct PPack2B); }
+int align_PPack2B (void) { return (int)_Alignof(struct PPack2B); }
+int size_PPack2U (void) { return (int)sizeof(union PPack2U); }
+int align_PPack2U (void) { return (int)_Alignof(union PPack2U); }
+int size_PPack8A (void) { return (int)sizeof(struct PPack8A); }
+int size_PPack8B (void) { return (int)sizeof(struct PPack8B); }

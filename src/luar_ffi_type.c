@@ -416,8 +416,9 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
         size_t usz = fsz;
         /* A packed union of bitfields is only as wide as the bits it
         ** actually stores; GCC does not reserve the base type's full
-        ** storage unit for it.  Non-packed unions keep the base size. */
-        if (f->bitwidth != 0 && ct->pack == 1)
+        ** storage unit for it.  #pragma pack behaves the same way.
+        ** Unions with no pack setting keep the base size. */
+        if (f->bitwidth != 0 && ct->pack != 0)
           usz = ((size_t)f->bitwidth + 7) / 8;
         if (usz > maxsize)
           maxsize = usz;
@@ -435,8 +436,11 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       nb = (nb + zal - 1) & ~(zal - 1);
       bitpos = nb * 8;
     }
-
-    else if (f->bitwidth != 0 && ct->pack == 1) {
+    else if (f->bitwidth != 0 && ct->pack != 0) {
+      /* With any active #pragma pack (not only pack(1)) GCC packs
+      ** consecutive bitfields without retiring to their base type's
+      ** storage unit; only non-bitfield members and the struct alignment
+      ** are capped by the pack value. */
       f->offset = bitpos / 8;
       f->bitoffset = (uint8_t)(bitpos & 7);
       bitpos += f->bitwidth;
