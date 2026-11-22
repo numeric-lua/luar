@@ -3930,7 +3930,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2di_kind(fv) == 1) {
           int q2 = ir_find_arg_int(p, pc - 1, a + 2, base);
-          int q1 = q2 >= 0 ? ir_find_arg_double(p, q2 - 1, a + 1, base) : -1;
+          int q1 = -1;
+          if (q2 >= 0) {
+            if (ir_find_arg_double(p, q2 - 1, a + 1, base) >= 0 ||
+                ir_slot_is_float(t, a + 1, t->nins, 0))
+              q1 = 1;
+          }
           if (q1 >= 0) {
             if (!seen[fs]) {
               in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;

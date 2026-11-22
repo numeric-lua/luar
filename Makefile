@@ -12,7 +12,7 @@ WITH_JIT?= $(JIT)
 MAKE?= make
 RM= rm -f
 
-VERSION= 0.144.0
+VERSION= 0.145.0
 LUAVER= 5.5
 SOVERSION= $(firstword $(subst ., ,$(VERSION)))
 UNAME_S:= $(shell uname -s)
