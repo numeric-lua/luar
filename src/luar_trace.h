@@ -107,6 +107,7 @@ typedef enum {
   LUAR_IR_TSETDYN,	/* table[b] = c, dynamic string/int key */
   LUAR_IR_TSETDYN_KF,	/* table[b] = constant float (nval), dynamic key */
   LUAR_IR_TSETDYN_KS,	/* table[b] = constant string (nval ptr bits) */
+  LUAR_IR_TSETDYN_KI,	/* table[b] = constant int (nval bits) */
   LUAR_IR_CCALL3DD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
   LUAR_IR_FADDI,	/* a = float base[b] + constant (nval) */
@@ -307,6 +308,8 @@ TValue *luar_trace_tsetks (TValue *tv, TString *key, TValue *val,
                            lua_State *L);
 TValue *luar_trace_tsetkt (TValue *tv, TString *key, TValue *val,
                            lua_State *L);
+TValue *luar_trace_tsetdynki (TValue *tv, TValue *key, int64_t v,
+                                  lua_State *L);
 TValue *luar_trace_tsetdynks (TValue *tv, TValue *key, TString *s,
                                   lua_State *L);
 TValue *luar_trace_tsetdynkf (TValue *tv, TValue *key, double v,
