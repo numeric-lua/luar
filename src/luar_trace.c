@@ -189,6 +189,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TSETDYN_KS:
       case LUAR_IR_TSETDYN_KF:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetdynkf");
@@ -828,6 +829,23 @@ TValue *luar_trace_tsetkkf (TValue *tv, TString *key, uint64_t bits,
   setsvalue(L, &k, key);
   setfltvalue(&v, d);
   luaH_set(L, t, &k, &v);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
+TValue *luar_trace_tsetdynks (TValue *tv, TValue *key, TString *s,
+                                  lua_State *L) {
+  Table *t; TValue k, val;
+  if (tv == NULL || !ttistable(tv) || key == NULL || s == NULL || L == NULL)
+    return NULL;
+  if (!ttisstring(key) && !ttisinteger(key))
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL)
+    return NULL;
+  k = *key;
+  setsvalue(L, &val, s);
+  luaH_set(L, t, &k, &val);
   return (TValue *)(L->ci->func.p + 1);
 }
 
@@ -3436,6 +3454,19 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_SETTABLE: {
+        if (ttistable(&base[a]) &&
+            ((Table *)base[a].value_.gc)->metatable == NULL &&
+            TESTARG_k(ins) && b < ns && c < p->sizek &&
+            ttisstring(&p->k[c])) {
+          uint64_t bits;
+          TString *vs = tsvalue(&p->k[c]);
+          memcpy(&bits, &vs, sizeof(bits));
+          in.kind = LUAR_IR_TSETDYN_KS; in.a = (uint8_t)a;
+          in.b = (uint8_t)b; memcpy(&in.nval, &bits, sizeof(bits));
+          in.pc = pc;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         if (ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
             TESTARG_k(ins) && b < ns && c < p->sizek &&
