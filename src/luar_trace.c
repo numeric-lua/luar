@@ -1934,6 +1934,8 @@ static int ir_slot_is_float (const LuaR_TraceIR *t, int slot, int end,
   if (depth > 8)
     return 0;
   for (i = end - 1; i >= 0; i--) {
+    if (t->ins[i].kind == LUAR_IR_GUARD && t->ins[i].a == slot)
+      return t->ins[i].b == LUAR_IR_TAG_FLOAT;
     if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
       continue;
     return ir_ins_is_float(t, i, depth);
