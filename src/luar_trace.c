@@ -169,6 +169,13 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CCPYI64:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad ccpyi64");
+          return 0;
+        }
+        break;
       case LUAR_IR_CGETI:
       case LUAR_IR_CGETF:
       case LUAR_IR_CSETI:
@@ -2053,6 +2060,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                         int *callpc, int suffix) {
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
+  int pend_i64_src = -1, pend_i64_key = -1;
   int fn_src[LUAR_IR_MAX_SLOTS];
   int known[LUAR_IR_MAX_SLOTS];
   TValue known_fn[LUAR_IR_MAX_SLOTS];
@@ -3274,6 +3282,15 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         return 0;
       }
       case OP_GETTABLE: {
+        if (c >= 0 && c < ns && ttisinteger(&base[c])) {
+          TValue *stv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
+                         known_cval[b].tt_ != 0) ? &known_cval[b] : &base[b];
+          if (luar_ffi_trace_i64_array(stv)) {
+            pend_i64_src = b;
+            pend_i64_key = c;
+            break;
+          }
+        }
         int tracked = ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
                       known_cval[b].tt_ != 0;
         TValue *cdv = tracked ? &known_cval[b] : &base[b];
@@ -3591,6 +3608,16 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_SETTABLE: {
+        if (pend_i64_src >= 0) {
+          if (b != pend_i64_key || !luar_ffi_trace_i64_array(&base[a]))
+            return 0;
+          in.kind = LUAR_IR_CCPYI64; in.a = (uint8_t)a;
+          in.b = (uint8_t)pend_i64_src; in.c = (uint8_t)pend_i64_key;
+          in.pc = pc;
+          pend_i64_src = -1; pend_i64_key = -1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
         if (ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
             TESTARG_k(ins) && b < ns && c < p->sizek &&
@@ -4497,6 +4524,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
     in.kind = LUAR_IR_RET; in.pc = backedge + 1;
     return luar_trace_ir_emit(t, &in);
   }
+  if (pend_i64_src >= 0)
+    return 0;
   if (!sawloop)
     return 0;
   if (!luar_trace_ir_snapshot(&ex, backedge + 1, base, ns))

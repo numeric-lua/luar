@@ -42,6 +42,46 @@ int luar_ffi_trace_kind (TValue *tv) {
 }
 
 
+int luar_ffi_trace_i64_array (TValue *tv) {
+  Udata *u; CData *cd; CType *ct, *elem;
+  if (tv == NULL || !ttisfulluserdata(tv)) return 0;
+  u = (Udata *)tv->value_.gc; cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0) return 0;
+  ct = cd->ct;
+  if (ct->kind != CT_ARRAY && ct->kind != CT_POINTER) return 0;
+  elem = ct->child;
+  return elem != NULL && elem->kind == CT_INT && elem->size == 8;
+}
+
+int64_t luar_ffi_trace_copy_i64 (TValue *dstv, TValue *srcv, TValue *key) {
+  Udata *du, *su; CData *d, *s; CType *dt, *st, *de, *se; void *db, *sb;
+  lua_Integer idx; size_t dlen = 0;
+  if (dstv == NULL || srcv == NULL || key == NULL ||
+      !ttisfulluserdata(dstv) || !ttisfulluserdata(srcv) || !ttisinteger(key))
+    return 0;
+  du = (Udata *)dstv->value_.gc; d = (CData *)getudatamem(du);
+  su = (Udata *)srcv->value_.gc; s = (CData *)getudatamem(su);
+  if (d->magic != LUAR_FFI_MAGIC || s->magic != LUAR_FFI_MAGIC) return 0;
+  if ((d->flags & CDATA_CTYPE) != 0 || (s->flags & CDATA_CTYPE) != 0) return 0;
+  dt = d->ct; de = dt->child; st = s->ct; se = st->child;
+  if ((dt->kind != CT_ARRAY && dt->kind != CT_POINTER) ||
+      (st->kind != CT_ARRAY && st->kind != CT_POINTER) ||
+      de == NULL || se == NULL || de->kind != CT_INT || de->size != 8 ||
+      se->kind != CT_INT || se->size != 8) return 0;
+  db = ((d->flags & (CDATA_OWNED | CDATA_REF)) != 0) ? d->v.p : (void *)&d->v;
+  sb = ((s->flags & (CDATA_OWNED | CDATA_REF)) != 0) ? s->v.p : (void *)&s->v;
+  if (db == NULL || sb == NULL) return 0;
+  if (dt->kind == CT_ARRAY) dlen = dt->vla ? d->len : dt->length;
+  idx = ivalue(key);
+  if (dt->kind == CT_ARRAY && (idx < 0 || (uint64_t)idx >= (uint64_t)dlen))
+    return 0;
+  if (st->kind == CT_ARRAY &&
+      (idx < 0 || (uint64_t)idx >= (uint64_t)(st->vla ? s->len : st->length)))
+    return 0;
+  memcpy((char *)db + (ptrdiff_t)idx * 8, (char *)sb + (ptrdiff_t)idx * 8, 8);
+  return 1;
+}
+
 int64_t luar_ffi_trace_cget_int (TValue *cdv, TValue *kt, TValue *out) {
   Udata *u;
   CData *cd;

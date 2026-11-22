@@ -13,10 +13,10 @@ it. Each release supports one Lua line, the current one.
 
 ```
 $ luar -v
-Luar 0.182.0 (Lua 5.5.1)  Copyright (C) 2026 Luar contributors
+Luar 0.183.0 (Lua 5.5.1)  Copyright (C) 2026 Luar contributors
 ```
 
-## Status (0.182.0)
+## Status (0.183.0)
 
 | Area | State |
 | --- | --- |
@@ -58,7 +58,7 @@ line; Luar does not add compatibility modes for older ones.
 
 ```sh
 make                    # src/luar, src/luarc, src/libluar.a
-make shared             # + src/libluar.so.0.182.0 (SONAME libluar.so.0)
+make shared             # + src/libluar.so.0.183.0 (SONAME libluar.so.0)
 make WITH_FFI=1         # + FFI (needs the libffi headers)
 make test               # smoke, CLI/ABI, semantics, compat, differential
 make test-shared        # embedding + C module against libluar.so
@@ -76,7 +76,7 @@ rebuild or disturb each other's objects; `make clean` removes both sets.
 
 ### Embedding and pkg-config
 
-`make install` installs `libluar.a`, `libluar.so.0.182.0` and the
+`make install` installs `libluar.a`, `libluar.so.0.183.0` and the
 `libluar.so.0`/`libluar.so` symlinks in `$PREFIX/lib`, together with
 `luar.pc`. Both link modes use the same package name:
 
@@ -102,7 +102,7 @@ against `libluar.so` needs no extra linker flag.
 
 ```sh
 $ luar -v
-Luar 0.182.0 (Lua 5.5.1)  Copyright (C) 2026 Luar contributors
+Luar 0.183.0 (Lua 5.5.1)  Copyright (C) 2026 Luar contributors
 
 $ luar -e 'print(0xdeadbeef & 0xffff, table.new and "table.new" or "?")'
 48879	table.new
@@ -111,7 +111,7 @@ $ luar -b prog.lua prog.luac   # LuaJIT-compatible bytecode mode
 $ luar -joff prog.lua          # LuaJIT-compatible JIT control
 
 $ luar -e 'print(luar.version, luar.lua_version, jit.status())'
-0.182.0	Lua 5.5.1	true
+0.183.0	Lua 5.5.1	true
 ```
 
 With `WITH_FFI=1`:
@@ -182,7 +182,7 @@ experimental/        DynASM bytecode-to-native prototype (not in the build)
 - [doc/performance.md](doc/performance.md) — measured baseline and honest
   interpretation.
 - [doc/testing.md](doc/testing.md) — suites, differential testing, sanitizers.
-- [CHANGELOG.md](CHANGELOG.md) — what 0.182.0 contains.
+- [CHANGELOG.md](CHANGELOG.md) — what 0.183.0 contains.
 
 ## License
 

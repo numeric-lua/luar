@@ -44,6 +44,7 @@ typedef enum {
   LUAR_IR_DIV,
   LUAR_IR_TGET,
   LUAR_IR_CGETI,	/* FFI cdata integer array read */
+  LUAR_IR_CCPYI64,	/* dst[key] = src[key], raw int64 copy */
   LUAR_IR_CGETF,	/* FFI cdata double array read */
   LUAR_IR_CSETI,	/* FFI cdata integer array write */
   LUAR_IR_CSETF,	/* FFI cdata float/double array write */
@@ -366,5 +367,8 @@ int luar_trace_ir_link (LuaR_TraceIR *t, int parent_depth, int root_start);
 int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                             lua_State *L, LuaR_TraceIR *t);
 int luar_trace_ir_selftest (void);
+
+int luar_ffi_trace_i64_array (TValue *tv);
+int64_t luar_ffi_trace_copy_i64 (TValue *dst, TValue *src, TValue *key);
 
 #endif
