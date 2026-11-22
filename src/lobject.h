@@ -633,6 +633,12 @@ typedef struct Proto {
   int luar_code_start[2];
   l_uint32 luar_code_epoch[2];
   l_uint32 luar_code_exits[2];
+  /* LUAR: entry value guard for a folded string-key field read. */
+  uint8_t luar_fld_type[2];	/* 0, LUAR_T_INT or LUAR_T_FLOAT */
+  int luar_fld_table[2];
+  int luar_fld_key[2];
+  int64_t luar_fld_imm[2];
+  double luar_fld_num[2];
   uint8_t luar_grd_reg[2][8];
   uint8_t luar_grd_typ[2][8];
   uint8_t luar_ngrd[2];

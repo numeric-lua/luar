@@ -673,6 +673,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   TValue *b = (TValue *)base;
   uint8_t cur[256], def[256], seen[256], paired[256];
   int for_a, has_branch = 0, is_while = 0, partial = 0;
+  int field_writes = 0;
   int for_float = 0;
   int call_at = -1;
   if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
@@ -915,6 +916,18 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     if (GET_OPCODE(p->code[start + i]) == OP_CALL) {
       call_at = (int)i;
       break;
+    }
+  }
+  /* A folded field read is only valid if no supported instruction in the
+  ** body can mutate a table.  Calls are rejected by the decoder anyway. */
+  for (i = 0; i < n - 1; i++) {
+    switch (GET_OPCODE(p->code[start + i])) {
+      case OP_SETTABLE: case OP_SETI: case OP_SETFIELD:
+      case OP_SETTABUP: case OP_NEWTABLE: case OP_SETLIST:
+        field_writes = 1;
+        break;
+      default:
+        break;
     }
   }
   memset(&d, 0, sizeof(d));
@@ -1386,6 +1399,46 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
             }
           }
         }
+        break;
+      }
+      case OP_GETFIELD: {
+        int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
+        TValue *tv, field;
+        Table *h;
+        if (field_writes || d.fast_field) return 0;
+        if (ka == kb || is_control_reg(ka, for_a)) return 0;
+        if (kc < 0 || kc >= p->sizek ||
+            !ttisstring(&p->k[kc])) return 0;
+        if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
+        tv = &b[kb];
+        if (!ttistable(tv)) return 0;
+        h = hvalue(tv);
+        memset(&field, 0, sizeof(field));
+        if (luaH_getstr(h, tsvalue(&p->k[kc]), &field) == LUA_TNIL)
+          return 0;
+        add_guard(&d, seen, kb, LUAR_T_TABLE);
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)kb;
+        if (ttisinteger(&field)) {
+          op->kind = LUAR_OP_LOADI;
+          op->imm = (int64_t)ivalue(&field);
+          op->ta = LUAR_T_INT;
+          d.ffld_imm = op->imm;
+        }
+        else if (ttisfloat(&field)) {
+          op->kind = LUAR_OP_LOADF;
+          op->num = (double)fltvalue(&field);
+          op->ta = LUAR_T_FLOAT;
+          d.ffld_num = op->num;
+        }
+        else
+          return 0;
+        d.fast_field = 1;
+        d.ffld_table = kb;
+        d.ffld_key = kc;
+        d.ffld_type = op->ta;
+        cur[ka] = op->ta;
+        def[ka] = 1;
         break;
       }
       case OP_SETTABLE: {
@@ -2108,6 +2161,11 @@ emit_ready:
     p->luar_code_base[slot] = for_a;
     p->luar_code_start[slot] = (int)start;
     p->luar_code_epoch[slot] = J->epoch;
+    p->luar_fld_type[slot] = (uint8_t)d.ffld_type;
+    p->luar_fld_table[slot] = d.ffld_table;
+    p->luar_fld_key[slot] = d.ffld_key;
+    p->luar_fld_imm[slot] = d.ffld_imm;
+    p->luar_fld_num[slot] = d.ffld_num;
     {
       int gi;
       p->luar_ngrd[slot] = (uint8_t)(d.nguards <= 8 ? d.nguards : 0);
@@ -3553,6 +3611,34 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         if (uv->v.p != &((TValue *)base)[p->luar_fc_upval[i]] ||
             !ttisinteger(uv->v.p))
           return 0;
+      }
+      if (p->luar_fld_type[i] != 0) {
+        TValue *tv = &((TValue *)base)[p->luar_fld_table[i]];
+        TValue cur;
+        int ok = 0;
+        if (ttistable(tv) && p->luar_fld_key[i] >= 0 &&
+            p->luar_fld_key[i] < p->sizek &&
+            ttisstring(&p->k[p->luar_fld_key[i]])) {
+          memset(&cur, 0, sizeof(cur));
+          if (luaH_getstr(hvalue(tv), tsvalue(&p->k[p->luar_fld_key[i]]),
+                          &cur) != LUA_TNIL) {
+            if (p->luar_fld_type[i] == LUAR_T_INT) {
+              ok = ttisinteger(&cur) &&
+                   ivalue(&cur) == p->luar_fld_imm[i];
+            }
+            else if (ttisfloat(&cur)) {
+              double v = fltvalue(&cur);
+              ok = memcmp(&v, &p->luar_fld_num[i], sizeof(v)) == 0;
+            }
+          }
+        }
+        if (!ok) {
+          p->luar_code[i] = NULL;
+          p->luar_code_epoch[i] = 0;
+          p->luar_fld_type[i] = 0;
+          J->exits++;
+          continue;
+        }
       }
       any = 1;
       r = luari_run_j4(p, p->luar_code[i], base, L);

@@ -279,6 +279,7 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_code_base[1] = -1;
   f->luar_code_start[0] = -1;
   f->luar_code_start[1] = -1;
+  f->luar_fld_type[0] = f->luar_fld_type[1] = 0;  /* LUAR: field guard */
   f->luar_ir_depth[0] = f->luar_ir_depth[1] = 0;
   f->luar_ir_code = NULL;
   f->luar_ir_size = 0;

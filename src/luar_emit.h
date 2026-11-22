@@ -139,6 +139,12 @@ typedef struct LuaR_LoopDesc {
   int fs_acc;
   int fs_temp;			/* idx*idx result slot, -1 if none */
   int fs_float;
+  int fast_field;		/* folded constant string-key field read */
+  int ffld_table;		/* table register */
+  int ffld_key;			/* Proto constant index of the string key */
+  int ffld_type;		/* LUAR_T_INT or LUAR_T_FLOAT */
+  int64_t ffld_imm;
+  double ffld_num;
   int fast_while;		/* while idx < limit do acc += idx end */
   int fw_acc;
   int fw_idx;
