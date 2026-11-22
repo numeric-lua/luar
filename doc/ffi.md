@@ -591,7 +591,7 @@ is behind `jit.opt.start("ir=1")` and still has interpreter fallbacks.
 | `double(double,int)` | `CCALL2DI` | `ldexp(x, e)` |
 | `double(int,double)` | `CCALL2ID` | `int_double_sum(a, b)` |
 | `float(float,int)` | `CCALL2FI` | `scale_fi(x, n)` |
-| `float(float,float)` | `CCALL2FF` | `hypotf(x, y)` |
+| `float(float,float)` | `CCALL2FF` | `hypotf(x, y)`, `hypotf(3, 4)` |
 | `float(int,float)` | `CCALL2IF` | `int_float_scale(n, x)` |
 | `double(float,double)` | `CCALL2FD` | `float_double_scale(a, b)` |
 | `double(double,float)` | `CCALL2DF` | `double_float_scale(a, b)` |

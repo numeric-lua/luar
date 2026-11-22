@@ -1850,6 +1850,21 @@ static int ir_latest_writer_is (const LuaR_TraceIR *t, int slot,
 }
 
 
+static int ir_latest_writer_ival (const LuaR_TraceIR *t, int slot,
+                                 int64_t *out) {
+  int i;
+  for (i = t->nins - 1; i >= 0; i--) {
+    if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
+      continue;
+    if (t->ins[i].kind != LUAR_IR_LOADI)
+      return 0;
+    *out = t->ins[i].ival;
+    return 1;
+  }
+  return 0;
+}
+
+
 static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth);
 
 
@@ -3728,6 +3743,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       }
       case OP_CALL: {
         int mark = t->nins;
+        int64_t iv1 = 0, iv2 = 0;
         int fs = fn_src[a] >= 0 ? fn_src[a] : a;
         int use_known = known[a] &&
                         ir_latest_writer_is(t, a, LUAR_IR_ULOAD);
@@ -3984,6 +4000,29 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             r = luar_trace_ir_emit(t, &in);
             break;
           }
+        }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
+            ir_latest_writer_ival(t, a + 1, &iv1) &&
+            ir_latest_writer_ival(t, a + 2, &iv2)) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_LOADF; in.a = (uint8_t)(a + 1);
+          in.nval = (double)iv1; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_LOADF; in.a = (uint8_t)(a + 2);
+          in.nval = (double)iv2; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL2FF; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2); in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             (ir_call_args2_are_double(p, pc, a + 1, a + 2, base) ||
