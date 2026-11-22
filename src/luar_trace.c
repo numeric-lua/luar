@@ -189,6 +189,12 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TSETDYN_KF:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetdynkf");
+          return 0;
+        }
+        break;
       case LUAR_IR_TSETDYN:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
             !valid_slot(t, in->c)) {
@@ -826,12 +832,31 @@ TValue *luar_trace_tsetkkf (TValue *tv, TString *key, uint64_t bits,
 }
 
 
+TValue *luar_trace_tsetdynkf (TValue *tv, TValue *key, double v,
+                                 lua_State *L) {
+  Table *t; TValue k, val;
+  if (tv == NULL || !ttistable(tv) || key == NULL || L == NULL)
+    return NULL;
+  if (!ttisstring(key) && !ttisinteger(key))
+    return NULL;
+  t = (Table *)tv->value_.gc;
+  if (t->metatable != NULL)
+    return NULL;
+  k = *key;
+  setfltvalue(&val, v);
+  luaH_set(L, t, &k, &val);
+  return (TValue *)(L->ci->func.p + 1);
+}
+
+
 TValue *luar_trace_tsetdyn (TValue *tv, TValue *key, TValue *val,
                             lua_State *L) {
   Table *t;
   TValue k, v;
   if (tv == NULL || !ttistable(tv) || key == NULL || val == NULL ||
-      ttisnil(val) || !ttisstring(key) || L == NULL)
+      ttisnil(val) || L == NULL)
+    return NULL;
+  if (!ttisstring(key) && !ttisinteger(key))
     return NULL;
   t = (Table *)tv->value_.gc;
   if (t->metatable != NULL)
@@ -3413,9 +3438,16 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_SETTABLE: {
         if (ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
-            b < ns && c < ns && ttisstring(&base[b]) &&
-            !ttisnil(&base[c]) &&
-            ir_latest_writer_is(t, b, LUAR_IR_ULOAD)) {
+            TESTARG_k(ins) && b < ns && c < p->sizek &&
+            ttisfloat(&p->k[c])) {
+          in.kind = LUAR_IR_TSETDYN_KF; in.a = (uint8_t)a;
+          in.b = (uint8_t)b; in.nval = fltvalue(&p->k[c]); in.pc = pc;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (ttistable(&base[a]) &&
+            ((Table *)base[a].value_.gc)->metatable == NULL &&
+            b < ns && c < ns && ttisfloat(&base[c])) {
           in.kind = LUAR_IR_TSETDYN; in.a = (uint8_t)a;
           in.b = (uint8_t)b; in.c = (uint8_t)c; in.pc = pc;
           seen[a] = 1;
