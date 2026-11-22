@@ -1112,6 +1112,24 @@ def {
 }
 
 def {
+  name = "j4/ffi_ccall2ff_mixed", group = "j4",
+  skip = j4_ffi_skip,
+  prepare = function ()
+    local ffi = require("ffi")
+    ffi.cdef[[float hypotf(float, float);]]
+    j4_ccall = ffi.C.hypotf
+    j4_mixed_x = 4.0
+    j4_prepare()
+  end,
+  run = function ()
+    local fn, x = j4_ccall, j4_mixed_x
+    local n, s = N(400000), 0.0
+    for i = 1, n do s = s + fn(i, x) end
+    return s
+  end,
+}
+
+def {
   name = "j4/ffi_ccall2ff_loop", group = "j4",
   skip = j4_ffi_skip,
   prepare = function ()
