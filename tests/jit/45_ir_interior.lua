@@ -36,7 +36,7 @@ H.check(st.ir_side_traces >= 1, "interior side trace was not recorded")
 H.check(st.ir_side_compiled >= 1, "interior side trace was not compiled")
 H.check(st.ir_side_executed >= 1, "interior side trace was not executed")
 H.check(st.ir_side_start >= 0, "interior side start PC missing")
-H.check(st.ir_side_start > st.ir_root_start,
+H.check(st.ir_side_start > st.ir_side_parent,
         "side exit did not start inside the loop body")
 H.check(st.ir_cycles == 0, "interior side exit was misclassified as a cycle")
 

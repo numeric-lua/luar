@@ -108,6 +108,7 @@ static void free_code (LuaR_JIT *J) {
   J->ir_install_rejects = 0;
   J->ir_alloc_tables = 0;
   J->ir_side_start = -1;
+  J->ir_side_parent = -1;
   J->ir_root_start = -1;
   J->ir_yields = 0;
   J->ir_side_depth = 0;
@@ -3211,6 +3212,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
     }
     if (link == 2) J->ir_cycles++;
     J->ir_side_start = expc;
+    J->ir_side_parent = p->luar_ir_start;
     J->ir_side_depth = ir.depth;
     if ((uint32_t)ir.depth > J->ir_max_depth)
       J->ir_max_depth = (uint32_t)ir.depth;
@@ -3274,6 +3276,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
         J->ir_side_traces++;
         J->ir_side_ops += (uint32_t)cir.nins;
         J->ir_side_start = startpc;
+        J->ir_side_parent = p->luar_ir_start;
         J->ir_side_depth = cir.depth;
         if ((uint32_t)cir.depth > J->ir_max_depth)
           J->ir_max_depth = (uint32_t)cir.depth;
@@ -4112,7 +4115,12 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     int ok = try_compile(L, p, target, off, base);
     int full = (p->luar_code[0] != NULL || p->luar_tint[0] != 0) &&
                (p->luar_code[1] != NULL || p->luar_tint[1] != 0);
-    if (!ok || full)
+    /* LUAR: only stop compiling when both per-Proto slots are occupied.
+    ** A rejected backedge is already recorded in luar_seen, so keeping the
+    ** hot counter at the threshold lets an independent inner or sibling
+    ** loop in the same Proto get its own attempt. */
+    (void)ok;
+    if (full)
       p->luar_hot = p->luar_hot_limit + 1;
   }
   return 1;
@@ -4421,6 +4429,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_install_rejects");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_start : -1);
   lua_setfield(L, -2, "ir_side_start");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_parent : -1);
+  lua_setfield(L, -2, "ir_side_parent");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_root_start : -1);
   lua_setfield(L, -2, "ir_root_start");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_yields : 0);

@@ -85,6 +85,7 @@ typedef struct LuaR_JIT {
   uint32_t ir_install_rejects;
   unsigned long long ir_alloc_tables;	/* trace-side TNEW allocations */
   int ir_side_start;
+  int ir_side_parent;	/* root loop start that produced the side exit */
   int ir_root_start;
   uint32_t ir_yields;
   int ir_side_depth;
@@ -123,13 +124,19 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc,
 */
 static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge, void *base) {
+  LuaR_JIT *J = G(L)->luar_jit;
   if (p->luar_hot > p->luar_hot_limit)
     return 0;
   if (p->luar_hot == p->luar_hot_limit) {
     unsigned pc;
     unsigned long long bit;
-    if (p->luar_code[0] == NULL && p->luar_tint[0] == 0 &&
-        p->luar_tint[1] == 0)
+    /* LUAR: once a loop is hot, keep offering *different* backedges to the
+    ** compiler.  A rejected loop must not disable its siblings; the seen
+    ** bloom below remembers each attempted backedge individually.  When the
+    ** opt-in IR tier already owns this Proto, leave the root/side trace
+    ** model alone: re-entering the hot hook would replace its root stats. */
+    if (J != NULL && J->enable_ir && p->luar_ir_code != NULL &&
+        p->luar_ir_epoch == J->epoch)
       return 0;
     pc = (unsigned)(backedge - p->code);
     bit = 1ULL << (pc & 63);

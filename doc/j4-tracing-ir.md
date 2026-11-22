@@ -35,7 +35,7 @@ mid-loop side-trace milestone.
   executes an interior segment with generic hash lookup, snapshot/restore
   and `FORLOOP` continuation.  Counted by
   `ir_side_traces/ir_side_compiled/ir_side_executed`; `ir_side_start` and
-  `ir_root_start` expose the interior start PC; `ir_side_depth` reports the
+  `ir_side_parent`/`ir_root_start` expose the interior start PC and its root; `ir_side_depth` reports the
   linked side depth and `LUAR_IR_MAX_DEPTH` is enforced at link time.
 - Leaf calls: **one integer argument and one integer result inlined** for
   upvalue-free leaf bodies (`MULK`/`ADDK`/`SUBK`/`ADDI`), guarded by closure
@@ -94,7 +94,8 @@ Restoring writes stack slots only, so no GC barrier is required.
 The J2/J3 emitter reports an exact interior PC in
 `jit.stats().last_exit_pc`; the tracing recorder uses the same resume PC and
 this snapshot format for side exits.  Live side tests assert that
-`ir_side_start > ir_root_start` for prefixed table bodies.
+`ir_side_start > ir_side_parent` for prefixed table bodies, even when
+another Proto has since compiled its own root.
 
 ## Trace-entry state contract
 

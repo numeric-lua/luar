@@ -31,7 +31,7 @@ st = jit.stats()
 H.check(st.ir_side_traces >= 1, "multi-table side was not recorded")
 H.check(st.ir_side_compiled >= 1, "multi-table side was not compiled")
 H.check(st.ir_side_executed >= 1, "multi-table side was not executed")
-H.check(st.ir_side_start > st.ir_root_start,
+H.check(st.ir_side_start > st.ir_side_parent,
         "side exit did not start inside a multi-table body")
 H.check(st.ir_side_depth >= 1, "side depth was not recorded")
 
