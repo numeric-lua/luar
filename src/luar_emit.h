@@ -37,6 +37,7 @@ typedef enum {
   LUAR_OP_BORK,
   LUAR_OP_BXORK,
   LUAR_OP_BNOT,
+  LUAR_OP_UNM,
   LUAR_OP_SHRI,
   LUAR_OP_SHL,
   LUAR_OP_SHR,

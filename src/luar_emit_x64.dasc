@@ -317,6 +317,22 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
         | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
         break;
       }
+      case LUAR_OP_UNM:
+        if (op->ta == LUAR_T_INT) {
+          | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          | neg rax
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        }
+        else {
+          /* -x flips the IEEE sign bit, preserving zeros and NaNs. */
+          | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+          | mov64 rcx, INT64_MIN
+          | xor rax, rcx
+          | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+          | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_flt)
+        }
+        break;
       case LUAR_OP_SHL:
       case LUAR_OP_SHR: {
         /* Lua shifts by a negative count in the other direction and by
