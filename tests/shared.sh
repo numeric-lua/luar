@@ -109,12 +109,12 @@ $CC -O2 -Wall -Wextra -I "$SRC" -o "$TMP/luar-shared" \
   fail "could not link src/lua.o against libluar.so"
 out=$(run_shared "$TMP/luar-shared" -v)
 case "$out" in
-  "Luar 0.165.0 (Lua 5.5.1)"*) ;;
+  "Luar 0.166.0 (Lua 5.5.1)"*) ;;
   *) fail "shared-linked luar -v output: $out" ;;
 esac
 out=$(run_shared "$TMP/luar-shared" -e \
   'print(luar.version .. "|" .. luar.lua_version .. "|" .. (6*7))')
-[ "$out" = "0.165.0|Lua 5.5.1|42" ] || fail "shared-linked luar output: $out"
+[ "$out" = "0.166.0|Lua 5.5.1|42" ] || fail "shared-linked luar output: $out"
 ok "luar CLI runs against libluar.so and reports the Luar identity"
 
 # -- stock Lua 5.5 C module loaded through the shared library --------------
