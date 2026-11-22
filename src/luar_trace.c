@@ -1867,6 +1867,7 @@ static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth) {
     case LUAR_IR_CCALL2DD:
     case LUAR_IR_CCALL3DD:
     case LUAR_IR_TGETF:
+    case LUAR_IR_FADDI:
     case LUAR_IR_FMULK:
     case LUAR_IR_FADD:
     case LUAR_IR_FSUB:
