@@ -125,6 +125,15 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc,
 static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
+  /* LUAR: jit.flush() bumps the epoch and releases every mapping.  Treat
+  ** the per-Proto hot state as stale too, so a flushed loop can become hot
+  ** and recompile again instead of staying permanently blacklisted. */
+  if (J != NULL && p->luar_epoch != J->epoch) {
+    p->luar_epoch = J->epoch;
+    p->luar_hot = 0;
+    p->luar_seen = 0;
+    p->luar_variant_tried = 0;
+  }
   if (p->luar_hot > p->luar_hot_limit)
     return 0;
   if (p->luar_hot == p->luar_hot_limit) {

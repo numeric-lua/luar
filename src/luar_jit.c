@@ -677,6 +677,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   int call_at = -1;
   if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
     return 0;
+  /* Drop slots left over from a previous epoch so a flushed Proto can use
+  ** both slots for fresh loops. */
+  for (i = 0; i < 2; i++) {
+    if (p->luar_code[i] != NULL && p->luar_code_epoch[i] != J->epoch)
+      p->luar_code[i] = NULL;
+    if (p->luar_tint[i] != 0 && p->luar_tint_epoch[i] != J->epoch)
+      p->luar_tint[i] = 0;
+  }
   /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
   ** double floats; other configurations stay on the interpreter. */
   if (sizeof(TValue) != 16 || offsetof(TValue, tt_) != 8 ||
