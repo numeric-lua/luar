@@ -4004,6 +4004,46 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
             ir_latest_writer_ival(t, a + 1, &iv1) &&
+            ir_slot_is_float(t, a + 2, t->nins, 0)) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_LOADF; in.a = (uint8_t)(a + 1);
+          in.nval = (double)iv1; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL2FF; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2); in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
+            ir_slot_is_float(t, a + 1, t->nins, 0) &&
+            ir_latest_writer_ival(t, a + 2, &iv2)) {
+          if (!seen[fs]) {
+            in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
+            in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
+            seen[fs] = 1;
+          }
+          in.kind = LUAR_IR_LOADF; in.a = (uint8_t)(a + 2);
+          in.nval = (double)iv2; in.pc = pc;
+          if (!luar_trace_ir_emit(t, &in)) return 0;
+          in.kind = LUAR_IR_CCALL2FF; in.a = (uint8_t)a;
+          in.b = (uint8_t)fs; in.c = (uint8_t)(a + 1);
+          in.ival = (int64_t)(a + 2); in.pc = pc;
+          seen[a] = 1;
+          r = luar_trace_ir_emit(t, &in);
+          break;
+        }
+        if (b == 3 && c == 2 && a + 2 < ns &&
+            luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
+            ir_latest_writer_ival(t, a + 1, &iv1) &&
             ir_latest_writer_ival(t, a + 2, &iv2)) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
