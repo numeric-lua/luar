@@ -714,6 +714,42 @@ static void emit_table_set (dasm_State **Dst, const LuaR_LoopDesc *d,
   }
 }
 
+/* Float numeric-for epilogue.  At entry R[A] is the limit, R[A+1] the
+** step and R[A+2] the current index (the interpreter's float FORPREP
+** layout).  Compute the next index, test it exactly as floatforloop() does
+** (including unordered/NaN comparisons), and store it only when another
+** iteration runs. */
+static void emit_float_forloop (dasm_State **Dst, const LuaR_LoopDesc *d,
+                                int back, int pc_back)
+{
+  int lpos = 9000, ldesc = 9001, lclose = 9002, lcont = 9003;
+  | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
+  | addsd xmm0, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+  | movsd xmm1, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+  | xorpd xmm2, xmm2
+  | ucomisd xmm1, xmm2
+  | ja =>lpos
+  | jmp =>ldesc
+  |=>lpos:
+  | ucomisd xmm0, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+  | jp =>lclose
+  | jbe =>lcont
+  | jmp =>lclose
+  |=>ldesc:
+  | movsd xmm1, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+  | ucomisd xmm1, xmm0
+  | jp =>lclose
+  | jbe =>lcont
+  | jmp =>lclose
+  |=>lcont:
+  | movsd qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], xmm0
+  if (pc_back)
+    | jmp =>((int)back)
+  else
+    | jmp <1
+  |=>lclose:
+}
+
 static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
   int i;
@@ -792,15 +828,20 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   }
   else {
     |=>((int)d->nops):
-    | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
-    | test rax, rax
-    | jz >2
-    | dec rax
-    | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
-    | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
-    | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
-    | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
-    | jmp =>0
+    if (d->for_float) {
+      emit_float_forloop(Dst, d, 0, 1);
+    }
+    else {
+      | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+      | test rax, rax
+      | jz >2
+      | dec rax
+      | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
+      | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
+      | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+      | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
+      | jmp =>0
+    }
     |=>((int)(d->nops + 1)):
     |2:
     | mov eax, 1
@@ -1725,18 +1766,23 @@ static void emit_code (dasm_State **Dst, const LuaR_LoopDesc *d)
   emit_guards(Dst, d);
   |1:
   emit_body(Dst, d, 4);
-  /* Exact FORLOOP semantics: while count > 0, decrement, advance the index
-  ** and run the body again.  When count is already zero the body just ran
-  ** for the final iteration and the index must not advance again. */
-  | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
-  | test rax, rax
-  | jz >2
-  | dec rax
-  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
-  | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
-  | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
-  | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
-  | jmp <1
+  if (d->for_float) {
+    emit_float_forloop(Dst, d, 1, 0);
+  }
+  else {
+    /* Exact FORLOOP semantics: while count > 0, decrement, advance the
+    ** index and run the body again.  When count is already zero the body
+    ** just ran for the final iteration and the index must not advance. */
+    | mov rax, qword [rbx + ((int)LUAR_SLOT(d->for_a))]
+    | test rax, rax
+    | jz >2
+    | dec rax
+    | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], rax
+    | mov rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))]
+    | add rcx, qword [rbx + ((int)LUAR_SLOT(d->for_a + 1))]
+    | mov qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], rcx
+    | jmp <1
+  }
   |2:
   | mov eax, 1
   | pop rbx
@@ -3052,6 +3098,8 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
           maxpc = need;
       }
     }
+    if (d->for_float && maxpc < 9004)
+      maxpc = 9004;
     if (maxpc > 0)
       dasm_growpc(&Dst, maxpc);
   }

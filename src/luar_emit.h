@@ -77,6 +77,7 @@ typedef struct LuaR_LoopDesc {
   int npc;			/* instruction labels for branch loops */
   int has_branch;
   int is_while;
+  int for_float;		/* numeric for-loop with float control */
   int repeat;
   int partial;			/* numeric prefix ending at CALL */
   int exit_pc;

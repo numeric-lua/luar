@@ -555,8 +555,9 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
   int i, k;
   memset(types, 0, sizeof(types));
   if (d->for_a >= 0) {
+    int ct = d->for_float ? LUAR_T_FLOAT : LUAR_T_INT;
     for (k = 0; k < 3; k++) {
-      if (!loop_type_check(types, d->for_a + k, LUAR_T_INT))
+      if (!loop_type_check(types, d->for_a + k, ct))
         return 0;
     }
   }
@@ -671,6 +672,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   TValue *b = (TValue *)base;
   uint8_t cur[256], def[256], seen[256], paired[256];
   int for_a, has_branch = 0, is_while = 0, partial = 0;
+  int for_float = 0;
   int call_at = -1;
   if (!luari_emit_available() || b == NULL || n < 2 || n > LUAR_JIT_MAXINS)
     return 0;
@@ -684,9 +686,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     for_a = GETARG_A(last);
     if (for_a < 0 || for_a + 2 > 255)
       return 0;
-    if (!ttisinteger(&b[for_a]) || !ttisinteger(&b[for_a + 1]) ||
-        !ttisinteger(&b[for_a + 2]))
-      return 0;   /* float/non-integer loop control: not supported */
+    if (ttisinteger(&b[for_a]) && ttisinteger(&b[for_a + 1]) &&
+        ttisinteger(&b[for_a + 2]))
+      for_float = 0;
+    else if (ttisfloat(&b[for_a]) && ttisfloat(&b[for_a + 1]) &&
+             ttisfloat(&b[for_a + 2]))
+      for_float = 1;
+    else
+      return 0;   /* mixed/non-numeric loop control */
   }
   else if (GET_OPCODE(last) == OP_JMP && GETARG_sJ(last) < 0) {
     if (backedge <= 0)
@@ -699,7 +706,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
 
   if (!is_while && for_a >= 0) {
     Instruction i0 = p->code[start];
-    if (J->enable_tint && n >= 3 && GET_OPCODE(i0) == OP_GETTABLE &&
+    if (!for_float && J->enable_tint && n >= 3 && GET_OPCODE(i0) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 1]) == OP_SETTABLE &&
         backedge == start + 2) {
       Instruction i1 = p->code[start + 1];
@@ -709,7 +716,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         return install_keyed_fill(p, J, backedge, for_a,
                                   GETARG_A(i1), GETARG_B(i0), -1);
     }
-    if (J->enable_tint && n >= 4 && GET_OPCODE(i0) == OP_GETUPVAL &&
+    if (!for_float && J->enable_tint && n >= 4 && GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 2]) == OP_SETTABLE &&
         backedge == start + 3) {
@@ -722,7 +729,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         return install_keyed_fill(p, J, backedge, for_a,
                                   GETARG_A(i2), 0, GETARG_B(i0));
     }
-    if (J->enable_tint && n >= 5 && GET_OPCODE(i0) == OP_GETTABLE &&
+    if (!for_float && J->enable_tint && n >= 5 && GET_OPCODE(i0) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 2]) == OP_ADD &&
         GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
@@ -738,7 +745,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                                  GETARG_B(i1), GETARG_B(i0), -1,
                                  GETARG_A(i2), GETARG_A(i1));
     }
-    if (J->enable_tint && n >= 6 && GET_OPCODE(i0) == OP_GETUPVAL &&
+    if (!for_float && J->enable_tint && n >= 6 && GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 2]) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 3]) == OP_ADD &&
@@ -917,21 +924,23 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   d.table_array_off = (int)offsetof(Table, array);
   d.table_asize_off = (int)offsetof(Table, asize);
   d.table_metatable_off = (int)offsetof(Table, metatable);
+  d.for_float = for_float;
   if (!is_while) {
+    int ct = for_float ? LUAR_T_FLOAT : LUAR_T_INT;
     for (i = 0; i < 3; i++) {
-      cur[for_a + i] = LUAR_T_INT;
+      cur[for_a + i] = (uint8_t)ct;
       def[for_a + i] = 1;
-      add_guard(&d, seen, for_a + i, LUAR_T_INT);
+      add_guard(&d, seen, for_a + i, ct);
     }
   }
 
-  if (!is_while && for_a >= 0 &&
+  if (!is_while && !for_float && for_a >= 0 &&
       match_meta_upval_loop(L, p, start, backedge, for_a, b, &d))
     goto emit_ready;
-  if (!is_while && for_a >= 0 &&
+  if (!is_while && !for_float && for_a >= 0 &&
       match_meta_loop(L, p, start, backedge, for_a, b, &d))
     goto emit_ready;
-  if (!is_while && for_a >= 0 &&
+  if (!is_while && !for_float && for_a >= 0 &&
       match_closure_loop(p, start, backedge, for_a, b, &d))
     goto emit_ready;
   for (i = 0; i < n - 1; i++) {
@@ -1448,7 +1457,7 @@ decode_done:
     goto emit_ready;
   }
   /* Fast subtraction: acc = acc - idx. */
-  if (!has_branch && !is_while && n == 3) {
+  if (!for_float && !has_branch && !is_while && n == 3) {
     LuaR_Op *sub = &ops[0];
     int only = 1;
     for (i = 1; i < n - 1; i++)
@@ -1470,7 +1479,7 @@ decode_done:
   }
 
   /* Fast product: acc = acc * idx. */
-  if (!has_branch && !is_while && n == 3) {
+  if (!for_float && !has_branch && !is_while && n == 3) {
     LuaR_Op *mul = &ops[0];
     if (((mul->kind == LUAR_OP_MUL &&
           (mul->ta == LUAR_T_INT || mul->ta == LUAR_T_FLOAT)) ||
@@ -1491,7 +1500,7 @@ decode_done:
   }
 
   /* Fast square sum: acc = acc + idx * idx. */
-  if (!has_branch && !is_while && n == 5) {
+  if (!for_float && !has_branch && !is_while && n == 5) {
     LuaR_Op *mul = &ops[0];
     LuaR_Op *add = &ops[2];
     int only = 1;
@@ -1645,7 +1654,8 @@ decode_done:
   }
 
   /* Fast table sum: acc = acc + t[idx]. */
-  if (!is_while && d.nops >= 1 && ops[0].kind == LUAR_OP_TABLE_ADD &&
+  if (!for_float && !is_while && d.nops >= 1 &&
+      ops[0].kind == LUAR_OP_TABLE_ADD &&
       ops[0].c == for_a + 2) {
     int only = 1;
     for (i = 1; i < n - 1; i++)
@@ -1668,12 +1678,13 @@ decode_done:
   }
 
   /* Fast fill: t[idx] = idx with the loop index as both key and value. */
-  if (!is_while && d.nops == 1 && ops[0].kind == LUAR_OP_SETTABLE &&
+  if (!for_float && !is_while && d.nops == 1 &&
+      ops[0].kind == LUAR_OP_SETTABLE &&
       ops[0].b == for_a + 2 && ops[0].c == for_a + 2) {
     d.fast_fill = 1;
     d.ff_table = ops[0].a;
   }
-  if ((d.fast_fill || d.fast_tsum) && J->enable_tint) {
+  if (!for_float && (d.fast_fill || d.fast_tsum) && J->enable_tint) {
     int slot = -1, k;
     int tint = d.fast_fill ? 1 : 2;
     for (k = 0; k < 2; k++) {
@@ -1708,7 +1719,7 @@ decode_done:
     return 0;
 
   /* Fast integer sum: acc = acc + idx. */
-  if (!has_branch && !is_while && n == 3) {
+  if (!for_float && !has_branch && !is_while && n == 3) {
     LuaR_Op *add = &ops[0];
     int only = 1;
     for (i = 1; i < n - 1; i++)
@@ -1731,7 +1742,7 @@ decode_done:
 
   /* Fast float pattern: acc = acc + idx * constant (the float_loop
   ** benchmark shape).  Keep acc in xmm0 and the loop counters in GPRs. */
-  if (!has_branch && !is_while && n >= 3) {
+  if (!for_float && !has_branch && !is_while && n >= 3) {
     int temp = -1, acc = -1, idx = -1;
     double konst = 0.0;
     int is_float = 0, seen_mul = 0, seen_add = 0, ok = 1;
