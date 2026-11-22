@@ -6,6 +6,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.192.0] — 2026-11-22
+
 ### Added
 
 - J2 compiles integer `&`, `|`, `~`, unary `~` and constant `<<`/`>>`
