@@ -1818,9 +1818,10 @@ decode_done:
     d.repeat = 1;
   if (d.repeat && d.nops >= 3) {
     LuaR_Op *cmp = &ops[d.nops - 1];
-    LuaR_Op *addi = NULL, *accop = NULL;
+    LuaR_Op *addi = NULL, *accop = NULL, *tempop = NULL;
     int idx = -1, acc = -1, limit = -1, imm = 0, left, opkind = 0;
     int addi_i = -1, acc_i = -1, temp = -1, temp_i = -1;
+    int body_ok = 1;
     for (i = 0; i < d.nops - 1; i++) {
       LuaR_Op *op = &ops[i];
       if (op->kind == LUAR_OP_ADDI && addi == NULL &&
@@ -1833,6 +1834,7 @@ decode_done:
                op->b == idx && op->c == idx && op->a != idx &&
                op->ta == LUAR_T_INT) {
         temp = op->a;
+        tempop = op;
         temp_i = (int)i;
       }
       else if (addi != NULL && accop == NULL && temp >= 0 &&
@@ -1856,7 +1858,22 @@ decode_done:
                  (op->kind == LUAR_OP_DIV) ? 4 : 0;
       }
     }
-    if (addi != NULL && accop != NULL && acc_i > addi_i &&
+    /* The fast repeat emitter runs only the increment and the accumulator
+    ** operation.  Any other instruction in the body would be dropped, so
+    ** require the body to consist solely of the matched operations and
+    ** MMBIN/NOP placeholders.  The comparison itself is implemented by the
+    ** emitter's termination test. */
+    for (i = 0; i < d.nops; i++) {
+      LuaR_Op *op = &ops[i];
+      if (op == cmp || op == addi || op == accop ||
+          (opkind == 3 && op == tempop))
+        continue;
+      if (op->kind == LUAR_OP_MMBIN || op->kind == LUAR_OP_NOP)
+        continue;
+      body_ok = 0;
+      break;
+    }
+    if (body_ok && addi != NULL && accop != NULL && acc_i > addi_i &&
         (opkind != 3 || temp_i > addi_i) && idx >= 0) {
       acc = accop->a;
       if (cmp->a == idx && cmp->b != idx) {
