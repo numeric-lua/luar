@@ -471,3 +471,56 @@ typedef int (*mixf_cb_t)(struct PackedS, double);
 static mixf_cb_t g_mixf_cb;
 void set_mixf_cb (mixf_cb_t cb) { g_mixf_cb = cb; }
 int invoke_stored_mixf (void) { struct PackedS p={1,100,2}; return g_mixf_cb(p, 2.5); }
+
+/* Zero-width bitfield alignment inside packed structs.  GCC/Clang still
+** start the following field on the base type's natural boundary. */
+struct ZWInner { int x; char y; };
+struct ZWPack1 {
+  void *p;
+  unsigned char a : 1;
+  unsigned char b : 2;
+  short c;
+  short : 0;
+} __attribute__((packed));
+struct ZWPack2 {
+  short a : 4;
+  long long : 0;
+  unsigned char b : 3;
+  struct ZWInner inner;
+  char c;
+} __attribute__((packed));
+#pragma pack(push, 1)
+struct ZWPack3 {
+  short a : 4;
+  long long : 0;
+  unsigned char b : 3;
+  char c;
+};
+#pragma pack(pop)
+struct ZWPack4 {
+  struct ZWInner s;
+  char a : 1;
+  unsigned int : 0;
+  unsigned long long b : 9;
+  struct ZWInner t;
+} __attribute__((packed));
+struct ZWPack5 { char a; long long : 0; char b; } __attribute__((packed));
+struct ZWPack6 { char a; long long : 0; char b; };
+struct ZWPack7 { char a; short : 0; } __attribute__((packed, aligned(16)));
+
+int size_ZWPack1 (void) { return (int)sizeof(struct ZWPack1); }
+int align_ZWPack1 (void) { return (int)_Alignof(struct ZWPack1); }
+int off_ZWPack1_c (void) { return (int)offsetof(struct ZWPack1, c); }
+int size_ZWPack2 (void) { return (int)sizeof(struct ZWPack2); }
+int off_ZWPack2_inner (void) { return (int)offsetof(struct ZWPack2, inner); }
+int off_ZWPack2_c (void) { return (int)offsetof(struct ZWPack2, c); }
+int size_ZWPack3 (void) { return (int)sizeof(struct ZWPack3); }
+int off_ZWPack3_c (void) { return (int)offsetof(struct ZWPack3, c); }
+int size_ZWPack4 (void) { return (int)sizeof(struct ZWPack4); }
+int off_ZWPack4_t (void) { return (int)offsetof(struct ZWPack4, t); }
+int size_ZWPack5 (void) { return (int)sizeof(struct ZWPack5); }
+int off_ZWPack5_b (void) { return (int)offsetof(struct ZWPack5, b); }
+int size_ZWPack6 (void) { return (int)sizeof(struct ZWPack6); }
+int off_ZWPack6_b (void) { return (int)offsetof(struct ZWPack6, b); }
+int size_ZWPack7 (void) { return (int)sizeof(struct ZWPack7); }
+int align_ZWPack7 (void) { return (int)_Alignof(struct ZWPack7); }

@@ -425,10 +425,17 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       continue;
     }
     if (f->zero_width) {
+      /* A zero-width bitfield advances to the next boundary of its base
+      ** type even inside a packed struct or #pragma pack: GCC packs the
+      ** real members but still starts the next field on the base type's
+      ** natural alignment boundary.  'fal' above is capped by the pack
+      ** setting, so use the uncapped alignment here. */
+      size_t zal = ffi_type_align(f->type);
       size_t nb = (bitpos + 7) / 8;
-      nb = (nb + fal - 1) & ~(fal - 1);
+      nb = (nb + zal - 1) & ~(zal - 1);
       bitpos = nb * 8;
     }
+
     else if (f->bitwidth != 0 && ct->pack == 1) {
       f->offset = bitpos / 8;
       f->bitoffset = (uint8_t)(bitpos & 7);
