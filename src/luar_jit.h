@@ -72,6 +72,9 @@ typedef struct LuaR_JIT {
   uint32_t ir_compiled;
   uint32_t ir_code_bytes;
   uint32_t ir_executed;
+  uint32_t ir_entry_checks;
+  uint32_t ir_entry_pc_mismatch;
+  uint32_t ir_entry_base_mismatch;
   uint32_t ir_side_compiled;
   uint32_t ir_side_executed;
   uint32_t ir_call_exits;
