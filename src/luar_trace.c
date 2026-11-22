@@ -3926,12 +3926,19 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             (ir_find_arg_double(p, pc - 1, a + 2, base) >= 0 ||
              ir_slot_is_float(t, a + 2, t->nins, 0)) &&
             (ir_find_arg_double(p, pc - 2, a + 1, base) >= 0 ||
-             ir_slot_is_float(t, a + 1, t->nins, 0))) {
+             ir_slot_is_float(t, a + 1, t->nins, 0) ||
+             ir_slot_is_int(t, a + 1, t->nins, 0))) {
+          int i1 = ir_slot_is_int(t, a + 1, t->nins, 0);
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
             in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[fs] = 1;
+          }
+          if (i1) {
+            in.kind = LUAR_IR_ITOF; in.a = (uint8_t)(a + 1);
+            in.b = (uint8_t)(a + 1); in.pc = pc;
+            if (!luar_trace_ir_emit(t, &in)) return 0;
           }
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)(a + 1);
           in.b = LUAR_IR_TAG_FLOAT; in.pc = pc;
