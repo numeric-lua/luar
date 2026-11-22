@@ -99,6 +99,7 @@ typedef enum {
   LUAR_IR_TSETUPKS,	/* closure upvalue table[key] = constant string */
   LUAR_IR_TSETUPKB,	/* closure upvalue table[key] = constant bool */
   LUAR_IR_TSETUPKT,	/* closure upvalue table[key] = table slot b */
+  LUAR_IR_TSETUPKV,	/* closure upvalue table[key] = slot b (any non-nil) */
   LUAR_IR_TSETDYN,	/* table[b] = c, dynamic string key */
   LUAR_IR_CCALL3DD,	/* native three-double-arg/double-return C call */
   LUAR_IR_TGETF,	/* float table read */
@@ -298,6 +299,8 @@ int64_t luar_trace_tsetupki (int idx, TString *key, int64_t v,
 int64_t luar_trace_tsetupks (int idx, TString *key, TString *v,
                                 lua_State *L);
 int64_t luar_trace_tsetupkb (int idx, TString *key, int b,
+                                lua_State *L);
+int64_t luar_trace_tsetupv (int idx, TString *key, TValue *val,
                                 lua_State *L);
 int64_t luar_trace_tsetupt (int idx, TString *key, TValue *val,
                                 lua_State *L);

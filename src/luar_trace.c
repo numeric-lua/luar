@@ -196,6 +196,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_TSETUPKV:
       case LUAR_IR_TSETUPKT:
         if (!valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad tsetupt");
@@ -894,6 +895,25 @@ int64_t luar_trace_tsetupkb (int idx, TString *key, int b,
   setsvalue(L, &k, key);
   settt_(&val, b != 0 ? LUA_VTRUE : LUA_VFALSE);
   luaH_set(L, t, &k, &val);
+  return 1;
+}
+
+
+int64_t luar_trace_tsetupv (int idx, TString *key, TValue *val,
+                                lua_State *L) {
+  LClosure *cl; TValue *uv; Table *t; TValue k, v;
+  if (L == NULL || key == NULL || val == NULL || ttisnil(val) || idx < 0)
+    return 0;
+  if (!ttisLclosure(s2v(L->ci->func.p))) return 0;
+  cl = clLvalue(s2v(L->ci->func.p));
+  if (idx >= (int)cl->nupvalues || cl->upvals[idx] == NULL ||
+      cl->upvals[idx]->v.p == NULL) return 0;
+  uv = cl->upvals[idx]->v.p;
+  if (!ttistable(uv)) return 0;
+  t = (Table *)uv->value_.gc;
+  setsvalue(L, &k, key);
+  v = *val;
+  luaH_set(L, t, &k, &v);
   return 1;
 }
 
@@ -3073,9 +3093,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (idx < 0 || kc < 0 || kc >= p->sizek || !ttisstring(&p->k[kc]))
           return 0;
         if (!TESTARG_k(ins)) {
-          if (c >= ns || !ttistable(&base[c]))
+          if (c >= ns || ttisnil(&base[c]))
             return 0;
-          in.kind = LUAR_IR_TSETUPKT; in.a = (uint8_t)idx;
+          in.kind = LUAR_IR_TSETUPKV; in.a = (uint8_t)idx;
           in.b = (uint8_t)c;
           in.ival = (int64_t)(intptr_t)tsvalue(&p->k[kc]); in.pc = pc;
           r = luar_trace_ir_emit(t, &in);
