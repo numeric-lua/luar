@@ -6,6 +6,27 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.194.0] — 2026-11-22
+
+### Added
+
+- J2 compiles register-count integer shifts (`OP_SHL`/`OP_SHR`), including
+  negative counts, counts of 64 or more, and multiple shifts in one loop.
+- J2 compiles integer and float unary minus (`OP_UNM`).  Integer negation
+  wraps at `INT64_MIN`; float negation flips the IEEE sign bit.
+
+### Fixed
+
+- A J2 guard exit from a mixed integer/float comparison resumes at the
+  comparison's bytecode PC.  Decoding zeroed the stored PC, so such an exit
+  restarted the function and repeated its side effects.
+- The specialised repeat emitter is selected only when the body consists of
+  the matched increment/accumulator operations and `MMBIN`/`NOP`
+  placeholders.  Extra assignments or branches are no longer dropped.
+- A 64-bit FFI bitfield that starts at a non-zero bit offset spans nine
+  bytes; loading or storing it stays inside the field instead of copying a
+  ninth byte through a `uint64_t` temporary.
+
 ## [0.193.0] — 2026-11-22
 
 ### Fixed
