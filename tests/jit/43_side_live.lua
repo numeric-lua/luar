@@ -7,7 +7,7 @@ if jit.status() ~= true then
 end
 
 jit.flush()
-jit.opt.start("table=1")
+jit.opt.start("table=1", "ir=1")
 jit.on()
 
 local t = {}
