@@ -116,11 +116,15 @@ static int64_t bitop_i64 (TValue *arrv, TValue *key, int64_t factor, int op) {
   if (op == 0) v = v & factor;
   else if (op == 1) v = v | factor;
   else if (op == 2) v = v ^ factor;
-  else {
+  else if (op == 3 || op == 4) {
     /* cdata shifts use the low six bits of the count and are logical. */
     unsigned sh = (unsigned)((uint64_t)factor & 63u);
     v = (int64_t)(op == 3 ? ((uint64_t)v << sh) : ((uint64_t)v >> sh));
   }
+  else if (op == 5)
+    v = (int64_t)(0 - (uint64_t)v);
+  else
+    v = ~v;
   memcpy((char *)base + (ptrdiff_t)idx * 8, &v, 8);
   return 1;
 }
@@ -139,6 +143,12 @@ int64_t luar_ffi_trace_shl_i64 (TValue *a, TValue *k, int64_t c) {
 }
 int64_t luar_ffi_trace_shr_i64 (TValue *a, TValue *k, int64_t c) {
   return bitop_i64(a, k, c, 4);
+}
+int64_t luar_ffi_trace_neg_i64 (TValue *a, TValue *k) {
+  return bitop_i64(a, k, 0, 5);
+}
+int64_t luar_ffi_trace_bnot_i64 (TValue *a, TValue *k) {
+  return bitop_i64(a, k, 0, 6);
 }
 
 

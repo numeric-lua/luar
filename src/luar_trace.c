@@ -174,6 +174,8 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_CBXORI64:
       case LUAR_IR_CSHLI64:
       case LUAR_IR_CSHRI64:
+      case LUAR_IR_CNEGI64:
+      case LUAR_IR_CBNOTI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cbiti64");
           return 0;
@@ -2308,6 +2310,17 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         pend_i64_op = (event == TM_SHL) ? 8 : 9;
         break;
       }
+      case OP_UNM:
+      case OP_BNOT: {
+        if (pend_i64_src < 0 || pend_i64_addpc >= 0 ||
+            a != pend_i64_dst || b != pend_i64_dst)
+          return 0;
+        /* UNM/BNOT carry no MMBIN: SETTABLE follows directly. */
+        pend_i64_delta = 0;
+        pend_i64_addpc = pc;
+        pend_i64_op = (GET_OPCODE(ins) == OP_UNM) ? 10 : 11;
+        break;
+      }
       case OP_ADD:
       case OP_SUB:
       case OP_MUL:
@@ -3743,7 +3756,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
               return 0;
             uns = luar_ffi_trace_i64_unsigned(sv);
           }
-          if (TESTARG_k(ins) || pc != pend_i64_addpc + 2 ||
+          int gap = (pend_i64_op == 10 || pend_i64_op == 11) ? 1 : 2;
+          if (TESTARG_k(ins) || pc != pend_i64_addpc + gap ||
               b != pend_i64_key || c < 0 || c >= ns || c != pend_i64_dst)
             return 0;
           in.kind = (pend_i64_op == 2) ? LUAR_IR_CMULI64 :
@@ -3756,6 +3770,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                     (pend_i64_op == 7) ? LUAR_IR_CBXORI64 :
                     (pend_i64_op == 8) ? LUAR_IR_CSHLI64 :
                     (pend_i64_op == 9) ? LUAR_IR_CSHRI64 :
+                    (pend_i64_op == 10) ? LUAR_IR_CNEGI64 :
+                    (pend_i64_op == 11) ? LUAR_IR_CBNOTI64 :
                                          LUAR_IR_CADDI64;
           in.a = (uint8_t)pend_i64_src;
           /* 64-bit constants travel in ival: a double cannot represent

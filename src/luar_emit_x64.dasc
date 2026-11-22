@@ -2382,6 +2382,20 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | jz >2
         break;
       }
+      case LUAR_IR_CNEGI64:
+      case LUAR_IR_CBNOTI64: {
+        const void *fn = (in->kind == LUAR_IR_CNEGI64) ?
+          (const void *)&luar_ffi_trace_neg_i64 :
+          (const void *)&luar_ffi_trace_bnot_i64;
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
+        | lea rsi, [rbx + ((int)LUAR_SLOT(in->b))]
+        | mov64 rax, (int64_t)(intptr_t)fn
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
+      }
       case LUAR_IR_CDIVI64:
       case LUAR_IR_CUDIVI64: {
         int64_t divisor = in->ival;

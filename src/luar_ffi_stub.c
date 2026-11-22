@@ -299,3 +299,9 @@ int64_t luar_ffi_trace_shl_i64 (TValue *a, TValue *k, int64_t c) {
 int64_t luar_ffi_trace_shr_i64 (TValue *a, TValue *k, int64_t c) {
   (void)a; (void)k; (void)c; return 0;
 }
+int64_t luar_ffi_trace_neg_i64 (TValue *a, TValue *k) {
+  (void)a; (void)k; return 0;
+}
+int64_t luar_ffi_trace_bnot_i64 (TValue *a, TValue *k) {
+  (void)a; (void)k; return 0;
+}
