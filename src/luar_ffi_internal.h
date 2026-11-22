@@ -87,6 +87,19 @@ struct CField {
   uint8_t packed;	/* byte-granular bitfield storage */
 };
 
+/* Cached libffi call interface for a fixed, scalar-only function
+** signature.  Built lazily once per interned function CType; the ffi_cif
+** and its argument-type array live in the FFI state arena. */
+#define LUAR_FCALL_MAX_ARGS	8
+
+struct FCallCache {
+  ffi_cif cif;
+  ffi_type *atypes[LUAR_FCALL_MAX_ARGS];
+  ffi_type *rtype;
+  uint16_t nargs;
+  uint8_t failed;
+};
+
 typedef struct FCallCache FCallCache;
 
 struct CType {

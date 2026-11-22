@@ -924,6 +924,77 @@ static ffi_type *build_ffi_type (lua_State *L, FFIState *S, CType *ct,
   }
 }
 
+/* Scalar libffi type for an integer/float/pointer CType, or NULL for an
+** aggregate that must not be cached (its ffi_type tree is per-call). */
+static ffi_type *scalar_ffi_type (CType *ct) {
+  if (ct == NULL)
+    return NULL;
+  switch (ct->kind) {
+    case CT_VOID: return &ffi_type_void;
+    case CT_BOOL: return &ffi_type_uint8;
+    case CT_ENUM: return &ffi_type_sint32;
+    case CT_INT:
+      if (ct->size == 1) return ct->is_unsigned ? &ffi_type_uint8
+                                                : &ffi_type_sint8;
+      if (ct->size == 2) return ct->is_unsigned ? &ffi_type_uint16
+                                                : &ffi_type_sint16;
+      if (ct->size == 4) return ct->is_unsigned ? &ffi_type_uint32
+                                                : &ffi_type_sint32;
+      if (ct->size == 8) return ct->is_unsigned ? &ffi_type_uint64
+                                                : &ffi_type_sint64;
+      return NULL;
+    case CT_FLOAT:
+      if (ct->size == 4) return &ffi_type_float;
+      if (ct->size == 8) return &ffi_type_double;
+      return NULL;
+    case CT_POINTER:
+    case CT_FUNC:
+      return &ffi_type_pointer;
+    default:
+      return NULL;
+  }
+}
+
+
+/* Lazily prepare and cache the ffi_cif for a fixed scalar signature.  The
+** J4 trace call helpers call the same handful of C functions millions of
+** times; rebuilding the cif on every call made libffi preparation dominate
+** those calls.  Returning NULL means "not cacheable; use the slow path". */
+static FCallCache *ffi_scalar_cif (FFIState *S, CType *ft) {
+  FCallCache *c;
+  ffi_type *rtype;
+  uint16_t i;
+  if (S == NULL || ft == NULL || ft->kind != CT_FUNC || ft->vararg ||
+      ft->nargs > LUAR_FCALL_MAX_ARGS)
+    return NULL;
+  c = ft->call;
+  if (c != NULL)
+    return c->failed ? NULL : c;
+  rtype = scalar_ffi_type(ft->ret);
+  if (rtype == NULL)
+    return NULL;
+  c = (FCallCache *)ffi_alloc(S, sizeof(*c));
+  c->rtype = rtype;
+  c->nargs = ft->nargs;
+  for (i = 0; i < ft->nargs; i++) {
+    c->atypes[i] = scalar_ffi_type(ft->args[i]);
+    if (c->atypes[i] == NULL) {
+      c->failed = 1;
+      ft->call = c;
+      return NULL;
+    }
+  }
+  if (ffi_prep_cif(&c->cif, FFI_DEFAULT_ABI, (unsigned)c->nargs, c->rtype,
+                   c->atypes) != FFI_OK) {
+    c->failed = 1;
+    ft->call = c;
+    return NULL;
+  }
+  ft->call = c;
+  return c;
+}
+
+
 
 /* ------------------------------------------------------------------ */
 /* Calls                                                             */
@@ -1649,7 +1720,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
   int provided;
   int ntotal;
   int i;
-  ffi_cif cif;
+  ffi_cif cif, *cifp = NULL;
   ffi_type **atypes = NULL;
   ffi_type *rtype;
   ArgSlot *slots = NULL;
@@ -1768,7 +1839,12 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
                                &allocs);
   rt = ft->ret;
   rtype = build_ffi_type(L, S, rt, &allocs);
-  {
+  if (!ft->vararg && ntotal == nargs) {
+    FCallCache *cc = ffi_scalar_cif(S, ft);
+    if (cc != NULL)
+      cifp = &cc->cif;
+  }
+  if (cifp == NULL) {
     ffi_status st = ft->vararg
       ? ffi_prep_cif_var(&cif, FFI_DEFAULT_ABI, (unsigned)nargs,
                          (unsigned)ntotal, rtype, atypes)
@@ -1779,6 +1855,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
       luaL_error(L, "ffi: libffi cannot prepare a call to '%s'",
                  ffi_type_repr(S, ft));
     }
+    cifp = &cif;
   }
 
   retkind = rt->kind;
@@ -1795,7 +1872,7 @@ int ffi_call_cdata (lua_State *L, FFIState *S, CData *fn, int argstart) {
                ffi_type_repr(S, rt));
   }
 
-  ffi_call(&cif, FFI_FN(fn->v.p),
+  ffi_call(cifp, FFI_FN(fn->v.p),
            (retkind == CT_STRUCT || retkind == CT_UNION) ? retcd->v.p
                                                          : (void *)&retslot,
            avalue);
@@ -2627,11 +2704,26 @@ void ffi_callback_free (lua_State *L, CData *cd) {
 }
 
 
+/* Use the per-signature cached cif when possible; fall back to a local
+** prep for aggregate signatures that are not cached. */
+#define FFI_TRACE_PREP(FT, CIF, CIFP, ...) \
+  do { \
+    FCallCache *cc_ = ffi_scalar_cif(fn->S, (FT)); \
+    if (cc_ != NULL) \
+      (CIFP) = &cc_->cif; \
+    else { \
+      if (ffi_prep_cif(&(CIF), FFI_DEFAULT_ABI, __VA_ARGS__) != FFI_OK) \
+        return 0; \
+      (CIFP) = &(CIF); \
+    } \
+  } while (0)
+
+
 /* J4 helper: call a zero-argument C function with a scalar return.
 ** Uses libffi directly; no Lua stack, allocation or metamethods. */
 int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
   CType *ft, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *rtype;
   union { int64_t i; double d; } ret;
   if (fn == NULL || kind == NULL || iv == NULL || dv == NULL ||
@@ -2665,9 +2757,8 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
   }
   else
     return 0;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 0, rtype, NULL) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, NULL);
+  FFI_TRACE_PREP(ft, cif, cifp_, 0, rtype, NULL);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, NULL);
   if (*kind == 1) *iv = ret.i;
   else *dv = ret.d;
   return 1;
@@ -2680,7 +2771,7 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
 ** extended according to the declared signedness. */
 int ffi_trace_call1i (CData *fn, int64_t arg, int64_t *out) {
   CType *ft, *at, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atype, *rtype;
   ffi_type *atypes[1];
   void *avalue[1];
@@ -2725,10 +2816,9 @@ int ffi_trace_call1i (CData *fn, int64_t arg, int64_t *out) {
     default: return 0;
   }
   atypes[0] = atype;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, rtype, atypes) != FFI_OK)
-    return 0;
+  FFI_TRACE_PREP(ft, cif, cifp_, 1, rtype, atypes);
   memset(&ret, 0, sizeof(ret));
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   switch (rt->size) {
     case 1:
       *out = rt->is_unsigned ? (int64_t)ret.u8 : (int64_t)ret.i8;
@@ -2751,7 +2841,7 @@ int ffi_trace_call1i (CData *fn, int64_t arg, int64_t *out) {
 ** double parameter, returning a double. */
 int ffi_trace_call1d_iarg (CData *fn, int64_t arg, double *out) {
   CType *ft, *at, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atype = &ffi_type_double, *rtype;
   void *avalue[1];
   double av = (double)arg, ret = 0.0;
@@ -2768,9 +2858,8 @@ int ffi_trace_call1d_iarg (CData *fn, int64_t arg, double *out) {
     return 0;
   rtype = &ffi_type_double;
   avalue[0] = &av;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, rtype, &atype) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 1, rtype, &atype);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -2780,7 +2869,7 @@ int ffi_trace_call1d_iarg (CData *fn, int64_t arg, double *out) {
 ** return.  No Lua stack, allocation or metamethods. */
 int ffi_trace_call1d (CData *fn, double arg, double *out) {
   CType *ft, *at, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atype = &ffi_type_double, *rtype = &ffi_type_double;
   void *avalue[1];
   double av = arg, ret = 0.0;
@@ -2804,9 +2893,8 @@ int ffi_trace_call1d (CData *fn, double arg, double *out) {
       at->size != 8 || rt->kind != CT_FLOAT || rt->size != 8)
     return 0;
   avalue[0] = &av;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, rtype, &atype) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 1, rtype, &atype);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -2816,7 +2904,7 @@ int ffi_trace_call1d (CData *fn, double arg, double *out) {
 ** return.  No Lua stack, allocation or metamethods. */
 int ffi_trace_call2d (CData *fn, double arg1, double arg2, double *out) {
   CType *ft, *at1, *at2, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2];
   void *avalue[2];
   double av1 = arg1, av2 = arg2, ret = 0.0;
@@ -2846,10 +2934,9 @@ int ffi_trace_call2d (CData *fn, double arg1, double arg2, double *out) {
   atypes[1] = &ffi_type_double;
   avalue[0] = &av1;
   avalue[1] = &av2;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, &ffi_type_double,
-                   atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, &ffi_type_double,
+                   atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -2859,7 +2946,7 @@ int ffi_trace_call2d (CData *fn, double arg1, double arg2, double *out) {
 ** return. */
 int ffi_trace_call2di (CData *fn, double a0, int64_t a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_double;
   void *avalue[2];
   double av0 = a0, ret = 0.0;
@@ -2883,9 +2970,8 @@ int ffi_trace_call2di (CData *fn, double a0, int64_t a1, double *out) {
   av1 = (int32_t)a1;
   avalue[0] = &av0;
   avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -2893,7 +2979,7 @@ int ffi_trace_call2di (CData *fn, double a0, int64_t a1, double *out) {
 
 int ffi_trace_call2id (CData *fn, int64_t a0, double a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_double;
   void *avalue[2];
   int32_t av0;
@@ -2912,9 +2998,8 @@ int ffi_trace_call2id (CData *fn, int64_t a0, double a1, double *out) {
     return 0;
   atypes[0] = &ffi_type_sint32; atypes[1] = &ffi_type_double;
   av0 = (int32_t)a0; avalue[0] = &av0; avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -2922,7 +3007,7 @@ int ffi_trace_call2id (CData *fn, int64_t a0, double a1, double *out) {
 
 int ffi_trace_call2fi (CData *fn, double a0, int64_t a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_float;
   void *avalue[2];
   float av0 = (float)a0, ret = 0.0f;
@@ -2942,9 +3027,8 @@ int ffi_trace_call2fi (CData *fn, double a0, int64_t a1, double *out) {
   atypes[0] = &ffi_type_float; atypes[1] = &ffi_type_sint32;
   av1 = (int32_t)a1;
   avalue[0] = &av0; avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = (double)ret;
   return 1;
 }
@@ -2952,7 +3036,7 @@ int ffi_trace_call2fi (CData *fn, double a0, int64_t a1, double *out) {
 
 int ffi_trace_call2if (CData *fn, int64_t a0, double a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_float;
   void *avalue[2];
   int32_t av0;
@@ -2972,9 +3056,8 @@ int ffi_trace_call2if (CData *fn, int64_t a0, double a1, double *out) {
   atypes[0] = &ffi_type_sint32; atypes[1] = &ffi_type_float;
   av0 = (int32_t)a0; av1 = (float)a1;
   avalue[0] = &av0; avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = (double)ret;
   return 1;
 }
@@ -2982,7 +3065,7 @@ int ffi_trace_call2if (CData *fn, int64_t a0, double a1, double *out) {
 
 int ffi_trace_call2fd (CData *fn, double a0, double a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_double;
   void *avalue[2];
   float av0; double av1 = a1, ret = 0.0;
@@ -3000,9 +3083,8 @@ int ffi_trace_call2fd (CData *fn, double a0, double a1, double *out) {
     return 0;
   atypes[0] = &ffi_type_float; atypes[1] = &ffi_type_double;
   av0 = (float)a0; avalue[0] = &av0; avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -3010,7 +3092,7 @@ int ffi_trace_call2fd (CData *fn, double a0, double a1, double *out) {
 
 int ffi_trace_call2df (CData *fn, double a0, double a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_double;
   void *avalue[2];
   double av0 = a0, ret = 0.0;
@@ -3029,9 +3111,8 @@ int ffi_trace_call2df (CData *fn, double a0, double a1, double *out) {
     return 0;
   atypes[0] = &ffi_type_double; atypes[1] = &ffi_type_float;
   av1 = (float)a1; avalue[0] = &av0; avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -3039,7 +3120,7 @@ int ffi_trace_call2df (CData *fn, double a0, double a1, double *out) {
 
 int ffi_trace_call3di (CData *fn, double a0, double a1, int64_t a2,
                        double *out) {
-  CType *ft, *at0, *at1, *at2, *rt; ffi_cif cif; ffi_type *atypes[3];
+  CType *ft, *at0, *at1, *at2, *rt; ffi_cif cif, *cifp_ = NULL; ffi_type *atypes[3];
   void *avalue[3]; double av0 = a0, av1 = a1, ret = 0.0; int32_t av2;
   if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
       (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK)) != 0 || fn->v.p == NULL)
@@ -3056,16 +3137,15 @@ int ffi_trace_call3di (CData *fn, double a0, double a1, int64_t a2,
   atypes[0] = &ffi_type_double; atypes[1] = &ffi_type_double;
   atypes[2] = &ffi_type_sint32; av2 = (int32_t)a2;
   avalue[0] = &av0; avalue[1] = &av1; avalue[2] = &av2;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 3, &ffi_type_double, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 3, &ffi_type_double, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret; return 1;
 }
 
 
 int ffi_trace_call3did (CData *fn, double a0, int64_t a1, double a2,
                         double *out) {
-  CType *ft, *at0, *at1, *at2, *rt; ffi_cif cif; ffi_type *atypes[3];
+  CType *ft, *at0, *at1, *at2, *rt; ffi_cif cif, *cifp_ = NULL; ffi_type *atypes[3];
   void *avalue[3]; double av0 = a0, av2 = a2, ret = 0.0; int32_t av1;
   if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
       (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK)) != 0 || fn->v.p == NULL)
@@ -3082,16 +3162,15 @@ int ffi_trace_call3did (CData *fn, double a0, int64_t a1, double a2,
   atypes[0] = &ffi_type_double; atypes[1] = &ffi_type_sint32;
   atypes[2] = &ffi_type_double; av1 = (int32_t)a1;
   avalue[0] = &av0; avalue[1] = &av1; avalue[2] = &av2;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 3, &ffi_type_double, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 3, &ffi_type_double, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret; return 1;
 }
 
 
 int ffi_trace_call3idd (CData *fn, int64_t a0, double a1, double a2,
                         double *out) {
-  CType *ft, *at0, *at1, *at2, *rt; ffi_cif cif; ffi_type *atypes[3];
+  CType *ft, *at0, *at1, *at2, *rt; ffi_cif cif, *cifp_ = NULL; ffi_type *atypes[3];
   void *avalue[3]; double av1 = a1, av2 = a2, ret = 0.0; int32_t av0;
   if (fn == NULL || out == NULL || fn->magic != LUAR_FFI_MAGIC ||
       (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK)) != 0 || fn->v.p == NULL)
@@ -3108,9 +3187,8 @@ int ffi_trace_call3idd (CData *fn, int64_t a0, double a1, double a2,
   atypes[0] = &ffi_type_sint32; atypes[1] = &ffi_type_double;
   atypes[2] = &ffi_type_double; av0 = (int32_t)a0;
   avalue[0] = &av0; avalue[1] = &av1; avalue[2] = &av2;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 3, &ffi_type_double, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 3, &ffi_type_double, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret; return 1;
 }
 
@@ -3118,7 +3196,7 @@ int ffi_trace_call3idd (CData *fn, int64_t a0, double a1, double a2,
 /* J4 helper: call a C function with two integer arguments and int return. */
 int ffi_trace_call2ii (CData *fn, int64_t a0, int64_t a1, int64_t *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_sint32;
   void *avalue[2];
   int32_t av0, av1;
@@ -3143,9 +3221,8 @@ int ffi_trace_call2ii (CData *fn, int64_t a0, int64_t a1, int64_t *out) {
   av1 = (int32_t)a1;
   avalue[0] = &av0;
   avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = (int64_t)ret;
   return 1;
 }
@@ -3156,7 +3233,7 @@ int ffi_trace_call2ii (CData *fn, int64_t a0, int64_t a1, int64_t *out) {
 int ffi_trace_call3d (CData *fn, double arg1, double arg2, double arg3,
                       double *out) {
   CType *ft, *at1, *at2, *at3, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[3];
   void *avalue[3];
   double av1 = arg1, av2 = arg2, av3 = arg3, ret = 0.0;
@@ -3190,10 +3267,9 @@ int ffi_trace_call3d (CData *fn, double arg1, double arg2, double arg3,
   avalue[0] = &av1;
   avalue[1] = &av2;
   avalue[2] = &av3;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 3, &ffi_type_double,
-                   atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 3, &ffi_type_double,
+                   atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = ret;
   return 1;
 }
@@ -3203,7 +3279,7 @@ int ffi_trace_call3d (CData *fn, double arg1, double arg2, double arg3,
 ** The Lua value is a double; it is narrowed for the ffi_type_float ABI. */
 int ffi_trace_call1f (CData *fn, double arg, double *out) {
   CType *ft, *at, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[1];
   void *avalue[1];
   float av = (float)arg, ret = 0.0f;
@@ -3228,10 +3304,9 @@ int ffi_trace_call1f (CData *fn, double arg, double *out) {
     return 0;
   atypes[0] = &ffi_type_float;
   avalue[0] = &av;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, &ffi_type_float,
-                   atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 1, &ffi_type_float,
+                   atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = (double)ret;
   return 1;
 }
@@ -3240,7 +3315,7 @@ int ffi_trace_call1f (CData *fn, double arg, double *out) {
 /* J4 helper: two float32 arguments, float32 return. */
 int ffi_trace_call2f (CData *fn, double a0, double a1, double *out) {
   CType *ft, *at0, *at1, *rt;
-  ffi_cif cif;
+  ffi_cif cif, *cifp_ = NULL;
   ffi_type *atypes[2], *rtype = &ffi_type_float;
   void *avalue[2];
   float av0 = (float)a0, av1 = (float)a1, ret = 0.0f;
@@ -3264,9 +3339,8 @@ int ffi_trace_call2f (CData *fn, double a0, double a1, double *out) {
   atypes[1] = &ffi_type_float;
   avalue[0] = &av0;
   avalue[1] = &av1;
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 2, rtype, atypes) != FFI_OK)
-    return 0;
-  ffi_call(&cif, FFI_FN(fn->v.p), &ret, avalue);
+  FFI_TRACE_PREP(ft, cif, cifp_, 2, rtype, atypes);
+  ffi_call(cifp_, FFI_FN(fn->v.p), &ret, avalue);
   *out = (double)ret;
   return 1;
 }
