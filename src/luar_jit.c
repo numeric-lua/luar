@@ -174,8 +174,10 @@ static void add_guard (LuaR_LoopDesc *d, uint8_t *seen, int r, int type) {
 
 static int install_keyed_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
                              int for_a, int table, int keys, int upval,
-                             int acc) {
+                             int acc, int res) {
   int slot = -1, k;
+  if (res == acc)
+    return 0;
   for (k = 0; k < 2; k++) {
     if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
       slot = k;
@@ -191,6 +193,7 @@ static int install_keyed_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
   p->luar_tint_keys[slot] = keys;
   p->luar_tint_upval[slot] = upval;
   p->luar_tint_acc[slot] = acc;
+  p->luar_tint_res[slot] = res;
   p->luar_tint_base[slot] = for_a;
   p->luar_tint_epoch[slot] = J->epoch;
   J->compiled++;
@@ -475,11 +478,13 @@ static int match_meta_loop (lua_State *L, Proto *p, ptrdiff_t start,
   if (!ttisinteger(&base[GETARG_A(add)]) ||
       GETARG_A(gt) == for_a + 2)
     return 0;
-  if (!meta_multiplier(L, &base[GETARG_B(gt)], &mult))
+  if (!meta_multiplier(L, &base[GETARG_B(gt)], &mult) ||
+      GETARG_A(gt) == GETARG_A(add))
     return 0;
   d->fast_meta = 1;
   d->fm_table = GETARG_B(gt);
   d->fm_acc = GETARG_A(add);
+  d->fm_res = GETARG_A(gt);
   d->fm_upval = -1;
   d->fm_mult = mult;
   return 1;
@@ -518,11 +523,13 @@ static int match_meta_upval_loop (lua_State *L, Proto *p, ptrdiff_t start,
     return 0;
   uv = cl->upvals[GETARG_B(up)];
   tab = uv->v.p;
-  if (!meta_multiplier(L, tab, &mult))
+  if (!meta_multiplier(L, tab, &mult) ||
+      GETARG_A(gt) == GETARG_A(add))
     return 0;
   d->fast_meta = 1;
   d->fm_table = 0;
   d->fm_acc = GETARG_A(add);
+  d->fm_res = GETARG_A(gt);
   d->fm_upval = GETARG_B(up);
   d->fm_mult = mult;
   return 1;
@@ -714,7 +721,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_C(i2) == GETARG_A(i1))
         return install_keyed_sum(p, J, backedge, for_a,
                                  GETARG_B(i1), GETARG_B(i0), -1,
-                                 GETARG_A(i2));
+                                 GETARG_A(i2), GETARG_A(i1));
     }
     if (J->enable_tint && n >= 6 && GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
@@ -732,7 +739,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_A(i3) == GETARG_B(i3) &&
           GETARG_C(i3) == GETARG_A(i2))
         return install_keyed_sum(p, J, backedge, for_a,
-                                 GETARG_B(i2), 0, GETARG_B(i0), GETARG_A(i3));
+                                 GETARG_B(i2), 0, GETARG_B(i0),
+                                 GETARG_A(i3), GETARG_A(i2));
     }
     if (n >= 9 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -1228,6 +1236,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         def[ka] = 1;
         d.has_table = 1;
         d.table_reg = kb;
+        d.ft_res = ka;   /* the bytecode also writes the element here */
         has_branch = 1;   /* use the labelled emitter and typed guards */
         /* Fuse the common "acc = acc + t[key]" shape. */
         if (i + 1 < n - 1) {
@@ -1386,7 +1395,8 @@ decode_done:
         mul->ta == LUAR_T_INT && add->kind == LUAR_OP_ADD &&
         add->a == add->b && add->c == mul->a &&
         (add->ta == LUAR_T_INT || add->ta == LUAR_T_FLOAT) &&
-        !is_control_reg(add->a, for_a)) {
+        mul->a != add->a && !is_control_reg(add->a, for_a) &&
+        !is_control_reg(mul->a, for_a)) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
       add_guard(&d, seen, add->a, add->ta);
@@ -1396,6 +1406,7 @@ decode_done:
       d.fast_sq = 1;
       d.fs_float = (add->ta == LUAR_T_FLOAT);
       d.fs_acc = add->a;
+      d.fs_temp = mul->a;
     }
   }
 
@@ -1517,6 +1528,7 @@ decode_done:
       d.fw_const = fconst;
       d.fw_acc = acc;
       d.fw_idx = idx;
+      d.fw_temp = (temp >= 0) ? temp : -1;
       d.fw_limit = limit >= 0 ? limit : 0xFF;
       d.fw_kind = kind;
       d.fw_k = ops[0].k;
@@ -1532,7 +1544,7 @@ decode_done:
     for (i = 1; i < n - 1; i++)
       if (ops[i].kind != LUAR_OP_MMBIN && ops[i].kind != LUAR_OP_NOP)
         only = 0;
-    if (only) {
+    if (only && d.ft_res != ops[0].a) {
       memset(seen, 0, sizeof(seen));
       d.nguards = 0;
       add_guard(&d, seen, ops[0].tb, LUAR_T_TABLE);
@@ -1579,6 +1591,7 @@ decode_done:
     p->luar_tint_pc[slot] = (int)backedge;
     p->luar_tint_table[slot] = d.fast_fill ? d.ff_table : d.ft_table;
     p->luar_tint_acc[slot] = d.fast_tsum ? d.ft_acc : 0;
+    p->luar_tint_res[slot] = d.fast_tsum ? d.ft_res : 0;
     p->luar_tint_base[slot] = for_a;
     p->luar_tint_epoch[slot] = J->epoch;
     J->compiled++;
@@ -1657,6 +1670,7 @@ decode_done:
       d.fast_float = 1;
       d.ff_acc = acc;
       d.ff_idx = idx;
+      d.ff_temp = temp;
       d.ff_const = konst;
       d.ff_is_float = is_float;
       d.ff_iconst = iconst;
@@ -1877,6 +1891,7 @@ decode_done:
         d.fr_float = (accop->ta == LUAR_T_FLOAT);
         d.fr_acc = acc;
         d.fr_idx = idx;
+        d.fr_temp = (opkind == 3 && temp >= 0) ? temp : -1;
         d.fr_limit = limit >= 0 ? limit : 0xFF;
         d.fr_imm = imm;
         d.fr_immediate = imm ? cmp->imm : 0;
@@ -1994,7 +2009,8 @@ static int table_fill_intrinsic (lua_State *L, TValue *base,
 
 
 static int table_sum_intrinsic (lua_State *L, TValue *base,
-                                int for_a, int table_reg, int acc_reg) {
+                                int for_a, int table_reg, int acc_reg,
+                                int res_reg) {
   (void)L;
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
@@ -2046,6 +2062,16 @@ static int table_sum_intrinsic (lua_State *L, TValue *base,
   }
   else
     return 0;
+  if (res_reg != acc_reg && res_reg >= 0) {
+    unsigned rkey = (unsigned)(idx + count - 1);
+    lu_byte rtag = *getArrTag(h, rkey);
+    if (rtag == LUA_VNUMINT) {
+      setivalue(&base[res_reg], getArrVal(h, rkey)->i);
+    }
+    else {
+      setfltvalue(&base[res_reg], getArrVal(h, rkey)->n);
+    }
+  }
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
@@ -2091,7 +2117,7 @@ static int keyed_fill_intrinsic (lua_State *L, TValue *base,
 
 static int keyed_sum_intrinsic (lua_State *L, TValue *base,
                                int for_a, int table_reg, Table *keys,
-                               int acc_reg) {
+                               int acc_reg, int res_reg) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
@@ -2145,6 +2171,12 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
   }
   else
     return 0;
+  if (res_reg != acc_reg && res_reg >= 0) {
+    TValue key, val;
+    if (luaH_getint(keys, idx + count, &key) != LUA_VNIL &&
+        luaH_get(t, &key, &val) != LUA_VNIL)
+      base[res_reg] = val;
+  }
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
@@ -3218,7 +3250,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         case 2:
           r = table_sum_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
-                                  p->luar_tint_acc[i]);
+                                  p->luar_tint_acc[i],
+                                  p->luar_tint_res[i]);
           break;
         case 3: {
           Table *keys = tint_keys_table(p, (TValue *)base, i);
@@ -3282,7 +3315,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           r = (keys == NULL) ? 0
               : keyed_sum_intrinsic(L, (TValue *)base, expected_base,
                                     p->luar_tint_table[i], keys,
-                                    p->luar_tint_acc[i]);
+                                    p->luar_tint_acc[i],
+                                    p->luar_tint_res[i]);
           break;
         }
       }

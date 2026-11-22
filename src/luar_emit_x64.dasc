@@ -711,11 +711,19 @@ static void emit_fast_float (dasm_State **Dst, const LuaR_LoopDesc *d)
   if (d->ff_is_float) {
     | cvtsi2sd xmm2, r13
     | mulsd xmm2, xmm1
+    if (d->ff_temp >= 0) {
+      | movsd qword [rbx + ((int)LUAR_SLOT(d->ff_temp))], xmm2
+      | mov byte [rbx + ((int)LUAR_TAG(d->ff_temp))], ((int)d->tag_flt)
+    }
     | addsd xmm0, xmm2
   }
   else {
     | mov rcx, r13
     | imul rcx, r11
+    if (d->ff_temp >= 0) {
+      | mov qword [rbx + ((int)LUAR_SLOT(d->ff_temp))], rcx
+      | mov byte [rbx + ((int)LUAR_TAG(d->ff_temp))], ((int)d->tag_int)
+    }
     | add r15, rcx
   }
   | test r12, r12
@@ -880,6 +888,10 @@ static void emit_fast_meta (dasm_State **Dst, const LuaR_LoopDesc *d)
   |1:
   | mov rax, r13
   emit_mul_imm(Dst, d->fm_mult);
+  if (d->fm_res >= 0) {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->fm_res))], rax
+    | mov byte [rbx + ((int)LUAR_TAG(d->fm_res))], ((int)d->tag_int)
+  }
   | add r15, rax
   | test r12, r12
   | jz >2
@@ -1103,11 +1115,21 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
       | divsd xmm0, xmm1
     }
     else if (d->fw_square) {
-      | mulsd xmm1, xmm1
+      | mov rcx, r13
+      | imul rcx, r13
+      if (d->fw_temp >= 0) {
+        | mov qword [rbx + ((int)LUAR_SLOT(d->fw_temp))], rcx
+        | mov byte [rbx + ((int)LUAR_TAG(d->fw_temp))], ((int)d->tag_int)
+      }
+      | cvtsi2sd xmm1, rcx
       | addsd xmm0, xmm1
     }
     else if (d->fw_linear) {
       | mulsd xmm1, xmm2
+      if (d->fw_temp >= 0) {
+        | movsd qword [rbx + ((int)LUAR_SLOT(d->fw_temp))], xmm1
+        | mov byte [rbx + ((int)LUAR_TAG(d->fw_temp))], ((int)d->tag_flt)
+      }
       | addsd xmm0, xmm1
     }
     else {
@@ -1123,6 +1145,10 @@ static void emit_fast_while (dasm_State **Dst, const LuaR_LoopDesc *d)
   else if (d->fw_square) {
     | mov rcx, r13
     | imul rcx, r13
+    if (d->fw_temp >= 0) {
+      | mov qword [rbx + ((int)LUAR_SLOT(d->fw_temp))], rcx
+      | mov byte [rbx + ((int)LUAR_TAG(d->fw_temp))], ((int)d->tag_int)
+    }
     | add r12, rcx
   }
   else {
@@ -1172,14 +1198,17 @@ static void emit_fast_sq (dasm_State **Dst, const LuaR_LoopDesc *d)
   }
   emit_guards(Dst, d);
   |1:
+  | mov rcx, r13
+  | imul rcx, r13
+  if (d->fs_temp >= 0) {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->fs_temp))], rcx
+    | mov byte [rbx + ((int)LUAR_TAG(d->fs_temp))], ((int)d->tag_int)
+  }
   if (d->fs_float) {
-    | cvtsi2sd xmm1, r13
-    | mulsd xmm1, xmm1
+    | cvtsi2sd xmm1, rcx
     | addsd xmm0, xmm1
   }
   else {
-    | mov rcx, r13
-    | imul rcx, r13
     | add r15, rcx
   }
   | test r12, r12
@@ -1363,7 +1392,13 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
       | mulsd xmm0, xmm1
     }
     else if (d->fr_op == 3) {
-      | mulsd xmm1, xmm1
+      | mov rcx, r13
+      | imul rcx, r13
+      if (d->fr_temp >= 0) {
+        | mov qword [rbx + ((int)LUAR_SLOT(d->fr_temp))], rcx
+        | mov byte [rbx + ((int)LUAR_TAG(d->fr_temp))], ((int)d->tag_int)
+      }
+      | cvtsi2sd xmm1, rcx
       | addsd xmm0, xmm1
     }
     else if (d->fr_op == 4) {
@@ -1382,6 +1417,10 @@ static void emit_fast_repeat (dasm_State **Dst, const LuaR_LoopDesc *d)
   else if (d->fr_op == 3) {
     | mov rcx, r13
     | imul rcx, r13
+    if (d->fr_temp >= 0) {
+      | mov qword [rbx + ((int)LUAR_SLOT(d->fr_temp))], rcx
+      | mov byte [rbx + ((int)LUAR_TAG(d->fr_temp))], ((int)d->tag_int)
+    }
     | add r15, rcx
   }
   else {

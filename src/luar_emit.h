@@ -84,6 +84,7 @@ typedef struct LuaR_LoopDesc {
   int fr_k;
   int fr_idx_left;
   int fr_op;			/* 0 add, 1 sub, 2 mul, 3 square */
+  int fr_temp;			/* intermediate result slot, -1 if none */
   int fr_float;			/* loop ends in a backward JMP, no FORLOOP */
   int has_table;		/* one raw array lookup at the body start */
   int table_reg;
@@ -94,12 +95,14 @@ typedef struct LuaR_LoopDesc {
   int fast_float;		/* acc += idx * constant fast path */
   int ff_acc;
   int ff_idx;
+  int ff_temp;			/* idx*const result slot, -1 if none */
   double ff_const;
   int ff_is_float;
   int64_t ff_iconst;
   int fast_meta;		/* inlined __index multiplier loop */
   int fm_table;
   int fm_acc;
+  int fm_res;			/* method result slot, -1 if none */
   int fm_upval;
   int64_t fm_mult;
   int fast_closure;		/* inlined simple upvalue accumulator closure */
@@ -115,6 +118,7 @@ typedef struct LuaR_LoopDesc {
   int ft_table;
   int ft_idx;
   int ft_acc;
+  int ft_res;			/* element result slot, -1 if none */
   int fast_sub;			/* acc = acc - idx fast path */
   int fsb_acc;
   int fsb_float;
@@ -124,10 +128,12 @@ typedef struct LuaR_LoopDesc {
   int fp_div;
   int fast_sq;			/* acc += idx * idx fast path */
   int fs_acc;
+  int fs_temp;			/* idx*idx result slot, -1 if none */
   int fs_float;
   int fast_while;		/* while idx < limit do acc += idx end */
   int fw_acc;
   int fw_idx;
+  int fw_temp;			/* intermediate result slot, -1 if none */
   int fw_limit;			/* register, or 0xFF for an immediate */
   int fw_square;
   int fw_prod;
