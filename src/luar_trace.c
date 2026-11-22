@@ -169,6 +169,13 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           return 0;
         }
         break;
+      case LUAR_IR_CSETI64:
+        if (!valid_slot(t, in->a) || !valid_slot(t, in->b) ||
+            !valid_slot(t, in->c)) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad cseti64");
+          return 0;
+        }
+        break;
       case LUAR_IR_CADDI64:
         if (!valid_slot(t, in->a) || !valid_slot(t, in->b)) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad caddi64");
@@ -3671,6 +3678,18 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           pend_i64_dst = -1; pend_i64_pc = -1;
           r = luar_trace_ir_emit(t, &in);
           break;
+        }
+        if (!TESTARG_k(ins) && c >= 0 && c < ns &&
+            ttisinteger(&base[b]) && ttisinteger(&base[c]) &&
+            luar_ffi_trace_i64_array(&base[a])) {
+          TValue *av = (ir_latest_writer_is(t, a, LUAR_IR_ULOAD) &&
+                        known_cval[a].tt_ != 0) ? &known_cval[a] : &base[a];
+          if (luar_ffi_trace_i64_array(av)) {
+            in.kind = LUAR_IR_CSETI64; in.a = (uint8_t)a;
+            in.b = (uint8_t)b; in.c = (uint8_t)c; in.pc = pc;
+            r = luar_trace_ir_emit(t, &in);
+            break;
+          }
         }
         if (ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
