@@ -1,5 +1,24 @@
 # Luar performance baseline
 
+> **0.155 refresh (2026-11-22, `./bench/compare.sh`, Ryzen 3 7320U).**
+> Best CPU milliseconds; `x` relative to stock Lua 5.5.1.
+>
+> | benchmark | Lua 5.5 | Luar 0.155 | Luar x | LuaJIT 2.1 | LuaJIT x |
+> | --- | ---: | ---: | ---: | ---: | ---: |
+> | numeric/int_sum | 35.35 | **4.02** | 0.11 | 5.95 | 0.17 |
+> | numeric/float_sum | 8.49 | **1.53** | 0.18 | 1.48 | 0.17 |
+> | numeric/product | 17.89 | **2.99** | 0.17 | 2.94 | 0.16 |
+> | numeric/fib | 13.43 | 15.34 | 1.14 | 1.40 | 0.10 |
+> | table/array | 34.93 | **3.81** | 0.11 | 12.96 | 0.37 |
+> | table/hash | 11.96 | 5.31 | 0.44 | 3.58 | 0.30 |
+> | j4/ffi_faddi_call | n/a | **20.78** | - | n/a | - |
+> | j4/ffi_ccall3dd | n/a | **31.21** | - | n/a | - |
+> | j4/ffi_ccall2dd | n/a | **32.66** | - | n/a | - |
+> | j4/ffi_ccall2ii | n/a | 139.03 | - | n/a | - |
+>
+> Integer/table-array loops remain far ahead of stock Lua; FADDI-backed
+> native calls run near the plain double-call forms.
+
 > **0.129 refresh (2026-11-22, `./bench/compare.sh`, Ryzen 3 7320U).**
 > Best CPU milliseconds; `x` relative to stock Lua 5.5.1.
 >
