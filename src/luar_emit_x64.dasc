@@ -2016,6 +2016,17 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | test eax, eax
         | jz >2
         break;
+      case LUAR_IR_CCALL2FD:
+        | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
+        | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(in->c))]
+        | movsd xmm1, qword [rbx + ((int)LUAR_SLOT((int)in->ival))]
+        | lea rsi, [rbx + ((int)LUAR_SLOT(in->a))]
+        | mov64 rax, (int64_t)(intptr_t)&luar_ffi_trace_ccall2fd
+        | call rax
+        | mov r11d, ((int)in->pc)
+        | test eax, eax
+        | jz >2
+        break;
       case LUAR_IR_CCALL2IF:
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
         | mov rsi, qword [rbx + ((int)LUAR_SLOT(in->c))]
