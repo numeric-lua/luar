@@ -29,9 +29,10 @@ int luar_ffi_trace_kind (TValue *tv) {
     return 3;
   if (cd->ct->kind == CT_ARRAY || cd->ct->kind == CT_POINTER) {
     CType *elem = cd->ct->child;
+    /* 8-byte cdata reads produce cdata int64 values, not Lua integers;
+    ** the 32-bit CGETI path must not consume them. */
     if (elem != NULL && elem->kind == CT_INT &&
-        (elem->size == 1 || elem->size == 2 ||
-         elem->size == 4 || elem->size == 8))
+        (elem->size == 1 || elem->size == 2 || elem->size == 4))
       return 1;
     if (elem != NULL && elem->kind == CT_FLOAT &&
         (elem->size == 4 || elem->size == 8))
