@@ -59,6 +59,11 @@ static void store_double (dasm_State **Dst, const LuaR_LoopDesc *d, int reg)
   | mov byte [rbx + ((int)LUAR_TAG(reg))], ((int)d->tag_flt)
 }
 
+/* Full-width immediate helpers (defined at the end of this file). */
+static void emit_add_imm (dasm_State **Dst, int64_t imm);
+static void emit_sub_imm (dasm_State **Dst, int64_t imm);
+static void emit_mul_imm (dasm_State **Dst, int64_t imm);
+
 static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
 {
   int i;
@@ -157,13 +162,13 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
           | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
           /* integer constant: op->imm holds the value */
           if (op->kind == LUAR_OP_ADDK) {
-            | add rax, ((int64_t)op->imm)
+            emit_add_imm(Dst, op->imm);
           }
           if (op->kind == LUAR_OP_SUBK) {
-            | sub rax, ((int64_t)op->imm)
+            emit_sub_imm(Dst, op->imm);
           }
           if (op->kind == LUAR_OP_MULK) {
-            | imul rax, ((int64_t)op->imm)
+            emit_mul_imm(Dst, op->imm);
           }
           | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
           | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
@@ -782,7 +787,7 @@ static void emit_fast_meta (dasm_State **Dst, const LuaR_LoopDesc *d)
   | mov r15, qword [rbx + ((int)LUAR_SLOT(d->fm_acc))]
   |1:
   | mov rax, r13
-  | imul rax, ((int64_t)d->fm_mult)
+  emit_mul_imm(Dst, d->fm_mult);
   | add r15, rax
   | test r12, r12
   | jz >2
@@ -2765,4 +2770,42 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
   dasm_free(&Dst);
   *code_size = size;
   return (LuaR_LoopFn)mem;
+}
+
+/* x86 has no add/sub/imul r64, imm64 form: the immediate must fit in a
+** sign-extended 32-bit field.  Full-width Lua integer constants go through
+** a scratch register instead of being silently truncated. */
+static int imm32 (int64_t v)
+{
+  return v >= INT32_MIN && v <= INT32_MAX;
+}
+
+static void emit_add_imm (dasm_State **Dst, int64_t imm)
+{
+  if (imm32(imm))
+    | add rax, imm
+  else {
+    | mov64 rcx, imm
+    | add rax, rcx
+  }
+}
+
+static void emit_sub_imm (dasm_State **Dst, int64_t imm)
+{
+  if (imm32(imm))
+    | sub rax, imm
+  else {
+    | mov64 rcx, imm
+    | sub rax, rcx
+  }
+}
+
+static void emit_mul_imm (dasm_State **Dst, int64_t imm)
+{
+  if (imm32(imm))
+    | imul rax, imm
+  else {
+    | mov64 rcx, imm
+    | imul rax, rcx
+  }
 }
