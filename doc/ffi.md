@@ -494,7 +494,9 @@ Call features:
   thread sees its own instance.
 * Bitfields are supported for integer, enum and `_Bool` fields in structs
   with GCC/x86-64 bit-granular packing, including mixed base types and
-  fields crossing byte boundaries.  Unnamed padding bitfields and unnamed
+  fields crossing byte boundaries.  A full-width 64-bit field that starts
+  at a non-zero bit offset spans nine bytes and is loaded/stored without
+  reading or writing past its storage.  Unnamed padding bitfields and unnamed
   zero-width alignment fields are supported (the zero-width type affects
   the next offset but not the struct alignment, as in GCC).  Union
   bitfields share offset zero and can be read, written and passed by

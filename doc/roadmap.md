@@ -130,7 +130,7 @@ Estimated: 3–5 weeks.
 Status: partial J2.  DynASM emission, entry tag guards, exact FORLOOP
 semantics and the VM hand-off exist for `for` loops and simple `while`
 loops (up to two per Proto) whose body is numeric register arithmetic (MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K
-variants, integer bitwise/unary-not and constant shifts, and MMBIN), with
+variants, integer bitwise, register-count shifts, unary minus/not and constant shifts, and MMBIN), with
 int/double operands mixed through conversions.
 The remaining iterations run natively on the Lua stack slots:
 `numeric/int_sum` is ~9x faster than the interpreter (ahead of LuaJIT),
