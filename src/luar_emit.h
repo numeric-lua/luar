@@ -38,6 +38,8 @@ typedef enum {
   LUAR_OP_BXORK,
   LUAR_OP_BNOT,
   LUAR_OP_SHRI,
+  LUAR_OP_SHL,
+  LUAR_OP_SHR,
   LUAR_OP_MMBIN,
   /* Branch support (int-only loops): comparisons and jumps. */
   LUAR_OP_LT, LUAR_OP_LE, LUAR_OP_GT, LUAR_OP_GE, LUAR_OP_EQ,

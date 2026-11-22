@@ -317,6 +317,45 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
         | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
         break;
       }
+      case LUAR_OP_SHL:
+      case LUAR_OP_SHR: {
+        /* Lua shifts by a negative count in the other direction and by
+        ** |count| >= 64 to zero.  The labels are derived from the bytecode
+        ** PC so a loop body may contain more than one variable shift. */
+        int lneg = 4096 + op->pc * 4;
+        int lzero = lneg + 1;
+        int ldone = lneg + 2;
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+        | mov rcx, qword [rbx + ((int)LUAR_SLOT(op->c))]
+        | test rcx, rcx
+        | js =>lneg
+        | cmp rcx, 64
+        | jge =>lzero
+        if (op->kind == LUAR_OP_SHL) {
+          | shl rax, cl
+        }
+        else {
+          | shr rax, cl
+        }
+        | jmp =>ldone
+        |=>lneg:
+        | cmp rcx, -64
+        | jle =>lzero
+        | neg rcx
+        if (op->kind == LUAR_OP_SHL) {
+          | shr rax, cl
+        }
+        else {
+          | shl rax, cl
+        }
+        | jmp =>ldone
+        |=>lzero:
+        | xor eax, eax
+        |=>ldone:
+        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        break;
+      }
       case LUAR_OP_MMBIN:
         break;  /* numeric fast path proved by the guards */
       default:
@@ -2871,8 +2910,21 @@ LuaR_LoopFn luari_emit_build (const LuaR_LoopDesc *d, size_t *code_size)
   dasm_init(&Dst, DASM_MAXSECTION);
   dasm_setupglobal(&Dst, NULL, 0);
   dasm_setup(&Dst, luar_emit_actions);
-  if (d->has_branch && d->npc > 0)
-    dasm_growpc(&Dst, (unsigned)d->npc + 2);
+  {
+    unsigned maxpc = (d->has_branch && d->npc > 0) ?
+                     (unsigned)d->npc + 2 : 0;
+    int i;
+    for (i = 0; i < d->nops; i++) {
+      const LuaR_Op *op = &d->ops[i];
+      if (op->kind == LUAR_OP_SHL || op->kind == LUAR_OP_SHR) {
+        unsigned need = 4096u + (unsigned)op->pc * 4u + 3u;
+        if (need > maxpc)
+          maxpc = need;
+      }
+    }
+    if (maxpc > 0)
+      dasm_growpc(&Dst, maxpc);
+  }
   emit_code(&Dst, d);
   if ((status = dasm_checkstep(&Dst, -1)) != 0) {
     dasm_free(&Dst);
