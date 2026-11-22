@@ -2015,6 +2015,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           known_fn[a] = uv;
           known[a] = 1;
         }
+        else if (ttisboolean(&uv)) {
+          /* Dynamic-key writes validate the value tag at runtime; no
+          ** boolean guard tag is needed for this ULOAD. */
+          known_cval[a] = uv;
+          seen[a] = 1;
+        }
         else {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
           in.b = (uint8_t)ir_tag(&uv); in.pc = pc;
@@ -3538,7 +3544,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
             b < ns && c < ns &&
-            (ttisfloat(&base[c]) || ttistable(&base[c]))) {
+            (ttisfloat(&base[c]) || ttistable(&base[c]) ||
+             ttisstring(&base[c]) || ttisboolean(&base[c]))) {
           in.kind = LUAR_IR_TSETDYN; in.a = (uint8_t)a;
           in.b = (uint8_t)b; in.c = (uint8_t)c; in.pc = pc;
           seen[a] = 1;
