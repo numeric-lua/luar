@@ -47,7 +47,8 @@ typedef enum {
   LUAR_IR_CCPYI64,
   LUAR_IR_CADDI64,
   LUAR_IR_CMULI64,
-  LUAR_IR_CDIVI64,	/* cdata int64 array element //= factor */	/* cdata int64 array element *= factor */
+  LUAR_IR_CDIVI64,
+  LUAR_IR_CMODI64,	/* cdata int64 array element %= factor */	/* cdata int64 array element //= factor */	/* cdata int64 array element *= factor */
   LUAR_IR_CSETI64,	/* cdata int64 array element = Lua integer */	/* cdata int64 array element += delta */	/* dst[key] = src[key], raw int64 copy */
   LUAR_IR_CGETF,	/* FFI cdata double array read */
   LUAR_IR_CSETI,	/* FFI cdata integer array write */
@@ -382,5 +383,7 @@ int64_t luar_ffi_trace_set_i64 (TValue *arr, TValue *key, TValue *val);
 int64_t luar_ffi_trace_mul_i64 (TValue *arr, TValue *key, int64_t factor);
 
 int64_t luar_ffi_trace_div_i64 (TValue *arr, TValue *key, int64_t divisor);
+
+int64_t luar_ffi_trace_mod_i64 (TValue *arr, TValue *key, int64_t divisor);
 
 #endif
