@@ -80,6 +80,7 @@ double float_double_scale (float a, double b) { return (double)a * b; }
 double double_float_scale (double a, float b) { return a * (double)b; }
 double ddi_scale (double a, double b, int n) { return a * b * (double)n; }
 double did_scale (double a, int n, double b) { return a * (double)n * b; }
+double idd_scale (int n, double a, double b) { return (double)n * a * b; }
 
 int pair_sum (struct Pair p) { return p.a + p.b; }
 
