@@ -529,6 +529,113 @@ static int match_meta_upval_loop (lua_State *L, Proto *p, ptrdiff_t start,
 }
 
 
+/* The native loop is emitted from the single static type of each register
+** and does not re-check tags on every iteration.  A branch-dependent
+** assignment can change a register's type between iterations (for example
+** a float accumulator that becomes an integer after a threshold), which
+** would make the next iteration read the new payload with the old type.
+** Reject such loops instead of miscompiling them; a register may only be
+** accessed as one type over the whole loop body. */
+static int loop_type_check (uint8_t *types, int reg, int type) {
+  if (types[reg] == 0)
+    types[reg] = (uint8_t)type;
+  return types[reg] == type;
+}
+
+
+static int loop_types_stable (const LuaR_LoopDesc *d) {
+  uint8_t types[256];
+  int i, k;
+  memset(types, 0, sizeof(types));
+  if (d->for_a >= 0) {
+    for (k = 0; k < 3; k++) {
+      if (!loop_type_check(types, d->for_a + k, LUAR_T_INT))
+        return 0;
+    }
+  }
+  for (i = 0; i < d->nops; i++) {
+    const LuaR_Op *op = &d->ops[i];
+    int ok = 1;
+    switch (op->kind) {
+      case LUAR_OP_MOVE:
+        ok = loop_type_check(types, op->b, op->tb) &&
+             loop_type_check(types, op->a, op->tb);
+        break;
+      case LUAR_OP_LOADI:
+        ok = loop_type_check(types, op->a, LUAR_T_INT);
+        break;
+      case LUAR_OP_LOADF:
+      case LUAR_OP_LOADK:
+        ok = loop_type_check(types, op->a, op->ta);
+        break;
+      case LUAR_OP_ADDI:
+        ok = loop_type_check(types, op->b, LUAR_T_INT) &&
+             loop_type_check(types, op->a, LUAR_T_INT);
+        break;
+      case LUAR_OP_ADD:
+      case LUAR_OP_SUB:
+      case LUAR_OP_MUL:
+      case LUAR_OP_DIV:
+        ok = loop_type_check(types, op->b, op->tb) &&
+             loop_type_check(types, op->c, op->tc) &&
+             loop_type_check(types, op->a, op->ta);
+        break;
+      case LUAR_OP_ADDK:
+      case LUAR_OP_SUBK:
+      case LUAR_OP_MULK:
+      case LUAR_OP_DIVK:
+        ok = loop_type_check(types, op->b, op->tb) &&
+             loop_type_check(types, op->a, op->ta);
+        break;
+      case LUAR_OP_BAND:
+      case LUAR_OP_BOR:
+      case LUAR_OP_BXOR:
+        ok = loop_type_check(types, op->b, LUAR_T_INT) &&
+             loop_type_check(types, op->c, LUAR_T_INT) &&
+             loop_type_check(types, op->a, LUAR_T_INT);
+        break;
+      case LUAR_OP_BANDK:
+      case LUAR_OP_BORK:
+      case LUAR_OP_BXORK:
+      case LUAR_OP_BNOT:
+      case LUAR_OP_SHRI:
+        ok = loop_type_check(types, op->b, LUAR_T_INT) &&
+             loop_type_check(types, op->a, LUAR_T_INT);
+        break;
+      case LUAR_OP_GETTABLE:
+        ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
+             loop_type_check(types, op->c, LUAR_T_INT) &&
+             loop_type_check(types, op->a, LUAR_T_INT);
+        break;
+      case LUAR_OP_TABLE_ADD:
+        ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
+             loop_type_check(types, op->c, LUAR_T_INT) &&
+             loop_type_check(types, op->a, op->ta);
+        break;
+      case LUAR_OP_SETTABLE:
+        ok = loop_type_check(types, op->a, LUAR_T_TABLE) &&
+             loop_type_check(types, op->b, LUAR_T_INT) &&
+             loop_type_check(types, op->c, op->ta);
+        break;
+      case LUAR_OP_LT:
+      case LUAR_OP_LE:
+      case LUAR_OP_GT:
+      case LUAR_OP_GE:
+      case LUAR_OP_EQ:
+        ok = loop_type_check(types, op->a, op->ta);
+        if (ok && op->b != 0xFF)
+          ok = loop_type_check(types, op->b, op->tb);
+        break;
+      default:
+        break;
+    }
+    if (!ok)
+      return 0;
+  }
+  return 1;
+}
+
+
 static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                         ptrdiff_t backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -1766,6 +1873,12 @@ decode_done:
     }
   }
 emit_ready:
+  /* Branch loops that reuse a register with different types are unsafe in a
+  ** loop-level emitter that guards tags only at entry.  The specialised
+  ** single-pattern paths have their own stable register contracts. */
+  if (d.has_branch && !d.fast_while && !d.fast_repeat &&
+      !d.fast_meta && !d.fast_closure && !loop_types_stable(&d))
+    return 0;
   fn = luari_emit_build(&d, &size);
   if (fn == NULL)
     return 0;
