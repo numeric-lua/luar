@@ -1850,19 +1850,27 @@ static int ir_latest_writer_is (const LuaR_TraceIR *t, int slot,
 }
 
 
-static int ir_latest_writer_ival (const LuaR_TraceIR *t, int slot,
-                                 int64_t *out) {
+static int ir_slot_const_int (const LuaR_TraceIR *t, int slot,
+                             TValue *known, int64_t *out) {
   int i;
   for (i = t->nins - 1; i >= 0; i--) {
     if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
       continue;
-    if (t->ins[i].kind != LUAR_IR_LOADI)
-      return 0;
-    *out = t->ins[i].ival;
-    return 1;
+    if (t->ins[i].kind == LUAR_IR_LOADI) {
+      *out = t->ins[i].ival;
+      return 1;
+    }
+    if (t->ins[i].kind == LUAR_IR_ULOAD && known != NULL &&
+        known[slot].tt_ != 0 && ttisinteger(&known[slot])) {
+      *out = ivalue(&known[slot]);
+      return 1;
+    }
+    return 0;
   }
   return 0;
 }
+
+
 
 
 static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth);
@@ -4003,7 +4011,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
-            ir_latest_writer_ival(t, a + 1, &iv1) &&
+            ir_slot_const_int(t, a + 1, known_cval, &iv1) &&
             ir_slot_is_float(t, a + 2, t->nins, 0)) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
@@ -4024,7 +4032,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
             ir_slot_is_float(t, a + 1, t->nins, 0) &&
-            ir_latest_writer_ival(t, a + 2, &iv2)) {
+            ir_slot_const_int(t, a + 2, known_cval, &iv2)) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
             in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
@@ -4043,8 +4051,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2ff_kind(fv) == 1 &&
-            ir_latest_writer_ival(t, a + 1, &iv1) &&
-            ir_latest_writer_ival(t, a + 2, &iv2)) {
+            ir_slot_const_int(t, a + 1, known_cval, &iv1) &&
+            ir_slot_const_int(t, a + 2, known_cval, &iv2)) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
             in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
