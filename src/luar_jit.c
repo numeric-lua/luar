@@ -98,6 +98,8 @@ static void free_code (LuaR_JIT *J) {
   J->ir_entry_checks = 0;
   J->ir_entry_pc_mismatch = 0;
   J->ir_entry_base_mismatch = 0;
+  J->ir_entry_failures = 0;
+  J->ir_last_entry_result = 0;
   J->ir_side_compiled = 0;
   J->ir_side_executed = 0;
   J->ir_call_exits = 0;
@@ -2957,6 +2959,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
       int irr = luari_run_j4(p, p->luar_ir_code, base, L);
       base = (void *)(L->ci->func.p + 1);  /* stack may have moved */
+      J->ir_last_entry_result = irr;
+      if (irr <= 0)
+        J->ir_entry_failures++;
       if (irr == 2) {
         J->ir_yields++;
         return 0;
@@ -3967,6 +3972,10 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "ir_entry_pc_mismatch");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_entry_base_mismatch : 0);
   lua_setfield(L, -2, "ir_entry_base_mismatch");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_entry_failures : 0);
+  lua_setfield(L, -2, "ir_entry_failures");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_last_entry_result : 0);
+  lua_setfield(L, -2, "ir_last_entry_result");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_alloc_tables : 0);
   lua_setfield(L, -2, "ir_alloc_tables");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->ir_side_compiled : 0);
