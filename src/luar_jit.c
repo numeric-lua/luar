@@ -908,7 +908,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   d.is_while = is_while;
   d.tag_int = LUA_VNUMINT;
   d.tag_flt = LUA_VNUMFLT;
-  d.tag_table = LUA_VTABLE;
+  d.tag_table = ctb(LUA_VTABLE);   /* collectable bit is part of the tag */
   d.table_array_off = (int)offsetof(Table, array);
   d.table_asize_off = (int)offsetof(Table, asize);
   d.table_metatable_off = (int)offsetof(Table, metatable);

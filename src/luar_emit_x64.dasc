@@ -561,17 +561,21 @@ static void emit_cmp (dasm_State **Dst, const LuaR_LoopDesc *d,
 static void emit_table_get (dasm_State **Dst, const LuaR_LoopDesc *d,
                             const LuaR_Op *op)
 {
+  /* Lua 5.5 keeps the array part as an inverted Value array followed by
+  ** a separate tag array (src/ltable.h getArrVal/getArrTag).  The old J2
+  ** code treated it as 16-byte TValues and read a neighbouring payload as
+  ** the tag, which either forced an exit or accepted a wrong slot. */
   | mov rax, qword [rbx + ((int)LUAR_SLOT(op->c))]
   | cmp rax, 1
   | jl >3
   | cmp rax, r14
   | ja >3
-  | dec rax
-  | shl rax, 4
-  | add rax, r13
-  | cmp byte [rax + 8], ((int)d->tag_int)
+  | cmp byte [r13 + rax + 3], ((int)d->tag_int)
   | jne >3
-  | mov rcx, qword [rax]
+  | mov rdx, rax
+  | shl rdx, 3
+  | neg rdx
+  | mov rcx, qword [r13 + rdx]
   | mov qword [rbx + ((int)LUAR_SLOT(op->a))], rcx
   | mov byte [rbx + ((int)LUAR_TAG(op->a))], ((int)d->tag_int)
 }
@@ -584,12 +588,12 @@ static void emit_table_add (dasm_State **Dst, const LuaR_LoopDesc *d,
   | jl >3
   | cmp rax, r14
   | ja >3
-  | dec rax
-  | shl rax, 4
-  | add rax, r13
-  | cmp byte [rax + 8], ((int)d->tag_int)
+  | cmp byte [r13 + rax + 3], ((int)d->tag_int)
   | jne >3
-  | mov rcx, qword [rax]
+  | mov rdx, rax
+  | shl rdx, 3
+  | neg rdx
+  | mov rcx, qword [r13 + rdx]
   if (op->ta == LUAR_T_INT) {
     | mov rax, qword [rbx + ((int)LUAR_SLOT(op->a))]
     | add rax, rcx
@@ -612,18 +616,18 @@ static void emit_table_set (dasm_State **Dst, const LuaR_LoopDesc *d,
   | jl >3
   | cmp rax, r14
   | ja >3
-  | dec rax
-  | shl rax, 4
-  | add rax, r13
+  | mov rdx, rax
+  | shl rdx, 3
+  | neg rdx
   if (op->ta == LUAR_T_INT) {
     | mov rcx, qword [rbx + ((int)LUAR_SLOT(op->c))]
-    | mov qword [rax], rcx
-    | mov byte [rax + 8], ((int)d->tag_int)
+    | mov qword [r13 + rdx], rcx
+    | mov byte [r13 + rax + 3], ((int)d->tag_int)
   }
   else {
     | movsd xmm0, qword [rbx + ((int)LUAR_SLOT(op->c))]
-    | movsd qword [rax], xmm0
-    | mov byte [rax + 8], ((int)d->tag_flt)
+    | movsd qword [r13 + rdx], xmm0
+    | mov byte [r13 + rax + 3], ((int)d->tag_flt)
   }
 }
 
@@ -836,12 +840,12 @@ static void emit_fast_fill (dasm_State **Dst, const LuaR_LoopDesc *d)
   | jl >3
   | cmp r13, r11
   | ja >3
-  | mov rax, r13
-  | dec rax
-  | shl rax, 4
-  | add rax, r10
-  | mov qword [rax], r13
-  | mov byte [rax + 8], ((int)d->tag_int)
+  /* Lua 5.5 split array: value at array-key, tag at array+key+3. */
+  | mov rdx, r13
+  | shl rdx, 3
+  | neg rdx
+  | mov qword [r10 + rdx], r13
+  | mov byte [r10 + r13 + 3], ((int)d->tag_int)
   | test r12, r12
   | jz >2
   | dec r12
@@ -1050,35 +1054,43 @@ static void emit_fast_tsum (dasm_State **Dst, const LuaR_LoopDesc *d)
   | add rax, r12
   | cmp rax, r10
   | ja >3
-  | mov rcx, r13
-  | dec rcx
-  | shl rcx, 4
-  | add rcx, r9
+  | mov rcx, r9
+  | add rcx, r13
+  | add rcx, 3
   | mov rdx, r12
   | inc rdx
   |4:
-  | cmp byte [rcx + 8], ((int)d->tag_int)
+  | cmp byte [rcx], ((int)d->tag_int)
   | jne >3
-  | add rcx, 16
+  | inc rcx
   | dec rdx
   | jnz <4
   | mov r11, r13
-  | dec r11
-  | shl r11, 4
+  | shl r11, 3
+  | neg r11
   | add r11, r9
   |1:
+  | mov rcx, qword [r11]
+  /* The GETTABLE result is a real bytecode register and may be read after
+  ** the loop ("local x; x = t[i]; s = s + x").  Materialise it exactly as
+  ** the interpreter does; only the accumulator lives in r15/xmm0. */
+  if (d->ft_res >= 0) {
+    | mov qword [rbx + ((int)LUAR_SLOT(d->ft_res))], rcx
+    | mov byte [rbx + ((int)LUAR_TAG(d->ft_res))], ((int)d->tag_int)
+  }
   if (!isf) {
-    | add r15, qword [r11]
+    | add r15, rcx
   }
   else {
-    | cvtsi2sd xmm1, qword [r11]
+    | cvtsi2sd xmm1, rcx
     | addsd xmm0, xmm1
   }
-  | add r11, 16
+  | sub r11, 8
   | test r12, r12
   | jz >2
   | dec r12
-  | add r13, d->fw_step
+  /* This fast path is selected only for step 1. */
+  | inc r13
   | jmp <1
   |2:
   | mov qword [rbx + ((int)LUAR_SLOT(d->for_a))], r12
