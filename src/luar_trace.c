@@ -1908,6 +1908,10 @@ static int ir_slot_is_int (const LuaR_TraceIR *t, int slot, int end,
     if (t->ins[i].kind == LUAR_IR_LOADI ||
         t->ins[i].kind == LUAR_IR_ADDI)
       return 1;
+    if (t->ins[i].kind == LUAR_IR_MULK ||
+        t->ins[i].kind == LUAR_IR_ADDK ||
+        t->ins[i].kind == LUAR_IR_SUBK)
+      return ir_slot_is_int(t, t->ins[i].b, i, depth + 1);
     if (t->ins[i].kind == LUAR_IR_SLOAD)
       return ir_slot_is_int(t, t->ins[i].b, i, depth + 1);
     return 0;
