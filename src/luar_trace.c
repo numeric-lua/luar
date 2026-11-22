@@ -3829,7 +3829,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2df_kind(fv) == 1 &&
-            ir_find_arg_double(p, pc - 1, a + 2, base) >= 0 &&
+            (ir_find_arg_double(p, pc - 1, a + 2, base) >= 0 ||
+             ir_slot_is_float(t, a + 2, t->nins, 0)) &&
             (ir_find_arg_double(p, pc - 2, a + 1, base) >= 0 ||
              ir_slot_is_float(t, a + 1, t->nins, 0))) {
           if (!seen[fs]) {
