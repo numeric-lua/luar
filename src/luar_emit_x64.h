@@ -3159,7 +3159,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
 #line 2333 "src/luar_emit_x64.dasc"
         break;
       case LUAR_IR_CMODI64: {
-        int64_t divisor = (int64_t)in->nval;
+        int64_t divisor = in->ival;
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         //| lea rsi, [rbx + ((int)LUAR_SLOT(in->b))]
         //| mov64 rdx, divisor
@@ -3175,7 +3175,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
       case LUAR_IR_CBANDI64:
       case LUAR_IR_CBORI64:
       case LUAR_IR_CBXORI64: {
-        int64_t factor = (int64_t)in->nval;
+        int64_t factor = in->ival;
         const void *fn = (in->kind == LUAR_IR_CBANDI64) ?
           (const void *)&luar_ffi_trace_band_i64 :
           (in->kind == LUAR_IR_CBORI64) ?
@@ -3194,7 +3194,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         break;
       }
       case LUAR_IR_CDIVI64: {
-        int64_t divisor = (int64_t)in->nval;
+        int64_t divisor = in->ival;
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         //| lea rsi, [rbx + ((int)LUAR_SLOT(in->b))]
         //| mov64 rdx, divisor
@@ -3208,7 +3208,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         break;
       }
       case LUAR_IR_CMULI64: {
-        int64_t factor = (int64_t)in->nval;
+        int64_t factor = in->ival;
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         //| lea rsi, [rbx + ((int)LUAR_SLOT(in->b))]
         //| mov64 rdx, factor
@@ -3222,7 +3222,7 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         break;
       }
       case LUAR_IR_CADDI64: {
-        int64_t delta = (int64_t)in->nval;
+        int64_t delta = in->ival;
         //| lea rdi, [rbx + ((int)LUAR_SLOT(in->a))]
         //| lea rsi, [rbx + ((int)LUAR_SLOT(in->b))]
         //| mov64 rdx, delta

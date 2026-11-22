@@ -2100,7 +2100,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   int pc, ns = p->maxstacksize;
   int seen[LUAR_IR_MAX_SLOTS];
   int pend_i64_src = -1, pend_i64_key = -1, pend_i64_dst = -1;
-  int pend_i64_pc = -1, pend_i64_delta = 0, pend_i64_addpc = -1;
+  int pend_i64_pc = -1, pend_i64_addpc = -1;
+  int64_t pend_i64_delta = 0;
   int pend_i64_op = 0;
   int fn_src[LUAR_IR_MAX_SLOTS];
   int known[LUAR_IR_MAX_SLOTS];
@@ -2260,7 +2261,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
       case OP_ADDI: {
         if (pend_i64_src >= 0 && pend_i64_addpc < 0 &&
             a == pend_i64_dst && b == pend_i64_dst) {
-          pend_i64_delta = (int)GETARG_sC(ins);
+          pend_i64_delta = (int64_t)GETARG_sC(ins);
           pend_i64_addpc = pc;
           pend_i64_op = 1;
           break;
@@ -2310,7 +2311,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (pend_i64_src >= 0 && pend_i64_addpc < 0 &&
             a == pend_i64_dst && b == pend_i64_dst &&
             c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
-          pend_i64_delta = (int)ivalue(&p->k[c]);
+          pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = GET_OPCODE(ins) == OP_BANDK ? 5 :
                         GET_OPCODE(ins) == OP_BORK ? 6 : 7;
@@ -2326,7 +2327,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (GET_OPCODE(ins) == OP_MODK && pend_i64_src >= 0 &&
             pend_i64_addpc < 0 && a == pend_i64_dst && b == pend_i64_dst &&
             c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
-          pend_i64_delta = (int)ivalue(&p->k[c]);
+          pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = 4;
           break;
@@ -2334,7 +2335,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (GET_OPCODE(ins) == OP_IDIVK && pend_i64_src >= 0 &&
             pend_i64_addpc < 0 && a == pend_i64_dst && b == pend_i64_dst &&
             c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
-          pend_i64_delta = (int)ivalue(&p->k[c]);
+          pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = 3;
           break;
@@ -2342,7 +2343,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         if (GET_OPCODE(ins) == OP_MULK && pend_i64_src >= 0 &&
             pend_i64_addpc < 0 && a == pend_i64_dst && b == pend_i64_dst &&
             c >= 0 && c < p->sizek && ttisinteger(&p->k[c])) {
-          pend_i64_delta = (int)ivalue(&p->k[c]);
+          pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = 2;
           break;
@@ -3724,7 +3725,9 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                     (pend_i64_op == 6) ? LUAR_IR_CBORI64 :
                     (pend_i64_op == 7) ? LUAR_IR_CBXORI64 : LUAR_IR_CADDI64;
           in.a = (uint8_t)pend_i64_src;
-          in.b = (uint8_t)pend_i64_key; in.nval = (double)pend_i64_delta;
+          /* 64-bit constants travel in ival: a double cannot represent
+          ** every int64 value exactly. */
+          in.b = (uint8_t)pend_i64_key; in.ival = pend_i64_delta;
           in.pc = pend_i64_pc;
           pend_i64_src = -1; pend_i64_key = -1;
           pend_i64_dst = -1; pend_i64_pc = -1;
