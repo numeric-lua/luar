@@ -525,13 +525,48 @@ static void init_array_to (lua_State *L, FFIState *S, CType *ct,
 }
 
 
+/* A bitfield can start at a non-zero bit offset, so a full-width (64-bit)
+** field spans nine bytes.  Keep the access in bounds by reading and writing
+** through a low/high word pair instead of a single uint64_t. */
+static void bitfield_read_bytes (const void *p, size_t n,
+                                 uint64_t *lo, uint64_t *hi) {
+  const unsigned char *bytes = (const unsigned char *)p;
+  size_t i;
+  *lo = 0;
+  *hi = 0;
+  for (i = 0; i < n; i++) {
+    uint64_t b = (uint64_t)bytes[i];
+    if (i < 8)
+      *lo |= b << (8 * i);
+    else
+      *hi |= b << (8 * (i - 8));
+  }
+}
+
+
+static void bitfield_write_bytes (void *p, size_t n,
+                                  uint64_t lo, uint64_t hi) {
+  unsigned char *bytes = (unsigned char *)p;
+  size_t i;
+  for (i = 0; i < n; i++) {
+    bytes[i] = (unsigned char)((i < 8) ? (lo >> (8 * i))
+                                       : (hi >> (8 * (i - 8))));
+  }
+}
+
+
 static uint64_t bitfield_load (const CField *f, const void *p) {
-  uint64_t raw = 0;
+  uint64_t lo, hi, raw;
   size_t n = ((size_t)f->bitoffset + f->bitwidth + 7) / 8;
+  size_t off = (size_t)f->bitoffset;
   uint64_t mask = (f->bitwidth == 64) ? ~(uint64_t)0 :
                   (((uint64_t)1 << f->bitwidth) - 1);
-  memcpy(&raw, p, n);
-  raw = (raw >> f->bitoffset) & mask;
+  bitfield_read_bytes(p, n, &lo, &hi);
+  if (off == 0)
+    raw = lo;
+  else
+    raw = (lo >> off) | (hi << (64 - off));
+  raw &= mask;
   if (f->bitwidth < 64 && !f->type->is_unsigned &&
       f->type->kind != CT_BOOL && (raw & ((uint64_t)1 << (f->bitwidth - 1))))
     raw |= ~mask;
@@ -542,9 +577,11 @@ static uint64_t bitfield_load (const CField *f, const void *p) {
 static void bitfield_store (lua_State *L, FFIState *S, const CField *f,
                             void *p, int idx, const char *what) {
   size_t n = ((size_t)f->bitoffset + f->bitwidth + 7) / 8;
+  size_t off = (size_t)f->bitoffset;
   uint64_t mask = (f->bitwidth == 64) ? ~(uint64_t)0 :
                   (((uint64_t)1 << f->bitwidth) - 1);
-  uint64_t raw = 0, v;
+  uint64_t lo, hi, v;
+  uint64_t mlo, mhi, vlo, vhi;
   int ok = 0;
   if (f->type->kind == CT_BOOL && lua_isboolean(L, idx))
     v = (uint64_t)lua_toboolean(L, idx);
@@ -555,10 +592,23 @@ static void bitfield_store (lua_State *L, FFIState *S, const CField *f,
   if (!ok)
     luaL_error(L, "ffi: %s needs an integer for bitfield '%s'", what,
                f->name != NULL ? f->name : "<anonymous>");
-  memcpy(&raw, p, n);
-  raw &= ~(mask << f->bitoffset);
-  raw |= (v & mask) << f->bitoffset;
-  memcpy(p, &raw, n);
+  v &= mask;
+  if (off == 0) {
+    mlo = mask;
+    mhi = 0;
+    vlo = v;
+    vhi = 0;
+  }
+  else {
+    mlo = mask << off;
+    mhi = mask >> (64 - off);
+    vlo = v << off;
+    vhi = v >> (64 - off);
+  }
+  bitfield_read_bytes(p, n, &lo, &hi);
+  lo = (lo & ~mlo) | vlo;
+  hi = (hi & ~mhi) | vhi;
+  bitfield_write_bytes(p, n, lo, hi);
 }
 
 

@@ -560,3 +560,29 @@ int size_PPack2U (void) { return (int)sizeof(union PPack2U); }
 int align_PPack2U (void) { return (int)_Alignof(union PPack2U); }
 int size_PPack8A (void) { return (int)sizeof(struct PPack8A); }
 int size_PPack8B (void) { return (int)sizeof(struct PPack8B); }
+
+/* A 64-bit bitfield that starts at bit 1 spans nine bytes; the accessors
+** must read and write it without touching bytes outside the struct. */
+struct WideBit {
+  unsigned char a : 1;
+  unsigned long long b : 64;
+} __attribute__((packed));
+struct WideBitS {
+  unsigned char a : 1;
+  long long b : 64;
+} __attribute__((packed));
+struct WideBit3 {
+  unsigned char a : 7;
+  unsigned long long b : 64;
+  unsigned char c;
+} __attribute__((packed));
+
+int size_WideBit (void) { return (int)sizeof(struct WideBit); }
+int align_WideBit (void) { return (int)_Alignof(struct WideBit); }
+int size_WideBitS (void) { return (int)sizeof(struct WideBitS); }
+int size_WideBit3 (void) { return (int)sizeof(struct WideBit3); }
+int off_WideBit3_c (void) { return (int)offsetof(struct WideBit3, c); }
+unsigned long long widebit_b (struct WideBit *p) { return p->b; }
+void widebit_set_b (struct WideBit *p, unsigned long long v) { p->b = v; }
+long long widebits_b (struct WideBitS *p) { return p->b; }
+int widebit3_c (struct WideBit3 *p) { return p->c; }
