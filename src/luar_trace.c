@@ -3546,7 +3546,10 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             ((Table *)base[a].value_.gc)->metatable == NULL &&
             b < ns && c < ns &&
             (ttisfloat(&base[c]) || ttistable(&base[c]) ||
-             ttisstring(&base[c]) || ttisboolean(&base[c]))) {
+             ttisstring(&base[c]) || ttisboolean(&base[c]) ||
+             (ttisinteger(&base[c]) &&
+              (((Table *)base[a].value_.gc)->asize > 0 ||
+               ((Table *)base[a].value_.gc)->node != NULL)))) {
           in.kind = LUAR_IR_TSETDYN; in.a = (uint8_t)a;
           in.b = (uint8_t)b; in.c = (uint8_t)c; in.pc = pc;
           seen[a] = 1;
