@@ -3537,7 +3537,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
-            b < ns && c < ns && ttisfloat(&base[c])) {
+            b < ns && c < ns &&
+            (ttisfloat(&base[c]) || ttistable(&base[c]))) {
           in.kind = LUAR_IR_TSETDYN; in.a = (uint8_t)a;
           in.b = (uint8_t)b; in.c = (uint8_t)c; in.pc = pc;
           seen[a] = 1;
