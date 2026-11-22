@@ -64,7 +64,8 @@ typedef enum {
   LUAR_IR_CCALL1FF,	/* native float arg/float return C call */
   LUAR_IR_CCALL2DD,	/* native two-double-arg/double-return C call */
   LUAR_IR_CCALL2FF,
-  LUAR_IR_CCALL2FI,	/* native two-float32-arg/float32-return C call */
+  LUAR_IR_CCALL2FI,
+  LUAR_IR_CCALL2IF,	/* native two-float32-arg/float32-return C call */
   LUAR_IR_CCALL2DI,
   LUAR_IR_CCALL2ID,	/* native (double,int) C call, double return */
   LUAR_IR_CCALL2II,	/* native (int,int) C call, integer return */
@@ -213,6 +214,9 @@ int luar_ffi_trace_ccall2ii_kind (TValue *fn);
 int64_t luar_ffi_trace_ccall2ii (TValue *fn, int64_t arg1, int64_t arg2,
                                  TValue *out);
 int64_t luar_ffi_trace_ccall2dd (TValue *fn, double arg1, double arg2,
+                                 TValue *out);
+int luar_ffi_trace_ccall2if_kind (TValue *fn);
+int64_t luar_ffi_trace_ccall2if (TValue *fn, int64_t arg1, double arg2,
                                  TValue *out);
 int luar_ffi_trace_ccall2fi_kind (TValue *fn);
 int64_t luar_ffi_trace_ccall2fi (TValue *fn, double arg1, int64_t arg2,

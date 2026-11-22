@@ -3294,6 +3294,7 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
         op->kind == LUAR_IR_CCALL2DD ||
         op->kind == LUAR_IR_CCALL2FF ||
         op->kind == LUAR_IR_CCALL2FI ||
+        op->kind == LUAR_IR_CCALL2IF ||
         op->kind == LUAR_IR_CCALL2DI ||
         op->kind == LUAR_IR_CCALL2ID ||
         op->kind == LUAR_IR_CCALL3DD) {

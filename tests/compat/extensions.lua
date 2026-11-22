@@ -4,7 +4,7 @@ local H = dofile("tests/helpers.lua")
 
 -- identity table
 H.eq(type(luar), "table")
-H.eq(luar.version, "0.125.0")
+H.eq(luar.version, "0.126.0")
 H.eq(luar.lua_version, "Lua 5.5.1")
 H.check(luar.os == "Linux" or luar.os == "OSX", "unexpected os " .. tostring(luar.os))
 H.check(luar.arch == "x64" or luar.arch == "arm64",
@@ -30,7 +30,7 @@ H.eq(jit.flush(), nil)
 H.eq(jit.opt.start("hotloop=56", "maxtrace=1000"), nil)
 H.eq(jit.os, luar.os)
 H.eq(jit.arch, luar.arch)
-H.eq(jit.version, "Luar 0.125.0")
+H.eq(jit.version, "Luar 0.126.0")
 
 -- table extensions
 local t = table.new(8, 8)
