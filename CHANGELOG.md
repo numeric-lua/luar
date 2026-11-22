@@ -6,6 +6,24 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.193.0] — 2026-11-22
+
+### Fixed
+
+- J2 rejects loops whose registers change type between iterations, instead
+  of reading a float payload as an integer (or vice versa) after a
+  branch-dependent assignment.
+- Fast `while`/`repeat` loops no longer cache a limit that is also the
+  accumulator or induction variable.
+- Fast numeric, table and inlined-`__index` paths materialise their
+  intermediate result in the bytecode register, so a local holding `i*i`,
+  `i*const`, a table element or a method result is correct after the loop.
+- Packed zero-width bitfields advance to their base type's natural boundary
+  even inside `__attribute__((packed))` or `#pragma pack`.
+- `#pragma pack(n)` packs consecutive bitfields with the same tight rules
+  as `pack(1)`; ordinary members and aggregate alignment remain capped by
+  `n`.
+
 ## [0.192.0] — 2026-11-22
 
 ### Added
