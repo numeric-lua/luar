@@ -3907,7 +3907,8 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         if (b == 3 && c == 2 && a + 2 < ns &&
             luar_ffi_trace_ccall2id_kind(fv) == 1 &&
-            ir_call_args_id(p, pc, a + 1, base)) {
+            (ir_call_args_id(p, pc, a + 1, base) ||
+             ir_slot_is_float(t, a + 2, t->nins, 0))) {
           if (!seen[fs]) {
             in.kind = LUAR_IR_CGUARD; in.a = (uint8_t)fs;
             in.ival = (int64_t)(intptr_t)fv->value_.gc; in.pc = pc;
