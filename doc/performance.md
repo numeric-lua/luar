@@ -33,8 +33,8 @@
 > | string/concat | n/a in this run | - | - | - | - |
 >
 > `j4/ffi_faddi_call` (FADDI argument to a native `fabs` call) records
-> 24.93 ms and `j4/ffi_ccall2ff` (`hypotf(3.0, 4.0)`) 26.08 ms in the
-> 0.158 benchmark run.
+> 24.93 ms, `j4/ffi_ccall2ff` (`hypotf(3.0, 4.0)`) 26.08 ms, and
+> `j4/ffi_ccall2ff_loop` (`hypotf(i, i)`) 30.70 ms in recent runs.
 >
 > These remain microbenchmarks.  Luar wins the integer/table-array loops,
 > ties `product`, and loses recursive `fib` and hash insertion.
