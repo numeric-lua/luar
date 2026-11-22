@@ -583,6 +583,8 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
       case LUAR_OP_SUB:
       case LUAR_OP_MUL:
       case LUAR_OP_DIV:
+      case LUAR_OP_MOD:
+      case LUAR_OP_IDIV:
         ok = loop_type_check(types, op->b, op->tb) &&
              loop_type_check(types, op->c, op->tc) &&
              loop_type_check(types, op->a, op->ta);
@@ -591,6 +593,8 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
       case LUAR_OP_SUBK:
       case LUAR_OP_MULK:
       case LUAR_OP_DIVK:
+      case LUAR_OP_MODK:
+      case LUAR_OP_IDIVK:
         ok = loop_type_check(types, op->b, op->tb) &&
              loop_type_check(types, op->a, op->ta);
         break;
@@ -1225,6 +1229,24 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         def[op->a] = 1;
         break;
       }
+      case OP_MOD:
+      case OP_IDIV: {
+        int ka = GETARG_A(ins);
+        if (is_control_reg(ka, for_a)) return 0;
+        tb = slot_type(b, cur, def, GETARG_B(ins));
+        tc = slot_type(b, cur, def, GETARG_C(ins));
+        if (tb != LUAR_T_INT || tc != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        add_guard(&d, seen, GETARG_C(ins), LUAR_T_INT);
+        op->kind = GET_OPCODE(ins) == OP_MOD ? LUAR_OP_MOD : LUAR_OP_IDIV;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)GETARG_B(ins);
+        op->c = (uint8_t)GETARG_C(ins);
+        op->ta = op->tb = op->tc = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
+        break;
+      }
       case OP_ADDK:
       case OP_SUBK:
       case OP_MULK:
@@ -1258,6 +1280,32 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           op->num = (double)fltvalue(k);
         }
         cur[op->a] = op->ta;
+        def[op->a] = 1;
+        break;
+      }
+      case OP_MODK:
+      case OP_IDIVK: {
+        int ka = GETARG_A(ins);
+        int idx = (int)GETARG_C(ins);
+        TValue *k;
+        int64_t kv;
+        if (is_control_reg(ka, for_a)) return 0;
+        if (idx < 0 || idx >= p->sizek) return 0;
+        k = &p->k[idx];
+        if (!ttisinteger(k)) return 0;
+        kv = (int64_t)ivalue(k);
+        /* Division by zero must still raise, and -1 has the INT_MIN
+        ** overflow special case; leave both to the interpreter. */
+        if (kv == 0 || kv == -1) return 0;
+        if (slot_type(b, cur, def, GETARG_B(ins)) != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        op->kind = GET_OPCODE(ins) == OP_MODK ? LUAR_OP_MODK
+                                             : LUAR_OP_IDIVK;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)GETARG_B(ins);
+        op->imm = kv;
+        op->ta = op->tb = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
         def[op->a] = 1;
         break;
       }
@@ -1367,12 +1415,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     ** operand flavour would change type between native iterations, while
     ** the emitted code is specialised for one flavour.  Fall back. */
     if (op->kind == LUAR_OP_ADD || op->kind == LUAR_OP_SUB ||
-        op->kind == LUAR_OP_MUL || op->kind == LUAR_OP_DIV) {
+        op->kind == LUAR_OP_MUL || op->kind == LUAR_OP_DIV ||
+        op->kind == LUAR_OP_MOD || op->kind == LUAR_OP_IDIV) {
       if (op->a == op->b && op->ta != op->tb) return 0;
       if (op->a == op->c && op->ta != op->tc) return 0;
     }
     else if (op->kind == LUAR_OP_ADDK || op->kind == LUAR_OP_SUBK ||
-             op->kind == LUAR_OP_MULK || op->kind == LUAR_OP_DIVK) {
+             op->kind == LUAR_OP_MULK || op->kind == LUAR_OP_DIVK ||
+             op->kind == LUAR_OP_MODK || op->kind == LUAR_OP_IDIVK) {
       if (op->a == op->b && op->ta != op->tb) return 0;
     }
   }
@@ -1750,6 +1800,8 @@ decode_done:
         case LUAR_OP_SUB:
         case LUAR_OP_MUL:
         case LUAR_OP_DIV:
+        case LUAR_OP_MOD:
+        case LUAR_OP_IDIV:
           reads[nr] = op->b; types[nr++] = op->tb;
           reads[nr] = op->c; types[nr++] = op->tc;
           break;
@@ -1779,6 +1831,8 @@ decode_done:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
+        case LUAR_OP_MODK:
+        case LUAR_OP_IDIVK:
         case LUAR_OP_BANDK:
         case LUAR_OP_BORK:
         case LUAR_OP_BXORK:
@@ -1822,10 +1876,14 @@ decode_done:
         case LUAR_OP_SUB:
         case LUAR_OP_MUL:
         case LUAR_OP_DIV:
+        case LUAR_OP_MOD:
+        case LUAR_OP_IDIV:
         case LUAR_OP_ADDK:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
+        case LUAR_OP_MODK:
+        case LUAR_OP_IDIVK:
         case LUAR_OP_BAND:
         case LUAR_OP_BOR:
         case LUAR_OP_BXOR:
