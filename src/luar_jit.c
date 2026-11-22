@@ -976,6 +976,72 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         cur[op->a] = LUAR_T_INT;
         def[op->a] = 1;
         break;
+      case OP_BAND:
+      case OP_BOR:
+      case OP_BXOR: {
+        int ka = GETARG_A(ins);
+        if (is_control_reg(ka, for_a)) return 0;
+        tb = slot_type(b, cur, def, GETARG_B(ins));
+        tc = slot_type(b, cur, def, GETARG_C(ins));
+        if (tb != LUAR_T_INT || tc != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        add_guard(&d, seen, GETARG_C(ins), LUAR_T_INT);
+        op->kind = GET_OPCODE(ins) == OP_BAND ? LUAR_OP_BAND :
+                   GET_OPCODE(ins) == OP_BOR ? LUAR_OP_BOR : LUAR_OP_BXOR;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)GETARG_B(ins);
+        op->c = (uint8_t)GETARG_C(ins);
+        op->ta = op->tb = op->tc = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
+        break;
+      }
+      case OP_BANDK:
+      case OP_BORK:
+      case OP_BXORK: {
+        int ka = GETARG_A(ins);
+        int idx = (int)GETARG_C(ins);
+        TValue *k;
+        if (is_control_reg(ka, for_a)) return 0;
+        if (idx < 0 || idx >= p->sizek) return 0;
+        k = &p->k[idx];
+        if (!ttisinteger(k)) return 0;
+        if (slot_type(b, cur, def, GETARG_B(ins)) != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        op->kind = GET_OPCODE(ins) == OP_BANDK ? LUAR_OP_BANDK :
+                   GET_OPCODE(ins) == OP_BORK ? LUAR_OP_BORK :
+                                               LUAR_OP_BXORK;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)GETARG_B(ins);
+        op->imm = (int64_t)ivalue(k);
+        op->ta = op->tb = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
+        break;
+      }
+      case OP_BNOT:
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
+        if (slot_type(b, cur, def, GETARG_B(ins)) != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        op->kind = LUAR_OP_BNOT;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        op->ta = op->tb = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
+        break;
+      case OP_SHRI:
+        if (is_control_reg(GETARG_A(ins), for_a)) return 0;
+        if (slot_type(b, cur, def, GETARG_B(ins)) != LUAR_T_INT) return 0;
+        add_guard(&d, seen, GETARG_B(ins), LUAR_T_INT);
+        op->kind = LUAR_OP_SHRI;
+        op->a = (uint8_t)GETARG_A(ins);
+        op->b = (uint8_t)GETARG_B(ins);
+        op->imm = (int64_t)GETARG_sC(ins);
+        op->ta = op->tb = LUAR_T_INT;
+        cur[op->a] = LUAR_T_INT;
+        def[op->a] = 1;
+        break;
       case OP_ADD:
       case OP_SUB:
       case OP_MUL:
@@ -1531,10 +1597,21 @@ decode_done:
           reads[nr] = op->b; types[nr++] = LUAR_T_INT;
           reads[nr] = op->c; types[nr++] = op->ta;
           break;
+        case LUAR_OP_BAND:
+        case LUAR_OP_BOR:
+        case LUAR_OP_BXOR:
+          reads[nr] = op->b; types[nr++] = LUAR_T_INT;
+          reads[nr] = op->c; types[nr++] = LUAR_T_INT;
+          break;
         case LUAR_OP_ADDK:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
+        case LUAR_OP_BANDK:
+        case LUAR_OP_BORK:
+        case LUAR_OP_BXORK:
+        case LUAR_OP_BNOT:
+        case LUAR_OP_SHRI:
           reads[nr] = op->b; types[nr++] = op->tb; break;
         case LUAR_OP_LT:
         case LUAR_OP_LE:
@@ -1571,6 +1648,14 @@ decode_done:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
+        case LUAR_OP_BAND:
+        case LUAR_OP_BOR:
+        case LUAR_OP_BXOR:
+        case LUAR_OP_BANDK:
+        case LUAR_OP_BORK:
+        case LUAR_OP_BXORK:
+        case LUAR_OP_BNOT:
+        case LUAR_OP_SHRI:
         case LUAR_OP_GETTABLE:
         case LUAR_OP_TABLE_ADD:
           last_write[op->a] = (int)i;

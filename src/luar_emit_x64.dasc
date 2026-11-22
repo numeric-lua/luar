@@ -258,6 +258,65 @@ static void emit_body (dasm_State **Dst, const LuaR_LoopDesc *d)
         }
         break;
       }
+      case LUAR_OP_BAND:
+      case LUAR_OP_BOR:
+      case LUAR_OP_BXOR:
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+        | mov rcx, qword [rbx + ((int)LUAR_SLOT(op->c))]
+        if (op->kind == LUAR_OP_BAND) {
+          | and rax, rcx
+        }
+        if (op->kind == LUAR_OP_BOR) {
+          | or rax, rcx
+        }
+        if (op->kind == LUAR_OP_BXOR) {
+          | xor rax, rcx
+        }
+        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        break;
+      case LUAR_OP_BANDK:
+      case LUAR_OP_BORK:
+      case LUAR_OP_BXORK:
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+        | mov64 rcx, op->imm
+        if (op->kind == LUAR_OP_BANDK) {
+          | and rax, rcx
+        }
+        if (op->kind == LUAR_OP_BORK) {
+          | or rax, rcx
+        }
+        if (op->kind == LUAR_OP_BXORK) {
+          | xor rax, rcx
+        }
+        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        break;
+      case LUAR_OP_BNOT:
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+        | not rax
+        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        break;
+      case LUAR_OP_SHRI: {
+        int64_t count = op->imm;
+        | mov rax, qword [rbx + ((int)LUAR_SLOT(b))]
+        if (count > 0) {
+          if (count >= 64)
+            | xor eax, eax
+          else
+            | shr rax, ((int)count)
+        }
+        else if (count < 0) {
+          if (count <= -64)
+            | xor eax, eax
+          else
+            | shl rax, ((int)-count)
+        }
+        | mov qword [rbx + ((int)LUAR_SLOT(a))], rax
+        | mov byte [rbx + ((int)LUAR_TAG(a))], ((int)d->tag_int)
+        break;
+      }
       case LUAR_OP_MMBIN:
         break;  /* numeric fast path proved by the guards */
       default:
