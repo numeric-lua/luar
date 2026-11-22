@@ -12,16 +12,19 @@ is provably observationally equivalent to that interpreter.
   `jit.dump("t"/"i")`, `jit.flush`, `jit.off`, `jit.opt.start("hotloop=N")`
   for newly created Protos and the epoch-based invalidation exist.
 - **J2 partially implemented (x86-64 only).**  This is a loop-level native
-  continuation rather than a general trace: when an integer-controlled
-  `for` loop becomes hot, the whitelisted body (numeric MOVE/LOADI/LOADF/
-  LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, integer bitwise and
-  register-count shifts, unary minus/not, `MMBIN`, numeric comparisons
-  and forward `JMP` branches) is emitted with DynASM for `for`, simple
-  `while` and `repeat ... until` loops.  Entry tag guards check every register read initially; the native
+  continuation rather than a general trace: when an integer- or
+  float-controlled `for` loop becomes hot, the whitelisted body (numeric
+  MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, integer
+  floor division/modulo, integer bitwise, variable and constant shifts,
+  unary minus/not, `MMBIN`, numeric comparisons and forward `JMP` branches)
+  is emitted with DynASM for `for`, simple `while` and `repeat ... until`
+  loops.  Entry tag guards check every register read initially; the native
   code runs the remaining iterations on the Lua stack slots and returns to
   the VM after the loop.  Mixed int/double operands are handled with the
-  conversions Lua performs; the default 16-byte TValue, 64-bit integer and
-  double layout is checked before compiling.
+  conversions Lua performs, and float `for` control uses the interpreter's
+  limit/step/index layout with NaN-aware termination.  The default 16-byte
+  TValue, 64-bit integer and double layout is checked before compiling, as
+  is the 5.5 split array representation used by raw table access.
 - **Deviations from this design.**  There is no general trace recorder, no
   exit stub/side-exit chain, no safepoint or GC barrier machinery (the
   compiled loop cannot allocate, call, or raise), no table/string/closure

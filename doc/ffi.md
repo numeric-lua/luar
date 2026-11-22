@@ -266,8 +266,11 @@ is intentionally stricter (safer) than LuaJIT for array-backed objects.
 
 C conversions follow C truncation/width rules: `ffi.new("uint8_t", 300)`
 stores 44, `ffi.new("int", 3.9)` stores 3, and `ffi.cast("uint8_t", -1)`
-is 255.  Integer cdata objects returned by `ffi.new`/`ffi.cast` are cdata,
-not Lua numbers.
+is 255.  Conversion to `_Bool` is the C scalar rule, not a truncation:
+every non-zero scalar (including a fractional, infinite or NaN float, and a
+non-NULL pointer) becomes 1, and zero or a NULL pointer becomes 0.  `_Bool`
+bitfields store and read only the canonical 0/1 form.  Integer cdata objects
+returned by `ffi.new`/`ffi.cast` are cdata, not Lua numbers.
 
 Integer arithmetic on cdata follows LuaJIT's 64-bit promotion: the result
 is `int64_t` cdata unless one operand is an unsigned 64-bit cdata, in which

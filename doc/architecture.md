@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.194.0. This document describes the system as built and the design
+Status: 0.195.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -83,11 +83,12 @@ make correct against an unmodified VM.
   and `jit.trace()`; **T2 exists for x86-64 numeric loops** (J2): a
   whitelisted loop body is emitted with DynASM and runs the remaining
   iterations on the stack slots, with int/double tag guards, exact numeric
-  comparisons/forward branches, integer bitwise, register-count shifts
-  and unary minus/not, simple `while` loops, experimental register-cached
-  prefix/square-sum loops, opt-in integer array lookups/stores,
-  up to two compiled loops per Proto,
-  and a fixed register ABI.
+  comparisons/forward branches, integer bitwise, variable and constant
+  shifts, unary minus/not, integer floor division/modulo, integer and
+  float-controlled `for` loops, simple `while` loops, experimental
+  register-cached prefix/square-sum loops, opt-in raw array
+  lookups/stores (using the 5.5 split array representation),
+  up to two compiled loops per Proto, and a fixed register ABI.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact
   bytecode PC; there is no deoptimisation of compiled frames, because
   trace state is always representable as interpreter stack + PC.
@@ -182,7 +183,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.194.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.195.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

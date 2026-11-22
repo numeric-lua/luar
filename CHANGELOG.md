@@ -6,6 +6,36 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.195.0] — 2026-11-22
+
+### Added
+
+- J2 compiles integer floor division and modulo (`//`, `%`, `IDIVK`, `MODK`)
+  with Lua's round-towards-negative-infinity rule.  Division by zero and the
+  `INT64_MIN // -1` / `%-1` special cases exit to the interpreter so errors
+  and wrapping stay exact.
+- J2 compiles constant-left shifts (`OP_SHLI`, e.g. `3 << i`), including
+  negative counts and counts of 64 or more.
+- J2 compiles numeric `for` loops whose control values are floats, with the
+  interpreter's limit/step/index layout, IEEE addition and NaN-aware
+  termination.
+
+### Fixed
+
+- J2 table paths use Lua 5.5's split array representation (inverted `Value`
+  array plus a separate tag array) and the collectable table tag.  The
+  generic opt-in table emitter previously failed its tag guard on every
+  iteration; once it ran, the old 16-byte access would have corrupted
+  neighbouring array slots.
+- The fast `s = s + t[i]` emitter advances the loop index and materialises
+  the `GETTABLE` result slot, so a local assigned from the element is correct
+  after the loop.
+- FFI `_Bool` conversion follows C: every non-zero scalar, including a
+  fractional, infinite or NaN float, becomes 1, and `_Bool` bitfields store
+  and read the canonical 0/1 form.
+- `luar.version_num` now encodes 0.195.0 (19500); the numeric minor
+  component had lagged behind the release string.
+
 ## [0.194.0] — 2026-11-22
 
 ### Added
