@@ -270,7 +270,16 @@ bounds-checked and is the caller's responsibility.
 
 Pointer arithmetic is defined only for pointers to complete object types:
 `p + n`, `n + p` and `p - n` scale by `sizeof(*p)`, while `p - q` returns a
-Lua integer count of elements.  As in C and LuaJIT, `void *` and pointers to
+Lua integer count of elements.  An array cdata decays to a pointer to its
+first element for arithmetic and address comparison, as in C and LuaJIT:
+`a + 1`, `1 + a` and `a - 1` produce a pointer of the element type, and
+`a - a` / `a - p` / `p - a` return an element distance.  Equality between
+an array and any pointer-like cdata compares addresses; two distinct array
+objects stay distinct, and an array never compares equal to `nil` or a
+number.  Ordering (`<`, `<=`) of arrays and object pointers requires
+compatible base types, and mixing arrays with function pointers raises.
+Function pointers compare by address only against other function pointers.
+As in C and LuaJIT, `void *` and pointers to
 incomplete structs/unions have no element size and are rejected rather than
 treated as byte pointers.  `p - q` also requires compatible base types:
 same-size integer types (including enums) are compatible, but pointers to

@@ -1626,6 +1626,23 @@ static CType *cdata_metatype (CData *cd) {
 }
 
 
+/* LuaJIT treats an array cdata as a pointer to its first element for
+** arithmetic, and compares its address with other pointer-like cdata.
+** Arrays cannot have an element type that is a function (the parser
+** rejects int(*)[N] shapes at the array level), so only POINTER, ARRAY and
+** FUNC are address-like here. */
+static int cdata_is_array (CData *cd) {
+  return cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
+         cd->ct != NULL && cd->ct->kind == CT_ARRAY;
+}
+
+static int cdata_address_like (CData *cd) {
+  if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct == NULL)
+    return 0;
+  return cd->ct->kind == CT_POINTER || cd->ct->kind == CT_ARRAY ||
+         cd->ct->kind == CT_FUNC;
+}
+
 static int meta_push (lua_State *L, CType *ct, const char *name) {
   if (ct == NULL)
     return 0;
@@ -1678,8 +1695,13 @@ static int cdata_eq (lua_State *L) {
       lua_pushboolean(L, a->v.p == b->v.p);
       return 1;
     }
-    if (a->ct->kind == CT_ARRAY || b->ct->kind == CT_ARRAY) {
-      lua_pushboolean(L, a == b);
+    /* An array decays to a pointer to its first element for equality
+    ** against any other pointer-like cdata.  Two distinct arrays are
+    ** distinct objects, but an array and a pointer to its first element
+    ** (or two references to the same storage) compare equal. */
+    if ((cdata_is_array(a) || cdata_is_array(b)) &&
+        cdata_address_like(a) && cdata_address_like(b)) {
+      lua_pushboolean(L, a->v.p == b->v.p);
       return 1;
     }
   }
@@ -1720,15 +1742,49 @@ static int cdata_eq (lua_State *L) {
 }
 
 
+static int pointer_base_compatible (CType *a, CType *b);
+
+/* Ordering where at least one operand is an array: the array decays to a
+** pointer, so the base types must be compatible (LuaJIT rejects
+** 'int[2] < char *' and 'int[2] < void *').  Function pointers have no
+** compatible base type and keep their separate identity/equality rules. */
+static int array_order_compare (lua_State *L, CData *a, CData *b, int le) {
+  CType *abase, *bbase;
+  if (a == NULL || b == NULL || !cdata_address_like(a) ||
+      !cdata_address_like(b) || a->ct->kind == CT_FUNC ||
+      b->ct->kind == CT_FUNC)
+    luaL_error(L, "ffi: attempt to compare cdata values");
+  abase = (a->ct->kind == CT_ARRAY || a->ct->kind == CT_POINTER)
+              ? a->ct->child : a->ct;
+  bbase = (b->ct->kind == CT_ARRAY || b->ct->kind == CT_POINTER)
+              ? b->ct->child : b->ct;
+  if (!pointer_base_compatible(abase, bbase))
+    luaL_error(L, "ffi: attempt to compare cdata values");
+  lua_pushboolean(L, le ? (uintptr_t)a->v.p <= (uintptr_t)b->v.p
+                        : (uintptr_t)a->v.p < (uintptr_t)b->v.p);
+  return 1;
+}
+
 static int cdata_lt (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
   CData *b = ffi_tocdata(L, 2);
   if (meta_binop(L, "__lt"))
     return 1;
+  if (cdata_is_array(a) || cdata_is_array(b))
+    return array_order_compare(L, a, b, 0);
   if (a != NULL && b != NULL &&
       (a->ct->kind == CT_POINTER || a->ct->kind == CT_FUNC) &&
       (b->ct->kind == CT_POINTER || b->ct->kind == CT_FUNC)) {
+    /* Function pointers have no pointee type and compare by address;
+    ** mixing them with object pointers is rejected, and object pointers
+    ** need compatible base types, as in LuaJIT. */
+    if (a->ct->kind == CT_FUNC || b->ct->kind == CT_FUNC) {
+      if (a->ct->kind != b->ct->kind)
+        luaL_error(L, "ffi: attempt to compare cdata values");
+    }
+    else if (!pointer_base_compatible(a->ct->child, b->ct->child))
+      luaL_error(L, "ffi: attempt to compare cdata values");
     lua_pushboolean(L, (uintptr_t)a->v.p < (uintptr_t)b->v.p);
     return 1;
   }
@@ -1750,9 +1806,17 @@ static int cdata_le (lua_State *L) {
   CData *b = ffi_tocdata(L, 2);
   if (meta_binop(L, "__le"))
     return 1;
+  if (cdata_is_array(a) || cdata_is_array(b))
+    return array_order_compare(L, a, b, 1);
   if (a != NULL && b != NULL &&
       (a->ct->kind == CT_POINTER || a->ct->kind == CT_FUNC) &&
       (b->ct->kind == CT_POINTER || b->ct->kind == CT_FUNC)) {
+    if (a->ct->kind == CT_FUNC || b->ct->kind == CT_FUNC) {
+      if (a->ct->kind != b->ct->kind)
+        luaL_error(L, "ffi: attempt to compare cdata values");
+    }
+    else if (!pointer_base_compatible(a->ct->child, b->ct->child))
+      luaL_error(L, "ffi: attempt to compare cdata values");
     lua_pushboolean(L, (uintptr_t)a->v.p <= (uintptr_t)b->v.p);
     return 1;
   }
@@ -1874,9 +1938,9 @@ static int cdata_arith (lua_State *L, int op) {
   CData *a = ffi_tocdata(L, 1);
   CData *b = ffi_tocdata(L, 2);
   int aptr = a != NULL && (a->flags & CDATA_CTYPE) == 0 &&
-             a->ct->kind == CT_POINTER;
+             (a->ct->kind == CT_POINTER || a->ct->kind == CT_ARRAY);
   int bptr = b != NULL && (b->flags & CDATA_CTYPE) == 0 &&
-             b->ct->kind == CT_POINTER;
+             (b->ct->kind == CT_POINTER || b->ct->kind == CT_ARRAY);
   if (aptr || bptr) {
     if (aptr && bptr) {
       if (op != '-')
@@ -1917,6 +1981,11 @@ static int cdata_arith (lua_State *L, int op) {
         p = (char *)pcd->v.p - (ptrdiff_t)n * (ptrdiff_t)esz;
       else
         p = (char *)pcd->v.p + (ptrdiff_t)n * (ptrdiff_t)esz;
+      /* An array decays to a pointer to its element type; the result of
+      ** array arithmetic is a pointer, never a new array object. */
+      if (pcd->ct->kind == CT_ARRAY)
+        return push_pointer_result(L, S,
+                                   ffi_type_ptr(L, S, pcd->ct->child), p);
       return push_pointer_result(L, S, pcd->ct, p);
     }
   }

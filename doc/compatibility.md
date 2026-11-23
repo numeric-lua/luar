@@ -95,10 +95,12 @@ VLAs, structs/unions; table, string and positional initializers), `cast`,
 `string`, `copy`, `fill`, `gc` (Lua or C finalizer), `metatype` (including
 `__eq`/`__lt`/`__le`/`__len`/`__pairs`, arithmetic/bitwise/`__unm`/`__concat`
 and default `__gc` dispatch, including self-comparison and pointer
-forwarding for unary handlers),
+forwarding for unary handlers), array-to-pointer decay for arithmetic and
+address comparison,
 `C`, `load`, `errno`, `abi`, `os`,
-`arch`, `NULL`, field/array access, pointer arithmetic (complete object
-types and compatible base types only; differences are Lua integers),
+`arch`, `NULL`, field/array access, pointer arithmetic (arrays decay to
+pointers; complete object types and compatible base types only;
+differences are Lua integers),
 int64/uint64 wrap-around,
 comparisons with numbers/nil, struct-by-value arguments and returns, and
 variadic calls with documented default argument promotions.
