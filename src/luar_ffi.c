@@ -3095,23 +3095,26 @@ static int ffi_lua_format (lua_State *L) {
     conv = fmt[i++];
     if (arg <= n && ffi_iscdata(L, arg)) {
       CData *cd = ffi_tocdata(L, arg);
-      if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
-          ffi_is_numeric(cd->ct)) {
-        /* LuaJIT formats integer cdata for integer conversions and uses
-        ** tostring for %s/%q; float cdata is not accepted by %d/%f. */
-        if (strchr("diouxX", conv) != NULL && cd->ct->kind != CT_FLOAT) {
+      if (cd != NULL) {
+        /* LuaJIT formats cdata via tostring for %s and %q, including
+        ** pointers, arrays, aggregates and ctype objects; stock 5.5
+        ** already does that for %s but rejects %q.  Integer conversions
+        ** still substitute a Lua integer for numeric cdata, and float
+        ** cdata is not accepted by %d/%f. */
+        if (conv == 's' || conv == 'q') {
+          luaL_tolstring(L, arg, NULL);
+          lua_replace(L, arg);
+        }
+        else if ((cd->flags & CDATA_CTYPE) == 0 &&
+                 ffi_is_numeric(cd->ct) &&
+                 strchr("diouxX", conv) != NULL &&
+                 cd->ct->kind != CT_FLOAT) {
           int ok = 0;
           int64_t v = ffi_to_int(L, S, arg, &ok);
           if (ok) {
             lua_pushinteger(L, (lua_Integer)v);
             lua_replace(L, arg);
           }
-        }
-        else if (conv == 's' || conv == 'q') {
-          /* LuaJIT formats cdata via tostring for %s and %q; stock 5.5
-          ** does that for %s but rejects %q. */
-          luaL_tolstring(L, arg, NULL);
-          lua_replace(L, arg);
         }
       }
     }
