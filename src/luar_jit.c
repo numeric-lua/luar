@@ -6789,7 +6789,17 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
     else
       J->ir_aborts++;
   }
-  if (J->enabled && !J->enable_ir) {
+  /* J4 only owns integer-controlled for-loop backedges.  When ir=1 is
+  ** enabled but this backedge was not installed as an IR root (a while or
+  ** repeat loop, a float for-loop, a rejected trace, or a stale pointer
+  ** after jit.flush()), fall through to the J2 emitter instead of leaving
+  ** the loop interpreted.  luari_jit_try_run still checks the IR root
+  ** first, so a compiled IR trace keeps ownership. */
+  if (J->enabled &&
+      (!J->enable_ir ||
+       p->luar_ir_code == NULL ||
+       p->luar_ir_epoch != J->epoch ||
+       p->luar_ir_pc != (int)off)) {
     int ok = try_compile(L, p, target, off, base);
     int full = (p->luar_code[0] != NULL || p->luar_tint[0] != 0) &&
                (p->luar_code[1] != NULL || p->luar_tint[1] != 0);
