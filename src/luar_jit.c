@@ -503,14 +503,27 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
       case OP_DIV: case OP_DIVK: op = 3; break;
       case OP_IDIV: case OP_IDIVK: op = 4; break;
       case OP_MOD: case OP_MODK: op = 5; break;
+      case OP_BAND: case OP_BANDK: op = 6; break;
+      case OP_BOR: case OP_BORK: op = 7; break;
+      case OP_BXOR: case OP_BXORK: op = 8; break;
+      case OP_SHL: op = 9; break;
+      case OP_SHR: case OP_SHRI: op = 10; break;
+      case OP_BNOT: op = 11; break;
+      case OP_UNM: op = 12; break;
       default: return 0;
     }
     /* The arithmetic destination must be the GETTABLE temporary, so the
     ** final SETTABLE stores the computed value. */
     if (GETARG_A(opins) != tmp)
       return 0;
+    /* Integer bitwise operations are only defined on an integer view.  A
+    ** float array element would need a per-element integer-conversion check
+    ** before any store, so leave those loops to the interpreter. */
+    if (op >= 6 && luar_ffi_trace_array_kind(&b[arr]) != 1)
+      return 0;
     if (opc == OP_ADD || opc == OP_SUB || opc == OP_MUL || opc == OP_DIV ||
-        opc == OP_IDIV || opc == OP_MOD) {
+        opc == OP_IDIV || opc == OP_MOD || opc == OP_BAND || opc == OP_BOR ||
+        opc == OP_BXOR || opc == OP_SHL || opc == OP_SHR) {
       int bop = GETARG_B(opins), cop = GETARG_C(opins);
       if (bop != tmp)
         return 0;
@@ -521,14 +534,28 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
       scalar = cop;
       spi = start + 2;
     }
-    else if (opc == OP_ADDI) {
+    else if (opc == OP_ADDI || opc == OP_SHRI) {
       if (GETARG_B(opins) != tmp)
         return 0;
       scalar = -2;
       scalar_const = (int)GETARG_sC(opins);
       spi = start + 2;
     }
-    else {   /* OP_ADDK/SUBK/MULK/DIVK */
+    else if (opc == OP_BNOT || opc == OP_UNM) {
+      if (GETARG_B(opins) != tmp)
+        return 0;
+      /* Unary operators have no following MMBIN: the interpreter handles
+      ** their metamethod directly in the opcode.  Keep a dummy scalar so
+      ** the dispatch never indexes a constant for these ops. */
+      scalar = -2;
+      scalar_const = 0;
+      spi = start + 2;
+      if (spi >= backedge || GET_OPCODE(p->code[spi]) != OP_SETTABLE ||
+          spi + 1 != backedge)
+        return 0;
+      goto cdata_store_check;
+    }
+    else {   /* OP_ADDK/SUBK/MULK/DIVK/BANDK/BORK/BXORK */
       int idx = GETARG_C(opins);
       TValue *k;
       if (GETARG_B(opins) != tmp || idx < 0 || idx >= p->sizek)
@@ -551,6 +578,7 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     if (spi >= backedge || GET_OPCODE(p->code[spi]) != OP_SETTABLE ||
         spi + 1 != backedge)
       return 0;
+  cdata_store_check:
     {
       Instruction s = p->code[spi];
       if (GETARG_A(s) != arr || GETARG_B(s) != key ||
@@ -5444,7 +5472,11 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         case 22: {
           TValue scalar;
           int enc = p->luar_tint_keys[i];
-          if (enc == -2) {
+          int op = p->luar_tint_upval[i];
+          if (op >= 11) {
+            setivalue(&scalar, 0);   /* unary ops ignore the operand */
+          }
+          else if (enc == -2) {
             setivalue(&scalar, (lua_Integer)p->luar_tint_arg4[i]);
           }
           else if (enc == -1)

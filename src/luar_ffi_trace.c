@@ -14,6 +14,7 @@
 #include "lua.h"
 #include "lobject.h"
 #include "lstate.h"
+#include "lvm.h"
 
 #include "luar_ffi_internal.h"
 
@@ -712,20 +713,22 @@ int luar_ffi_trace_copy_array (TValue *dstv, TValue *srcv, TValue *it,
 }
 
 
-/* J2: `a[i] = a[i] + v`, `- v`, `* v`, `/ v`, `// v` and `% v` over one
-** bounded array.  op is 0..5 for add/subtract/multiply/divide/floor-divide/
-** modulo.  The element and the arithmetic result are represented as Lua
-** numbers, so int wrap and int->float promotion match the interpreter
-** before the C store conversion. */
+/* J2: in-place bounded-array updates.  ops 0..5 are `+ - * / // %`, ops
+** 6..10 are the integer bitwise/shift forms `& | ~ << >>` and ops 11..12
+** are unary `~`/`-`.  Arithmetic keeps Lua number promotion before the C
+** store conversion; the integer forms require an integer-element view and
+** follow Lua's integer conversion, wrap and shift rules exactly. */
 int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
                                  TValue *st, TValue *scalar, TValue *tmp,
                                  int op) {
   FfiView v;
   FfiNum n, lastval;
   lua_Integer count, step, idx, last, k;
+  lua_Integer iv = 0;
+  int needs_int = (op >= 6 && op <= 10);
   if (arrv == NULL || it == NULL || ct == NULL || st == NULL ||
       scalar == NULL || tmp == NULL || !ttisinteger(ct) ||
-      !ttisinteger(st) || !ttisinteger(it) || op < 0 || op > 5)
+      !ttisinteger(st) || !ttisinteger(it) || op < 0 || op > 12)
     return 0;
   if (!ffi_num_from_tv(scalar, &n) || !ffi_view_init(arrv, &v))
     return 0;
@@ -733,6 +736,13 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
   step = ivalue(st);
   idx = ivalue(it);
   if (!ffi_store_range(&v, count, step, idx, &last))
+    return 0;
+  /* The bitwise forms are only installed for integer element views.  A
+  ** non-integral or out-of-range shift/bitwise count makes the interpreter
+  ** raise, so decline before the first store. */
+  if (op >= 6 && v.isflt)
+    return 0;
+  if (needs_int && !luaV_tointegerns(scalar, &iv, F2Ieq))
     return 0;
   /* Integer // and % by zero raise; decline before the first store so the
   ** interpreter reports the error at the failing element. */
