@@ -362,7 +362,10 @@ against known array bounds.
 and a Lua string as `src`.  Omitting `len` when `src` is a Lua string
 copies `#src + 1` bytes (including the NUL), matching LuaJIT; an explicit
 length of `#src + 1` is also accepted.  Copies use `memmove` semantics.
-`ffi.fill(dst, len [, c])` fills `len` bytes with the low 8 bits of `c`.
+The source is validated even when `len` is zero: only a pointer/array cdata
+or `nil` (a NULL source) is accepted, so numbers, tables and scalar cdata
+raise instead of being silently ignored.  `ffi.fill(dst, len [, c])` fills
+`len` bytes with the low 8 bits of `c`.
 
 Converted Lua strings are not anchored by the cdata.  When a string is
 cast/assigned to a `char *`, keep the Lua string alive for as long as the

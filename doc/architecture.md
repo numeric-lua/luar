@@ -100,9 +100,10 @@ make correct against an unmodified VM.
   so are two-source cdata reductions (`s = s + a[i] + b[i]`, the subtract
   form, and dot-product/sum-of-squares).  Bounded cdata writes use the same
   tier: `a[i] = v|i|constant` (also over 8-byte integer elements),
-  element-wise copies `a[i] = b[i]`, in-place `a[i] = a[i] +|-|*|/ v`,
-  scaled source stores `a[i] = b[i] +|-|*|/ v`, and two-source stores
-  `a[i] = b[i] +|-|*|/ c[i]`, all with the FFI store conversions and the
+  element-wise copies `a[i] = b[i]`, in-place
+  `a[i] = a[i] +|-|*|/|//|% v`, scaled source stores
+  `a[i] = b[i] +|-|*|/|//|% v`, and two-source stores
+  `a[i] = b[i] +|-|*|/|//|% c[i]`, all with the FFI store conversions and the
   interpreter's FORLOOP key sequence.  Pointer sources without a length
   stay on the interpreter, as do 8-byte integer element reads because they
   produce cdata rather than Lua numbers.

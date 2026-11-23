@@ -6,6 +6,36 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Added
+
+- J2 stores bounded cdata arrays with floor division and modulo:
+  `a[i] = a[i] // v`, `a[i] = a[i] % v`, `a[i] = b[i] // v`,
+  `a[i] = b[i] % v`, `a[i] = b[i] // c[i]` and `a[i] = b[i] % c[i]`,
+  including register, immediate and constant scalar operands for the
+  two-array forms.  The helpers follow Lua's negative-operand floor
+  semantics and int wrap, keep the bytecode-visible temporaries, and
+  decline an integer zero divisor before storing so the interpreter raises
+  the exact `n//0`/`n%0` error.  Float zero follows the non-raising
+  inf/NaN path.
+
+### Fixed
+
+- J4 side traces now always run the float/integer analysis.  Previously an
+  integer-only root skipped it, so a side body with a float-constant
+  `ADDK`/`SUBK`/`MULK`/`MODK`/`IDIVK` and no float guard was emitted with
+  the integer constant 0 and retagged as an integer.  Unsupported float K
+  ops now fall back to the interpreter; `MULK`/`DIVK` still specialize to
+  their float forms.  The IR verifier also rejects unsupported float K
+  constants before emission.
+- The IR recorder initializes its per-instruction emit flag and marks the
+  pending int64/field-chain paths explicitly.  A nested cdata field chain
+  could previously consult an uninitialized value; the same initialization
+  also keeps the int64 array fusion paths from depending on stack garbage.
+- `ffi.copy` validates its source even when the requested length is zero.
+  Numbers, tables, booleans and scalar cdata were silently accepted because
+  the function returned before the source check; only a NULL (`nil`)
+  zero-length source is accepted now.
+
 ## [0.207.0] — 2026-11-24
 
 ### Added

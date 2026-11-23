@@ -50,7 +50,10 @@ is provably observationally equivalent to that interpreter.
   Bounded cdata arrays additionally support writes in the default tier:
   `a[i] = v|i|constant` (including 8-byte integer elements),
   `a[i] = b[i]`, `a[i] = a[i] OP v`, `a[i] = b[i] OP v` and
-  `a[i] = b[i] OP c[i]` for add/subtract/multiply/divide.  The C helpers
+  `a[i] = b[i] OP c[i]` for add/subtract/multiply/divide/floor-divide/
+  modulo.  Integer `//`/`%` by zero declines before any store so the
+  interpreter raises the exact error; float zero follows the non-raising
+  float path.  The C helpers
   replicate Lua's arithmetic promotion, then apply the FFI element-store
   conversion; pointers (which have no bounded length), out-of-bounds runs
   and 8-byte integer element reads stay on the interpreter because those
