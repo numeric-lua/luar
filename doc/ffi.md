@@ -237,7 +237,10 @@ Struct/union definitions cannot be redefined in the same Lua state.
   2)`), and a cdata of an identical aggregate type can be copied as the
   initializer.  An aggregate lvalue initializes an object pointer of its
   own type or a `void *`, as in C and LuaJIT; numeric scalars are not
-  pointers.
+  pointers.  A Lua string initializes only a 1-byte character pointer
+  (`char *`, `const char *`, signed/unsigned variants); `void *` and other
+  pointer types reject it.  String arguments in calls still convert to
+  `char *`/`void *` parameters.
 * `ffi.cast` is more permissive than `ffi.new`: a Lua string may be cast
   to any pointer or function-pointer type, not only to `char *`/`void *`,
   matching LuaJIT.  As everywhere else, the cast does not anchor the

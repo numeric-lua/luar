@@ -953,10 +953,12 @@ static int ffi_new_pointer (lua_State *L, FFIState *S, CType *ct, int idx,
     p = NULL;
   }
   else if (t == LUA_TSTRING) {
-    /* Luar accepts a Lua string for char-like pointer destinations (the
-    ** existing convenience used by ffi.new("char *", "abc")); other
-    ** pointer types must not silently reinterpret the bytes. */
-    if (ctype_char_like(ct->child))
+    /* Luar accepts a Lua string for character pointer destinations (the
+    ** existing convenience used by ffi.new("char *", "abc")).  A void *
+    ** is not a character type: LuaJIT rejects a string initializer there,
+    ** and silently reinterpreting the bytes hides a real type error.
+    ** ffi.cast and string arguments in calls stay permissive. */
+    if (ct->child->kind == CT_INT && ct->child->size == 1)
       p = (void *)lua_tolstring(L, idx, NULL);
     else
       conv_error(L, S, ct, idx, NULL);
