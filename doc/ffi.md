@@ -366,7 +366,8 @@ metatype metamethods are:
   cdata; a handler on either operand is used, as in LuaJIT.  The handler is
   also called when both operands are the same cdata object; `rawequal()`
   stays a raw identity test.
-* `__len`: supplies the result of `#cdata` for a struct/union value.
+* `__len`: supplies the result of `#cdata` for a struct/union value;
+* `__pairs`: supplies the iterator used by `pairs(cdata)`;
 * `__add`, `__sub`, `__mul`, `__div`, `__idiv`, `__mod`, `__pow`, `__band`,
   `__bor`, `__bxor`, `__shl`, `__shr`: binary arithmetic and bitwise
   handlers for struct/union cdata.  The left operand's handler is tried
@@ -379,9 +380,16 @@ metatype metamethods are:
   `ffi.gc(x, f)` replaces it, and `ffi.gc(x, nil)` suppresses it, matching
   LuaJIT.  Errors raised by the finalizer are ignored.
 
+The unary `__tostring`, `__len` and `__pairs` handlers also apply when the
+cdata is a pointer to the struct/union type, matching LuaJIT.  `__index`,
+`__newindex`, `__call` and the arithmetic/comparison handlers already do.
+Lua 5.5 has no `__ipairs` metamethod, so `ipairs()` on a cdata value follows
+the normal indexing rules instead of LuaJIT's legacy `__ipairs` hook.
+
 Real struct fields always take priority over `__index`/`__newindex`.
 Numeric cdata keeps its FFI arithmetic, comparison and pointer-ordering
-semantics; the metatype overrides apply only to struct/union cdata.
+semantics; the metatype overrides apply only to struct/union cdata and
+pointers to them.
 
 ## Calling C
 

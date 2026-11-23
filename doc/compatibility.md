@@ -93,8 +93,9 @@ arrays, function types, extern variables),
 `typeof`/`istype`/`sizeof`/`alignof`/`offsetof`, `new` (scalars, arrays,
 VLAs, structs/unions; table, string and positional initializers), `cast`,
 `string`, `copy`, `fill`, `gc` (Lua or C finalizer), `metatype` (including
-`__eq`/`__lt`/`__le`/`__len`, arithmetic/bitwise/`__unm`/`__concat` and
-default `__gc` dispatch, including self-comparison),
+`__eq`/`__lt`/`__le`/`__len`/`__pairs`, arithmetic/bitwise/`__unm`/`__concat`
+and default `__gc` dispatch, including self-comparison and pointer
+forwarding for unary handlers),
 `C`, `load`, `errno`, `abi`, `os`,
 `arch`, `NULL`, field/array access, pointer arithmetic (complete object
 types and compatible base types only; differences are Lua integers),

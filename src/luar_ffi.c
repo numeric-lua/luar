@@ -1427,12 +1427,31 @@ static int meta_binop (lua_State *L, const char *name);
 
 static int cdata_len (lua_State *L) {
   CData *cd = ffi_tocdata(L, 1);
-  if (meta_push(L, cdata_metatype(cd), "__len")) {
+  CType *mct = (cd != NULL && (cd->flags & CDATA_CTYPE) == 0)
+                   ? meta_ctype(cd->ct) : NULL;
+  if (meta_push(L, mct, "__len")) {
     lua_pushvalue(L, 1);
     lua_call(L, 1, 1);
     return 1;
   }
   luaL_error(L, "attempt to get length of a cdata value");
+  return 0;
+}
+
+
+/* LuaJIT applies a metatype's __pairs to a struct/union value and to a
+** pointer to that type.  Lua 5.5 has no __ipairs, so only pairs() is
+** dispatched here. */
+static int cdata_pairs (lua_State *L) {
+  CData *cd = ffi_tocdata(L, 1);
+  CType *mct = (cd != NULL && (cd->flags & CDATA_CTYPE) == 0)
+                   ? meta_ctype(cd->ct) : NULL;
+  if (meta_push(L, mct, "__pairs")) {
+    lua_insert(L, 1);          /* function, cdata */
+    lua_call(L, 1, LUA_MULTRET);
+    return lua_gettop(L);
+  }
+  luaL_error(L, "attempt to iterate a cdata value");
   return 0;
 }
 
@@ -1455,8 +1474,7 @@ static int cdata_tostring (lua_State *L) {
     return 1;
   }
   {
-    CType *mct = (ct->kind == CT_STRUCT || ct->kind == CT_UNION)
-                     ? ct : NULL;
+    CType *mct = meta_ctype(ct);
     if (mct != NULL && meta_tostring(L, mct, 1))
       return 1;
   }
@@ -2649,6 +2667,7 @@ static const luaL_Reg cdata_meta[] = {
   {"__lt", cdata_lt},
   {"__le", cdata_le},
   {"__len", cdata_len},
+  {"__pairs", cdata_pairs},
   {"__concat", cdata_concat},
   {"__add", cdata_add},
   {"__sub", cdata_sub},
