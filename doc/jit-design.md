@@ -16,9 +16,11 @@ is provably observationally equivalent to that interpreter.
   float-controlled `for` loop becomes hot, the whitelisted body (numeric
   MOVE/LOADI/LOADF/LOADK/ADDI/ADD/SUB/MUL/DIV, the K variants, integer
   floor division/modulo, integer bitwise, variable and constant shifts,
-  unary minus/not, `MMBIN`, numeric comparisons and forward `JMP` branches)
-  is emitted with DynASM for `for`, simple `while` and `repeat ... until`
-  loops.  Entry tag guards check every register read initially; the native
+  unary minus/not, numeric `TEST`/`TESTSET`, `MMBIN`, numeric comparisons
+  and forward `JMP` branches) is emitted with DynASM for `for`, simple
+  `while` and `repeat ... until` loops.  A leading constant-index array
+  read (`GETI`, e.g. `t[1]`) is also compiled with the split-array bounds
+  and tag guards.  Entry tag guards check every register read initially; the native
   code runs the remaining iterations on the Lua stack slots and returns to
   the VM after the loop.  Mixed int/double operands are handled with the
   conversions Lua performs, and float `for` control uses the interpreter's
@@ -27,9 +29,9 @@ is provably observationally equivalent to that interpreter.
   is the 5.5 split array representation used by raw table access.
 - **Deviations from this design.**  There is no general trace recorder, no
   exit stub/side-exit chain, no safepoint or GC barrier machinery (the
-  compiled loop cannot allocate, call, or raise), no table/string/closure
-  operations; comparisons/forward branches are compiled for int and double
-  operands; an early J3 experiment (raw array and keyed-hash fill/sum intrinsics are on
+  compiled loop cannot allocate, call, or raise), no general
+  table/string/closure operations; comparisons/forward branches and numeric
+  truth tests are compiled for int and double operands; an early J3 experiment (raw array and keyed-hash fill/sum intrinsics are on
   by default; generic
   table emission is behind `jit.opt.start("table=1")`)
   compiles a leading integer array lookup/store, the accumulating ADD and

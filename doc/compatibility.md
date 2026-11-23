@@ -92,11 +92,12 @@ members, enums and their constants, pointers, fixed and variable-length
 arrays, function types, extern variables),
 `typeof`/`istype`/`sizeof`/`alignof`/`offsetof`, `new` (scalars, arrays,
 VLAs, structs/unions; table, string and positional initializers), `cast`,
-`string`, `copy`, `fill`, `gc` (Lua or C finalizer), `metatype`, `C`,
-`load`, `errno`, `abi`, `os`, `arch`, `NULL`, field/array access, pointer
-arithmetic, int64/uint64 wrap-around, comparisons with numbers/nil,
-struct-by-value arguments and returns, and variadic calls with documented
-default argument promotions.
+`string`, `copy`, `fill`, `gc` (Lua or C finalizer), `metatype` (including
+`__eq`/`__lt`/`__le`/`__len` dispatch), `C`, `load`, `errno`, `abi`, `os`,
+`arch`, `NULL`, field/array access, pointer arithmetic (complete object
+types only; differences are Lua integers), int64/uint64 wrap-around,
+comparisons with numbers/nil, struct-by-value arguments and returns, and
+variadic calls with documented default argument promotions.
 
 Deliberate deviations, all documented:
 

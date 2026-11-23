@@ -258,6 +258,12 @@ scalars a value.  Owned arrays and variable-length arrays check bounds and
 raise `ffi: array index N out of bounds`; pointer indexing cannot be
 bounds-checked and is the caller's responsibility.
 
+Pointer arithmetic is defined only for pointers to complete object types:
+`p + n`, `n + p` and `p - n` scale by `sizeof(*p)`, while `p - q` returns a
+Lua integer count of elements.  As in C and LuaJIT, `void *` and pointers to
+incomplete structs/unions have no element size and are rejected rather than
+treated as byte pointers.
+
 Out-of-bounds writes on owned arrays, `ffi.string`, `ffi.copy`, and
 `ffi.fill` are rejected, including for fixed-size character arrays.  This
 is intentionally stricter (safer) than LuaJIT for array-backed objects.
@@ -338,11 +344,15 @@ metatype metamethods are:
 * `__index` (table or function): fallback for missing fields;
 * `__newindex` (table or function): fallback for missing-field writes;
 * `__tostring`: used by `tostring`;
-* `__call`: makes a struct cdata callable.
+* `__call`: makes a struct cdata callable;
+* `__eq`, `__lt`, `__le`: replace the built-in comparison for struct/union
+  cdata; a handler on either operand is used, as in LuaJIT;
+* `__len`: supplies the result of `#cdata` for a struct/union value.
 
 Real struct fields always take priority over `__index`/`__newindex`.
-Other metatype metamethods (`__eq`, `__lt`, `__len`, arithmetic, `__gc`,
-etc.) are not dispatched.  Use `ffi.gc` for finalization.
+Other metatype metamethods (arithmetic, `__gc`, etc.) are not dispatched;
+numeric cdata comparisons and pointer ordering keep their FFI semantics.
+Use `ffi.gc` for finalization.
 
 ## Calling C
 
@@ -484,6 +494,8 @@ Call features:
 * Typedef names are not preserved in type representations; see above.
 * `ffi.string`, `ffi.copy`, and `ffi.fill` perform stricter bounds checks
   for owned arrays than LuaJIT.
+* Pointer arithmetic on `void *` and incomplete object types is rejected,
+  and pointer differences are Lua integers, matching LuaJIT.
 * Only the metatype metamethods listed above are dispatched.
 * Variadic default conversions differ from LuaJIT in two places.  LuaJIT
   passes every Lua number as `double`, while Luar passes an integer Lua
@@ -555,7 +567,8 @@ probes, and variadic probes.  Coverage includes:
 * `ffi.callback` (`cb:set`/`cb:free`, qsort via a real C comparator,
   struct-by-value arguments,
   direct calls, errors, GC lifetime) and `ffi.callback_error`;
-* `ffi.metatype` constructors, `__index`/`__newindex`/`__tostring`/`__call`,
+* `ffi.metatype` constructors,
+  `__index`/`__newindex`/`__tostring`/`__call`/`__eq`/`__lt`/`__le`/`__len`,
   protected metatables, and `ffi.gc` with Lua and C finalizers;
 * libc calls (`strlen`, `strcmp`, `memset`, `memcpy`, `abs`, `labs`,
   `malloc`/`free`, `strerror`, `getpid`, `chdir`, `div`) and `errno`;

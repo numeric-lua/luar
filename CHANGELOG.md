@@ -6,6 +6,37 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.197.0] — 2026-11-23
+
+### Added
+
+- J2 compiles leading constant-index array reads (`t[1]`, `OP_GETI`) with
+  the 5.5 split-array representation.  The native path guards the table,
+  the `1..asize` bound and the element tag, includes the fused
+  `acc = acc + t[k]` form, and exits at the `GETI` bytecode on a shape or
+  type mismatch.  Enabled with the existing `jit.opt.start("table=1")`
+  opt-in.
+- J2 compiles numeric `and`/`or` truth tests (`OP_TEST`/`OP_TESTSET`).
+  A number or table is always truthy, but the tested register keeps an
+  entry type guard, so a later call with `false`/`nil` falls back to the
+  interpreter instead of running the native truthiness assumption.
+- FFI metatypes dispatch `__eq`, `__lt`, `__le` and `__len` for struct and
+  union cdata.  A handler on either operand is used, matching LuaJIT;
+  numeric cdata, pointers and arrays keep their built-in FFI semantics.
+
+### Fixed
+
+- Pointer arithmetic subtracts the offset for `p - n` (previously it added
+  it), and `void *` or pointers to incomplete object types are rejected
+  instead of being treated as byte pointers.
+- Pointer subtraction returns a Lua integer count of elements rather than
+  an `int64_t` cdata, matching LuaJIT and avoiding a cdata allocation.
+- J4/J2 exit snapshots preserve the collectable tag bit.  Restoring a
+  snapshot used `ttypetag()`, which strips that bit, so a live table (or
+  string/function) slot came back as a non-collectable value and the
+  interpreter subsequently rejected it as "not a table".  The bug could
+  corrupt any side exit with a heap value live in a register.
+
 ## [0.196.0] — 2026-11-22
 
 ### Added
