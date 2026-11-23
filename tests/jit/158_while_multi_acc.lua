@@ -1,4 +1,4 @@
--- jit/153_while_multi_acc.lua -- a fast-while body may update its
+-- jit/158_while_multi_acc.lua -- a fast-while body may update its
 -- accumulator only once.
 --
 -- The while/square/product peephole recognised each accumulating operation
@@ -9,7 +9,7 @@
 local H = dofile("tests/helpers.lua")
 
 if jit.status() ~= true then
-  print("jit/153_while_multi_acc: skipped (no native target)")
+  print("jit/158_while_multi_acc: skipped (no native target)")
   return
 end
 
@@ -62,4 +62,4 @@ H.check(jit.stats().compiled >= 1, "no loop compiled at all")
 
 jit.opt.start("hotloop=56")
 jit.flush()
-print("jit/153_while_multi_acc ok")
+print("jit/158_while_multi_acc ok")
