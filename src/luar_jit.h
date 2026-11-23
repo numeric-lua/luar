@@ -126,10 +126,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc,
 static inline int luari_jit_hot (lua_State *L, Proto *p,
                                 const Instruction *backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
+  /* LUAR: jit.off() suspends compilation, not just native entry.  A loop
+  ** that runs while tracing is disabled must not reach the threshold and
+  ** record its backedge in luar_seen; otherwise a later jit.on() would
+  ** keep running it on the interpreter until jit.flush() or a new Proto. */
+  if (J == NULL || !J->enabled)
+    return 0;
   /* LUAR: jit.flush() bumps the epoch and releases every mapping.  Treat
   ** the per-Proto hot state as stale too, so a flushed loop can become hot
   ** and recompile again instead of staying permanently blacklisted. */
-  if (J != NULL && p->luar_epoch != J->epoch) {
+  if (p->luar_epoch != J->epoch) {
     p->luar_epoch = J->epoch;
     p->luar_hot = 0;
     p->luar_seen = 0;

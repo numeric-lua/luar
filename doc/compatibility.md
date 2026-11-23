@@ -72,7 +72,7 @@ Lua 5.5 spelling and is left untouched.
 | `jit.version`, `jit.version_num` | implemented | Luar version, not LuaJIT's |
 | `jit.os`, `jit.arch` | implemented | `Linux`/`OSX`/..., `x64`/`arm64`/... |
 | `jit.status()` | implemented | `true, arch` when the J2 x86-64 engine is active; `false` after `jit.off()` or on unsupported hosts |
-| `jit.on()`, `jit.off()` | implemented | toggles native loop entry; the interpreter stays authoritative |
+| `jit.on()`, `jit.off()` | implemented | toggles native loop entry and compilation; the interpreter stays authoritative. Time spent hot while off does not consume a loop's hot state, so `jit.on()` resumes compilation without a `jit.flush()` |
 | `jit.flush()` | implemented | bumps the epoch, frees code and clears trace/stats; a `Proto` holding a stale J2/J4 pointer is revalidated and recompiled on its next hot backedge |
 | `jit.dump(mode)` | implemented | `"t"` prints bytecode snapshots and `"i"` linear IR to stderr; no file/function output argument |
 | `jit.opt.start(...)` | implemented | `hotloop=N` sets the threshold for newly created Protos; `hotexit=N` sets the guard-exit threshold for recording a variant; `ir=1` enables the J4 for-loop tier (non-J4 loop shapes still use J2); `table=1`/`call=1` toggle generic table emission and the partial-call tier; `tint=1` toggles the default raw fill/sum table intrinsics |
