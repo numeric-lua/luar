@@ -1111,8 +1111,12 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         int newpack = pack;
         trim(&pp, &pn);
         if (pn < 4 || memcmp(pp, "pack", 4) != 0 ||
-            (pn > 4 && ident_char((unsigned char)pp[4])))
-          luaL_error(L, "ffi.cdef:%d: unsupported #pragma", line);
+            (pn > 4 && ident_char((unsigned char)pp[4]))) {
+          /* LUAR: non-pack pragmas are diagnostics/optimisation hints that
+          ** this parser cannot act on.  Ignore them as a C compiler does,
+          ** instead of rejecting an otherwise usable header. */
+        }
+        else {
         pp += 4;
         pn -= 4;
         trim(&pp, &pn);
@@ -1173,6 +1177,7 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
           snprintf(marker, sizeof(marker), "__luar_pack(%d);\n", pack);
           buf_mem(L, &b, marker, strlen(marker));
         }
+        }   /* pack pragma */
       }
       else if (rn >= 7 && memcmp(q, "include", 7) == 0 &&
                (rn == 7 || is_space((unsigned char)q[7]))) {
