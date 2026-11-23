@@ -707,35 +707,59 @@ static void field_convert (lua_State *L, FFIState *S, CField *f, void *p,
 }
 
 
-static void init_struct_pos (lua_State *L, FFIState *S, CType *ct,
-                             void *dst, int idx, int base, int *pos,
-                             const char *what) {
+/* LUAR: initialize one struct/union from a table and report whether any
+** member was initialized.  A union may name any member, not just the
+** first one: `ffi.new("union { int i; double d; }", {d = 1.5})` must set
+** `d`, as in LuaJIT.  Positional table entries still address only the
+** first member (a union has no single layout order); later members are
+** selected by name.  Anonymous members are searched recursively and count
+** as initialized when one of their members is. */
+static int init_struct_pos (lua_State *L, FFIState *S, CType *ct,
+                            void *dst, int idx, int base, int *pos,
+                            int allow_pos, const char *what) {
+  int did = 0;
   uint16_t i;
   idx = lua_absindex(L, idx);
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
+    int use_pos = allow_pos && (ct->kind != CT_UNION || i == 0);
+    int field_did = 0;
     if (f->name == NULL) {
       if (f->type->kind == CT_STRUCT || f->type->kind == CT_UNION)
-        init_struct_pos(L, S, f->type, (char *)dst + f->offset,
-                        idx, base, pos, what);
+        field_did = init_struct_pos(L, S, f->type,
+                                    (char *)dst + f->offset,
+                                    idx, base, pos, use_pos, what);
+      if (field_did) {
+        did = 1;
+        if (ct->kind == CT_UNION)
+          break;
+      }
       continue;
     }
-    lua_geti(L, idx, (lua_Integer)(base + *pos));
-    if (!lua_isnil(L, -1)) {
-      (*pos)++;
-      field_convert(L, S, f, (char *)dst + f->offset, -1, what);
-      lua_pop(L, 1);
-    }
-    else {
-      lua_pop(L, 1);
-      lua_getfield(L, idx, f->name);
-      if (!lua_isnil(L, -1))
+    if (use_pos) {
+      lua_geti(L, idx, (lua_Integer)(base + *pos));
+      if (!lua_isnil(L, -1)) {
+        (*pos)++;
         field_convert(L, S, f, (char *)dst + f->offset, -1, what);
+        field_did = 1;
+      }
       lua_pop(L, 1);
     }
-    if (ct->kind == CT_UNION)
-      break;
+    if (!field_did) {
+      lua_getfield(L, idx, f->name);
+      if (!lua_isnil(L, -1)) {
+        field_convert(L, S, f, (char *)dst + f->offset, -1, what);
+        field_did = 1;
+      }
+      lua_pop(L, 1);
+    }
+    if (field_did) {
+      did = 1;
+      if (ct->kind == CT_UNION)
+        break;
+    }
   }
+  return did;
 }
 
 
@@ -748,7 +772,7 @@ static void init_struct_to (lua_State *L, FFIState *S, CType *ct,
   has0 = !lua_isnil(L, -1);
   lua_pop(L, 1);
   base = has0 ? 0 : 1;
-  init_struct_pos(L, S, ct, dst, idx, base, &pos, what);
+  init_struct_pos(L, S, ct, dst, idx, base, &pos, 1, what);
 }
 
 
