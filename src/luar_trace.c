@@ -2140,7 +2140,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
   for (pc = start; pc <= backedge; pc++) {
     Instruction ins = p->code[pc];
     int a = GETARG_A(ins), b = GETARG_B(ins), c = GETARG_C(ins);
-    int r;
+    /* LUAR: explicitly zero this per-instruction emit result.  The field
+    ** chain reader below consults it when a chain was extended but did not
+    ** end in a usable SETFIELD; leaving it uninitialized made that decision
+    ** depend on stale stack contents. */
+    int r = 0;
     if (suffix && pc == backedge) {
       in.kind = LUAR_IR_RET; in.pc = pc;
       return luar_trace_ir_emit(t, &in);
@@ -2282,6 +2286,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           pend_i64_delta = (int64_t)GETARG_sC(ins);
           pend_i64_addpc = pc;
           pend_i64_op = 1;
+          r = 1;   /* no IR op yet; the fused SETTABLE emits it */
           break;
         }
         TValue *sv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
@@ -2368,6 +2373,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           pend_i64_addpc = pc;
           pend_i64_op = GET_OPCODE(ins) == OP_BANDK ? 5 :
                         GET_OPCODE(ins) == OP_BORK ? 6 : 7;
+          r = 1;
           break;
         }
         return 0;
@@ -2383,6 +2389,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = 4;
+          r = 1;
           break;
         }
         if (GET_OPCODE(ins) == OP_IDIVK && pend_i64_src >= 0 &&
@@ -2391,6 +2398,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = 3;
+          r = 1;
           break;
         }
         if (GET_OPCODE(ins) == OP_MULK && pend_i64_src >= 0 &&
@@ -2399,6 +2407,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           pend_i64_delta = (int64_t)ivalue(&p->k[c]);
           pend_i64_addpc = pc;
           pend_i64_op = 2;
+          r = 1;
           break;
         }
         if (!seen[b]) {
@@ -3437,6 +3446,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             pend_i64_delta = 0;
             pend_i64_addpc = -1;
             pend_i64_op = 0;
+            r = 1;   /* emitted by the following SETTABLE */
             break;
           }
         }
