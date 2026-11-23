@@ -58,6 +58,7 @@ typedef struct LuaR_JIT {
   int dump_ir;			/* jit.dump("i"): print linear IR */
   uint32_t compiled;		/* native loops emitted */
   unsigned long long exits;	/* native guard failures (side-exit seeds) */
+  unsigned long long tint_hits;	/* successful raw-table intrinsic runs */
   uint32_t side_traces;		/* variants recorded from guard exits */
   int last_exit_pc;		/* exact mid-loop exit instruction, -1 if none */
   uint32_t sig_hits;		/* entry guard-signature dispatches */

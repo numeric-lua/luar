@@ -91,6 +91,7 @@ static void free_code (LuaR_JIT *J) {
   J->ncode = 0;
   J->compiled = 0;
   J->exits = 0;
+  J->tint_hits = 0;
   J->side_traces = 0;
   J->last_exit_pc = -1;
   J->sig_hits = 0;
@@ -2419,14 +2420,37 @@ static int table_sum_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (ttisinteger(at)) {
     lua_Unsigned sum = l_castS2U(ivalue(at));
+    lua_Number fsum = 0;
+    int promoted = 0;
     for (k = 0; k <= count; k++) {
       unsigned key = (unsigned)(idx + k - 1);
       lu_byte tag = *getArrTag(h, key);
-      if (tag != LUA_VNUMINT)
+      if (tag == LUA_VNUMINT) {
+        if (promoted)
+          fsum += cast_num(getArrVal(h, key)->i);
+        else
+          sum += l_castS2U(getArrVal(h, key)->i);
+      }
+      else if (tag == LUA_VNUMFLT) {
+        /* LUAR: an integer accumulator becomes a float as soon as a float
+        ** element is added, exactly as the interpreter's mixed arithmetic
+        ** does.  Keep the already accumulated integer exact while there is
+        ** no float, then promote once. */
+        if (!promoted) {
+          fsum = cast_num(l_castU2S(sum));
+          promoted = 1;
+        }
+        fsum += getArrVal(h, key)->n;
+      }
+      else
         return 0;
-      sum += l_castS2U(getArrVal(h, key)->i);
     }
-    chgivalue(at, l_castU2S(sum));
+    if (promoted) {
+      setfltvalue(at, fsum);
+    }
+    else {
+      chgivalue(at, l_castU2S(sum));
+    }
   }
   else if (ttisfloat(at)) {
     lua_Number sum = fltvalue(at);
@@ -2524,15 +2548,37 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (ttisinteger(at)) {
     lua_Unsigned sum = l_castS2U(ivalue(at));
+    lua_Number fsum = 0;
+    int promoted = 0;
     for (k = 0; k <= count; k++) {
       TValue key, res;
+      lu_byte tag;
       if (luaH_getint(keys, idx + k, &key) == LUA_VNIL)
         return 0;
-      if (luaH_get(t, &key, &res) != LUA_VNUMINT)
+      tag = luaH_get(t, &key, &res);
+      if (tag == LUA_VNUMINT) {
+        if (promoted)
+          fsum += cast_num(ivalue(&res));
+        else
+          sum += l_castS2U(ivalue(&res));
+      }
+      else if (tag == LUA_VNUMFLT) {
+        /* LUAR: promote an integer accumulator on the first float value. */
+        if (!promoted) {
+          fsum = cast_num(l_castU2S(sum));
+          promoted = 1;
+        }
+        fsum += fltvalue(&res);
+      }
+      else
         return 0;
-      sum += l_castS2U(ivalue(&res));
     }
-    chgivalue(at, l_castU2S(sum));
+    if (promoted) {
+      setfltvalue(at, fsum);
+    }
+    else {
+      chgivalue(at, l_castU2S(sum));
+    }
   }
   else if (ttisfloat(at)) {
     lua_Number sum = fltvalue(at);
@@ -3713,6 +3759,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       }
       if (r == 0)
         J->exits++;
+      else
+        J->tint_hits++;   /* LUAR: observable proof the intrinsic ran */
       return r;
     }
   }
@@ -4637,6 +4685,8 @@ static int jit_stats (lua_State *L) {
   lua_setfield(L, -2, "compiled");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->exits : 0);
   lua_setfield(L, -2, "exits");
+  lua_pushinteger(L, J != NULL ? (lua_Integer)J->tint_hits : 0);
+  lua_setfield(L, -2, "tint_hits");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->side_traces : 0);
   lua_setfield(L, -2, "side_traces");
   lua_pushinteger(L, J != NULL ? (lua_Integer)J->last_exit_pc : -1);
