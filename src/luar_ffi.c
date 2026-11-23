@@ -717,8 +717,34 @@ static void init_struct_to (lua_State *L, FFIState *S, CType *ct,
 /* ffi.new / ffi.cast                                                */
 /* ------------------------------------------------------------------ */
 
+/* LUAR: LuaJIT's FFI integer arguments are C conversions, not Lua integer
+** coercions.  A finite float is truncated towards zero, while strings and
+** booleans are not accepted.  Lua 5.5's luaL_checkinteger rejects 1.9 and
+** accepts "1", which is the opposite of LuaJIT and surprising for a C API;
+** NaN/infinity/out-of-range values are rejected instead of invoking
+** undefined C conversions. */
+static lua_Integer check_c_int_arg (lua_State *L, int idx, const char *what,
+                                    int optional, lua_Integer def) {
+  if (lua_isnoneornil(L, idx)) {
+    if (optional)
+      return def;
+    luaL_error(L, "ffi: %s is required", what);
+  }
+  if (lua_type(L, idx) != LUA_TNUMBER)
+    luaL_error(L, "ffi: %s must be a number", what);
+  if (lua_isinteger(L, idx))
+    return lua_tointeger(L, idx);
+  {
+    lua_Number n = lua_tonumber(L, idx);
+    if (!(n >= -9223372036854775808.0 && n < 9223372036854775808.0))
+      luaL_error(L, "ffi: %s is out of range", what);
+    return (lua_Integer)n;
+  }
+}
+
+
 static size_t check_len_arg (lua_State *L, int idx, const char *what) {
-  lua_Integer n = luaL_checkinteger(L, idx);
+  lua_Integer n = check_c_int_arg(L, idx, what, 0, 0);
   if (n < 0)
     luaL_error(L, "ffi: negative %s", what);
   if ((uint64_t)n > (uint64_t)FFI_MAX_NEW)
@@ -1233,7 +1259,8 @@ static int cdata_index (lua_State *L) {
   }
   if (lua_type(L, 2) == LUA_TNUMBER) {
     if (ct->kind == CT_ARRAY || ct->kind == CT_POINTER)
-      return cdata_get_index(L, S, cd, luaL_checkinteger(L, 2));
+      return cdata_get_index(L, S, cd,
+                             check_c_int_arg(L, 2, "array index", 0, 0));
     {
       CType *mct = meta_ctype(ct);
       if (mct != NULL && meta_index(L, mct, 2))
@@ -1275,7 +1302,8 @@ static int cdata_newindex (lua_State *L) {
   }
   if (lua_type(L, 2) == LUA_TNUMBER) {
     if (ct->kind == CT_ARRAY || ct->kind == CT_POINTER) {
-      cdata_set_index(L, S, cd, luaL_checkinteger(L, 2));
+      cdata_set_index(L, S, cd,
+                      check_c_int_arg(L, 2, "array index", 0, 0));
       return 0;
     }
     {
@@ -2375,7 +2403,7 @@ static int ffi_fill (lua_State *L) {
   size_t davail;
   void *dp = mem_arg(L, S, dst, "fill", &davail);
   size_t len = check_len_arg(L, 2, "fill length");
-  int c = (int)luaL_optinteger(L, 3, 0);
+  lua_Integer c = check_c_int_arg(L, 3, "fill value", 1, 0);
   if (davail != FFI_SIZE_UNKNOWN && len > davail)
     luaL_error(L, "ffi.fill: length out of bounds");
   if (len == 0)
@@ -2448,7 +2476,7 @@ static int ffi_metatype (lua_State *L) {
 static int ffi_errno (lua_State *L) {
   int old = errno;
   if (!lua_isnoneornil(L, 1))
-    errno = (int)luaL_checkinteger(L, 1);
+    errno = (int)check_c_int_arg(L, 1, "errno", 0, 0);
   lua_pushinteger(L, old);
   return 1;
 }

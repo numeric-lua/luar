@@ -85,6 +85,13 @@ LuaJIT.
 predicates and for `"32bit"`, `"be"`, `"softfp"`, `"eabi"`, `"win"`,
 `"dualnum"`, `"pauth"`, and `"uwp"`.
 
+Integer arguments use C conversion rules, matching LuaJIT: a finite Lua
+float is truncated towards zero for lengths (`ffi.sizeof`, `ffi.new` VLAs,
+`ffi.string`, `ffi.copy`, `ffi.fill`), the `ffi.fill` byte, `ffi.errno` and
+cdata array indices.  Numeric strings, NaN, infinity and values outside the
+64-bit integer range are rejected instead of being silently accepted or
+converted through undefined C behaviour.
+
 ## Accepted C declarations (`ffi.cdef`)
 
 The parser is a recursive-descent parser over the declaration subset used
