@@ -980,6 +980,86 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     OpCode opc = GET_OPCODE(ins);
     memset(op, 0, sizeof(*op));
     op->pc = (int)(start + i);
+    if (opc == OP_TEST || opc == OP_TESTSET) {
+      Instruction jins;
+      ptrdiff_t j = i + 1, tgt;
+      int aa = GETARG_A(ins), bb = GETARG_B(ins);
+      int kk = GETARG_k(ins);
+      int at;
+      if (j >= n - 1) return 0;
+      jins = p->code[start + j];
+      if (GET_OPCODE(jins) != OP_JMP) return 0;
+      tgt = (start + j) + 1 + GETARG_sJ(jins);
+      if (tgt < start || tgt == start + j ||
+          (tgt <= start + i && tgt != start))
+        return 0;
+      if (tgt > backedge) {
+        if (tgt != backedge + 1) return 0;
+        tgt = is_while ? backedge : backedge + 1;   /* break/exit */
+      }
+      if (opc == OP_TEST) {
+        /* A number or table is always truthy, so the test itself has no
+        ** effect.  Keep a self-MOVE so the branch guard pass still checks
+        ** the register's entry type: a later call with false/nil must not
+        ** enter native code that assumed truthiness. */
+        at = slot_type(b, cur, def, aa);
+        if (at == 0) return 0;
+        memset(&ops[j], 0, sizeof(ops[j]));
+        if (is_control_reg(aa, for_a)) {
+          /* The loop-control guard already covers its type. */
+          op->kind = LUAR_OP_NOP;
+        }
+        else {
+          op->kind = LUAR_OP_MOVE;
+          op->a = (uint8_t)aa;
+          op->b = (uint8_t)aa;
+          op->tb = (uint8_t)at;
+        }
+        if (kk == 0) {
+          /* A truthy value skips the following JMP. */
+          ops[j].kind = LUAR_OP_NOP;
+        }
+        else {
+          ops[j].kind = LUAR_OP_JMP;
+          ops[j].target = (int32_t)(tgt - start);
+        }
+      }
+      else {
+        if (is_control_reg(aa, for_a)) return 0;
+        at = slot_type(b, cur, def, bb);
+        if (at == 0) return 0;
+        memset(&ops[j], 0, sizeof(ops[j]));
+        if (kk == 0) {
+          /* Falsy skips the JMP and leaves R[A] alone.  A numeric/table
+          ** value is truthy, so only the type guard is needed.  Control
+          ** registers already have one. */
+          if (is_control_reg(bb, for_a))
+            op->kind = LUAR_OP_NOP;
+          else {
+            op->kind = LUAR_OP_MOVE;
+            op->a = (uint8_t)bb;
+            op->b = (uint8_t)bb;
+            op->tb = (uint8_t)at;
+          }
+          ops[j].kind = LUAR_OP_NOP;
+        }
+        else {
+          if (at != LUAR_T_INT && at != LUAR_T_FLOAT) return 0;
+          op->kind = LUAR_OP_MOVE;
+          op->a = (uint8_t)aa;
+          op->b = (uint8_t)bb;
+          op->tb = (uint8_t)at;
+          cur[aa] = (uint8_t)at;
+          def[aa] = 1;
+          ops[j].kind = LUAR_OP_JMP;
+          ops[j].target = (int32_t)(tgt - start);
+        }
+      }
+      paired[j] = 1;
+      has_branch = 1;
+      i = j;
+      continue;
+    }
     if (opc == OP_EQ || opc == OP_LT || opc == OP_LE ||
         opc == OP_EQK || opc == OP_EQI || opc == OP_LTI ||
         opc == OP_LEI || opc == OP_GTI || opc == OP_GEI) {
