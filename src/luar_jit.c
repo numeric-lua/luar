@@ -631,6 +631,14 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
              loop_type_check(types, op->c, LUAR_T_INT) &&
              loop_type_check(types, op->a, LUAR_T_INT);
         break;
+      case LUAR_OP_GETI:
+        ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
+             loop_type_check(types, op->a, LUAR_T_INT);
+        break;
+      case LUAR_OP_TABLE_ADDI:
+        ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
+             loop_type_check(types, op->a, op->ta);
+        break;
       case LUAR_OP_TABLE_ADD:
         ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
              loop_type_check(types, op->c, LUAR_T_INT) &&
@@ -1355,6 +1363,51 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         def[op->a] = 1;
         break;
       }
+      case OP_GETI: {
+        int ka = GETARG_A(ins), kb = GETARG_B(ins);
+        int kidx = (int)GETARG_C(ins);
+        if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
+        if (kidx < 1) return 0;                /* t[0] belongs to the hash part */
+        if (is_control_reg(ka, for_a)) return 0;
+        if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
+        op->kind = LUAR_OP_GETI;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)kb;
+        op->imm = kidx;
+        op->ta = LUAR_T_INT;   /* the native path accepts integer elements */
+        op->tb = LUAR_T_TABLE;
+        cur[ka] = LUAR_T_INT;
+        def[ka] = 1;
+        d.has_table = 1;
+        d.table_reg = kb;
+        d.ft_res = ka;
+        has_branch = 1;
+
+        /* Fuse the common "acc = acc + t[const]" shape. */
+        if (i + 1 < n - 1) {
+          Instruction nx = p->code[start + i + 1];
+          if (GET_OPCODE(nx) == OP_ADD) {
+            int na = GETARG_A(nx), nb = GETARG_B(nx), nc = GETARG_C(nx);
+            int acct = 0;
+            if ((nb == ka && nc == na) || (nc == ka && nb == na))
+              acct = slot_type(b, cur, def, na);
+            if ((acct == LUAR_T_INT || acct == LUAR_T_FLOAT) &&
+                !is_control_reg(na, for_a)) {
+              op->kind = LUAR_OP_TABLE_ADDI;
+              op->a = (uint8_t)na;
+              op->b = (uint8_t)kb;
+              op->ta = (uint8_t)acct;
+              op->tb = LUAR_T_TABLE;
+              memset(&ops[i + 1], 0, sizeof(ops[i + 1]));
+              ops[i + 1].kind = LUAR_OP_NOP;
+              cur[na] = (uint8_t)acct;
+              def[na] = 1;
+              i++;
+            }
+          }
+        }
+        break;
+      }
       case OP_GETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
         if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
@@ -1899,6 +1952,13 @@ decode_done:
           reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
           reads[nr] = op->c; types[nr++] = LUAR_T_INT;
           break;
+        case LUAR_OP_GETI:
+          reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
+          break;
+        case LUAR_OP_TABLE_ADDI:
+          reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
+          reads[nr] = op->a; types[nr++] = op->ta;
+          break;
         case LUAR_OP_TABLE_ADD:
           reads[nr] = op->b; types[nr++] = LUAR_T_TABLE;
           reads[nr] = op->c; types[nr++] = LUAR_T_INT;
@@ -1987,6 +2047,8 @@ decode_done:
         case LUAR_OP_SHR:
         case LUAR_OP_GETTABLE:
         case LUAR_OP_TABLE_ADD:
+        case LUAR_OP_GETI:
+        case LUAR_OP_TABLE_ADDI:
           last_write[op->a] = (int)i;
           break;
         default: break;
