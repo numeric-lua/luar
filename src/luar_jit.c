@@ -1294,6 +1294,64 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
 }
 
 
+/* The leaf-call intrinsics snapshot their extra arguments before running the
+** remaining iterations, while the bytecode re-reads those registers on every
+** call.  A loop such as `s = s + f(i, i)` therefore used the first index for
+** every recursion of the helper.  Reject a leaf fast path when an argument
+** source register is written anywhere in the loop body (including the
+** control triplet, the accumulator and the call result range). */
+static int leaf_args_invariant (Proto *p, ptrdiff_t start,
+                                ptrdiff_t backedge, int for_a,
+                                const Instruction *moves, int nmoves) {
+  uint8_t written[256];
+  ptrdiff_t i;
+  int m;
+  memset(written, 0, sizeof(written));
+  if (for_a >= 0 && for_a + 2 < 256) {
+    written[for_a] = written[for_a + 1] = written[for_a + 2] = 1;
+  }
+  for (i = start; i < backedge; i++) {
+    Instruction ins = p->code[i];
+    switch (GET_OPCODE(ins)) {
+      case OP_MOVE:
+      case OP_LOADI:
+      case OP_LOADF:
+      case OP_LOADK:
+      case OP_ADDI:
+      case OP_ADD:
+      case OP_SUB:
+      case OP_MUL:
+      case OP_DIV:
+        written[GETARG_A(ins)] = 1;
+        break;
+      case OP_CALL: {
+        int a = GETARG_A(ins);
+        int b = GETARG_B(ins);
+        int c = GETARG_C(ins);
+        int n = (b > c) ? b : c;
+        int r;
+        for (r = a; r < a + n && r < 256; r++)
+          written[r] = 1;
+        break;
+      }
+      case OP_FORLOOP:
+        written[GETARG_A(ins)] = 1;
+        written[GETARG_A(ins) + 1] = 1;
+        written[GETARG_A(ins) + 2] = 1;
+        break;
+      default:
+        break;
+    }
+  }
+  for (m = 0; m < nmoves; m++) {
+    int src = GETARG_B(moves[m]);
+    if (src >= 0 && src < 256 && written[src])
+      return 0;
+  }
+  return 1;
+}
+
+
 static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                         ptrdiff_t backedge, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
@@ -1507,11 +1565,15 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_A(i5) == GETARG_A(i0) &&
           GETARG_B(i5) == 5 && GETARG_C(i5) == 2 &&
           GETARG_A(i6) == GETARG_B(i6) &&
-          GETARG_C(i6) == GETARG_A(i5))
+          GETARG_C(i6) == GETARG_A(i5)) {
+        if (!leaf_args_invariant(p, start, backedge, for_a,
+                                 &p->code[start + 2], 3))
+          return 0;
         return install_leaf4_intrinsic(p, J, backedge, for_a,
                                        GETARG_B(i0), GETARG_A(i6),
                                        GETARG_A(i2), GETARG_A(i3),
                                        GETARG_A(i4));
+      }
     }
     if (n >= 8 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -1537,10 +1599,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_A(i4) == GETARG_A(i0) &&
           GETARG_B(i4) == 4 && GETARG_C(i4) == 2 &&
           GETARG_A(i5) == GETARG_B(i5) &&
-          GETARG_C(i5) == GETARG_A(i4))
+          GETARG_C(i5) == GETARG_A(i4)) {
+        if (!leaf_args_invariant(p, start, backedge, for_a,
+                                 &p->code[start + 2], 2))
+          return 0;
         return install_leaf3_intrinsic(p, J, backedge, for_a,
                                        GETARG_B(i0), GETARG_A(i5),
                                        GETARG_A(i2), GETARG_A(i3));
+      }
     }
     if (n >= 7 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -1561,10 +1627,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_A(i3) == GETARG_A(i0) &&
           GETARG_B(i3) == 3 && GETARG_C(i3) == 2 &&
           GETARG_A(i4) == GETARG_B(i4) &&
-          GETARG_C(i4) == GETARG_A(i3))
+          GETARG_C(i4) == GETARG_A(i3)) {
+        if (!leaf_args_invariant(p, start, backedge, for_a,
+                                 &p->code[start + 2], 1))
+          return 0;
         return install_leaf2_intrinsic(p, J, backedge, for_a,
                                        GETARG_B(i0), GETARG_A(i4),
                                        GETARG_A(i2));
+      }
     }
     if (n >= 6 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
