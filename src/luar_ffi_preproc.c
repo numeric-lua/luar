@@ -1,10 +1,11 @@
 /*
 ** luar_ffi_preproc.c -- a small C preprocessor for ffi.cdef.
 **
-** Supports object-like #define/#undef, #ifdef/#ifndef/#if/#else/#endif
-** and macro expansion outside strings/comments.  Function-like macros,
-** #include and non-pack #pragma are rejected with clear errors rather than
-** guessed; #pragma pack(n/push/pop) maps to a parser marker.
+** Supports object-like #define/#undef, #ifdef/#ifndef/#if/#elif/#else/#endif
+** and macro expansion outside strings/comments.  Function-like macros are
+** supported; #include is resolved locally, and #pragma pack(n/push/pop)
+** maps to a parser marker.  Other pragmas are ignored like a C compiler
+** (they carry diagnostics/optimisation hints this parser cannot use).
 **
 ** See Copyright Notice in lua.h and COPYRIGHT.
 */
@@ -40,6 +41,7 @@ typedef struct Macro {
 typedef struct Cond {
   int parent;
   int active;
+  int taken;      /* some branch in this group has been selected */
   int seen_else;
 } Cond;
 
@@ -75,6 +77,35 @@ static void buf_mem (lua_State *L, Buf *b, const char *s, size_t n) {
 static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
                               size_t len, size_t *outlen, int incdepth,
                               const char *base);
+
+/* Match a conditional directive name.  C permits '#if(expr)' without a
+** space after the name and comments directly after '#else'/'#endif';
+** recognising those forms keeps nested-group tracking exact when a skipped
+** group contains them.  A name must not be followed by another identifier
+** character, so '#ifdefX' is not '#ifdef'. */
+static int dir_name_is (const char *q, size_t rn, const char *name,
+                        int paren_ok, int comment_ok) {
+  size_t n = strlen(name);
+  if (rn < n || memcmp(q, name, n) != 0)
+    return 0;
+  if (rn == n)
+    return 1;
+  return isspace((unsigned char)q[n]) ||
+         (paren_ok && q[n] == '(') ||
+         (comment_ok && q[n] == '/');
+}
+
+/* Directives that must still be tracked while the surrounding group is
+** inactive.  Everything else in a skipped group is discarded without
+** parsing, exactly as a C preprocessor does. */
+static int directive_is_conditional (const char *q, size_t rn) {
+  return dir_name_is(q, rn, "if", 1, 0) ||
+         dir_name_is(q, rn, "ifdef", 0, 0) ||
+         dir_name_is(q, rn, "ifndef", 0, 0) ||
+         dir_name_is(q, rn, "elif", 1, 0) ||
+         dir_name_is(q, rn, "else", 0, 1) ||
+         dir_name_is(q, rn, "endif", 0, 1);
+}
 
 static Macro *macro_find (FFIState *S, const char *name, size_t n) {
   Macro *m = (Macro *)S->macros;
@@ -907,6 +938,15 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         q++;
         rn--;
       }
+      if (!active && !directive_is_conditional(q, rn)) {
+        /* A skipped group must not parse #define/#include/#pragma/#error
+        ** bodies (or unknown directives); only the conditional stack is
+        ** maintained until its #endif. */
+        buf_char(L, &b, '\n');
+        pos = (end < len) ? end + 1 : end;
+        line++;
+        continue;
+      }
       if (rn >= 6 && memcmp(q, "define", 6) == 0 &&
           (rn == 6 || is_space((unsigned char)q[6]))) {
         const char *name, *body;
@@ -987,10 +1027,8 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         if (active)
           macro_del(S, name, nn);
       }
-      else if ((rn >= 5 && memcmp(q, "ifdef", 5) == 0 &&
-                (rn == 5 || is_space((unsigned char)q[5]))) ||
-               (rn >= 6 && memcmp(q, "ifndef", 6) == 0 &&
-                (rn == 6 || is_space((unsigned char)q[6])))) {
+      else if (dir_name_is(q, rn, "ifdef", 0, 0) ||
+               dir_name_is(q, rn, "ifndef", 0, 0)) {
         int neg = (q[2] == 'n');
         const char *name;
         size_t nn;
@@ -1009,36 +1047,58 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         cond[depth].parent = active;
         cond[depth].seen_else = 0;
         cond[depth].active = active && (neg ? !has : has);
+        cond[depth].taken = cond[depth].active;
         active = cond[depth].active;
         depth++;
       }
-      else if (rn >= 2 && memcmp(q, "if", 2) == 0 &&
-               (rn == 2 || is_space((unsigned char)q[2]))) {
-        int result;
+      else if (dir_name_is(q, rn, "if", 1, 0)) {
+        int result = 0;
         q += 2;
         rn -= 2;
-        result = eval_if(L, S, q, rn, line);
+        if (active)
+          result = eval_if(L, S, q, rn, line);
         if (depth >= MAX_COND_DEPTH)
           luaL_error(L, "ffi.cdef:%d: conditionals nested too deeply", line);
         cond[depth].parent = active;
         cond[depth].seen_else = 0;
         cond[depth].active = active && result;
+        cond[depth].taken = cond[depth].active;
         active = cond[depth].active;
         depth++;
       }
-      else if (rn >= 4 && memcmp(q, "else", 4) == 0 &&
-               (rn == 4 || is_space((unsigned char)q[4]))) {
+      else if (dir_name_is(q, rn, "elif", 1, 0)) {
+        Cond *c;
+        if (depth == 0)
+          luaL_error(L, "ffi.cdef:%d: #elif without #if", line);
+        c = &cond[depth - 1];
+        if (c->seen_else)
+          luaL_error(L, "ffi.cdef:%d: #elif after #else", line);
+        if (c->parent && !c->taken) {
+          q += 4;
+          rn -= 4;
+          c->active = eval_if(L, S, q, rn, line);
+          c->taken = c->active;
+        }
+        else {
+          /* A skipped group's expression is not evaluated, so a malformed
+          ** #elif in a dead branch cannot fail the whole cdef. */
+          c->active = 0;
+        }
+        active = c->active;
+      }
+      else if (dir_name_is(q, rn, "else", 0, 1)) {
+        Cond *c;
         if (depth == 0)
           luaL_error(L, "ffi.cdef:%d: #else without #if", line);
-        if (cond[depth - 1].seen_else)
+        c = &cond[depth - 1];
+        if (c->seen_else)
           luaL_error(L, "ffi.cdef:%d: duplicate #else", line);
-        cond[depth - 1].seen_else = 1;
-        cond[depth - 1].active = cond[depth - 1].parent &&
-                                 !cond[depth - 1].active;
-        active = cond[depth - 1].active;
+        c->seen_else = 1;
+        c->active = c->parent && !c->taken;
+        c->taken = 1;
+        active = c->active;
       }
-      else if (rn >= 5 && memcmp(q, "endif", 5) == 0 &&
-               (rn == 5 || is_space((unsigned char)q[5]))) {
+      else if (dir_name_is(q, rn, "endif", 0, 1)) {
         if (depth == 0)
           luaL_error(L, "ffi.cdef:%d: #endif without #if", line);
         depth--;
