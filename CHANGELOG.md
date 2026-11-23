@@ -4,7 +4,7 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
-## [Unreleased]
+## [0.212.0] — 2026-11-23
 
 ### Added
 
