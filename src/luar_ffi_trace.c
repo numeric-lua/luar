@@ -726,7 +726,7 @@ int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
     if (f->bitwidth != 0 || ft == NULL)
       return 0;
     if (ft->kind == CT_INT &&
-        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+        (ft->size == 1 || ft->size == 2 || ft->size == 4))
       *kind = 1;
     else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
       *kind = 2;
@@ -777,7 +777,7 @@ int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
     if (f->bitwidth != 0 || ft == NULL)
       return 0;
     if (ft->kind == CT_INT &&
-        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+        (ft->size == 1 || ft->size == 2 || ft->size == 4))
       *kind = 1;
     else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
       *kind = 2;
@@ -838,7 +838,7 @@ int luar_ffi_trace_field3 (TValue *cdv, const char *n1, const char *n2,
       return 0;
     o3 = f->offset;
     if (ft->kind == CT_INT &&
-        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+        (ft->size == 1 || ft->size == 2 || ft->size == 4))
       *kind = 1;
     else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
       *kind = 2;
@@ -1754,8 +1754,7 @@ int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
       if (f->bitwidth != 0 || ft == NULL)
         return 0;
       if (ft->kind == CT_INT &&
-          (ft->size == 1 || ft->size == 2 || ft->size == 4 ||
-           ft->size == 8))
+          (ft->size == 1 || ft->size == 2 || ft->size == 4))
         *kind = 1;
       else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
         *kind = 2;
@@ -1799,7 +1798,7 @@ int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
       return 0;
     o4 = f->offset;
     if (ft->kind == CT_INT &&
-        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+        (ft->size == 1 || ft->size == 2 || ft->size == 4))
       *kind = 1;
     else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
       *kind = 2;
@@ -1844,7 +1843,7 @@ int luar_ffi_trace_field5 (TValue *cdv, const char *n1, const char *n2,
       return 0;
     o5 = f->offset;
     if (ft->kind == CT_INT &&
-        (ft->size == 1 || ft->size == 2 || ft->size == 4 || ft->size == 8))
+        (ft->size == 1 || ft->size == 2 || ft->size == 4))
       *kind = 1;
     else if (ft->kind == CT_FLOAT && (ft->size == 4 || ft->size == 8))
       *kind = 2;
