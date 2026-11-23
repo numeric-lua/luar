@@ -2761,6 +2761,8 @@ static int ffi_copy (lua_State *L) {
   size_t len;
   const char *s = NULL;
   size_t slen = 0;
+  void *sp = NULL;
+  size_t savail = FFI_SIZE_UNKNOWN;
   if (src_is_string) {
     s = lua_tolstring(L, 2, &slen);
     if (lua_isnoneornil(L, 3))
@@ -2774,6 +2776,14 @@ static int ffi_copy (lua_State *L) {
     if (lua_isnoneornil(L, 3))
       luaL_error(L, "ffi.copy: length required when the source is a cdata");
     len = check_len_arg(L, 3, "copy length");
+    /* LUAR: validate the source even for a zero-length copy.  The old
+    ** early return accepted a scalar/table/number source silently, while
+    ** LuaJIT rejects anything that is not a pointer/array (NULL is the one
+    ** zero-length exception). */
+    if (!(len == 0 && lua_isnil(L, 2))) {
+      CData *src = ffi_checkcdata(L, 2, "copy");
+      sp = mem_arg(L, S, src, "copy", &savail);
+    }
   }
   if (davail != FFI_SIZE_UNKNOWN && len > davail)
     luaL_error(L, "ffi.copy: destination length out of bounds");
@@ -2785,16 +2795,11 @@ static int ffi_copy (lua_State *L) {
     memcpy(dp, s, len);		/* len may include the string's NUL */
     return 0;
   }
-  {
-    CData *src = ffi_checkcdata(L, 2, "copy");
-    size_t savail;
-    void *sp = mem_arg(L, S, src, "copy", &savail);
-    if (savail != FFI_SIZE_UNKNOWN && len > savail)
-      luaL_error(L, "ffi.copy: source length out of bounds");
-    if (sp == NULL)
-      luaL_error(L, "ffi.copy: NULL source pointer");
-    memmove(dp, sp, len);
-  }
+  if (savail != FFI_SIZE_UNKNOWN && len > savail)
+    luaL_error(L, "ffi.copy: source length out of bounds");
+  if (sp == NULL)
+    luaL_error(L, "ffi.copy: NULL source pointer");
+  memmove(dp, sp, len);
   return 0;
 }
 
