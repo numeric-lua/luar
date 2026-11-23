@@ -16,6 +16,31 @@
 
 #include "luar_ffi_internal.h"
 
+
+/* Constant-size loads keep memcpy inlined; the generic ffi_load_uint takes
+** a runtime size and turns every element access into a libc memcpy call,
+** which made the J2 integer reduction an order of magnitude slower than
+** the double one. */
+static inline uint64_t trace_load_uint (const void *p, size_t sz) {
+  switch (sz) {
+    case 1: { uint8_t v; memcpy(&v, p, sizeof(v)); return v; }
+    case 2: { uint16_t v; memcpy(&v, p, sizeof(v)); return v; }
+    case 4: { uint32_t v; memcpy(&v, p, sizeof(v)); return v; }
+    default: { uint64_t v; memcpy(&v, p, sizeof(v)); return v; }
+  }
+}
+
+
+static inline int64_t trace_load_int (const void *p, size_t sz) {
+  uint64_t u = trace_load_uint(p, sz);
+  switch (sz) {
+    case 1: return (int64_t)(int8_t)u;
+    case 2: return (int64_t)(int16_t)u;
+    case 4: return (int64_t)(int32_t)u;
+    default: return (int64_t)u;
+  }
+}
+
 int luar_ffi_trace_kind (TValue *tv) {
   Udata *u;
   CData *cd;
@@ -39,6 +64,188 @@ int luar_ffi_trace_kind (TValue *tv) {
       return 2;
   }
   return -1;
+}
+
+
+/* Bounded cdata array variant used by the default J2 reduction.  A pointer
+** has no length, so the intrinsic cannot prove the run is in bounds and
+** must leave it to the interpreter. */
+int luar_ffi_trace_array_kind (TValue *tv) {
+  Udata *u;
+  CData *cd;
+  CType *elem;
+  if (tv == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL || cd->ct->kind != CT_ARRAY || cd->ct->child == NULL)
+    return 0;
+  elem = cd->ct->child;
+  if (elem->kind == CT_INT &&
+      (elem->size == 1 || elem->size == 2 || elem->size == 4))
+    return 1;
+  if (elem->kind == CT_FLOAT &&
+      (elem->size == 4 || elem->size == 8))
+    return 2;
+  return 0;
+}
+
+
+/* J2 cdata reduction: s = s + a[i] for a bounded array of 1/2/4-byte
+** integers or 4/8-byte floats.  The loop control is exactly the interpreter
+** FORLOOP state at the backedge: 'count + 1' body iterations start at
+** 'idx', and on success the control slots are finished (count 0, index at
+** the last visited key) so the VM resumes after FORLOOP. */
+int luar_ffi_trace_sum_array (TValue *arrv, TValue *it, TValue *ct,
+                              TValue *st, TValue *at, TValue *rt) {
+  Udata *u; CData *cd; CType *ctp, *elem; void *base;
+  size_t len, esz, k;
+  lua_Integer count, step, idx, last, delta;
+  int is_unsigned;
+  if (arrv == NULL || ct == NULL || st == NULL || it == NULL ||
+      at == NULL || rt == NULL || !ttisfulluserdata(arrv) ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      (!ttisinteger(at) && !ttisfloat(at)))
+    return 0;
+  u = (Udata *)arrv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ctp = cd->ct;
+  if (ctp == NULL || ctp->kind != CT_ARRAY || ctp->child == NULL)
+    return 0;   /* pointers have no length to bound-check */
+  elem = ctp->child;
+  if (elem->kind == CT_INT &&
+      (elem->size == 1 || elem->size == 2 || elem->size == 4)) {
+    is_unsigned = elem->is_unsigned;
+  }
+  else if (elem->kind == CT_FLOAT &&
+           (elem->size == 4 || elem->size == 8)) {
+    is_unsigned = 0;
+  }
+  else
+    return 0;
+  esz = elem->size;
+  len = ctp->vla ? cd->len : ctp->length;
+  base = (cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
+                                                      : (void *)&cd->v;
+  if (base == NULL)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  /* The run must stay inside the bounded cdata array.  A monotonic step
+  ** keeps every visited key between the two endpoints. */
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  last = idx + delta;
+  if (idx < 0 || last < 0 ||
+      (uint64_t)idx >= (uint64_t)len ||
+      (uint64_t)last >= (uint64_t)len)
+    return 0;
+  if (ttisinteger(at)) {
+    lua_Unsigned sum = l_castS2U(ivalue(at));
+    lua_Number fsum = 0;
+    int promoted = 0;
+    const char *p = (const char *)base + (ptrdiff_t)idx * (ptrdiff_t)esz;
+    for (k = 0; k <= (size_t)count; k++) {
+      if (elem->kind == CT_FLOAT) {
+        double d;
+        if (esz == 4) {
+          float f;
+          memcpy(&f, p, sizeof(f));
+          d = (double)f;
+        }
+        else {
+          memcpy(&d, p, sizeof(d));
+        }
+        if (!promoted) {
+          fsum = cast_num(l_castU2S(sum));
+          promoted = 1;
+        }
+        fsum += d;
+      }
+      else {
+        int64_t v = is_unsigned ? (int64_t)trace_load_uint(p, esz)
+                                : trace_load_int(p, esz);
+        if (promoted)
+          fsum += cast_num(v);
+        else
+          sum += l_castS2U(v);
+      }
+      p += (ptrdiff_t)step * (ptrdiff_t)esz;
+    }
+    if (promoted) {
+      setfltvalue(at, fsum);
+    }
+    else {
+      chgivalue(at, l_castU2S(sum));
+    }
+  }
+  else {
+    lua_Number sum = fltvalue(at);
+    const char *p = (const char *)base + (ptrdiff_t)idx * (ptrdiff_t)esz;
+    for (k = 0; k <= (size_t)count; k++) {
+      if (elem->kind == CT_FLOAT) {
+        if (esz == 4) {
+          float f;
+          memcpy(&f, p, sizeof(f));
+          sum += (double)f;
+        }
+        else {
+          double d;
+          memcpy(&d, p, sizeof(d));
+          sum += d;
+        }
+      }
+      else {
+        int64_t v = is_unsigned ? (int64_t)trace_load_uint(p, esz)
+                                : trace_load_int(p, esz);
+        sum += cast_num(v);
+      }
+      p += (ptrdiff_t)step * (ptrdiff_t)esz;
+    }
+    setfltvalue(at, sum);
+  }
+  /* Preserve the element temporary the bytecode wrote on the last body
+  ** iteration, like the table intrinsic does. */
+  {
+    const char *p = (const char *)base + (ptrdiff_t)last * (ptrdiff_t)esz;
+    if (elem->kind == CT_FLOAT) {
+      if (esz == 4) {
+        float f;
+        memcpy(&f, p, sizeof(f));
+        setfltvalue(rt, (lua_Number)f);
+      }
+      else {
+        double d;
+        memcpy(&d, p, sizeof(d));
+        setfltvalue(rt, d);
+      }
+    }
+    else if (is_unsigned) {
+      setivalue(rt, (lua_Integer)trace_load_uint(p, esz));
+    }
+    else {
+      setivalue(rt, (lua_Integer)trace_load_int(p, esz));
+    }
+  }
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
 }
 
 

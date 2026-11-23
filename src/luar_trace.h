@@ -386,6 +386,13 @@ int luar_ffi_trace_i64_array (TValue *tv);
 int luar_ffi_trace_i64_unsigned (TValue *tv);
 int64_t luar_ffi_trace_copy_i64 (TValue *dst, TValue *src, TValue *key);
 
+/* J2 raw reduction over a bounded cdata array: arr, current index, remaining
+** count, step and the accumulator/element destinations are all live stack
+** slots.  Returns 0 when the shape or bounds do not match. */
+int luar_ffi_trace_array_kind (TValue *tv);
+int luar_ffi_trace_sum_array (TValue *arr, TValue *idx, TValue *count,
+                              TValue *step, TValue *acc, TValue *res);
+
 int64_t luar_ffi_trace_add_i64 (TValue *arr, TValue *key, int64_t delta);
 
 int64_t luar_ffi_trace_set_i64 (TValue *arr, TValue *key, TValue *val);

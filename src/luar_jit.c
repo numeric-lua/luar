@@ -1379,6 +1379,46 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                                  GETARG_B(i2), 0, GETARG_B(i0),
                                  GETARG_A(i3), GETARG_A(i2));
     }
+    if (!for_float && J->enable_tint && n >= 4 &&
+        GET_OPCODE(i0) == OP_GETTABLE &&
+        GET_OPCODE(p->code[start + 1]) == OP_ADD &&
+        GET_OPCODE(p->code[start + 2]) == OP_MMBIN &&
+        backedge == start + 3) {
+      /* LUAR: `s = s + a[i]` over a bounded FFI cdata array.  The generic
+      ** decoder only knows Lua tables, so recognise the raw GETTABLE shape
+      ** here and let a C helper run the remaining iterations. */
+      Instruction i1 = p->code[start + 1];
+      int tmp = GETARG_A(i0), arr = GETARG_B(i0);
+      int acc = GETARG_A(i1);
+      if (GETARG_C(i0) == for_a + 2 &&
+          GETARG_A(i1) == GETARG_B(i1) &&
+          GETARG_C(i1) == tmp &&
+          tmp != acc && arr != acc && arr != tmp &&
+          !is_control_reg(tmp, for_a) &&
+          !is_control_reg(acc, for_a) &&
+          !is_control_reg(arr, for_a) &&
+          luar_ffi_trace_array_kind(&b[arr]) != 0) {
+        int slot = -1, k;
+        for (k = 0; k < 2; k++) {
+          if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+            slot = k;
+            break;
+          }
+        }
+        if (slot < 0)
+          slot = 1;
+        p->luar_code[slot] = NULL;
+        p->luar_tint[slot] = 16;
+        p->luar_tint_pc[slot] = (int)backedge;
+        p->luar_tint_table[slot] = arr;
+        p->luar_tint_acc[slot] = acc;
+        p->luar_tint_res[slot] = tmp;
+        p->luar_tint_base[slot] = for_a;
+        p->luar_tint_epoch[slot] = J->epoch;
+        J->compiled++;
+        return 1;
+      }
+    }
     if (!for_float && J->enable_tint &&
         match_three_table_sum(p, J, start, backedge, for_a, b))
       return 1;
@@ -4912,6 +4952,15 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                        p->luar_tint_acc[i]);
           break;
         }
+        case 16:
+          r = luar_ffi_trace_sum_array(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_acc[i]],
+                  &((TValue *)base)[p->luar_tint_res[i]]);
+          break;
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
@@ -4979,7 +5028,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 15))
+        if (kind <= 4 || (kind >= 10 && kind <= 16))
           p->luar_tint[i] = 0;
       }
       else
