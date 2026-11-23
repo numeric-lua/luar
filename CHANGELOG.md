@@ -6,6 +6,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.208.0] — 2026-11-24
+
 ### Added
 
 - J2 stores bounded cdata arrays with floor division and modulo:
