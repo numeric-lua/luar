@@ -426,6 +426,58 @@ static int install_cdata_tint (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* Match a cdata fill whose destination array is a closure upvalue:
+**   GETUPVAL a, U; SETTABLE a, key, value
+** The upvalue is re-resolved on every entry, so rebinding it is observed.
+** Only the pure fill is handled here; copy/update shapes reload the array
+** twice and stay on the interpreter. */
+static int match_cdata_upval_fill (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                                   ptrdiff_t backedge, int for_a,
+                                   TValue *b) {
+  ptrdiff_t n = backedge - start + 1;
+  Instruction up, st;
+  int treg, arr, key, mode, arg4 = 0;
+  TValue *av;
+  if (n != 3)
+    return 0;
+  up = p->code[start];
+  st = p->code[start + 1];
+  if (GET_OPCODE(up) != OP_GETUPVAL ||
+      GET_OPCODE(st) != OP_SETTABLE)
+    return 0;
+  treg = GETARG_A(up);
+  arr = GETARG_A(st);
+  key = GETARG_B(st);
+  if (arr != treg || key != for_a + 2 ||
+      is_control_reg(treg, for_a))
+    return 0;
+  av = pair_source_value(b, -1, GETARG_B(up));
+  if (av == NULL || luar_ffi_trace_array_store_kind(av) == 0)
+    return 0;
+  if (GETARG_k(st)) {
+    int kidx = GETARG_C(st);
+    if (kidx < 0 || kidx >= p->sizek ||
+        (!ttisinteger(&p->k[kidx]) && !ttisfloat(&p->k[kidx])))
+      return 0;
+    mode = -2;
+    arg4 = kidx;
+  }
+  else {
+    int vreg = GETARG_C(st);
+    if (vreg == key)
+      mode = -1;
+    else {
+      if (is_control_reg(vreg, for_a) ||
+          (!ttisinteger(&b[vreg]) && !ttisfloat(&b[vreg])))
+        return 0;
+      mode = vreg;
+    }
+  }
+  return install_cdata_tint(p, J, backedge, 25, -1 - GETARG_B(up),
+                            mode, treg, 0, 0, arg4, for_a);
+}
+
+
 /* Match the three cdata store shapes:
 **   a[i] = value                 (value slot, key or numeric constant)
 **   a[i] = b[i]                  (element-wise copy)
@@ -1932,6 +1984,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_scaled_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_fill(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_field_table_sum(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_pair_store(p, J, start, backedge, for_a, b))
@@ -5498,6 +5556,26 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[p->luar_tint_arg4[i]],
                     &((TValue *)base)[p->luar_tint_res[i]],
                     kind - 17);
+          break;
+        }
+        case 25: {
+          int enc = p->luar_tint_table[i];
+          TValue *av = pair_source_value((TValue *)base,
+                                         (enc >= 0) ? enc : -1,
+                                         (enc >= 0) ? -1 : (-1 - enc));
+          if (av != NULL) {
+            int mode = p->luar_tint_keys[i];
+            int temp = p->luar_tint_upval[i];
+            TValue *val = (mode == -2) ? &p->k[p->luar_tint_arg4[i]]
+                        : (mode >= 0) ? &((TValue *)base)[mode] : NULL;
+            ((TValue *)base)[temp] = *av;
+            r = luar_ffi_trace_store_array(
+                    av,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    val, (mode == -1) ? 1 : (mode == -2) ? 2 : 0);
+          }
           break;
         }
         case 20: {
