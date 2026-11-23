@@ -11,6 +11,8 @@ if jit.status() ~= true then
   return
 end
 
+jit.opt.start("ir=0", "hotloop=1", "table=0", "tint=1")
+
 local N = 300
 local upA, upB = {}, {}
 for i = 1, N do
