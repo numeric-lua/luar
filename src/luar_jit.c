@@ -560,6 +560,88 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* Match `a[i] = b[i] OP v` and its immediate/constant forms: GETTABLE
+** tmp, src, key; arithmetic tmp = tmp OP scalar; MMBIN; SETTABLE.  Only
+** source-OP-scalar order is accepted; the compiler already swaps the
+** commutative add/multiply forms. */
+static int match_cdata_scalar_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                                     ptrdiff_t backedge, int for_a,
+                                     TValue *b) {
+  ptrdiff_t n = backedge - start + 1;
+  Instruction g, opins, s;
+  int key = for_a + 2;
+  int tmp, src, dst, op, scalar = -1, scalar_const = -1;
+  OpCode opc;
+  if (n != 5 || GET_OPCODE(p->code[start]) != OP_GETTABLE)
+    return 0;
+  g = p->code[start];
+  opins = p->code[start + 1];
+  s = p->code[start + 3];
+  tmp = GETARG_A(g);
+  src = GETARG_B(g);
+  if (GETARG_C(g) != key || tmp == key || tmp == src || src == key ||
+      is_control_reg(tmp, for_a) || is_control_reg(src, for_a) ||
+      luar_ffi_trace_array_kind(&b[src]) == 0)
+    return 0;
+  opc = GET_OPCODE(opins);
+  switch (opc) {
+    case OP_ADD: case OP_ADDI: case OP_ADDK: op = 0; break;
+    case OP_SUB: case OP_SUBK: op = 1; break;
+    case OP_MUL: case OP_MULK: op = 2; break;
+    case OP_DIV: case OP_DIVK: op = 3; break;
+    default: return 0;
+  }
+  if (GETARG_A(opins) != tmp)
+    return 0;
+  if (opc == OP_ADD || opc == OP_SUB || opc == OP_MUL || opc == OP_DIV) {
+    int bop = GETARG_B(opins), cop = GETARG_C(opins);
+    int other;
+    if (bop == tmp)
+      other = cop;
+    else if (cop == tmp && (opc == OP_ADD || opc == OP_MUL))
+      other = bop;   /* compiler swapped a commutative form */
+    else
+      return 0;
+    if (other == key || other == for_a || other == for_a + 1 ||
+        other == for_a + 2 || other == src || other == tmp ||
+        (!ttisinteger(&b[other]) && !ttisfloat(&b[other])))
+      return 0;
+    scalar = other;
+  }
+  else if (opc == OP_ADDI) {
+    if (GETARG_B(opins) != tmp)
+      return 0;
+    scalar = -2;
+    scalar_const = (int)GETARG_sC(opins);
+  }
+  else {
+    int idx = GETARG_C(opins);
+    TValue *k;
+    if (GETARG_B(opins) != tmp || idx < 0 || idx >= p->sizek)
+      return 0;
+    k = &p->k[idx];
+    if (!ttisinteger(k) && !ttisfloat(k))
+      return 0;
+    scalar = -1;
+    scalar_const = idx;
+  }
+  if (GET_OPCODE(p->code[start + 2]) != OP_MMBIN &&
+      GET_OPCODE(p->code[start + 2]) != OP_MMBINI &&
+      GET_OPCODE(p->code[start + 2]) != OP_MMBINK)
+    return 0;
+  if (GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) || GETARG_B(s) != key ||
+      GETARG_C(s) != tmp)
+    return 0;
+  dst = GETARG_A(s);
+  if (dst == tmp || dst == for_a || dst == for_a + 1 ||
+      dst == for_a + 2 ||
+      luar_ffi_trace_array_kind(&b[dst]) == 0)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 24, dst, src, scalar, op, tmp,
+                            scalar_const, for_a);
+}
+
+
 /* Match `a[i] = b[i] OP c[i]`: GETTABLE ta, b, key; GETTABLE tb, c, key;
 ** arithmetic; SETTABLE.  The arithmetic destination must be ta, which is
 ** the common compiler shape. */
@@ -1757,6 +1839,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_store(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_scalar_store(p, J, start, backedge, for_a, b))
       return 1;
     if (n >= 9 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -5363,6 +5448,27 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   &((TValue *)base)[p->luar_tint_res[i]],
                   p->luar_tint_arg4[i]);
           break;
+        case 24: {
+          TValue scalar;
+          int enc = p->luar_tint_upval[i];
+          if (enc == -2) {
+            setivalue(&scalar, (lua_Integer)p->luar_tint_arg4[i]);
+          }
+          else if (enc == -1)
+            scalar = p->k[p->luar_tint_arg4[i]];
+          else
+            scalar = ((TValue *)base)[enc];
+          r = luar_ffi_trace_scalar_store(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &scalar,
+                  &((TValue *)base)[p->luar_tint_res[i]],
+                  p->luar_tint_acc[i]);
+          break;
+        }
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
@@ -5430,7 +5536,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 23))
+        if (kind <= 4 || (kind >= 10 && kind <= 24))
           p->luar_tint[i] = 0;
       }
       else

@@ -276,6 +276,12 @@ int luar_ffi_trace_update_array (TValue *a, TValue *i, TValue *c,
   (void)a; (void)i; (void)c; (void)s; (void)v; (void)tmp; (void)op;
   return 0;
 }
+int luar_ffi_trace_scalar_store (TValue *d, TValue *src, TValue *i,
+                                 TValue *c, TValue *s, TValue *v,
+                                 TValue *tmp, int op) {
+  (void)d; (void)src; (void)i; (void)c; (void)s; (void)v; (void)tmp;
+  (void)op; return 0;
+}
 int luar_ffi_trace_pair_store (TValue *d, TValue *av, TValue *bv, TValue *i,
                                TValue *c, TValue *s, TValue *ta, TValue *tb,
                                int op) {
