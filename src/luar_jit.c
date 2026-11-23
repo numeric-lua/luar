@@ -500,13 +500,16 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
       case OP_SUB: case OP_SUBK: op = 1; break;
       case OP_MUL: case OP_MULK: op = 2; break;
       case OP_DIV: case OP_DIVK: op = 3; break;
+      case OP_IDIV: case OP_IDIVK: op = 4; break;
+      case OP_MOD: case OP_MODK: op = 5; break;
       default: return 0;
     }
     /* The arithmetic destination must be the GETTABLE temporary, so the
     ** final SETTABLE stores the computed value. */
     if (GETARG_A(opins) != tmp)
       return 0;
-    if (opc == OP_ADD || opc == OP_SUB || opc == OP_MUL || opc == OP_DIV) {
+    if (opc == OP_ADD || opc == OP_SUB || opc == OP_MUL || opc == OP_DIV ||
+        opc == OP_IDIV || opc == OP_MOD) {
       int bop = GETARG_B(opins), cop = GETARG_C(opins);
       if (bop != tmp)
         return 0;
@@ -589,11 +592,14 @@ static int match_cdata_scalar_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     case OP_SUB: case OP_SUBK: op = 1; break;
     case OP_MUL: case OP_MULK: op = 2; break;
     case OP_DIV: case OP_DIVK: op = 3; break;
+    case OP_IDIV: case OP_IDIVK: op = 4; break;
+    case OP_MOD: case OP_MODK: op = 5; break;
     default: return 0;
   }
   if (GETARG_A(opins) != tmp)
     return 0;
-  if (opc == OP_ADD || opc == OP_SUB || opc == OP_MUL || opc == OP_DIV) {
+  if (opc == OP_ADD || opc == OP_SUB || opc == OP_MUL || opc == OP_DIV ||
+      opc == OP_IDIV || opc == OP_MOD) {
     int bop = GETARG_B(opins), cop = GETARG_C(opins);
     int other;
     if (bop == tmp)

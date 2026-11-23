@@ -705,11 +705,11 @@ int luar_ffi_trace_copy_array (TValue *dstv, TValue *srcv, TValue *it,
 }
 
 
-/* J2: `a[i] = a[i] + v`, `- v`, `* v` and `/ v` over one bounded array.
-** op is 0/1/2/3 for add/subtract/multiply/divide.  The element and the
-** arithmetic result are represented as Lua numbers, so int wrap and
-** int->float promotion match the interpreter before the C store
-** conversion. */
+/* J2: `a[i] = a[i] + v`, `- v`, `* v`, `/ v`, `// v` and `% v` over one
+** bounded array.  op is 0..5 for add/subtract/multiply/divide/floor-divide/
+** modulo.  The element and the arithmetic result are represented as Lua
+** numbers, so int wrap and int->float promotion match the interpreter
+** before the C store conversion. */
 int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
                                  TValue *st, TValue *scalar, TValue *tmp,
                                  int op) {
@@ -718,7 +718,7 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
   lua_Integer count, step, idx, last, k;
   if (arrv == NULL || it == NULL || ct == NULL || st == NULL ||
       scalar == NULL || tmp == NULL || !ttisinteger(ct) ||
-      !ttisinteger(st) || !ttisinteger(it) || op < 0 || op > 3)
+      !ttisinteger(st) || !ttisinteger(it) || op < 0 || op > 5)
     return 0;
   if (!ffi_num_from_tv(scalar, &n) || !ffi_view_init(arrv, &v))
     return 0;
@@ -726,6 +726,10 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
   step = ivalue(st);
   idx = ivalue(it);
   if (!ffi_store_range(&v, count, step, idx, &last))
+    return 0;
+  /* Integer // and % by zero raise; decline before the first store so the
+  ** interpreter reports the error at the failing element. */
+  if ((op == 4 || op == 5) && !v.isflt && !n.isflt && n.i == 0)
     return 0;
   lastval = ffi_num_int(0);
   {
@@ -738,8 +742,12 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
         lastval = ffi_num_sub(x, n);
       else if (op == 2)
         lastval = ffi_num_mul(x, n);
-      else
+      else if (op == 3)
         lastval = ffi_num_flt(ffi_num_double(x) / ffi_num_double(n));
+      else if (op == 4)
+        lastval = ffi_num_idiv(x, n);
+      else
+        lastval = ffi_num_mod(x, n);
       ffi_view_store(&v, p, lastval);
       p += (ptrdiff_t)step * (ptrdiff_t)v.esz;
     }
@@ -751,11 +759,11 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
 }
 
 
-/* J2: `a[i] = b[i] + v` (and the subtract/multiply/divide forms) over two
-** bounded arrays.  op is 0/1/2/3.  As with the in-place update, the
-** arithmetic is performed with Lua number promotion first, then the C
-** element-store conversion is applied.  The bytecode result temporary
-** keeps the last computed result. */
+/* J2: `a[i] = b[i] + v` and the subtract/multiply/divide/floor-divide/
+** modulo forms over two bounded arrays.  op is 0..5.  As with the in-place
+** update, the arithmetic is performed with Lua number promotion first,
+** then the C element-store conversion is applied.  The bytecode result
+** temporary keeps the last computed result. */
 int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
                                  TValue *ct, TValue *st, TValue *scalar,
                                  TValue *tmp, int op) {
@@ -765,7 +773,7 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
   if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
       st == NULL || scalar == NULL || tmp == NULL ||
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
-      op < 0 || op > 3)
+      op < 0 || op > 5)
     return 0;
   if (!ffi_num_from_tv(scalar, &n) ||
       !ffi_view_init(dstv, &vd) || !ffi_view_init(srcv, &vs))
@@ -775,6 +783,9 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
   idx = ivalue(it);
   if (!ffi_store_range(&vd, count, step, idx, &last) ||
       !ffi_store_range(&vs, count, step, idx, &last))
+    return 0;
+  /* Integer // and % by zero raise; decline before the first store. */
+  if ((op == 4 || op == 5) && !vs.isflt && !n.isflt && n.i == 0)
     return 0;
   lastres = ffi_num_int(0);
   {
@@ -788,8 +799,12 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
         lastres = ffi_num_sub(x, n);
       else if (op == 2)
         lastres = ffi_num_mul(x, n);
-      else
+      else if (op == 3)
         lastres = ffi_num_flt(ffi_num_double(x) / ffi_num_double(n));
+      else if (op == 4)
+        lastres = ffi_num_idiv(x, n);
+      else
+        lastres = ffi_num_mod(x, n);
       ffi_view_store(&vd, pd, lastres);
       pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
       ps += (ptrdiff_t)step * (ptrdiff_t)vs.esz;
@@ -802,10 +817,10 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
 }
 
 
-/* J2: `a[i] = b[i] + c[i]` (and the subtract/multiply/divide forms) over
-** three bounded arrays.  op is 0/1/2/3.  tmpa is the first GETTABLE/result
-** temporary and tmpb the second source temporary; the recognizer only
-** accepts shapes whose ADD/SUB/MUL destination is tmpa. */
+/* J2: `a[i] = b[i] + c[i]` and the subtract/multiply/divide/floor-divide/
+** modulo forms over three bounded arrays.  op is 0..5.  tmpa is the first
+** GETTABLE/result temporary and tmpb the second source temporary; the
+** recognizer only accepts shapes whose arithmetic destination is tmpa. */
 int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
                                TValue *it, TValue *ct, TValue *st,
                                TValue *tmpa, TValue *tmpb, int op) {
