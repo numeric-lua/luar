@@ -662,7 +662,26 @@ int luaV_equalobj (lua_State *L, const TValue *t1, const TValue *t2) {
       case LUA_VLNGSTR:
         return luaS_eqstr(tsvalue(t1), tsvalue(t2));
       case LUA_VUSERDATA: {
-        if (uvalue(t1) == uvalue(t2)) return 1;
+        if (uvalue(t1) == uvalue(t2)) {
+#if defined(LUAR_FFI_HOOKS)	/* LUAR: metatype __eq on identical cdata */
+          /*
+          ** LuaJIT dispatches a cdata metatype's '__eq' even when both
+          ** operands are the same object.  Stock Lua short-circuits
+          ** identical userdata, which made 'x == x' observably different.
+          */
+          if (L != NULL) {
+            Table *mt = uvalue(t1)->metatable;
+            TValue res;
+            if (mt != NULL &&
+                !tagisfalse(luaH_getint(mt, LUAR_FFI_CDATA_MARK, &res))) {
+              tm = fasttm(L, mt, TM_EQ);
+              if (tm != NULL)
+                break;  /* will call the cdata '__eq' */
+            }
+          }
+#endif
+          return 1;
+        }
         else if (L == NULL) return 0;
         tm = fasttm(L, uvalue(t1)->metatable, TM_EQ);
         if (tm == NULL)

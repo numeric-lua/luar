@@ -1559,6 +1559,13 @@ static int cdata_eq (lua_State *L) {
   CData *b = ffi_tocdata(L, 2);
   if (meta_binop(L, "__eq"))
     return 1;
+  /* The VM now routes an identical cdata pair here so that a metatype
+  ** handler can observe self-comparison.  Without a handler, identity is
+  ** still true for every cdata kind (structs and unions included). */
+  if (a != NULL && a == b) {
+    lua_pushboolean(L, 1);
+    return 1;
+  }
   if (a != NULL && b != NULL) {
     if ((a->flags & CDATA_CTYPE) != 0 || (b->flags & CDATA_CTYPE) != 0) {
       CType *ta = a->ct, *tb = b->ct;
