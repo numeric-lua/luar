@@ -203,6 +203,37 @@ static int install_keyed_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* LUAR: `s = s + t[i]` where `t` is a closure upvalue.  The table is
+** resolved from the current closure at each entry, so reassigning the
+** upvalue is observed like the interpreter. */
+static int install_upval_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                              int for_a, int upval, int acc, int res) {
+  int slot = -1, k;
+  if (res == acc)
+    return 0;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = 10;
+  p->luar_tint_pc[slot] = (int)backedge;
+  p->luar_tint_table[slot] = 0;
+  p->luar_tint_keys[slot] = 0;
+  p->luar_tint_upval[slot] = upval;
+  p->luar_tint_acc[slot] = acc;
+  p->luar_tint_res[slot] = res;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
 static int install_leaf4_intrinsic (Proto *p, LuaR_JIT *J,
                                    ptrdiff_t backedge, int for_a,
                                    int func_slot, int acc_slot,
@@ -787,6 +818,24 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         return install_keyed_sum(p, J, backedge, for_a,
                                  GETARG_B(i1), GETARG_B(i0), -1,
                                  GETARG_A(i2), GETARG_A(i1));
+    }
+    if (!for_float && J->enable_tint && n >= 5 &&
+        GET_OPCODE(i0) == OP_GETUPVAL &&
+        GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
+        GET_OPCODE(p->code[start + 2]) == OP_ADD &&
+        GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
+        backedge == start + 4) {
+      Instruction i1 = p->code[start + 1];
+      Instruction i2 = p->code[start + 2];
+      int treg = GETARG_A(i0), rreg = GETARG_A(i1), areg = GETARG_A(i2);
+      if (GETARG_B(i1) == treg &&
+          GETARG_C(i1) == for_a + 2 &&
+          GETARG_C(i2) == rreg &&
+          areg == GETARG_B(i2) &&
+          treg != areg && rreg != areg &&
+          treg != for_a && treg != for_a + 1 && treg != for_a + 2)
+        return install_upval_sum(p, J, backedge, for_a,
+                                 GETARG_B(i0), areg, rreg);
     }
     if (!for_float && J->enable_tint && n >= 6 && GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
@@ -2520,19 +2569,17 @@ static int table_fill_intrinsic (lua_State *L, TValue *base,
 }
 
 
-static int table_sum_intrinsic (lua_State *L, TValue *base,
-                                int for_a, int table_reg, int acc_reg,
-                                int res_reg) {
-  (void)L;
+/* Raw array sum over an already resolved table.  Used by the register and
+** upvalue-table intrinsic entries. */
+static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
+                            int acc_reg, int res_reg) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
-  TValue *tt = &base[table_reg];
   TValue *at = &base[acc_reg];
   lua_Integer count, step, idx, last, k;
-  Table *h;
-  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
-      !ttisinteger(it))
+  (void)L;
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -2544,7 +2591,6 @@ static int table_sum_intrinsic (lua_State *L, TValue *base,
   last = idx + count;
   if (last > (1 << 22))
     return 0;
-  h = hvalue(tt);
   if (h->metatable != NULL || (unsigned)last > h->asize)
     return 0;
   if (ttisinteger(at)) {
@@ -2610,6 +2656,16 @@ static int table_sum_intrinsic (lua_State *L, TValue *base,
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
+}
+
+
+static int table_sum_intrinsic (lua_State *L, TValue *base,
+                                int for_a, int table_reg, int acc_reg,
+                                int res_reg) {
+  TValue *tt = &base[table_reg];
+  if (!ttistable(tt))
+    return 0;
+  return table_sum_table(L, base, for_a, hvalue(tt), acc_reg, res_reg);
 }
 
 
@@ -3551,6 +3607,25 @@ static Table *tint_keys_table (Proto *p, TValue *base, int slot) {
 }
 
 
+/* LUAR: resolve the table captured in an upvalue for the upvalue-sum
+** intrinsic.  Returns NULL when the closure/upvalue is not a table. */
+static Table *tint_upval_table (Proto *p, TValue *base, int slot) {
+  TValue *fv = &base[-1];
+  LClosure *cl;
+  int idx = p->luar_tint_upval[slot];
+  TValue *v;
+  if (!ttisLclosure(fv))
+    return NULL;
+  cl = clLvalue(fv);
+  if (idx < 0 || idx >= cl->p->sizeupvalues)
+    return NULL;
+  v = cl->upvals[idx]->v.p;
+  if (!ttistable(v))
+    return NULL;
+  return hvalue(v);
+}
+
+
 static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir);
 static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir);
 
@@ -3818,6 +3893,13 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           r = (keys == NULL) ? 0
               : keyed_fill_intrinsic(L, (TValue *)base, expected_base,
                                      p->luar_tint_table[i], keys);
+          break;
+        }
+        case 10: {
+          Table *h = tint_upval_table(p, (TValue *)base, i);
+          r = (h == NULL) ? 0
+              : table_sum_table(L, (TValue *)base, expected_base, h,
+                                p->luar_tint_acc[i], p->luar_tint_res[i]);
           break;
         }
         case 9:
