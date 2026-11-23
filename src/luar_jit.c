@@ -3198,7 +3198,7 @@ static int table_fill_intrinsic (lua_State *L, TValue *base,
   if (h->metatable != NULL)
     return 0;
   if (h->asize < (unsigned)last)
-    luaH_resize(L, h, (unsigned)last, 0);
+    luaH_resizearray(L, h, (unsigned)last);   /* keep existing hash keys */
   for (k = 0; k <= count; k++) {
     TValue v;
     setivalue(&v, idx + k);
