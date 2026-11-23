@@ -2065,10 +2065,16 @@ decode_done:
           reads[nr] = op->b; types[nr++] = LUAR_T_INT;
           reads[nr] = op->c; types[nr++] = LUAR_T_INT;
           break;
+        /* LUAR: K arithmetic and unary minus may be float-typed.  The
+        ** entry guard must match the operand flavour the decoder proved;
+        ** using LUAR_T_INT made every float branch loop compile but fail
+        ** its own entry guard, so it silently stayed interpreted. */
         case LUAR_OP_ADDK:
         case LUAR_OP_SUBK:
         case LUAR_OP_MULK:
         case LUAR_OP_DIVK:
+        case LUAR_OP_UNM:
+          reads[nr] = op->b; types[nr++] = op->tb; break;
         case LUAR_OP_MODK:
         case LUAR_OP_IDIVK:
         case LUAR_OP_BANDK:
@@ -2077,7 +2083,6 @@ decode_done:
         case LUAR_OP_BNOT:
         case LUAR_OP_SHRI:
         case LUAR_OP_SHLI:
-        case LUAR_OP_UNM:
           reads[nr] = op->b; types[nr++] = LUAR_T_INT; break;
         case LUAR_OP_SHL:
         case LUAR_OP_SHR:
