@@ -803,10 +803,12 @@ static void emit_float_forloop (dasm_State **Dst, const LuaR_LoopDesc *d,
   | jmp =>lclose
   |=>lcont:
   | movsd qword [rbx + ((int)LUAR_SLOT(d->for_a + 2))], xmm0
-  if (pc_back)
+  if (pc_back) {
     | jmp =>((int)back)
-  else
+  }
+  else {
     | jmp <1
+  }
   |=>lclose:
 }
 

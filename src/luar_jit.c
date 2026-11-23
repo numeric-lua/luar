@@ -2157,8 +2157,9 @@ decode_done:
       }
     }
     if (!is_while) {
+      int ct = for_float ? LUAR_T_FLOAT : LUAR_T_INT;
       for (i = 0; i < 3; i++)
-        add_guard(&d, seen, for_a + i, LUAR_T_INT);
+        add_guard(&d, seen, for_a + i, ct);
     }
     d.npc = (int)n;
     d.has_branch = 1;
