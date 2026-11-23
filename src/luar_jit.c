@@ -5552,6 +5552,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     if (p->luar_ir_epoch != J->epoch) {
       p->luar_ir_code = NULL;
       p->luar_ir_size = 0;
+      p->luar_ir_pc = -1;
+      p->luar_ir_start = -1;
+      p->luar_ir_base = -1;
       p->luar_ir_partial = 0;
       p->luar_ir_call_pc = -1;
     }
@@ -6701,6 +6704,20 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
       {
         int intok = ir_integer_only(&ir);
         int fltok = (!intok && ir_floatify(p, (TValue *)base, &ir));
+        /* jit.flush() bumped the epoch and unmapped the old trace, but a
+        ** Proto still holds its pointer.  Do not treat that stale pointer
+        ** as an installed trace: clear it so this recording can install a
+        ** fresh one.  (luari_jit_try_run clears it too, but the hot hook
+        ** runs first and consumes the one-shot seen bit.) */
+        if (p->luar_ir_code != NULL && p->luar_ir_epoch != J->epoch) {
+          p->luar_ir_code = NULL;
+          p->luar_ir_size = 0;
+          p->luar_ir_pc = -1;
+          p->luar_ir_start = -1;
+          p->luar_ir_base = -1;
+          p->luar_ir_partial = 0;
+          p->luar_ir_call_pc = -1;
+        }
         if (J->enable_ir && p->luar_ir_code == NULL &&
             GET_OPCODE(ins) == OP_FORLOOP && (intok || fltok)) {
           if (luari_emit_trace_ir(&ir, &p->luar_ir_code,
