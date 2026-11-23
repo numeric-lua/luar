@@ -1869,6 +1869,11 @@ decode_done:
         else limit = op->b;
       }
       else if (op->kind == LUAR_OP_MUL) {
+        /* LUAR: the fast loop keeps one accumulator.  A second write to
+        ** it (for example `a=a+i*i; a=a*i`) must not be folded into the
+        ** square/product peephole: the emitter chooses one operation and
+        ** would compute a different sequence from the bytecode. */
+        if (acc >= 0) { ok = 0; break; }
         if (op->a == op->b && op->c == idx && op->a != idx &&
             (op->ta == LUAR_T_INT || op->ta == LUAR_T_FLOAT)) {
           prod = 1;
@@ -1883,8 +1888,8 @@ decode_done:
         else { ok = 0; break; }
       }
       else if (op->kind == LUAR_OP_MULK) {
-        if (temp >= 0 || op->b != idx || op->ta != LUAR_T_FLOAT ||
-            op->a == idx) { ok = 0; break; }
+        if (acc >= 0 || temp >= 0 || op->b != idx ||
+            op->ta != LUAR_T_FLOAT || op->a == idx) { ok = 0; break; }
         temp = op->a;
         is_float = 1;
         linear = 1;
