@@ -1669,8 +1669,8 @@ static int cdata_arith (lua_State *L, int op) {
       {
         size_t esz = pointer_elem_size(L, S, a->ct);
         ptrdiff_t diff = (char *)a->v.p - (char *)b->v.p;
-        CData *r = ffi_push_scalar(L, S, int64_type(S));
-        ffi_store_int(&r->v, r->ct->size, (int64_t)(diff / (ptrdiff_t)esz));
+        /* LuaJIT returns a Lua integer here, not an int64_t cdata. */
+        lua_pushinteger(L, (lua_Integer)(diff / (ptrdiff_t)esz));
         return 1;
       }
     }
