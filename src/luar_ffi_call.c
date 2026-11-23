@@ -221,8 +221,36 @@ static void push_symbol (lua_State *L, FFIState *S, CLibrary *cl,
                   "(declare it with ffi.cdef)", name);
   }
   if (ct->kind == CT_FUNC) {
-    void *p = clib_getsym(L, cl, name, 1);
+    void *p;
+    /* LUAR: LuaJIT returns the same function cdata for repeated lookups
+    ** (rawequal is true) and resolving a symbol through dlsym plus a fresh
+    ** userdata is expensive in hot FFI code.  Cache function symbols in
+    ** the CLibrary userdata; variables and constants stay snapshots. */
+    lua_getiuservalue(L, 1, 1);
+    if (!lua_istable(L, -1)) {
+      lua_pop(L, 1);
+      lua_newtable(L);
+      lua_pushvalue(L, -1);
+      lua_setiuservalue(L, 1, 1);
+    }
+    lua_getfield(L, -1, name);
+    {
+      CData *cached = ffi_tocdata(L, -1);
+      if (cached != NULL && (cached->flags & CDATA_CTYPE) == 0 &&
+          cached->ct->kind == CT_FUNC) {
+        lua_remove(L, -2);
+        return;
+      }
+    }
+    lua_pop(L, 1);
+    p = clib_getsym(L, cl, name, 1);
     ffi_push_func(L, S, ct, p);
+    lua_pushvalue(L, 1);
+    lua_setiuservalue(L, -2, 1);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -3, name);
+    lua_remove(L, -2);
+    return;
   }
   else {
     void *p = clib_getsym(L, cl, name, 1);
@@ -325,7 +353,7 @@ void ffi_push_clib (lua_State *L, FFIState *S, void *handle,
                     int is_default) {
   CLibrary *cl;
   (void)S;
-  cl = (CLibrary *)lua_newuserdatauv(L, sizeof(CLibrary), 0);
+  cl = (CLibrary *)lua_newuserdatauv(L, sizeof(CLibrary), 1);
   cl->handle = handle;
   cl->is_default = is_default;
   luaL_setmetatable(L, LUAR_FFI_CLIB_MT);
