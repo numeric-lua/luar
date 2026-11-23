@@ -443,7 +443,7 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (n == 2 && GET_OPCODE(i0) == OP_SETTABLE) {
     int arr = GETARG_A(i0), kb = GETARG_B(i0), kc = GETARG_C(i0);
     if (kb != key || arr == for_a || arr == for_a + 1 || arr == for_a + 2 ||
-        luar_ffi_trace_array_kind(&b[arr]) == 0)
+        luar_ffi_trace_array_store_kind(&b[arr]) == 0)
       return 0;
     if (GETARG_k(i0)) {
       TValue *k;

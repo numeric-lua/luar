@@ -92,6 +92,33 @@ int luar_ffi_trace_array_kind (TValue *tv) {
 }
 
 
+/* Store-side element kind.  Unlike array_kind this admits 8-byte integer
+** elements, because a bounded fill writes conversions of Lua numbers and
+** never loads an element into a Lua slot.  Copy/update/pair helpers keep
+** using array_kind and therefore stay away from cdata int64 temporaries. */
+int luar_ffi_trace_array_store_kind (TValue *tv) {
+  Udata *u;
+  CData *cd;
+  CType *elem;
+  if (tv == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL || cd->ct->kind != CT_ARRAY || cd->ct->child == NULL)
+    return 0;
+  elem = cd->ct->child;
+  if (elem->kind == CT_INT &&
+      (elem->size == 1 || elem->size == 2 || elem->size == 4 ||
+       elem->size == 8))
+    return 1;
+  if (elem->kind == CT_FLOAT &&
+      (elem->size == 4 || elem->size == 8))
+    return 2;
+  return 0;
+}
+
+
 /* J2 cdata reduction: s = s + a[i] for a bounded array of 1/2/4-byte
 ** integers or 4/8-byte floats.  The loop control is exactly the interpreter
 ** FORLOOP state at the backedge: 'count + 1' body iterations start at
@@ -320,8 +347,11 @@ static void ffi_num_store (TValue *dst, FfiNum n) {
 }
 
 /* Bounded cdata array view.  Pointers have no length and are rejected, as
-** in the single-array reduction. */
-static int ffi_view_init (TValue *tv, FfiView *v) {
+** in the single-array reduction.  Element loads produce Lua numbers, so
+** 8-byte integer elements are only accepted when the caller is a pure
+** store context (allow64) that never exposes a loaded element as a value;
+** a real int64/uint64 read yields cdata, not a Lua integer. */
+static int ffi_view_init_ex (TValue *tv, FfiView *v, int allow64) {
   Udata *u;
   CData *cd;
   CType *ct, *elem;
@@ -335,7 +365,8 @@ static int ffi_view_init (TValue *tv, FfiView *v) {
   ct = cd->ct;
   elem = ct->child;
   if (elem->kind == CT_INT &&
-      (elem->size == 1 || elem->size == 2 || elem->size == 4)) {
+      (elem->size == 1 || elem->size == 2 || elem->size == 4 ||
+       (allow64 && elem->size == 8))) {
     v->isflt = 0;
     v->is_unsigned = elem->is_unsigned;
   }
@@ -352,6 +383,10 @@ static int ffi_view_init (TValue *tv, FfiView *v) {
   v->base = (cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
                                                          : (void *)&cd->v;
   return v->base != NULL;
+}
+
+static int ffi_view_init (TValue *tv, FfiView *v) {
+  return ffi_view_init_ex(tv, v, 0);
 }
 
 static FfiNum ffi_view_load (const FfiView *v, const char *p) {
@@ -552,7 +587,9 @@ int luar_ffi_trace_store_array (TValue *arrv, TValue *it, TValue *ct,
     return 0;
   if (mode != 1 && (val == NULL || !ffi_num_from_tv(val, &n)))
     return 0;
-  if (!ffi_view_init(arrv, &v))
+  /* Pure fills may target 8-byte integer elements: no element is loaded
+  ** into a Lua slot, only the C store conversion of a Lua number is used. */
+  if (!ffi_view_init_ex(arrv, &v, 1))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);

@@ -253,6 +253,7 @@ int64_t luar_ffi_trace_ccall2ff (TValue *fn, double a0, double a1,
 int luar_ffi_trace_i64_array (TValue *tv) { (void)tv; return 0; }
 int luar_ffi_trace_i64_unsigned (TValue *tv) { (void)tv; return 0; }
 int luar_ffi_trace_array_kind (TValue *tv) { (void)tv; return 0; }
+int luar_ffi_trace_array_store_kind (TValue *tv) { (void)tv; return 0; }
 int luar_ffi_trace_sum_array (TValue *a, TValue *i, TValue *c, TValue *s,
                               TValue *acc, TValue *r) {
   (void)a; (void)i; (void)c; (void)s; (void)acc; (void)r; return 0;
