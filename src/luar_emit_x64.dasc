@@ -677,6 +677,12 @@ static void emit_table_add (dasm_State **Dst, const LuaR_LoopDesc *d,
   | shl rdx, 3
   | neg rdx
   | mov rcx, qword [r13 + rdx]
+  /* The bytecode lookup writes R[ka] before the fused add.  Preserve it
+  ** when a later instruction or the caller can observe that register. */
+  if (op->res != 0xFF) {
+    | mov qword [rbx + ((int)LUAR_SLOT(op->res))], rcx
+    | mov byte [rbx + ((int)LUAR_TAG(op->res))], ((int)d->tag_int)
+  }
   if (op->ta == LUAR_T_INT) {
     | mov rax, qword [rbx + ((int)LUAR_SLOT(op->a))]
     | add rax, rcx
@@ -724,6 +730,13 @@ static void emit_table_addi (dasm_State **Dst, const LuaR_LoopDesc *d,
   | shl rdx, 3
   | neg rdx
   | mov rcx, qword [r13 + rdx]
+  /* Materialise the GETI result even though the accumulator is the only
+  ** register the fused add needs.  "local x = t[1]; s = s + x" must leave
+  ** x holding the last element, as the interpreter does. */
+  if (op->res != 0xFF) {
+    | mov qword [rbx + ((int)LUAR_SLOT(op->res))], rcx
+    | mov byte [rbx + ((int)LUAR_TAG(op->res))], ((int)d->tag_int)
+  }
   if (op->ta == LUAR_T_INT) {
     | mov rax, qword [rbx + ((int)LUAR_SLOT(op->a))]
     | add rax, rcx

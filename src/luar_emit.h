@@ -59,6 +59,7 @@ enum { LUAR_T_INT = 1, LUAR_T_FLOAT = 2, LUAR_T_TABLE = 3 };
 typedef struct LuaR_Op {
   uint8_t kind;
   uint8_t a, b, c;
+  uint8_t res;		/* fused table lookup result slot (0xFF if none) */
   uint8_t ta, tb, tc;	/* result and operand flavours (LUAR_T_*) */
   uint8_t k;		/* comparison jump condition */
   int32_t target;	/* branch target instruction index */

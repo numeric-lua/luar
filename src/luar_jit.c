@@ -637,12 +637,14 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
         break;
       case LUAR_OP_TABLE_ADDI:
         ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
-             loop_type_check(types, op->a, op->ta);
+             loop_type_check(types, op->a, op->ta) &&
+             loop_type_check(types, op->res, LUAR_T_INT);
         break;
       case LUAR_OP_TABLE_ADD:
         ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
              loop_type_check(types, op->c, LUAR_T_INT) &&
-             loop_type_check(types, op->a, op->ta);
+             loop_type_check(types, op->a, op->ta) &&
+             loop_type_check(types, op->res, LUAR_T_INT);
         break;
       case LUAR_OP_SETTABLE:
         ok = loop_type_check(types, op->a, LUAR_T_TABLE) &&
@@ -979,6 +981,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     int tb, tc;
     OpCode opc = GET_OPCODE(ins);
     memset(op, 0, sizeof(*op));
+    op->res = 0xFF;
     op->pc = (int)(start + i);
     if (opc == OP_TEST || opc == OP_TESTSET) {
       Instruction jins;
@@ -1472,10 +1475,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
             if ((nb == ka && nc == na) || (nc == ka && nb == na))
               acct = slot_type(b, cur, def, na);
             if ((acct == LUAR_T_INT || acct == LUAR_T_FLOAT) &&
-                !is_control_reg(na, for_a)) {
+                !is_control_reg(na, for_a) && ka != na) {
+              /* The interpreter writes the element to R[ka] before the
+              ** add.  Keep that result live: a local assigned from t[i]
+              ** can be read after the loop or later in the body. */
               op->kind = LUAR_OP_TABLE_ADDI;
               op->a = (uint8_t)na;
               op->b = (uint8_t)kb;
+              op->res = (uint8_t)ka;
               op->ta = (uint8_t)acct;
               op->tb = LUAR_T_TABLE;
               memset(&ops[i + 1], 0, sizeof(ops[i + 1]));
@@ -1516,11 +1523,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
             if ((nb == ka && nc == na) || (nc == ka && nb == na))
               acct = slot_type(b, cur, def, na);
             if ((acct == LUAR_T_INT || acct == LUAR_T_FLOAT) &&
-                !is_control_reg(na, for_a)) {
+                !is_control_reg(na, for_a) && ka != na) {
+              /* R[ka] is part of the ADD's bytecode effect; materialise it
+              ** so later reads (and the post-loop value) stay correct. */
               op->kind = LUAR_OP_TABLE_ADD;
               op->a = (uint8_t)na;
               op->b = (uint8_t)kb;
               op->c = (uint8_t)kc;
+              op->res = (uint8_t)ka;
               op->ta = (uint8_t)acct;
               op->tb = LUAR_T_TABLE;
               op->tc = LUAR_T_INT;
@@ -2133,6 +2143,9 @@ decode_done:
           break;
         default: break;
       }
+      if ((op->kind == LUAR_OP_TABLE_ADD ||
+           op->kind == LUAR_OP_TABLE_ADDI) && op->res != 0xFF)
+        last_write[op->res] = (int)i;
       if (op->kind == LUAR_OP_JMP || op->kind == LUAR_OP_LT ||
           op->kind == LUAR_OP_LE || op->kind == LUAR_OP_GT ||
           op->kind == LUAR_OP_GE || op->kind == LUAR_OP_EQ) {
