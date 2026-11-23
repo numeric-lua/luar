@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.210.0. This document describes the system as built and the design
+Status: 0.211.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -117,8 +117,11 @@ make correct against an unmodified VM.
   lookups/stores use the 5.5 split array representation,
   independent retry after a rejected sibling loop, up to two compiled
   loops per Proto, a fixed register ABI, and rejection of any loop whose
-  carried registers change type across iterations.  `jit.flush()` invalidates
-  the per-Proto hot state so flushed loops recompile.
+  carried registers change type across iterations.  An intrinsic that
+  declines for one invocation (an out-of-range cdata call, a metatable
+  table) is suspended only for that call; later calls retry it instead of
+  permanently falling back.  `jit.flush()` invalidates the per-Proto hot
+  state so flushed loops recompile.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact
   bytecode PC; there is no deoptimisation of compiled frames, because
   trace state is always representable as interpreter stack + PC.
@@ -215,7 +218,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.210.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.211.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

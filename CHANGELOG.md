@@ -6,6 +6,53 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.211.0] — 2026-11-23
+
+### Added
+
+- `ffi.cdef` accepts C integer literals in decimal, hexadecimal, octal
+  (`010` is eight) and binary (`0b1010`) form, with `u`/`l` suffixes, and
+  rejects malformed digits instead of silently truncating them.
+- `ffi.cdef` accepts single-character C constants (`'A'`, `'\n'`,
+  `'\x41'`, `'\101'`) in enum values and array sizes.  They follow plain
+  `char` signedness like LuaJIT; empty, multi-character and unknown escapes
+  are clear errors.
+- Preprocessor `#if`/`#else` expressions now evaluate C integer operators
+  (`! ~ + - * / % << >> < <= > >= == != & ^ | && ||`), parentheses,
+  `defined` with or without parentheses, decimal/hex/octal/binary literals
+  and character constants.  Undefined identifiers are zero, as in C, and
+  malformed expressions/division by zero report the `#if` line.
+
+### Fixed
+
+- J2's fast `repeat ... until` path no longer compares an integer loop
+  index against the zero immediate of a non-integral float constant.  A
+  loop such as `repeat i = i - 1 until i == 3.5` was emitted as `i == 0`
+  and terminated instead of running to the interpreter's infinite loop; the
+  shape now stays on the interpreter.
+
+### Performance
+
+- A J2 intrinsic that declines at runtime (out-of-range cdata call,
+  metatable table, short array) is suspended only for the current call
+  generation, not permanently.  Later calls of the same compiled loop retry
+  the intrinsic, so one transient out-of-range input no longer downgrades a
+  native loop to interpreted code.  A permanently unsuitable shape pays one
+  helper attempt per call rather than one per backedge.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make WITH_FFI=1 test-fuzz`,
+`make test-shared`, `make test-dist`, `make test-upstream`,
+`make dynasm-check` and `tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/156_int_literal_bases.lua`,
+`tests/ffi/157_char_constants.lua`,
+`tests/ffi/158_preproc_if_expr.lua`,
+`tests/ffi/159_j2_tint_retry.lua` and
+`tests/jit/178_repeat_float_k.lua`; `tests/ffi/16_preproc.lua` now checks
+that a full `#if` expression is evaluated.
+
 ## [0.210.0] — 2026-11-24
 
 ### Added

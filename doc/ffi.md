@@ -121,8 +121,10 @@ by C APIs.  It supports:
   such as `__const`, and storage specifiers (`typedef`, `extern`, `static`,
   `register`, `auto`, `inline`); qualifiers are accepted and ignored;
 * `/* ... */` and `//` comments and semicolon-separated declarations;
-* array sizes and enum values built from integer literals, other enum
-  constants, `sizeof(type)`, `_Alignof`/`__alignof__`,
+* array sizes and enum values built from decimal, hexadecimal, octal and
+  binary integer literals (with `u`/`l` suffixes), single-character C
+  constants (plain or escaped, sign-extended through plain `char`), other
+  enum constants, `sizeof(type)`, `_Alignof`/`__alignof__`,
   `offsetof`/`__builtin_offsetof`, parentheses, unary `+ - ~ !`, and
   binary `+ - * / % << >> & | ^`.
 
@@ -139,8 +141,13 @@ preprocessor subset is available.
   line.  Quoted `#include "path"` resolves relative to the including file
   first (falling back to the working directory), with depth/size limits; token pasting (`##`) and
   parameter stringification (`#`) are supported, and `#error` text is
-  macro-expanded; angle includes use the same local resolution, while
-  non-pack `#pragma` and complex `#if` expressions are rejected;
+  macro-expanded; angle includes use the same local resolution.  `#if`
+  and `#else` take integer constant expressions with `defined` (with or
+  without parentheses), `! ~ + -`, `* / %`, `+ -`, shifts, comparisons,
+  `& ^ |`, `&&` and `||`, including decimal/hexadecimal/octal/binary
+  literals and character constants; an undefined identifier is zero, and
+  division by zero, malformed literals and unbalanced parentheses are
+  clear errors.  `#elif` and non-pack `#pragma` are rejected;
   `#pragma pack(n/push/pop)` drives layout.
 * `__attribute__((packed))`/`aligned(n)` before the struct tag or after
   the body (alone or combined) are supported; other attributes,
