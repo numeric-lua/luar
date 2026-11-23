@@ -6,6 +6,61 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.204.0] — 2026-11-23
+
+### Added
+
+- J2 runs bounded cdata array reductions in the default tier:
+  `for i = 0, n - 1 do s = s + a[i] end` for 1/2/4-byte integer and
+  4/8-byte float elements.  A bounds-checked C helper follows the
+  interpreter's FORLOOP count/index sequence, preserves int64 wrap,
+  unsigned widening, int-to-float promotion and the post-loop element
+  temporary, and is observed through `jit.stats().tint_hits`.  Pointer
+  sources have no length and stay on the interpreter.
+- Function symbols are cached per `ffi.C`/`ffi.load` namespace.  Repeated
+  `ffi.C.fn` lookups return the same cdata object as LuaJIT (`rawequal` is
+  true), avoid repeated `dlsym`/userdata allocation and keep the library
+  alive for the cached pointer.  Variables and constants remain snapshots.
+
+### Fixed
+
+- Out-of-range double-to-integer conversions are defined and match
+  LuaJIT's observable x86-64 behaviour instead of C undefined behaviour:
+  signed overflow and NaN/infinity use the `INT64_MIN` sentinel,
+  `[2^63, 2^64)` converts exactly, and `2^64` wraps to zero.  This covers
+  `ffi.new`/`ffi.cast`, element and field stores, cdata arithmetic and
+  numeric comparisons.
+- J4 no longer records 8-byte integer struct/union fields.  A `long` or
+  `int64_t` member read yields cdata int64, not a Lua integer; treating it
+  as an integer could silently return a pointer-like value for
+  `x = x + s.z` once the loop became hot.  Such loops now stay on the
+  interpreter, while narrower integer fields keep tracing.
+- `ffi.new` pointer initializers follow LuaJIT's type rules: numbers,
+  numeric cdata and incompatible pointers are rejected; `void *`
+  interoperates with object pointers, arrays decay to a matching pointer,
+  and an aggregate initializes a pointer to its exact type.  The existing
+  `char *` string convenience is preserved and `ffi.cast` stays
+  permissive.
+
+### Performance
+
+- A 2M-element `double[?]` cdata sum measured 239 ms interpreted versus
+  2.2 ms with the new J2 intrinsic; the `int[?]` form measured 249 ms
+  versus 2.1 ms.  Two million repeated `ffi.C.abs` lookups dropped from
+  960 ms to 476 ms with symbol caching.  These are development-host
+  microchecks, not release gates.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared`, `make test-dist`,
+`tests/upstream/run.sh` and `tools/upstream-check.sh` are green.  New
+coverage: `tests/ffi/120_float_int_conversion.lua`,
+`tests/ffi/121_j2_cdata_sum.lua`,
+`tests/ffi/122_int64_field_no_trace.lua`,
+`tests/ffi/123_new_pointer_strict.lua` and
+`tests/ffi/124_symbol_cache.lua`.
+
 ## [0.203.0] — 2026-11-23
 
 ### Added

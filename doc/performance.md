@@ -9,6 +9,16 @@
 > 2M-element `a[i]+b[i]+c[i]` microcheck measured about 1.02x over the
 > interpreter, so it is recorded as coverage rather than a speed headline.
 
+> **0.204 check (2026-11-23, development host).**  The default J2 tier now
+> runs bounded cdata array reductions.  A 2M-element
+> `ffi.new("double[?]")` sum measured 239 ms interpreted versus 2.2 ms
+> native, and the `int[?]` form 249 ms versus 2.1 ms after constant-size
+> element loads replaced a per-element variable-size `memcpy`.  Two million
+> repeated `ffi.C.abs` lookups dropped from 960 ms to 476 ms with the new
+> per-namespace function-symbol cache.  These are microchecks on a shared
+> laptop-class host, not benchmark gates; the `j4` corpus still uses the
+> opt-in `ir=1` tier.
+
 # Luar performance baseline
 
 > **0.196 refresh (2026-11-22, development host).**  Best CPU milliseconds

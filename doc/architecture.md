@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.203.0. This document describes the system as built and the design
+Status: 0.204.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -95,6 +95,9 @@ make correct against an unmodified VM.
   over register or upvalue arrays (the scalar may be a constant, register
   or upvalue), with unit or strided (positive/negative) integer steps,
   and raw-array sum intrinsics over a register table or a closure upvalue.
+  A bounded cdata array reduction (`s = s + a[i]` over 1/2/4-byte integers
+  or 4/8-byte floats) is validated and run by a C helper in the same tier;
+  pointer sources without a length stay on the interpreter.
   Experimental
   register-cached prefix/square-sum loops and opt-in raw array
   lookups/stores use the 5.5 split array representation,
@@ -109,6 +112,8 @@ make correct against an unmodified VM.
   in-place int64 array arithmetic (add/subtract, multiply, signed/unsigned
   divide and modulo, bitwise, logical shifts, unary minus/not, copy and
   integer stores), with full 64-bit constants and two's-complement wrap.
+  64-bit cdata struct/union fields are deliberately not traced because a
+  field read yields cdata int64 rather than a Lua integer.
 * **T3** removes helper-call overhead for FFI-heavy code, the main use case
   of the numeric-Lua ecosystem.
 
@@ -196,7 +201,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.203.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.204.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.
