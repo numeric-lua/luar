@@ -866,6 +866,65 @@ static void init_struct_args (lua_State *L, FFIState *S, CType *ct,
 }
 
 
+static int pointer_base_compatible (CType *a, CType *b);
+
+
+/* LUAR: ffi.new is not an ffi.cast.  LuaJIT accepts only nil, a light
+** userdata, a compatible pointer/array (with void * matching anything), or
+** an aggregate of the exact pointee type; numbers, numeric cdata and
+** incompatible pointers are rejected.  ffi.cast and assignments keep the
+** permissive C conversions. */
+static int ffi_new_pointer (lua_State *L, FFIState *S, CType *ct, int idx,
+                            void *dst) {
+  int t = lua_type(L, idx);
+  void *p = NULL;
+  if (t == LUA_TNIL) {
+    p = NULL;
+  }
+  else if (t == LUA_TSTRING) {
+    /* Luar accepts a Lua string for char-like pointer destinations (the
+    ** existing convenience used by ffi.new("char *", "abc")); other
+    ** pointer types must not silently reinterpret the bytes. */
+    if (ctype_char_like(ct->child))
+      p = (void *)lua_tolstring(L, idx, NULL);
+    else
+      conv_error(L, S, ct, idx, NULL);
+  }
+  else if (t == LUA_TLIGHTUSERDATA) {
+    p = lua_touserdata(L, idx);
+  }
+  else {
+    CData *src = ffi_tocdata(L, idx);
+    if (src == NULL || (src->flags & CDATA_CTYPE) != 0)
+      conv_error(L, S, ct, idx, NULL);
+    if (src->ct == ct->child &&
+        (src->ct->kind == CT_STRUCT || src->ct->kind == CT_UNION ||
+         src->ct->kind == CT_ARRAY)) {
+      p = value_addr(src);
+    }
+    else if (src->ct->kind == CT_POINTER || src->ct->kind == CT_ARRAY) {
+      CType *sbase = src->ct->child;
+      if (ct->child->kind == CT_VOID || sbase->kind == CT_VOID ||
+          pointer_base_compatible(ct->child, sbase))
+        p = (src->ct->kind == CT_ARRAY) ? value_addr(src) : src->v.p;
+      else
+        conv_error(L, S, ct, idx, NULL);
+    }
+    else if (src->ct->kind == CT_FUNC) {
+      if (ct->child->kind == CT_VOID || ct->child->kind == CT_FUNC)
+        p = src->v.p;
+      else
+        conv_error(L, S, ct, idx, NULL);
+    }
+    else {
+      conv_error(L, S, ct, idx, NULL);
+    }
+  }
+  memcpy(dst, &p, sizeof(p));
+  return 1;
+}
+
+
 int ffi_do_new (lua_State *L, FFIState *S, CType *ct, int argstart) {
   int argi = argstart;
   int total = lua_gettop(L);
@@ -977,7 +1036,10 @@ int ffi_do_new (lua_State *L, FFIState *S, CType *ct, int argstart) {
       if (argi < total)
         luaL_error(L, "ffi: too many initializers for '%s'",
                    ffi_type_repr(S, ct));
-      ffi_convert(L, S, ct, &cd->v, argi, NULL);
+      if (ct->kind == CT_POINTER)
+        ffi_new_pointer(L, S, ct, argi, &cd->v);
+      else
+        ffi_convert(L, S, ct, &cd->v, argi, NULL);
     }
     return 1;
   }
