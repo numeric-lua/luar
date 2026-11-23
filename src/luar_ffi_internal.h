@@ -239,6 +239,11 @@ const char *ffi_type_repr (FFIState *S, CType *ct);
 size_t ffi_type_size (CType *ct);
 size_t ffi_type_align (CType *ct);
 
+/* LuaJIT-compatible out-of-range double conversions, shared by the cdata
+** conversion path and the J2 store helpers. */
+int64_t ffi_double_to_i64 (double d);
+uint64_t ffi_double_to_u64 (double d);
+
 /* Scalar memory access (little-endian native loads; see doc/ffi.md). */
 static inline uint64_t ffi_load_uint (const void *p, size_t sz) {
   uint64_t v = 0;

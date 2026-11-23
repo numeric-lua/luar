@@ -462,6 +462,202 @@ int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *it,
 }
 
 
+/* ------------------------------------------------------------------ */
+/* J2 bounded cdata array stores                                       */
+/* ------------------------------------------------------------------ */
+
+/* Convert a Lua numeric slot to the internal FFI number form.  Other
+** values (strings, cdata scalars, tables) keep the loop interpreted, so
+** the helper never has to raise or allocate. */
+static int ffi_num_from_tv (const TValue *tv, FfiNum *n) {
+  if (ttisinteger(tv)) {
+    *n = ffi_num_int(ivalue(tv));
+    return 1;
+  }
+  if (ttisfloat(tv)) {
+    *n = ffi_num_flt(fltvalue(tv));
+    return 1;
+  }
+  return 0;
+}
+
+
+/* Store a Lua arithmetic result into a C element exactly as ffi_convert
+** does: integer destinations truncate to their width (with LuaJIT's
+** out-of-range double sentinel), float destinations round through the
+** declared element size. */
+static void ffi_view_store (const FfiView *v, char *p, FfiNum n) {
+  if (v->isflt) {
+    double d = ffi_num_double(n);
+    if (v->esz == 4) {
+      float f = (float)d;
+      memcpy(p, &f, sizeof(f));
+    }
+    else {
+      memcpy(p, &d, sizeof(d));
+    }
+  }
+  else {
+    uint64_t u;
+    if (n.isflt)
+      u = v->is_unsigned ? ffi_double_to_u64(n.d)
+                         : (uint64_t)ffi_double_to_i64(n.d);
+    else
+      u = (uint64_t)n.i;
+    ffi_store_uint(p, v->esz, u);
+  }
+}
+
+
+/* Validate the interpreter's FORLOOP state and the bounded-array range.
+** On success *last is the final visited key (the helper's control-slot
+** convention, shared with the reduction intrinsics). */
+static int ffi_store_range (const FfiView *v, lua_Integer count,
+                            lua_Integer step, lua_Integer idx,
+                            lua_Integer *last) {
+  lua_Integer delta;
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  *last = idx + delta;
+  if (idx < 0 || *last < 0 ||
+      (uint64_t)idx >= (uint64_t)v->len ||
+      (uint64_t)*last >= (uint64_t)v->len)
+    return 0;
+  return 1;
+}
+
+
+/* J2: `a[i] = v`, `a[i] = i` and `a[i] = constant` over a bounded cdata
+** array.  mode 0 reads the numeric slot val, mode 1 writes the loop key
+** and mode 2 reads the numeric constant val (a Proto constant). */
+int luar_ffi_trace_store_array (TValue *arrv, TValue *it, TValue *ct,
+                                TValue *st, TValue *val, int mode) {
+  FfiView v;
+  FfiNum n = ffi_num_int(0);
+  lua_Integer count, step, idx, last, k;
+  if (arrv == NULL || it == NULL || ct == NULL || st == NULL ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
+    return 0;
+  if (mode != 1 && (val == NULL || !ffi_num_from_tv(val, &n)))
+    return 0;
+  if (!ffi_view_init(arrv, &v))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&v, count, step, idx, &last))
+    return 0;
+  {
+    char *p = (char *)v.base + (ptrdiff_t)idx * (ptrdiff_t)v.esz;
+    lua_Integer ckey = idx;
+    for (k = 0; k <= count; k++, ckey += step) {
+      FfiNum cur = (mode == 1) ? ffi_num_int(ckey) : n;
+      ffi_view_store(&v, p, cur);
+      p += (ptrdiff_t)step * (ptrdiff_t)v.esz;
+    }
+  }
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
+/* J2: `a[i] = b[i]` over two bounded cdata arrays.  The source element is
+** converted to the destination element type and the bytecode-visible
+** GETTABLE temporary keeps the last source value. */
+int luar_ffi_trace_copy_array (TValue *dstv, TValue *srcv, TValue *it,
+                               TValue *ct, TValue *st, TValue *tmp) {
+  FfiView vd, vs;
+  FfiNum lastval;
+  lua_Integer count, step, idx, last, k;
+  if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
+      st == NULL || tmp == NULL || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  if (!ffi_view_init(dstv, &vd) || !ffi_view_init(srcv, &vs))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&vd, count, step, idx, &last) ||
+      !ffi_store_range(&vs, count, step, idx, &last))
+    return 0;
+  lastval = ffi_num_int(0);
+  {
+    char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
+    const char *ps = vs.base + (ptrdiff_t)idx * (ptrdiff_t)vs.esz;
+    for (k = 0; k <= count; k++) {
+      lastval = ffi_view_load(&vs, ps);
+      ffi_view_store(&vd, pd, lastval);
+      pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
+      ps += (ptrdiff_t)step * (ptrdiff_t)vs.esz;
+    }
+  }
+  ffi_num_store(tmp, lastval);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
+/* J2: `a[i] = a[i] + v`, `- v`, `* v` and `/ v` over one bounded array.
+** op is 0/1/2/3 for add/subtract/multiply/divide.  The element and the
+** arithmetic result are represented as Lua numbers, so int wrap and
+** int->float promotion match the interpreter before the C store
+** conversion. */
+int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
+                                 TValue *st, TValue *scalar, TValue *tmp,
+                                 int op) {
+  FfiView v;
+  FfiNum n, lastval;
+  lua_Integer count, step, idx, last, k;
+  if (arrv == NULL || it == NULL || ct == NULL || st == NULL ||
+      scalar == NULL || tmp == NULL || !ttisinteger(ct) ||
+      !ttisinteger(st) || !ttisinteger(it) || op < 0 || op > 3)
+    return 0;
+  if (!ffi_num_from_tv(scalar, &n) || !ffi_view_init(arrv, &v))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&v, count, step, idx, &last))
+    return 0;
+  lastval = ffi_num_int(0);
+  {
+    char *p = (char *)v.base + (ptrdiff_t)idx * (ptrdiff_t)v.esz;
+    for (k = 0; k <= count; k++) {
+      FfiNum x = ffi_view_load(&v, p);
+      if (op == 0)
+        lastval = ffi_num_add(x, n);
+      else if (op == 1)
+        lastval = ffi_num_sub(x, n);
+      else if (op == 2)
+        lastval = ffi_num_mul(x, n);
+      else
+        lastval = ffi_num_flt(ffi_num_double(x) / ffi_num_double(n));
+      ffi_view_store(&v, p, lastval);
+      p += (ptrdiff_t)step * (ptrdiff_t)v.esz;
+    }
+  }
+  ffi_num_store(tmp, lastval);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 int luar_ffi_trace_i64_array (TValue *tv) {
   Udata *u; CData *cd; CType *ct, *elem;
   if (tv == NULL || !ttisfulluserdata(tv)) return 0;

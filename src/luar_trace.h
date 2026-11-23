@@ -396,6 +396,13 @@ int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *idx,
                                TValue *count, TValue *step, TValue *acc,
                                TValue *ra, TValue *rb, TValue *res,
                                int kind);
+int luar_ffi_trace_store_array (TValue *arr, TValue *idx, TValue *count,
+                                TValue *step, TValue *val, int mode);
+int luar_ffi_trace_copy_array (TValue *dst, TValue *src, TValue *idx,
+                               TValue *count, TValue *step, TValue *tmp);
+int luar_ffi_trace_update_array (TValue *arr, TValue *idx, TValue *count,
+                                 TValue *step, TValue *scalar, TValue *tmp,
+                                 int op);
 
 int64_t luar_ffi_trace_add_i64 (TValue *arr, TValue *key, int64_t delta);
 

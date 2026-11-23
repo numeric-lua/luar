@@ -237,7 +237,7 @@ static void conv_error (lua_State *L, FFIState *S, CType *ct, int idx,
 ** the compiler may assume the range and optimise the conversion away; GCC
 ** did exactly that for some constants.  LuaJIT exposes the x86 sentinel, so
 ** define it explicitly instead of inheriting the undefined behaviour. */
-static int64_t ffi_double_to_i64 (double d) {
+int64_t ffi_double_to_i64 (double d) {
   if (d >= -9223372036854775808.0 && d < 9223372036854775808.0)
     return (int64_t)d;
   return INT64_MIN;
@@ -250,7 +250,7 @@ static int64_t ffi_double_to_i64 (double d) {
 ** 2^40 becomes 2^40 and anything that overflows after the subtraction
 ** keeps the 2^63 sentinel.  Negative values go through the signed
 ** conversion and then wrap, as C does for in-range negatives. */
-static uint64_t ffi_double_to_u64 (double d) {
+uint64_t ffi_double_to_u64 (double d) {
   if (d >= 0.0) {
     if (d < 9223372036854775808.0)
       return (uint64_t)d;
