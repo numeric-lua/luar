@@ -87,6 +87,10 @@ int luar_ffi_trace_array_kind (TValue *tv) {
   if (elem->kind == CT_INT &&
       (elem->size == 1 || elem->size == 2 || elem->size == 4))
     return 1;
+  /* An enum element reads as its unsigned 32-bit numeric view, exactly
+  ** like ffi_push_value's CT_ENUM case. */
+  if (elem->kind == CT_ENUM && elem->size == 4)
+    return 1;
   if (elem->kind == CT_FLOAT &&
       (elem->size == 4 || elem->size == 8))
     return 2;
@@ -113,6 +117,10 @@ int luar_ffi_trace_array_store_kind (TValue *tv) {
   if (elem->kind == CT_INT &&
       (elem->size == 1 || elem->size == 2 || elem->size == 4 ||
        elem->size == 8))
+    return 1;
+  /* Enum storage is a 32-bit integer store; ffi_convert uses the same
+  ** unsigned conversion for CT_ENUM destinations. */
+  if (elem->kind == CT_ENUM && elem->size == 4)
     return 1;
   if (elem->kind == CT_FLOAT &&
       (elem->size == 4 || elem->size == 8))
@@ -148,6 +156,10 @@ int luar_ffi_trace_sum_array (TValue *arrv, TValue *it, TValue *ct,
   if (elem->kind == CT_INT &&
       (elem->size == 1 || elem->size == 2 || elem->size == 4)) {
     is_unsigned = elem->is_unsigned;
+  }
+  else if (elem->kind == CT_ENUM && elem->size == 4) {
+    /* Enums are exposed through the unsigned 32-bit numeric view. */
+    is_unsigned = 1;
   }
   else if (elem->kind == CT_FLOAT &&
            (elem->size == 4 || elem->size == 8)) {
@@ -411,6 +423,10 @@ static int ffi_view_init_ex (TValue *tv, FfiView *v, int allow64) {
        (allow64 && elem->size == 8))) {
     v->isflt = 0;
     v->is_unsigned = elem->is_unsigned;
+  }
+  else if (elem->kind == CT_ENUM && elem->size == 4) {
+    v->isflt = 0;
+    v->is_unsigned = 1;   /* enum reads use the unsigned 32-bit view */
   }
   else if (elem->kind == CT_FLOAT &&
            (elem->size == 4 || elem->size == 8)) {
