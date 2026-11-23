@@ -50,6 +50,6 @@ H.check(jit.stats().ir_compiled >= 1,
         "integer for loop was not compiled by J4")
 
 jit.flush()
-jit.opt.start("ir=0")
+jit.opt.start("ir=0", "hotloop=56", "hotexit=10")
 jit.on()
 print("jit/179_j4_float_for ok")

@@ -45,6 +45,6 @@ H.check(jit.stats().compiled >= 1,
         "J2 did not compile a float for loop under ir=1")
 
 jit.flush()
-jit.opt.start("ir=0")
+jit.opt.start("ir=0", "hotloop=56", "hotexit=10")
 jit.on()
 print("jit/181_ir_j2_fallback ok")

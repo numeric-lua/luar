@@ -32,6 +32,6 @@ H.eq(f(2000), 2001000)
 H.check(jit.stats().ir_executed >= 2, "recompiled trace did not execute")
 
 jit.flush()
-jit.opt.start("ir=0")
+jit.opt.start("ir=0", "hotloop=56", "hotexit=10")
 jit.on()
 print("jit/180_j4_flush_recompile ok")
