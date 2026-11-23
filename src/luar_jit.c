@@ -538,6 +538,22 @@ static int match_meta_upval_loop (lua_State *L, Proto *p, ptrdiff_t start,
 }
 
 
+/* Element flavour of a constant array index at compile time.  The native
+** read still guards the tag, so a later change falls back to the
+** interpreter; this only chooses which specialization to emit. */
+static int const_array_elem_type (const TValue *tv, int key) {
+  Table *h;
+  lu_byte tag;
+  if (!ttistable(tv) || key < 1)
+    return LUAR_T_INT;
+  h = hvalue(tv);
+  if ((unsigned)key - 1u >= h->asize)
+    return LUAR_T_INT;
+  tag = *getArrTag(h, (unsigned)key - 1u);
+  return tag == LUA_VNUMFLT ? LUAR_T_FLOAT : LUAR_T_INT;
+}
+
+
 /* The native loop is emitted from the single static type of each register
 ** and does not re-check tags on every iteration.  A branch-dependent
 ** assignment can change a register's type between iterations (for example
@@ -634,12 +650,12 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
         break;
       case LUAR_OP_GETI:
         ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
-             loop_type_check(types, op->a, LUAR_T_INT);
+             loop_type_check(types, op->a, op->ta);
         break;
       case LUAR_OP_TABLE_ADDI:
         ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
              loop_type_check(types, op->a, op->ta) &&
-             loop_type_check(types, op->res, LUAR_T_INT);
+             loop_type_check(types, op->res, op->elem);
         break;
       case LUAR_OP_TABLE_ADD:
         ok = loop_type_check(types, op->b, LUAR_T_TABLE) &&
@@ -649,8 +665,14 @@ static int loop_types_stable (const LuaR_LoopDesc *d) {
         break;
       case LUAR_OP_SETTABLE:
         ok = loop_type_check(types, op->a, LUAR_T_TABLE) &&
-             loop_type_check(types, op->b, LUAR_T_INT) &&
-             loop_type_check(types, op->c, op->ta);
+             loop_type_check(types, op->b, LUAR_T_INT);
+        if (ok && !op->isconst)
+          ok = loop_type_check(types, op->c, op->ta);
+        break;
+      case LUAR_OP_SETI:
+        ok = loop_type_check(types, op->a, LUAR_T_TABLE);
+        if (ok && !op->isconst)
+          ok = loop_type_check(types, op->c, op->ta);
         break;
       case LUAR_OP_LT:
       case LUAR_OP_LE:
@@ -1450,25 +1472,39 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_GETI: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins);
         int kidx = (int)GETARG_C(ins);
-        if (d.has_table) return 0;   /* one raw table read per loop */
+        if (d.table_reads >= 2) return 0;   /* at most two raw reads */
+        if (!d.has_table) {
+          d.has_table = 1;
+          d.table_reg = kb;
+        }
+        else if (d.table_reg != kb) {
+          if (d.has_table2) return 0;
+          d.has_table2 = 1;
+          d.table_reg2 = kb;
+        }
         if (kidx < 1) return 0;                /* t[0] belongs to the hash part */
         if (is_control_reg(ka, for_a)) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
-        op->kind = LUAR_OP_GETI;
-        op->a = (uint8_t)ka;
-        op->b = (uint8_t)kb;
-        op->imm = kidx;
-        op->ta = LUAR_T_INT;   /* the native path accepts integer elements */
-        op->tb = LUAR_T_TABLE;
-        cur[ka] = LUAR_T_INT;
-        def[ka] = 1;
-        d.has_table = 1;
-        d.table_reg = kb;
+        {
+          int et = const_array_elem_type(&b[kb], kidx);
+          op->kind = LUAR_OP_GETI;
+          op->a = (uint8_t)ka;
+          op->b = (uint8_t)kb;
+          op->imm = kidx;
+          op->ta = (uint8_t)et;
+          op->elem = (uint8_t)et;
+          op->tb = LUAR_T_TABLE;
+          cur[ka] = (uint8_t)et;
+          def[ka] = 1;
+        }
+        d.table_reads++;
         d.ft_res = ka;
         has_branch = 1;
 
-        /* Fuse the common "acc = acc + t[const]" shape. */
-        if (i + 1 < n - 1) {
+        /* Fuse the common "acc = acc + t[const]" shape.  A second,
+        ** distinct table uses its own cached array pointer, so its read is
+        ** not folded into the first table's fused add. */
+        if (!d.has_table2 && i + 1 < n - 1) {
           Instruction nx = p->code[start + i + 1];
           if (GET_OPCODE(nx) == OP_ADD) {
             int na = GETARG_A(nx), nb = GETARG_B(nx), nc = GETARG_C(nx);
@@ -1477,6 +1513,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
               acct = slot_type(b, cur, def, na);
             if ((acct == LUAR_T_INT || acct == LUAR_T_FLOAT) &&
                 !is_control_reg(na, for_a) && ka != na) {
+              int rt = (acct == LUAR_T_FLOAT || op->elem == LUAR_T_FLOAT)
+                       ? LUAR_T_FLOAT : LUAR_T_INT;
               /* The interpreter writes the element to R[ka] before the
               ** add.  Keep that result live: a local assigned from t[i]
               ** can be read after the loop or later in the body. */
@@ -1484,11 +1522,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
               op->a = (uint8_t)na;
               op->b = (uint8_t)kb;
               op->res = (uint8_t)ka;
-              op->ta = (uint8_t)acct;
+              op->ta = (uint8_t)rt;
               op->tb = LUAR_T_TABLE;
               memset(&ops[i + 1], 0, sizeof(ops[i + 1]));
               ops[i + 1].kind = LUAR_OP_NOP;
-              cur[na] = (uint8_t)acct;
+              cur[na] = (uint8_t)rt;
               def[na] = 1;
               i++;
             }
@@ -1498,7 +1536,16 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       }
       case OP_GETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
-        if (d.has_table) return 0;   /* one raw table read per loop */
+        if (d.table_reads >= 2) return 0;   /* at most two raw reads */
+        if (!d.has_table) {
+          d.has_table = 1;
+          d.table_reg = kb;
+        }
+        else if (d.table_reg != kb) {
+          if (d.has_table2) return 0;
+          d.has_table2 = 1;
+          d.table_reg2 = kb;
+        }
         if (is_control_reg(ka, for_a)) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
         if (slot_type(b, cur, def, kc) != LUAR_T_INT) return 0;
@@ -1511,12 +1558,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         op->tc = LUAR_T_INT;
         cur[ka] = LUAR_T_INT;
         def[ka] = 1;
-        d.has_table = 1;
-        d.table_reg = kb;
+        d.table_reads++;
         d.ft_res = ka;   /* the bytecode also writes the element here */
         has_branch = 1;   /* use the labelled emitter and typed guards */
-        /* Fuse the common "acc = acc + t[key]" shape. */
-        if (i + 1 < n - 1) {
+        /* Fuse the common "acc = acc + t[key]" shape.  See GETI above. */
+        if (!d.has_table2 && i + 1 < n - 1) {
           Instruction nx = p->code[start + i + 1];
           if (GET_OPCODE(nx) == OP_ADD) {
             int na = GETARG_A(nx), nb = GETARG_B(nx), nc = GETARG_C(nx);
@@ -1535,6 +1581,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
               op->ta = (uint8_t)acct;
               op->tb = LUAR_T_TABLE;
               op->tc = LUAR_T_INT;
+              op->elem = LUAR_T_INT;
               memset(&ops[i + 1], 0, sizeof(ops[i + 1]));
               ops[i + 1].kind = LUAR_OP_NOP;
               cur[na] = (uint8_t)acct;
@@ -1588,20 +1635,89 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_SETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
         int vt;
-        if (i != 0 || d.has_table) return 0;
+        if (d.table_write || d.table_reads >= 2) return 0;
+        if (d.has_table && d.table_reg != ka) return 0;
         if (slot_type(b, cur, def, ka) != LUAR_T_TABLE) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_INT) return 0;
-        vt = slot_type(b, cur, def, kc);
-        if (vt != LUAR_T_INT && vt != LUAR_T_FLOAT) return 0;
+        if (GETARG_k(ins)) {
+          /* RK(C) is a constant; reading R[C] instead would store whatever
+          ** happens to live in that register.  Only numeric constants can
+          ** be emitted natively. */
+          TValue *k;
+          if (kc < 0 || kc >= p->sizek) return 0;
+          k = &p->k[kc];
+          if (ttisinteger(k)) {
+            vt = LUAR_T_INT;
+            op->imm = (int64_t)ivalue(k);
+          }
+          else if (ttisfloat(k)) {
+            vt = LUAR_T_FLOAT;
+            op->num = (double)fltvalue(k);
+          }
+          else
+            return 0;
+          op->isconst = 1;
+          op->c = 0;
+        }
+        else {
+          vt = slot_type(b, cur, def, kc);
+          if (vt != LUAR_T_INT && vt != LUAR_T_FLOAT) return 0;
+          op->c = (uint8_t)kc;
+        }
         op->kind = LUAR_OP_SETTABLE;
         op->a = (uint8_t)ka;
         op->b = (uint8_t)kb;
-        op->c = (uint8_t)kc;
         op->ta = (uint8_t)vt;
         op->tb = LUAR_T_TABLE;
         op->tc = LUAR_T_INT;
-        d.has_table = 1;
-        d.table_reg = ka;
+        if (!d.has_table) {
+          d.has_table = 1;
+          d.table_reg = ka;
+        }
+        d.table_write = 1;
+        has_branch = 1;
+        break;
+      }
+      case OP_SETI: {
+        int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
+        int vt;
+        if (d.table_write || d.table_reads >= 2) return 0;
+        if (d.has_table && d.table_reg != ka) return 0;
+        if (kb < 1) return 0;        /* t[0] belongs to the hash part */
+        if (slot_type(b, cur, def, ka) != LUAR_T_TABLE) return 0;
+        if (GETARG_k(ins)) {
+          TValue *k;
+          if (kc < 0 || kc >= p->sizek) return 0;
+          k = &p->k[kc];
+          if (ttisinteger(k)) {
+            vt = LUAR_T_INT;
+            op->imm = (int64_t)ivalue(k);
+          }
+          else if (ttisfloat(k)) {
+            vt = LUAR_T_FLOAT;
+            op->num = (double)fltvalue(k);
+          }
+          else
+            return 0;
+          op->isconst = 1;
+          op->c = 0;
+        }
+        else {
+          vt = slot_type(b, cur, def, kc);
+          if (vt != LUAR_T_INT && vt != LUAR_T_FLOAT) return 0;
+          op->c = (uint8_t)kc;
+        }
+        op->kind = LUAR_OP_SETI;
+        op->a = (uint8_t)ka;
+        op->b = (uint8_t)kb;       /* immediate array key */
+        op->keyimm = kb;
+        op->ta = (uint8_t)vt;
+        op->tb = LUAR_T_TABLE;
+        if (!d.has_table) {
+          d.has_table = 1;
+          d.table_reg = ka;
+        }
+        d.table_write = 1;
         has_branch = 1;
         break;
       }
@@ -2058,7 +2174,15 @@ decode_done:
         case LUAR_OP_SETTABLE:
           reads[nr] = op->a; types[nr++] = LUAR_T_TABLE;
           reads[nr] = op->b; types[nr++] = LUAR_T_INT;
-          reads[nr] = op->c; types[nr++] = op->ta;
+          if (!op->isconst) {
+            reads[nr] = op->c; types[nr++] = op->ta;
+          }
+          break;
+        case LUAR_OP_SETI:
+          reads[nr] = op->a; types[nr++] = LUAR_T_TABLE;
+          if (!op->isconst) {
+            reads[nr] = op->c; types[nr++] = op->ta;
+          }
           break;
         case LUAR_OP_BAND:
         case LUAR_OP_BOR:
@@ -3423,6 +3547,7 @@ static Table *tint_keys_table (Proto *p, TValue *base, int slot) {
 
 
 static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir);
+static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir);
 
 static int entry_sig_matches (Proto *p, int slot, TValue *base) {
   int k;
@@ -3473,17 +3598,8 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
     if (expc < 0 || expc > pc ||
         !luar_trace_record_loop(p, expc, pc, (TValue *)base, L, &ir))
       return -1;
-    {
-      int floatized = p->luar_ir_float &&
-                      ir_floatify(p, (TValue *)base, &ir);
-      if (!floatized) {
-        int gi;
-        for (gi = 0; gi < ir.nins; gi++)
-          if (ir.ins[gi].kind == LUAR_IR_GUARD &&
-              ir.ins[gi].b == LUAR_IR_TAG_FLOAT)
-            return -1;   /* mixed shape: do not emit integer side code */
-      }
-    }
+    if (!ir_side_allows(p, (TValue *)base, &ir))
+      return -1;   /* mixed shape: do not emit integer side code */
     link = luar_trace_ir_link(&ir, 0, p->luar_ir_start);
     (void)luar_trace_ir_analyze(&ir, NULL, 0);
     if (link == 0 || (uint32_t)ir.depth > LUAR_IR_MAX_DEPTH) {
@@ -3537,6 +3653,8 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
         break;
       if (p->luar_child_code[level] == NULL) {
         if (!luar_trace_record_loop(p, startpc, pc, (TValue *)base, L, &cir))
+          break;
+        if (!ir_side_allows(p, (TValue *)base, &cir))
           break;
         if (!luar_trace_ir_link(&cir, level + 1, p->luar_ir_start))
           break;
@@ -3877,7 +3995,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             p->luar_ir_side_done = 1;
             if (expc >= 0 && expc <= pc &&
                 luar_trace_record_loop(p, expc, pc, (TValue *)base, L, &ir)) {
-              int link = luar_trace_ir_link(&ir, 0,
+              int link;
+              if (!ir_side_allows(p, (TValue *)base, &ir)) {
+                J->ir_side_aborts++;
+                goto side_done;
+              }
+              link = luar_trace_ir_link(&ir, 0,
                                             p->luar_code_start[i]);
               (void)luar_trace_ir_analyze(&ir, NULL, 0);
               if (link == 0) {
@@ -3916,6 +4039,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             }
             else
               J->ir_side_aborts++;
+          side_done:
+            ;
           }
           if (p->luar_side_code != NULL &&
               p->luar_side_epoch == J->epoch &&
@@ -4182,6 +4307,18 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
     return 0;
   }
   return sawtable && sawfloat;
+}
+
+
+static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir) {
+  int i;
+  if (p->luar_ir_float && ir_floatify(p, base, ir))
+    return 1;
+  for (i = 0; i < ir->nins; i++)
+    if (ir->ins[i].kind == LUAR_IR_GUARD &&
+        ir->ins[i].b == LUAR_IR_TAG_FLOAT)
+      return 0;
+  return 1;
 }
 
 

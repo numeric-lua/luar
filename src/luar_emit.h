@@ -50,7 +50,7 @@ typedef enum {
   /* Branch support (int-only loops): comparisons and jumps. */
   LUAR_OP_LT, LUAR_OP_LE, LUAR_OP_GT, LUAR_OP_GE, LUAR_OP_EQ,
   LUAR_OP_JMP, LUAR_OP_NOP, LUAR_OP_GETTABLE, LUAR_OP_TABLE_ADD,
-  LUAR_OP_SETTABLE, LUAR_OP_GETI, LUAR_OP_TABLE_ADDI
+  LUAR_OP_SETTABLE, LUAR_OP_SETI, LUAR_OP_GETI, LUAR_OP_TABLE_ADDI
 } LuaR_OpKind;
 
 /* Register flavours known to the compiled loop. */
@@ -61,8 +61,11 @@ typedef struct LuaR_Op {
   uint8_t a, b, c;
   uint8_t res;		/* fused table lookup result slot (0xFF if none) */
   uint8_t ta, tb, tc;	/* result and operand flavours (LUAR_T_*) */
+  uint8_t elem;		/* raw array element flavour for table reads */
   uint8_t k;		/* comparison jump condition */
+  uint8_t isconst;	/* RK(C) store value is op->imm/op->num */
   int32_t target;	/* branch target instruction index */
+  int32_t keyimm;	/* SETI immediate array key */
   int pc;		/* Proto instruction index */
   int64_t imm;		/* LOADI/LOADK integer or constant value */
   double num;		/* LOADF value or constant value */
@@ -96,8 +99,12 @@ typedef struct LuaR_LoopDesc {
   int fr_op;			/* 0 add, 1 sub, 2 mul, 3 square */
   int fr_temp;			/* intermediate result slot, -1 if none */
   int fr_float;			/* loop ends in a backward JMP, no FORLOOP */
-  int has_table;		/* one raw array lookup at the body start */
+  int has_table;		/* the loop has a raw array access */
   int table_reg;
+  int has_table2;		/* a second, distinct raw array table */
+  int table_reg2;
+  int table_reads;		/* number of raw array reads (0..2) */
+  int table_write;		/* the loop contains a raw array write */
   int table_array_off;
   int table_asize_off;
   int table_metatable_off;
