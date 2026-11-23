@@ -232,6 +232,37 @@ static void conv_error (lua_State *L, FFIState *S, CType *ct, int idx,
 }
 
 
+/* LUAR: a C cast from double to an integer is undefined when the value is
+** not representable.  x86-64's cvttsd2si happens to produce INT64_MIN, but
+** the compiler may assume the range and optimise the conversion away; GCC
+** did exactly that for some constants.  LuaJIT exposes the x86 sentinel, so
+** define it explicitly instead of inheriting the undefined behaviour. */
+static int64_t ffi_double_to_i64 (double d) {
+  if (d >= -9223372036854775808.0 && d < 9223372036854775808.0)
+    return (int64_t)d;
+  return INT64_MIN;
+}
+
+
+/* LuaJIT converts the high half of the uint64 range by subtracting 2^63
+** first, so [2^63, 2^64) is exact.  Above 2^64 it subtracts 2^64 and then
+** uses the signed conversion, which is why 2^64 wraps to zero while 2^64 +
+** 2^40 becomes 2^40 and anything that overflows after the subtraction
+** keeps the 2^63 sentinel.  Negative values go through the signed
+** conversion and then wrap, as C does for in-range negatives. */
+static uint64_t ffi_double_to_u64 (double d) {
+  if (d >= 0.0) {
+    if (d < 9223372036854775808.0)
+      return (uint64_t)d;
+    if (d < 18446744073709551616.0)
+      return (uint64_t)(int64_t)(d - 9223372036854775808.0) +
+             ((uint64_t)1 << 63);
+    return (uint64_t)ffi_double_to_i64(d - 18446744073709551616.0);
+  }
+  return (uint64_t)ffi_double_to_i64(d);
+}
+
+
 uint64_t ffi_to_uint (lua_State *L, FFIState *S, int idx, int *ok) {
   int t = lua_type(L, idx);
   if (ok != NULL) *ok = 1;
@@ -240,7 +271,7 @@ uint64_t ffi_to_uint (lua_State *L, FFIState *S, int idx, int *ok) {
   if (t == LUA_TNUMBER) {
     if (lua_isinteger(L, idx))
       return (uint64_t)lua_tointeger(L, idx);
-    return (uint64_t)lua_tonumber(L, idx);
+    return ffi_double_to_u64(lua_tonumber(L, idx));
   }
   if (t == LUA_TLIGHTUSERDATA)
     return (uint64_t)(uintptr_t)lua_touserdata(L, idx);
@@ -257,12 +288,12 @@ uint64_t ffi_to_uint (lua_State *L, FFIState *S, int idx, int *ok) {
           if (ct->size == 4) {
             float f;
             memcpy(&f, p, sizeof(f));
-            return (uint64_t)f;
+            return ffi_double_to_u64((double)f);
           }
           else {
             double d;
             memcpy(&d, p, sizeof(d));
-            return (uint64_t)d;
+            return ffi_double_to_u64(d);
           }
         }
         if (ct->is_unsigned || ct->kind == CT_ENUM)
@@ -285,7 +316,7 @@ int64_t ffi_to_int (lua_State *L, FFIState *S, int idx, int *ok) {
   if (t == LUA_TNUMBER) {
     if (lua_isinteger(L, idx))
       return (int64_t)lua_tointeger(L, idx);
-    return (int64_t)lua_tonumber(L, idx);
+    return ffi_double_to_i64(lua_tonumber(L, idx));
   }
   if (t == LUA_TLIGHTUSERDATA)
     return (int64_t)(intptr_t)lua_touserdata(L, idx);
@@ -302,12 +333,12 @@ int64_t ffi_to_int (lua_State *L, FFIState *S, int idx, int *ok) {
           if (ct->size == 4) {
             float f;
             memcpy(&f, p, sizeof(f));
-            return (int64_t)f;
+            return ffi_double_to_i64((double)f);
           }
           else {
             double d;
             memcpy(&d, p, sizeof(d));
-            return (int64_t)d;
+            return ffi_double_to_i64(d);
           }
         }
         if (ct->is_unsigned || ct->kind == CT_ENUM)
@@ -404,7 +435,15 @@ int ffi_convert (lua_State *L, FFIState *S, CType *ct, void *dst,
       int ok;
       if (t == LUA_TNIL)
         conv_error(L, S, ct, idx, what);
-      v = ffi_to_uint(L, S, idx, &ok);
+      /* LUAR: signed destinations use the signed conversion so an
+      ** out-of-range double gets the signed INT64_MIN sentinel, exactly as
+      ** LuaJIT.  Converting through uint64 first would map 1e19 to the
+      ** in-range unsigned value and then reinterpret it as a different
+      ** negative integer.  Enums keep their unsigned 32-bit view. */
+      if (ct->kind == CT_INT && !ct->is_unsigned)
+        v = (uint64_t)ffi_to_int(L, S, idx, &ok);
+      else
+        v = ffi_to_uint(L, S, idx, &ok);
       if (!ok)
         conv_error(L, S, ct, idx, what);
       ffi_store_uint(dst, ct->size, v);
