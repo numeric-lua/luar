@@ -284,7 +284,11 @@ is intentionally stricter (safer) than LuaJIT for array-backed objects.
 
 C conversions follow C truncation/width rules: `ffi.new("uint8_t", 300)`
 stores 44, `ffi.new("int", 3.9)` stores 3, and `ffi.cast("uint8_t", -1)`
-is 255.  Conversion to `_Bool` is the C scalar rule, not a truncation:
+is 255.  An enum keeps its signed storage/display form (an enum holding -1
+prints as `-1`), but its numeric view is the unsigned 32-bit value, as in
+LuaJIT: `tonumber`, casts, arithmetic and comparisons see 4294967295, and
+struct enum fields use the same conversion.  Conversion to `_Bool` is the C
+scalar rule, not a truncation:
 every non-zero scalar (including a fractional, infinite or NaN float, and a
 non-NULL pointer) becomes 1, and zero or a NULL pointer becomes 0.  `_Bool`
 bitfields store and read only the canonical 0/1 form.  Integer cdata objects
@@ -301,7 +305,8 @@ Bitwise and shift operators (`&`, `|`, `~`, `<<`, `>>`, unary `~`) and
 results, `int64_t` unless an unsigned 64-bit operand applies (`& | ~ ^`
 promote if either operand is unsigned; shifts follow the left operand),
 shift counts masked to six bits, logical right shifts, integer powers
-(with `x^-n` following LuaJIT's 0/±1 rules), and C-truncating `//`.
+(with `x^-n` following LuaJIT's 0/±1 rules, including the `INT64_MAX`
+sentinel for `0^-n`), and C-truncating `//`.
 Pointer operands are rejected rather than reinterpreted.
 
 `tonumber(cdata)` is supported for numeric cdata through a wrapper around

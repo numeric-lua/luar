@@ -6,6 +6,47 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.200.0] — 2026-11-23
+
+### Added
+
+- J2 sums a raw array captured in a closure upvalue (`local t = ...; ...
+  s = s + t[i] ...`) with a table intrinsic that re-resolves the upvalue at
+  every entry, so reassignment and metatable fallback keep working.
+  Plain register-table sums keep their existing path.
+- Raw array and keyed sums no longer stop at 4M remaining iterations.  The
+  old cap made every backedge of a larger loop attempt and reject the
+  intrinsic, which could run it slower than the interpreter.
+
+### Fixed
+
+- The fast `while`/`repeat` peephole no longer folds a body that writes its
+  accumulator more than once.  `a = a + i*i; a = a*i` (and the sum/product,
+  difference/product forms) matched both shapes; the emitter chose one and
+  silently computed a different loop.  Such bodies now use the generic
+  while decoder or the interpreter.
+- A raw-table intrinsic that cannot handle the current iteration is dropped
+  at that backedge instead of being retried forever.  A missing key late in
+  a large keyed sum was quadratic; it now falls back to T0 after one
+  attempt.
+- FFI enums convert numerically as unsigned 32-bit values, matching LuaJIT:
+  `ffi.new("enum E", -1)` still prints as `-1`, but `tonumber`, casts,
+  arithmetic and comparisons use 4294967295.  Struct enum fields follow the
+  same view.
+- FFI integer power returns the `INT64_MAX` infinity sentinel for
+  `0 ^ negative` instead of zero.  Unsigned cdata keeps its existing
+  wrapping behaviour, as in LuaJIT.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test` and
+`make WITH_FFI=1 test-asan` are green.  New coverage:
+`tests/jit/157_upvalue_table_sum.lua`,
+`tests/jit/158_while_multi_acc.lua`,
+`tests/jit/159_table_sum_large.lua`,
+`tests/ffi/112_enum_unsigned.lua` and
+`tests/ffi/113_pow_zero_negative.lua`.
+
 ## [0.199.0] — 2026-11-23
 
 ### Added
