@@ -2319,23 +2319,40 @@ static int ffi_offsetof (lua_State *L) {
   if (field == NULL)
     luaL_error(L, "ffi: '%s' has no member named '%s'",
                ffi_type_repr(S, ct), name);
-  if (field->bitwidth != 0 && field->packed) {
-    lua_pushinteger(L, (lua_Integer)off);
-    lua_pushinteger(L, (lua_Integer)field->bitoffset);
-    lua_pushinteger(L, (lua_Integer)field->bitwidth);
-    return 3;
-  }
   if (field->bitwidth != 0) {
-    size_t unit = off;
     size_t usize = ffi_type_size(field->type);
-    size_t bpos;
-    if (usize != 0 && usize != FFI_SIZE_UNKNOWN)
-      unit = (off / usize) * usize;
-    bpos = (off - unit) * 8 + field->bitoffset;
-    lua_pushinteger(L, (lua_Integer)unit);
-    lua_pushinteger(L, (lua_Integer)bpos);
-    lua_pushinteger(L, (lua_Integer)field->bitwidth);
-    return 3;
+    size_t basebits = (usize != 0 && usize != FFI_SIZE_UNKNOWN)
+                          ? usize * 8 : 0;
+    /* LuaJIT reports a bitfield that fills its base type and starts on a
+    ** storage boundary like an ordinary member: one byte offset and no bit
+    ** position.  A full-width field that starts inside another bitfield is
+    ** still a bitfield (for example `unsigned long long b:64` after a one-
+    ** bit field). */
+    if (basebits != 0 && field->bitwidth >= basebits &&
+        field->bitoffset == 0) {
+      lua_pushinteger(L, (lua_Integer)off);
+      return 1;
+    }
+    /* A packed bitfield of at most one byte is reported relative to its
+    ** containing byte.  Wider packed fields (which may cross bytes) use
+    ** the base type's storage-unit offset, exactly like LuaJIT. */
+    if (field->packed && field->bitwidth <= 8) {
+      lua_pushinteger(L, (lua_Integer)off);
+      lua_pushinteger(L, (lua_Integer)field->bitoffset);
+      lua_pushinteger(L, (lua_Integer)field->bitwidth);
+      return 3;
+    }
+    {
+      size_t unit = off;
+      size_t bpos;
+      if (usize != 0 && usize != FFI_SIZE_UNKNOWN)
+        unit = (off / usize) * usize;
+      bpos = (off - unit) * 8 + field->bitoffset;
+      lua_pushinteger(L, (lua_Integer)unit);
+      lua_pushinteger(L, (lua_Integer)bpos);
+      lua_pushinteger(L, (lua_Integer)field->bitwidth);
+      return 3;
+    }
   }
   lua_pushinteger(L, (lua_Integer)off);
   return 1;

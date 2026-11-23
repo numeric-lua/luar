@@ -76,9 +76,11 @@ from the cdata object.  `ffi.alignof` and `ffi.offsetof` accept the same
 kind of first argument (the latter only for struct/union types).
 `ffi.offsetof` returns the byte offset and, for a bitfield, the storage-unit
 offset, the bit position within that unit and the width in bits (LuaJIT's
-three-result form).  For byte-packed structs the offset is the byte
-containing the field and the bit position is relative to that byte, matching
-LuaJIT.
+three-result form).  A bitfield that fills its base type and starts on a
+storage boundary is reported like an ordinary member (a single offset).  For
+a byte-packed bitfield of at most one byte the offset is the containing byte
+and the bit position is relative to that byte; wider packed bitfields use
+the base type's storage-unit offset, matching LuaJIT.
 
 `ffi.abi` returns `true` for `"64bit"`, `"le"`, `"fpu"`, `"hardfp"` and
 `"gc64"` on the tested x86-64 Linux target, and `false` for unknown
