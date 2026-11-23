@@ -63,8 +63,8 @@ H.eq(ffi.sizeof("struct BoolBits"), h.size_BoolBits())
 b.a = 1
 b.b = 0
 b.c = 0.5
-H.eq(b.a, 1)
-H.eq(b.b, 0)
+H.eq(b.a, true)
+H.eq(b.b, false)
 H.eq(b.c, true)
 H.eq(h.boolbits_get_a(b), 1)
 H.eq(h.boolbits_get_b(b), 0)
@@ -78,23 +78,23 @@ b.c = 2
 H.eq(h.boolbits_get_a(b), 1, "2 stored in a _Bool bitfield becomes 1")
 H.eq(h.boolbits_get_b(b), 1, "-1 stored in a _Bool bitfield becomes 1")
 H.eq(h.boolbits_get_c(b), 1, "2 stored in a _Bool field becomes 1")
-H.eq(b.a, 1)
-H.eq(b.b, 1)
+H.eq(b.a, true)
+H.eq(b.b, true)
 H.eq(b.c, true)
 
 -- The C setter writes the canonical 0/1 form.
 h.boolbits_set_a(b, 0)
 h.boolbits_set_b(b, 0)
 h.boolbits_set_c(b, 0)
-H.eq(b.a, 0)
-H.eq(b.b, 0)
+H.eq(b.a, false)
+H.eq(b.b, false)
 H.eq(b.c, false)
 
 h.boolbits_set_a(b, 1)
 h.boolbits_set_b(b, 1)
 h.boolbits_set_c(b, 1)
-H.eq(b.a, 1)
-H.eq(b.b, 1)
+H.eq(b.a, true)
+H.eq(b.b, true)
 H.eq(b.c, true)
 H.eq(h.boolbits_by_value(b), 3)
 

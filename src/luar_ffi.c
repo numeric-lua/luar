@@ -1308,7 +1308,20 @@ static int cdata_field (lua_State *L, FFIState *S, CData *cd,
   {
     void *p = (char *)base + off;
     if (f->bitwidth != 0) {
-      lua_pushinteger(L, (lua_Integer)bitfield_load(f, p));
+      /* LUAR: a bitfield has the same Lua-visible type as an ordinary
+      ** field of its declared base type.  _Bool yields a boolean; an
+      ** 8-byte integer stays cdata (so an unsigned 64-bit all-ones field
+      ** is 18446744073709551615, not the Lua integer -1); narrower
+      ** integers and enums are Lua numbers. */
+      uint64_t raw = bitfield_load(f, p);
+      if (ft->kind == CT_BOOL)
+        lua_pushboolean(L, raw != 0);
+      else if (ft->kind == CT_INT && ft->size == 8) {
+        CData *bcd = ffi_push_scalar(L, S, ft);
+        ffi_store_uint(&bcd->v, 8, raw);
+      }
+      else
+        lua_pushinteger(L, (lua_Integer)raw);
       return 1;
     }
     if (ft->kind == CT_STRUCT || ft->kind == CT_UNION ||

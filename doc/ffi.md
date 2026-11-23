@@ -597,7 +597,11 @@ Call features:
   thread sees its own instance.
 * Bitfields are supported for integer, enum and `_Bool` fields in structs
   with GCC/x86-64 bit-granular packing, including mixed base types and
-  fields crossing byte boundaries.  A full-width 64-bit field that starts
+  fields crossing byte boundaries.  A read has the same Lua-visible type as
+  an ordinary field of the declared base type: `_Bool` yields a boolean,
+  an 8-byte integer yields cdata (so an unsigned all-ones field is
+  `18446744073709551615`, not the Lua integer -1), and narrower integers
+  and enums yield Lua numbers.  A full-width 64-bit field that starts
   at a non-zero bit offset spans nine bytes and is loaded/stored without
   reading or writing past its storage.  Unnamed padding bitfields and unnamed
   zero-width alignment fields are supported (the zero-width type affects
