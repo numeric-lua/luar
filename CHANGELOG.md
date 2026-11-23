@@ -4,6 +4,57 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.213.0] — 2026-11-23
+
+### Fixed
+
+- `ffi.cdef` evaluates `#if`/`#elif` operands with C's
+  `intmax_t`/`uintmax_t` rules.  Literal type selection is suffix-aware:
+  a hex/octal/binary literal above `INTmax_t` is unsigned
+  (`0xffffffffffffffff > 0` is true, not a comparison against -1), a mixed
+  signed/unsigned expression compares, divides and takes modulo as
+  unsigned, and an unsigned right shift is logical.  Signed decimal
+  literals, character constants and the existing shift-count/divide-by-zero
+  diagnostics are unchanged.
+- `ffi.new` rejects an aggregate or pointer cdata as a single array-element
+  initializer.  The old path converted the source cdata's address to the
+  element type and broadcast it over the destination, which silently
+  produced garbage for `ffi.new("int[3]", other_array)` and copied the
+  declared element count out of bounds when the source array was shorter.
+  Numeric, boolean and enum scalar cdata still broadcast as documented.
+- A bitfield read now has the same Lua-visible type as an ordinary field of
+  its declared base type.  `_Bool` bitfields return booleans, 8-byte
+  integers return cdata (so an unsigned all-ones field is
+  `18446744073709551615`, not the Lua integer -1), and narrower integers and
+  enums return Lua numbers.  This also makes union bitfields and bitfields
+  at a non-zero bit offset consistent with their non-bitfield peers.
+- `jit.off()` no longer consumes a loop's hot state.  Backedges executed
+  while tracing was disabled previously reached the threshold and were
+  recorded as already seen, so a later `jit.on()` left the loop on the
+  interpreter until `jit.flush()`.  Disabled tracing now returns before
+  touching the counters and `jit.on()` resumes compilation.
+
+### Performance
+
+- `table.clear()` clears the split array's contiguous value and tag runs
+  with two `memset`s instead of a per-slot loop.  The table remains empty,
+  capacity is retained, and array and hash references are still released.
+  The `table/new_clear` benchmark best time moved from 2.399 ms to 2.265 ms
+  on the development host (500k-entry array, repeat 15).
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test` and
+`make WITH_FFI=1 test-asan` are green.  New coverage:
+`tests/ffi/162_array_init_aggregate.lua`,
+`tests/ffi/163_bitfield_read_types.lua`,
+`tests/ffi/164_preproc_if_unsigned.lua`,
+`tests/jit/182_jit_off_hot.lua` and
+`tests/compat/table_clear_large.lua`; `tests/ffi/104_bool_conversions.lua`
+now expects boolean results from `_Bool` bitfields.  The source diff is
+tagged `/* LUAR */` where it edits the upstream core and the vendored tree is
+untouched.
+
 ## [0.212.0] — 2026-11-23
 
 ### Added
