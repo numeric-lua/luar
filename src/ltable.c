@@ -828,17 +828,18 @@ void luaH_free (lua_State *L, Table *t) {
 /*
 ** LUAR: clear every array and hash entry in place, keeping the allocated
 ** capacity.  This backs the LuaJIT-compatible table.clear(); it must not
-** run metamethods or shrink the table.  Empty array tags make the GC stop
-** treating the stale payloads as reachable, and dropped hash keys are reset
-** to nil so collectable keys are released.  The hash free-position cursor
-** is rewound to the end.
+** run metamethods or shrink the table.  The split array keeps values and
+** tags in two contiguous runs, so clearing them is two memsets instead of
+** a per-slot loop.  Empty tags make the GC stop treating the stale payloads
+** as reachable, and dropped hash keys are reset to nil so collectable keys
+** are released.  The hash free-position cursor is rewound to the end.
 */
 void luaH_clear (Table *t) {
-  unsigned i;
   if (t->array != NULL) {
-    for (i = 0; i < t->asize; i++) {
-      getArrVal(t, i)->gc = NULL;
-      *getArrTag(t, i) = LUA_VEMPTY;
+    if (t->asize != 0) {
+      memset(t->array - t->asize, 0,
+             (size_t)t->asize * sizeof(Value));
+      memset(getArrTag(t, 0), LUA_VEMPTY, (size_t)t->asize);
     }
     *lenhint(t) = 0;
   }
