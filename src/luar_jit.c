@@ -478,6 +478,123 @@ static int match_cdata_upval_fill (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* Match an in-place cdata update whose destination is a closure upvalue:
+**   GETUPVAL d, U; GETUPVAL t, U; GETTABLE t, t, key;
+**   <op> t, t, scalar; MMBIN; SETTABLE d, key, t
+** The interpreter loads the upvalue twice; both reads observe the same
+** binding within one iteration, so the helper re-resolves it once per
+** entry.  Rebinding the upvalue to a non-array makes the helper decline
+** and the interpreter reports the original error. */
+static int match_cdata_upval_update (Proto *p, LuaR_JIT *J,
+                                     ptrdiff_t start, ptrdiff_t backedge,
+                                     int for_a, TValue *b) {
+  ptrdiff_t pos = start;
+  Instruction up1, up2, g, opins;
+  int key = for_a + 2, arr, tmp, op = -1;
+  int scalar = -1, scalar_const = -1, unary = 0;
+  TValue *av;
+  if (backedge - start + 1 < 6)
+    return 0;
+  up1 = p->code[pos++];
+  up2 = p->code[pos++];
+  g = p->code[pos++];
+  opins = p->code[pos++];
+  if (GET_OPCODE(up1) != OP_GETUPVAL ||
+      GET_OPCODE(up2) != OP_GETUPVAL ||
+      GETARG_B(up1) != GETARG_B(up2))
+    return 0;
+  arr = GETARG_A(up1);
+  tmp = GETARG_A(up2);
+  if (arr == tmp || arr == key || tmp == key ||
+      is_control_reg(arr, for_a) || is_control_reg(tmp, for_a))
+    return 0;
+  if (GET_OPCODE(g) != OP_GETTABLE || GETARG_A(g) != tmp ||
+      GETARG_B(g) != tmp || GETARG_C(g) != key)
+    return 0;
+  switch (GET_OPCODE(opins)) {
+    case OP_ADD: case OP_ADDI: case OP_ADDK: op = 0; break;
+    case OP_SUB: case OP_SUBK: op = 1; break;
+    case OP_MUL: case OP_MULK: op = 2; break;
+    case OP_DIV: case OP_DIVK: op = 3; break;
+    case OP_IDIV: case OP_IDIVK: op = 4; break;
+    case OP_MOD: case OP_MODK: op = 5; break;
+    case OP_BAND: case OP_BANDK: op = 6; break;
+    case OP_BOR: case OP_BORK: op = 7; break;
+    case OP_BXOR: case OP_BXORK: op = 8; break;
+    case OP_SHL: op = 9; break;
+    case OP_SHR: case OP_SHRI: op = 10; break;
+    case OP_BNOT: op = 11; break;
+    case OP_UNM: op = 12; break;
+    default: return 0;
+  }
+  if (GETARG_A(opins) != tmp)
+    return 0;
+  if (op == 11 || op == 12) {
+    if (GETARG_B(opins) != tmp)
+      return 0;
+    unary = 1;
+    scalar = -2;
+    scalar_const = 0;
+  }
+  else if (GET_OPCODE(opins) == OP_ADD || GET_OPCODE(opins) == OP_SUB ||
+           GET_OPCODE(opins) == OP_MUL || GET_OPCODE(opins) == OP_DIV ||
+           GET_OPCODE(opins) == OP_IDIV || GET_OPCODE(opins) == OP_MOD ||
+           GET_OPCODE(opins) == OP_BAND || GET_OPCODE(opins) == OP_BOR ||
+           GET_OPCODE(opins) == OP_BXOR || GET_OPCODE(opins) == OP_SHL ||
+           GET_OPCODE(opins) == OP_SHR) {
+    OpCode opc = GET_OPCODE(opins);
+    int bop = GETARG_B(opins), cop = GETARG_C(opins);
+    int other;
+    if (bop == tmp)
+      other = cop;
+    else if (cop == tmp && (opc == OP_ADD || opc == OP_MUL))
+      other = bop;   /* compiler swapped a commutative form */
+    else
+      return 0;
+    if (other == key || other == for_a || other == for_a + 1 ||
+        other == for_a + 2 || other == arr || other == tmp ||
+        (!ttisinteger(&b[other]) && !ttisfloat(&b[other])))
+      return 0;
+    scalar = other;
+  }
+  else if (GET_OPCODE(opins) == OP_ADDI ||
+           GET_OPCODE(opins) == OP_SHRI) {
+    if (GETARG_B(opins) != tmp)
+      return 0;
+    scalar = -2;
+    scalar_const = (int)GETARG_sC(opins);
+  }
+  else {
+    int idx = GETARG_C(opins);
+    TValue *k;
+    if (GETARG_B(opins) != tmp || idx < 0 || idx >= p->sizek)
+      return 0;
+    k = &p->k[idx];
+    if (!ttisinteger(k) && !ttisfloat(k))
+      return 0;
+    scalar = -1;
+    scalar_const = idx;
+  }
+  av = pair_source_value(b, -1, GETARG_B(up1));
+  if (av == NULL || luar_ffi_trace_array_kind(av) == 0)
+    return 0;
+  if (op >= 6 && op <= 10 && luar_ffi_trace_array_kind(av) != 1)
+    return 0;
+  if (!unary) {
+    OpCode mm = GET_OPCODE(p->code[pos++]);
+    if (mm != OP_MMBIN && mm != OP_MMBINI && mm != OP_MMBINK)
+      return 0;
+  }
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_SETTABLE ||
+      GETARG_A(p->code[pos]) != arr || GETARG_B(p->code[pos]) != key ||
+      GETARG_C(p->code[pos]) != tmp || GETARG_k(p->code[pos]) ||
+      pos + 1 != backedge)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 27, -1 - GETARG_B(up1),
+                            scalar, op, arr, tmp, scalar_const, for_a);
+}
+
+
 /* Match the three cdata store shapes:
 **   a[i] = value                 (value slot, key or numeric constant)
 **   a[i] = b[i]                  (element-wise copy)
@@ -1987,6 +2104,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_fill(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_update(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
@@ -5371,7 +5491,7 @@ static int jit_ir_side (LuaR_JIT *J, Proto *p, int pc, void *base, int expc, lua
 LUAR_NO_SANITIZE_FUNCTION
 int luari_jit_continue (lua_State *L, Proto *p, int pc, void *base) {
   LuaR_JIT *J = G(L)->luar_jit;
-  int r;
+  int r = 0;
   if (L == NULL || p == NULL || base == NULL || J == NULL || !J->enabled)
     return 0;
   if (L->hookmask != 0 || !J->enable_ir || p->luar_cont_code == NULL ||
@@ -5448,7 +5568,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
   for (i = 0; i < 2; i++) {
     if (p->luar_tint[i] != 0 && p->luar_tint_pc[i] == pc &&
         p->luar_tint_base[i] == expected_base) {
-      int r;
+      int r = 0;
       int kind = p->luar_tint[i];
       if (p->luar_tint_epoch[i] != J->epoch) {
         p->luar_tint[i] = 0;
@@ -5575,6 +5695,37 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     val, (mode == -1) ? 1 : (mode == -2) ? 2 : 0);
+          }
+          break;
+        }
+        case 27: {
+          int enc = p->luar_tint_table[i];
+          TValue *av = pair_source_value((TValue *)base,
+                                         (enc >= 0) ? enc : -1,
+                                         (enc >= 0) ? -1 : (-1 - enc));
+          if (av != NULL) {
+            int senc = p->luar_tint_keys[i];
+            int op = p->luar_tint_upval[i];
+            TValue scalar;
+            if (op >= 11) {
+              setivalue(&scalar, 0);   /* unary ops ignore the operand */
+            }
+            else if (senc == -2) {
+              setivalue(&scalar, (lua_Integer)p->luar_tint_arg4[i]);
+            }
+            else if (senc == -1)
+              scalar = p->k[p->luar_tint_arg4[i]];
+            else
+              scalar = ((TValue *)base)[senc];
+            ((TValue *)base)[p->luar_tint_acc[i]] = *av;
+            r = luar_ffi_trace_update_array(
+                    av,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &scalar,
+                    &((TValue *)base)[p->luar_tint_res[i]],
+                    op);
           }
           break;
         }
@@ -5739,7 +5890,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 26))
+        if (kind <= 4 || (kind >= 10 && kind <= 27))
           p->luar_tint[i] = 0;
       }
       else
