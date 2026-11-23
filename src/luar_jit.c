@@ -2459,10 +2459,15 @@ decode_done:
     }
   }
 emit_ready:
-  /* Branch loops that reuse a register with different types are unsafe in a
-  ** loop-level emitter that guards tags only at entry.  The specialised
-  ** single-pattern paths have their own stable register contracts. */
-  if (d.has_branch && !d.fast_while && !d.fast_repeat &&
+  /* Any loop that reuses a register with different types is unsafe in a
+  ** loop-level emitter that guards tags only at entry: the native loop does
+  ** not re-check the tag of a loop-carried slot on each iteration.  This is
+  ** not limited to branch bodies; a straight-line body such as
+  ** `t = u + i * 1.5; u = s - i` changes `u` from an integer to a float and
+  ** the next iteration reads the double payload as an integer.  The
+  ** specialised single-pattern paths and partial prefixes have their own
+  ** register contracts / entry checks. */
+  if (!d.partial && !d.fast_while && !d.fast_repeat &&
       !d.fast_meta && !d.fast_closure && !loop_types_stable(&d))
     return 0;
   fn = luari_emit_build(&d, &size);
