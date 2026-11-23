@@ -154,14 +154,14 @@ for i = 1, N do badC[i] = i end
 badC[N // 2] = "not a number"
 run(sum_up, upA, upB, badC)
 
--- Non-unit steps still fall back to the interpreter (the intrinsic only
--- covers contiguous array runs).
+-- Non-unit steps use the same key walk as FORLOOP.
 local function stepped (a, b, c, n)
   local s = 0
   for i = 1, n, 2 do s = s + upA[i] + upB[i] + upC[i] end
   return s
 end
-run(stepped, upA, upB, upC)
+local st, before = run(stepped, upA, upB, upC)
+H.check(st.tint_hits > before, "strided upvalue sum did not use the intrinsic")
 
 jit.flush()
 jit.opt.start("hotloop=56", "ir=0", "table=0", "tint=0")

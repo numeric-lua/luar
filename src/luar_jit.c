@@ -3122,6 +3122,63 @@ static int table_fill_intrinsic (lua_State *L, TValue *base,
 }
 
 
+/* A numeric for-loop runs 'count + 1' further iterations starting at Lua
+** index 'idx' (the index after the interpreter's FORLOOP), then advances by
+** 'step'.  Return the last Lua index, rejecting values that would overflow.
+** Both positive and negative steps are valid. */
+static int for_run_last (lua_Integer idx, lua_Integer count,
+                         lua_Integer step, lua_Integer *last) {
+  lua_Integer delta;
+  if (count < 0 || step == 0 || idx <= 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER ||
+        count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  *last = idx + delta;
+  return 1;
+}
+
+
+/* All keys of a run are between idx and last; a monotonic integer step
+** cannot leave the array part if both endpoints are inside it. */
+static int array_run_bounds (Table *h, lua_Integer idx, lua_Integer last) {
+  if (h == NULL || h->metatable != NULL)
+    return 0;
+  if (idx < 1 || last < 1)
+    return 0;
+  if ((lua_Unsigned)idx > (lua_Unsigned)h->asize ||
+      (lua_Unsigned)last > (lua_Unsigned)h->asize)
+    return 0;
+  return 1;
+}
+
+
+/* Check that every element the run will read is numeric.  The caller has
+** already validated the run's bounds, so ckey stays in [0, asize). */
+static int array_run_numeric (Table *h, lua_Integer idx, lua_Integer count,
+                              lua_Integer step) {
+  lua_Integer ckey = idx - 1;
+  lua_Integer k;
+  for (k = 0; k <= count; k++) {
+    lu_byte tag = *getArrTag(h, (unsigned)ckey);
+    if (tag != LUA_VNUMINT && tag != LUA_VNUMFLT)
+      return 0;
+    ckey += step;
+  }
+  return 1;
+}
+
+
 /* Raw array sum over an already resolved table.  Used by the register and
 ** upvalue-table intrinsic entries. */
 static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
@@ -3130,28 +3187,22 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
   TValue *at = &base[acc_reg];
-  lua_Integer count, step, idx, last, k;
+  lua_Integer count, step, idx, last, ckey, k;
   (void)L;
   if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (count < 0 || step != 1 || idx <= 0)
-    return 0;
-  if (idx > LUA_MAXINTEGER - count)
-    return 0;
-  last = idx + count;
-  /* The array size is a 32-bit unsigned, so a larger remaining count can
-  ** never be fully inside the array part.  Compare without truncating. */
-  if (h->metatable != NULL || (lua_Unsigned)last > (lua_Unsigned)h->asize)
+  if (!for_run_last(idx, count, step, &last) ||
+      !array_run_bounds(h, idx, last))
     return 0;
   if (ttisinteger(at)) {
     lua_Unsigned sum = l_castS2U(ivalue(at));
     lua_Number fsum = 0;
     int promoted = 0;
-    for (k = 0; k <= count; k++) {
-      unsigned key = (unsigned)(idx + k - 1);
+    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+      unsigned key = (unsigned)ckey;
       lu_byte tag = *getArrTag(h, key);
       if (tag == LUA_VNUMINT) {
         if (promoted)
@@ -3182,8 +3233,8 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
   }
   else if (ttisfloat(at)) {
     lua_Number sum = fltvalue(at);
-    for (k = 0; k <= count; k++) {
-      unsigned key = (unsigned)(idx + k - 1);
+    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+      unsigned key = (unsigned)ckey;
       lu_byte tag = *getArrTag(h, key);
       if (tag == LUA_VNUMINT)
         sum += cast_num(getArrVal(h, key)->i);
@@ -3197,7 +3248,7 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
   else
     return 0;
   if (res_reg != acc_reg && res_reg >= 0) {
-    unsigned rkey = (unsigned)(idx + count - 1);
+    unsigned rkey = (unsigned)(last - 1);
     lu_byte rtag = *getArrTag(h, rkey);
     if (rtag == LUA_VNUMINT) {
       setivalue(&base[res_reg], getArrVal(h, rkey)->i);
@@ -3361,7 +3412,7 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
   TValue *at = &base[acc_reg];
   Table *h[3];
   int enc[3];
-  lua_Integer count, step, idx, last, k;
+  lua_Integer count, step, idx, last, ckey, k;
   int j;
   (void)L;
   if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
@@ -3369,11 +3420,8 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (count < 0 || step != 1 || idx <= 0)
+  if (!for_run_last(idx, count, step, &last))
     return 0;
-  if (idx > LUA_MAXINTEGER - count)
-    return 0;
-  last = idx + count;
   enc[0] = s1;
   enc[1] = s2;
   enc[2] = s3;
@@ -3381,16 +3429,16 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
     int reg = (enc[j] >= 0) ? enc[j] : -1;
     int up = (enc[j] >= 0) ? -1 : (-1 - enc[j]);
     h[j] = pair_source_table(base, reg, up);
-    if (h[j] == NULL || h[j]->metatable != NULL ||
-        (lua_Unsigned)last > (lua_Unsigned)h[j]->asize)
+    if (!array_run_bounds(h[j], idx, last) ||
+        !array_run_numeric(h[j], idx, count, step))
       return 0;
   }
   if (ttisinteger(at)) {
     lua_Unsigned sum = l_castS2U(ivalue(at));
     lua_Number fsum = 0;
     int promoted = 0;
-    for (k = 0; k <= count; k++) {
-      unsigned key = (unsigned)(idx + k - 1);
+    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+      unsigned key = (unsigned)ckey;
       for (j = 0; j < 3; j++) {
         lu_byte tag = *getArrTag(h[j], key);
         if (tag == LUA_VNUMINT) {
@@ -3419,8 +3467,8 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
   }
   else if (ttisfloat(at)) {
     lua_Number sum = fltvalue(at);
-    for (k = 0; k <= count; k++) {
-      unsigned key = (unsigned)(idx + k - 1);
+    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+      unsigned key = (unsigned)ckey;
       for (j = 0; j < 3; j++) {
         lu_byte tag = *getArrTag(h[j], key);
         if (tag == LUA_VNUMINT)
@@ -3436,7 +3484,7 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
   else
     return 0;
   if (res_reg != acc_reg && res_reg >= 0) {
-    unsigned rkey = (unsigned)(idx + count - 1);
+    unsigned rkey = (unsigned)(last - 1);
     lu_byte rtag = *getArrTag(h[2], rkey);
     if (rtag == LUA_VNUMINT) {
       setivalue(&base[res_reg], getArrVal(h[2], rkey)->i);
@@ -3543,22 +3591,6 @@ static Table *pair_source_table (TValue *base, int reg, int upval) {
 }
 
 
-static int pair_check_array (Table *h, lua_Integer idx, lua_Integer count) {
-  lua_Integer last, k;
-  if (h == NULL || h->metatable != NULL)
-    return 0;
-  last = idx + count;
-  if ((lua_Unsigned)last > (lua_Unsigned)h->asize)
-    return 0;
-  for (k = 0; k <= count; k++) {
-    lu_byte tag = *getArrTag(h, (unsigned)(idx + k - 1));
-    if (tag != LUA_VNUMINT && tag != LUA_VNUMFLT)
-      return 0;
-  }
-  return 1;
-}
-
-
 /* kind 12: s = s + a[i] + b[i]
 ** kind 13: s = s + a[i] - b[i]
 ** kind 14: s = s + a[i] * b[i]  (a and b may be the same table) */
@@ -3583,7 +3615,7 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
   TValue *at = &base[acc_reg];
   Table *ha, *hb;
   LuaR_PairNum acc, last_temp, last_a, last_b;
-  lua_Integer count, step, idx, last, k;
+  lua_Integer count, step, idx, last, ckey, k;
   int ok = 1;
   (void)L;
   if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
@@ -3591,16 +3623,15 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (count < 0 || step != 1 || idx <= 0)
-    return 0;
-  if (idx > LUA_MAXINTEGER - count)
-    return 0;
-  last = idx + count;
   ha = pair_source_table(base, areg, aup);
   hb = pair_source_table(base, breg, bup);
-  if (!pair_check_array(ha, idx, count))
+  if (!for_run_last(idx, count, step, &last) ||
+      !array_run_bounds(ha, idx, last) ||
+      !array_run_numeric(ha, idx, count, step))
     return 0;
-  if (hb != ha && !pair_check_array(hb, idx, count))
+  if (hb != ha &&
+      (!array_run_bounds(hb, idx, last) ||
+       !array_run_numeric(hb, idx, count, step)))
     return 0;
   if (!ttisinteger(at) && !ttisfloat(at))
     return 0;
@@ -3610,8 +3641,8 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
   last_temp = acc;
   last_a = pair_int(0);
   last_b = pair_int(0);
-  for (k = 0; k <= count; k++) {
-    unsigned key = (unsigned)(idx + k - 1);
+  for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+    unsigned key = (unsigned)ckey;
     LuaR_PairNum av = pair_from_array(ha, key);
     LuaR_PairNum bv = pair_from_array(hb, key);
     last_a = av;
@@ -3683,7 +3714,7 @@ static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
   TValue *at = &base[acc_reg];
-  lua_Integer count, step, idx, last, k;
+  lua_Integer count, step, idx, last, ckey, k;
   LuaR_PairNum acc, fac, last_elem, last_prod;
   int ok = 1;
   (void)L;
@@ -3692,12 +3723,9 @@ static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (count < 0 || step != 1 || idx <= 0)
-    return 0;
-  if (idx > LUA_MAXINTEGER - count)
-    return 0;
-  last = idx + count;
-  if (h == NULL || !pair_check_array(h, idx, count))
+  if (!for_run_last(idx, count, step, &last) ||
+      !array_run_bounds(h, idx, last) ||
+      !array_run_numeric(h, idx, count, step))
     return 0;
   if (!ttisinteger(scalar) && !ttisfloat(scalar))
     return 0;
@@ -3709,8 +3737,8 @@ static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
     return 0;
   last_elem = pair_int(0);
   last_prod = pair_int(0);
-  for (k = 0; k <= count; k++) {
-    unsigned key = (unsigned)(idx + k - 1);
+  for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+    unsigned key = (unsigned)ckey;
     LuaR_PairNum elem = pair_from_array(h, key);
     last_elem = elem;
     last_prod = pair_mul(elem, fac);

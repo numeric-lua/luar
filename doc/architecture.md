@@ -93,7 +93,7 @@ make correct against an unmodified VM.
   arrays, two-array sum/difference,
   dot-product/sum-of-squares and scaled `a[i] * k` sum intrinsics
   over register or upvalue arrays (the scalar may be a constant, register
-  or upvalue),
+  or upvalue), with unit or strided (positive/negative) integer steps,
   and raw-array sum intrinsics over a register table or a closure upvalue.
   Experimental
   register-cached prefix/square-sum loops and opt-in raw array

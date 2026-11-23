@@ -44,7 +44,9 @@ is provably observationally equivalent to that interpreter.
   tier also has a `s = s + a[i] + b[i] + c[i]` intrinsic over three arrays,
   each of which may be a register table or a closure upvalue, and a scaled
   `s = s + a[i] * k` intrinsic whose scalar is a numeric constant, register
-  or closure upvalue.
+  or closure upvalue.  These raw-array reductions follow the FORLOOP key
+  sequence for any nonzero integer step, including descending loops; the
+  first/last keys are overflow- and bounds-checked before the run.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled
