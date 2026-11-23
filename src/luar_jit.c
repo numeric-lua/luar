@@ -484,6 +484,162 @@ static int match_three_table_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* A raw-array read used by the pair intrinsics.  The table can be a
+** register local/parameter or a closure upvalue; the value lands in a
+** separate register (the compiler may reuse that register for the table
+** load of an upvalue). */
+typedef struct {
+  int table;   /* register holding the table, or -1 for an upvalue */
+  int upval;   /* upvalue index, or -1 for a register */
+  int val;     /* register receiving the element */
+} LuaR_PairRead;
+
+
+static int match_pair_read (Proto *p, ptrdiff_t *pos, ptrdiff_t backedge,
+                            int for_a, LuaR_PairRead *r) {
+  Instruction ins;
+  if (*pos >= backedge)
+    return 0;
+  ins = p->code[*pos];
+  if (GET_OPCODE(ins) == OP_GETUPVAL) {
+    Instruction gt;
+    int reg = GETARG_A(ins);
+    if (*pos + 1 >= backedge)
+      return 0;
+    gt = p->code[*pos + 1];
+    if (GET_OPCODE(gt) != OP_GETTABLE || GETARG_A(gt) != reg ||
+        GETARG_B(gt) != reg || GETARG_C(gt) != for_a + 2)
+      return 0;
+    r->table = -1;
+    r->upval = GETARG_B(ins);
+    r->val = reg;
+    *pos += 2;
+    return 1;
+  }
+  if (GET_OPCODE(ins) == OP_GETTABLE) {
+    if (GETARG_C(ins) != for_a + 2)
+      return 0;
+    r->table = GETARG_B(ins);
+    r->upval = -1;
+    r->val = GETARG_A(ins);
+    *pos += 1;
+    return 1;
+  }
+  return 0;
+}
+
+
+static int install_pair_intrinsic (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                                   int for_a, const LuaR_PairRead *ra,
+                                   const LuaR_PairRead *rb, int acc, int res,
+                                   int kind) {
+  int slot = -1, k;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = kind;
+  p->luar_tint_pc[slot] = (int)backedge;
+  /* Pack each source into one int: a register is the value itself, an
+  ** upvalue is -1-index.  The two remaining slots keep the element
+  ** registers that the bytecode can observe after the loop. */
+  p->luar_tint_table[slot] =
+      (ra->upval >= 0) ? (-1 - ra->upval) : ra->table;
+  p->luar_tint_keys[slot] =
+      (rb->upval >= 0) ? (-1 - rb->upval) : rb->table;
+  p->luar_tint_upval[slot] = ra->val;
+  p->luar_tint_arg4[slot] = rb->val;
+  p->luar_tint_acc[slot] = acc;
+  p->luar_tint_res[slot] = res;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
+/* LUAR: `s = s + a[i] + b[i]` / `s = s + a[i] - b[i]` over two raw arrays.
+** The compiler emits the left-associative shape as one ADD into a temporary
+** followed by the final ADD/SUB into the accumulator.  Both arrays may come
+** from registers or closure upvalues, which the generic register-table
+** emitter does not cover. */
+static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                           ptrdiff_t backedge, int for_a) {
+  LuaR_PairRead ra, rb;
+  Instruction op1, mm1, op2, mm2;
+  ptrdiff_t i = start;
+  int t1, acc, b1, c1, sub;
+  if (!match_pair_read(p, &i, backedge, for_a, &ra))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  op1 = p->code[i];
+  if (GET_OPCODE(op1) != OP_ADD)
+    return 0;
+  t1 = GETARG_A(op1);
+  b1 = GETARG_B(op1);
+  c1 = GETARG_C(op1);
+  if (b1 == ra.val)
+    acc = c1;
+  else if (c1 == ra.val)
+    acc = b1;
+  else
+    return 0;
+  if (is_control_reg(t1, for_a) || is_control_reg(acc, for_a) ||
+      t1 == for_a + 2 || acc == for_a + 2 || ra.val == acc)
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  mm1 = p->code[i];
+  if (GET_OPCODE(mm1) != OP_MMBIN)
+    return 0;
+  i++;
+  if (!match_pair_read(p, &i, backedge, for_a, &rb))
+    return 0;
+  /* The two element reads must not overwrite each other or the cached
+  ** accumulator before the final arithmetic. */
+  if (rb.val == acc || rb.val == ra.val || rb.val == t1)
+    return 0;
+  if (i >= backedge)
+    return 0;
+  op2 = p->code[i];
+  if (GETARG_A(op2) != acc)
+    return 0;
+  if (GET_OPCODE(op2) == OP_SUB) {
+    if (GETARG_B(op2) != t1 || GETARG_C(op2) != rb.val)
+      return 0;
+    sub = 1;
+  }
+  else if (GET_OPCODE(op2) == OP_ADD) {
+    if (!((GETARG_B(op2) == t1 && GETARG_C(op2) == rb.val) ||
+          (GETARG_B(op2) == rb.val && GETARG_C(op2) == t1)))
+      return 0;
+    sub = 0;
+  }
+  else
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  mm2 = p->code[i];
+  if (GET_OPCODE(mm2) != OP_MMBIN)
+    return 0;
+  i++;
+  if (i != backedge)
+    return 0;
+  if (is_control_reg(ra.val, for_a) || is_control_reg(rb.val, for_a))
+    return 0;
+  return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, t1,
+                                sub ? 13 : 12);
+}
+
+
 static int match_closure_loop (Proto *p, ptrdiff_t start,
                                ptrdiff_t backedge, int for_a, TValue *base,
                                LuaR_LoopDesc *d) {
@@ -948,6 +1104,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
     if (!for_float && J->enable_tint &&
         match_three_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_pair_sum(p, J, start, backedge, for_a))
       return 1;
     if (n >= 9 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -3006,6 +3165,187 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
 }
 
 
+/* A number in the two flavours Lua arithmetic distinguishes.  The pair
+** intrinsics use this to reproduce the interpreter's int-wrap / float-
+** promotion rules exactly, including a promotion in the middle of a run. */
+typedef struct {
+  int isflt;
+  int64_t i;
+  double d;
+} LuaR_PairNum;
+
+
+static LuaR_PairNum pair_int (int64_t v) {
+  LuaR_PairNum n;
+  n.isflt = 0;
+  n.i = v;
+  n.d = 0.0;
+  return n;
+}
+
+
+static LuaR_PairNum pair_flt (double v) {
+  LuaR_PairNum n;
+  n.isflt = 1;
+  n.i = 0;
+  n.d = v;
+  return n;
+}
+
+
+static double pair_number (LuaR_PairNum n) {
+  return n.isflt ? n.d : cast_num(n.i);
+}
+
+
+static LuaR_PairNum pair_add (LuaR_PairNum a, LuaR_PairNum b) {
+  if (a.isflt || b.isflt)
+    return pair_flt(pair_number(a) + pair_number(b));
+  return pair_int(l_castU2S(l_castS2U(a.i) + l_castS2U(b.i)));
+}
+
+
+static LuaR_PairNum pair_sub (LuaR_PairNum a, LuaR_PairNum b) {
+  if (a.isflt || b.isflt)
+    return pair_flt(pair_number(a) - pair_number(b));
+  return pair_int(l_castU2S(l_castS2U(a.i) - l_castS2U(b.i)));
+}
+
+
+static LuaR_PairNum pair_from_slot (const TValue *v, int *ok) {
+  if (ttisinteger(v))
+    return pair_int(ivalue(v));
+  if (ttisfloat(v))
+    return pair_flt(fltvalue(v));
+  *ok = 0;
+  return pair_int(0);
+}
+
+
+static LuaR_PairNum pair_from_array (Table *h, unsigned key) {
+  if (*getArrTag(h, key) == LUA_VNUMFLT)
+    return pair_flt(getArrVal(h, key)->n);
+  return pair_int(getArrVal(h, key)->i);
+}
+
+
+static Table *pair_source_table (TValue *base, int reg, int upval) {
+  TValue *tv;
+  if (upval >= 0) {
+    TValue *fv = &base[-1];
+    LClosure *cl;
+    if (!ttisLclosure(fv))
+      return NULL;
+    cl = clLvalue(fv);
+    if (upval >= cl->p->sizeupvalues)
+      return NULL;
+    tv = cl->upvals[upval]->v.p;
+  }
+  else {
+    if (reg < 0 || reg > 255)
+      return NULL;
+    tv = &base[reg];
+  }
+  return ttistable(tv) ? hvalue(tv) : NULL;
+}
+
+
+static int pair_check_array (Table *h, lua_Integer idx, lua_Integer count) {
+  lua_Integer last, k;
+  if (h == NULL || h->metatable != NULL)
+    return 0;
+  last = idx + count;
+  if ((lua_Unsigned)last > (lua_Unsigned)h->asize)
+    return 0;
+  for (k = 0; k <= count; k++) {
+    lu_byte tag = *getArrTag(h, (unsigned)(idx + k - 1));
+    if (tag != LUA_VNUMINT && tag != LUA_VNUMFLT)
+      return 0;
+  }
+  return 1;
+}
+
+
+/* kind 12: s = s + a[i] + b[i]
+** kind 13: s = s + a[i] - b[i] */
+static void pair_store_slot (TValue *base, int reg, LuaR_PairNum v,
+                             int acc_reg) {
+  if (reg < 0 || reg == acc_reg)
+    return;
+  if (v.isflt)
+    { setfltvalue(&base[reg], v.d); }
+  else
+    { setivalue(&base[reg], v.i); }
+}
+
+
+static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
+                                 int areg, int aup, int breg, int bup,
+                                 int acc_reg, int res_reg, int res2_reg,
+                                 int res3_reg, int kind) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *at = &base[acc_reg];
+  Table *ha, *hb;
+  LuaR_PairNum acc, last_temp, last_a, last_b;
+  lua_Integer count, step, idx, last, k;
+  int ok = 1;
+  (void)L;
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0)
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  ha = pair_source_table(base, areg, aup);
+  hb = pair_source_table(base, breg, bup);
+  if (!pair_check_array(ha, idx, count))
+    return 0;
+  if (hb != ha && !pair_check_array(hb, idx, count))
+    return 0;
+  if (!ttisinteger(at) && !ttisfloat(at))
+    return 0;
+  acc = pair_from_slot(at, &ok);
+  if (!ok)
+    return 0;
+  last_temp = acc;
+  last_a = pair_int(0);
+  last_b = pair_int(0);
+  for (k = 0; k <= count; k++) {
+    unsigned key = (unsigned)(idx + k - 1);
+    LuaR_PairNum av = pair_from_array(ha, key);
+    LuaR_PairNum bv = pair_from_array(hb, key);
+    last_a = av;
+    last_b = bv;
+    {
+      LuaR_PairNum t = pair_add(acc, av);
+      last_temp = t;
+      acc = (kind == 13) ? pair_sub(t, bv) : pair_add(t, bv);
+    }
+  }
+  if (acc.isflt)
+    { setfltvalue(at, acc.d); }
+  else
+    { setivalue(at, acc.i); }
+  pair_store_slot(base, res_reg, last_temp, acc_reg);
+  /* The first element register can be the destination of the fused
+  ** arithmetic (the compiler reuses a dead temp).  Its final bytecode
+  ** value is then the intermediate, not the element. */
+  pair_store_slot(base, res2_reg,
+                  (res2_reg == res_reg) ? last_temp : last_a, acc_reg);
+  pair_store_slot(base, res3_reg,
+                  (res3_reg == res_reg) ? last_temp : last_b, acc_reg);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 static int method_add_intrinsic (lua_State *L, Proto *caller, TValue *base,
                                 int for_a, TValue *tt, int method_key) {
   TValue *ct = &base[for_a];
@@ -4121,6 +4461,22 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                    p->luar_tint_acc[i],
                                    p->luar_tint_res[i]);
           break;
+        case 12:
+        case 13: {
+          int aenc = p->luar_tint_table[i];
+          int benc = p->luar_tint_keys[i];
+          int areg = (aenc >= 0) ? aenc : -1;
+          int aup = (aenc >= 0) ? -1 : (-1 - aenc);
+          int breg = (benc >= 0) ? benc : -1;
+          int bup = (benc >= 0) ? -1 : (-1 - benc);
+          r = pair_array_intrinsic(L, (TValue *)base, expected_base,
+                                   areg, aup, breg, bup,
+                                   p->luar_tint_acc[i],
+                                   p->luar_tint_res[i],
+                                   p->luar_tint_upval[i],
+                                   p->luar_tint_arg4[i], kind);
+          break;
+        }
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
@@ -4188,7 +4544,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || kind == 10 || kind == 11)
+        if (kind <= 4 || (kind >= 10 && kind <= 14))
           p->luar_tint[i] = 0;
       }
       else
