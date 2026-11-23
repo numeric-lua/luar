@@ -6,6 +6,59 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.205.0] — 2026-11-23
+
+### Added
+
+- J2 runs two-source bounded cdata reductions in the default tier:
+  `s = s + a[i] + b[i]`, the subtract form, and
+  `s = s + a[i] * b[i]` (including `a[i] * a[i]`).  A bounds-checked C
+  helper follows the interpreter's FORLOOP sequence for any nonzero integer
+  step, preserves per-operation int wrap/float promotion, the observed
+  element and product/result temporaries and the control slots, and is
+  visible through `jit.stats().tint_hits`.  Pointer sources and mixed
+  table/cdata pairs stay on the interpreter.
+
+### Fixed
+
+- The J2 table-fill intrinsic grew the array part with a zero-sized hash
+  part.  Filling a table that already had a string, negative or high
+  integer key silently dropped those entries.  The fill now uses
+  `luaH_resizearray` and preserves them.
+- J2 leaf-call intrinsics snapshotted extra arguments once.  A loop such as
+  `s = s + f(i, i)` or `s = s + f(i, s)` therefore reused the first
+  iteration's argument and returned a different result once hot.  The fast
+  path now requires extra argument registers to be loop-invariant;
+  constant arguments still compile.
+- J4's integer `ADDK`/`SUBK`/`MULK` used x86 32-bit immediate forms, so
+  constants such as `2^32` and `maxint` were truncated.  They now use the
+  full-width scratch-register helpers, matching the interpreter.
+- `ffi.new` of a union from a table ignored a named member other than the
+  first, silently zeroing the union.  Named members are now selected by
+  name, while positional entries still initialize only the first member.
+- An aggregate lvalue initializes a `void *` in `ffi.new` and pointer
+  assignments, as in LuaJIT; mismatched object pointers and numeric scalars
+  remain rejected.
+- `ffi.metatype` rejects a second registration for the same type even when
+  the original table is passed again, matching LuaJIT and the documented
+  one-metatype rule.  `__len`/`__pairs` on a type without a metatype now
+  raise the intended cdata error instead of indexing a missing registry
+  entry.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `tools/upstream-check.sh` and
+`make dynasm-check` are green.  New coverage:
+`tests/ffi/125_union_named_init.lua`,
+`tests/ffi/126_void_pointer_aggregate.lua`,
+`tests/ffi/127_metatype_single_registration.lua`,
+`tests/ffi/128_no_metatype_dispatch.lua`,
+`tests/ffi/129_j2_cdata_pair.lua`,
+`tests/jit/173_fill_preserves_hash.lua`,
+`tests/jit/174_leaf_arg_variation.lua` and
+`tests/jit/175_j4_int64_k_constants.lua`.
+
 ## [0.204.0] — 2026-11-23
 
 ### Added

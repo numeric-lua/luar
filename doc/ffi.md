@@ -225,13 +225,18 @@ Struct/union definitions cannot be redefined in the same Lua state.
   table with named and/or positional fields, or from positional arguments
   (`ffi.new("struct P", 1, 2)` fills the first two named fields; omitted
   fields are zero).  Nested aggregate members can be initialized with
-  nested tables.  Unions initialize their first member.  Anonymous members
-  participate in positional initialization; named table fields work for
-  the anonymous member's own fields.
+  nested tables.  A union table initializer selects the first named member
+  that is present (or the first member for a positional table); anonymous
+  members participate in positional initialization, and named table fields
+  work for the anonymous member's own fields.
 * `ffi.new` of an incomplete type, `void`, or a function type is an error.
 * The same type is accepted in place of the type string (`ffi.new(Pos, 1,
   2)`), and a cdata of an identical aggregate type can be copied as the
-  initializer.
+  initializer.  An aggregate lvalue initializes an object pointer of its
+  own type or a `void *`, as in C and LuaJIT; numeric scalars are not
+  pointers.
+* A type has one metatype: a second `ffi.metatype` call for the same
+  struct/union raises even when it passes the original table again.
 
 Storage is allocated in Lua full userdata with at least `max_align_t`
 alignment and an extra 16-byte-aligned cdata header.  The cdata metatable
