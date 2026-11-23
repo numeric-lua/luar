@@ -430,6 +430,13 @@ static int ffi_view_init (TValue *tv, FfiView *v) {
   return ffi_view_init_ex(tv, v, 0);
 }
 
+/* Store-only destination view.  An 8-byte integer element is safe here
+** because the helper never loads it back into a Lua slot: it only applies
+** the C store conversion of an arithmetic result. */
+static int ffi_view_init_dst (TValue *tv, FfiView *v) {
+  return ffi_view_init_ex(tv, v, 1);
+}
+
 static FfiNum ffi_view_load (const FfiView *v, const char *p) {
   if (v->isflt) {
     if (v->esz == 4) {
@@ -679,7 +686,7 @@ int luar_ffi_trace_copy_array (TValue *dstv, TValue *srcv, TValue *it,
       st == NULL || tmp == NULL || !ttisinteger(ct) || !ttisinteger(st) ||
       !ttisinteger(it))
     return 0;
-  if (!ffi_view_init(dstv, &vd) || !ffi_view_init(srcv, &vs))
+  if (!ffi_view_init_dst(dstv, &vd) || !ffi_view_init(srcv, &vs))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -746,8 +753,26 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
         lastval = ffi_num_flt(ffi_num_double(x) / ffi_num_double(n));
       else if (op == 4)
         lastval = ffi_num_idiv(x, n);
-      else
+      else if (op == 5)
         lastval = ffi_num_mod(x, n);
+      else if (op == 6)
+        lastval = ffi_num_int(l_castU2S(l_castS2U(x.i) &
+                                        l_castS2U(iv)));
+      else if (op == 7)
+        lastval = ffi_num_int(l_castU2S(l_castS2U(x.i) |
+                                        l_castS2U(iv)));
+      else if (op == 8)
+        lastval = ffi_num_int(l_castU2S(l_castS2U(x.i) ^
+                                        l_castS2U(iv)));
+      else if (op == 9)
+        lastval = ffi_num_int(luaV_shiftl(x.i, iv));
+      else if (op == 10)
+        lastval = ffi_num_int(luaV_shiftl(x.i,
+                                          l_castU2S(0 - l_castS2U(iv))));
+      else if (op == 11)
+        lastval = ffi_num_int(l_castU2S(~l_castS2U(x.i)));
+      else
+        lastval = ffi_num_int(l_castU2S(0 - l_castS2U(x.i)));
       ffi_view_store(&v, p, lastval);
       p += (ptrdiff_t)step * (ptrdiff_t)v.esz;
     }
@@ -776,7 +801,7 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
       op < 0 || op > 5)
     return 0;
   if (!ffi_num_from_tv(scalar, &n) ||
-      !ffi_view_init(dstv, &vd) || !ffi_view_init(srcv, &vs))
+      !ffi_view_init_dst(dstv, &vd) || !ffi_view_init(srcv, &vs))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -832,7 +857,7 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
       op < 0 || op > 5)
     return 0;
-  if (!ffi_view_init(dstv, &vd) || !ffi_view_init(av, &va) ||
+  if (!ffi_view_init_dst(dstv, &vd) || !ffi_view_init(av, &va) ||
       !ffi_view_init(bv, &vb))
     return 0;
   count = ivalue(ct);

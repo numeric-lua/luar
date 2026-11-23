@@ -476,7 +476,7 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
         tmp == for_a + 2 || src == for_a || src == for_a + 1 ||
         src == for_a + 2 || dst == for_a || dst == for_a + 1 ||
         dst == for_a + 2 || dst == tmp || src == tmp ||
-        luar_ffi_trace_array_kind(&b[dst]) == 0 ||
+        luar_ffi_trace_array_store_kind(&b[dst]) == 0 ||
         luar_ffi_trace_array_kind(&b[src]) == 0)
       return 0;
     return install_cdata_tint(p, J, backedge, 21, dst, src, 0, tmp, key,
@@ -642,7 +642,7 @@ static int match_cdata_scalar_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   dst = GETARG_A(s);
   if (dst == tmp || dst == for_a || dst == for_a + 1 ||
       dst == for_a + 2 ||
-      luar_ffi_trace_array_kind(&b[dst]) == 0)
+      luar_ffi_trace_array_store_kind(&b[dst]) == 0)
     return 0;
   return install_cdata_tint(p, J, backedge, 24, dst, src, scalar, op, tmp,
                             scalar_const, for_a);
@@ -692,7 +692,7 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
         bv == for_a + 2 || ta == key || tb == key || ta == tb ||
         ta == av || ta == bv || ta == dst ||
         tb == av || tb == bv || tb == dst ||
-        luar_ffi_trace_array_kind(&b[dst]) == 0 ||
+        luar_ffi_trace_array_store_kind(&b[dst]) == 0 ||
         luar_ffi_trace_array_kind(&b[av]) == 0 ||
         luar_ffi_trace_array_kind(&b[bv]) == 0)
       return 0;
