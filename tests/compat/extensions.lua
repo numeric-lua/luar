@@ -42,6 +42,19 @@ H.eq(t.key, 2)
 table.clear(t)
 H.eq(next(t), nil)
 
+-- LuaJIT also exposes the table helpers as modules; require() must return
+-- the same function object as the table-library field.
+H.eq(type(package.preload["table.new"]), "function")
+H.eq(type(package.preload["table.clear"]), "function")
+H.eq(require("table.new"), table.new)
+H.eq(require("table.clear"), table.clear)
+H.eq(package.loaded["table.new"], table.new)
+H.eq(package.loaded["table.clear"], table.clear)
+local tm = require("table.new")(2, 2)
+tm[1], tm[2] = "a", "b"
+require("table.clear")(tm)
+H.eq(next(tm), nil)
+
 -- table.new defaults / size validation
 H.eq(type(table.new()), "table")
 H.raises(function() table.clear(42) end, "table expected")

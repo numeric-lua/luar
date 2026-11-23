@@ -60,6 +60,24 @@ static int table_clear (lua_State *L) {
 }
 
 
+/* LUAR: LuaJIT exposes table.new/table.clear as modules as well as
+** fields of the table library.  Register the same function object in
+** package.preload and package.loaded so require() and the globals agree. */
+static void register_table_module (lua_State *L, const char *name) {
+  /* stack: ... function */
+  lua_pushvalue(L, -1);
+  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
+  lua_pushvalue(L, -2);
+  lua_setfield(L, -2, name);
+  lua_pop(L, 1);
+  luaL_getsubtable(L, LUA_REGISTRYINDEX, LUA_LOADED_TABLE);
+  lua_pushvalue(L, -2);
+  lua_setfield(L, -2, name);
+  lua_pop(L, 1);
+  lua_pop(L, 1);
+}
+
+
 static void add_table_extras (lua_State *L) {
   lua_getglobal(L, LUA_TABLIBNAME);
   if (lua_istable(L, -1)) {
@@ -67,6 +85,12 @@ static void add_table_extras (lua_State *L) {
     lua_setfield(L, -2, "new");
     lua_pushcfunction(L, table_clear);
     lua_setfield(L, -2, "clear");
+    lua_getfield(L, -1, "new");
+    register_table_module(L, "table.new");
+    lua_pop(L, 1);
+    lua_getfield(L, -1, "clear");
+    register_table_module(L, "table.clear");
+    lua_pop(L, 1);
   }
   lua_pop(L, 1);
 }
