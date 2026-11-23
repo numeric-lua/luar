@@ -6,6 +6,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.199.0] — 2026-11-23
+
 ### Added
 
 - J2 decodes the loop's one raw array read (`GETI`/`GETTABLE`) anywhere in a
