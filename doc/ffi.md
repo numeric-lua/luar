@@ -367,11 +367,21 @@ metatype metamethods are:
   also called when both operands are the same cdata object; `rawequal()`
   stays a raw identity test.
 * `__len`: supplies the result of `#cdata` for a struct/union value.
+* `__add`, `__sub`, `__mul`, `__div`, `__idiv`, `__mod`, `__pow`, `__band`,
+  `__bor`, `__bxor`, `__shl`, `__shr`: binary arithmetic and bitwise
+  handlers for struct/union cdata.  The left operand's handler is tried
+  first, then the right operand's, as with Lua's ordinary metamethods, so a
+  handler also runs for `cdata + number` and `number + cdata`.
+* `__unm`, `__bnot`: unary handlers, called with the VM's usual duplicated
+  operand pair.
+* `__concat`: concatenation with a struct/union cdata on either side.
+* `__gc`: the default finalizer for a struct/union value.  An explicit
+  `ffi.gc(x, f)` replaces it, and `ffi.gc(x, nil)` suppresses it, matching
+  LuaJIT.  Errors raised by the finalizer are ignored.
 
 Real struct fields always take priority over `__index`/`__newindex`.
-Other metatype metamethods (arithmetic, `__gc`, etc.) are not dispatched;
-numeric cdata comparisons and pointer ordering keep their FFI semantics.
-Use `ffi.gc` for finalization.
+Numeric cdata keeps its FFI arithmetic, comparison and pointer-ordering
+semantics; the metatype overrides apply only to struct/union cdata.
 
 ## Calling C
 

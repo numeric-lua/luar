@@ -1422,6 +1422,7 @@ static int meta_tostring (lua_State *L, CType *ct, int idx) {
 /* Defined with the comparison metamethods below. */
 static CType *cdata_metatype (CData *cd);
 static int meta_push (lua_State *L, CType *ct, const char *name);
+static int meta_binop (lua_State *L, const char *name);
 
 
 static int cdata_len (lua_State *L) {
@@ -1432,6 +1433,13 @@ static int cdata_len (lua_State *L) {
     return 1;
   }
   luaL_error(L, "attempt to get length of a cdata value");
+  return 0;
+}
+
+
+static int cdata_concat (lua_State *L) {
+  if (meta_binop(L, "__concat")) return 1;
+  luaL_error(L, "attempt to concatenate a cdata value");
   return 0;
 }
 
@@ -1902,17 +1910,42 @@ static int cdata_arith (lua_State *L, int op) {
 }
 
 
-static int cdata_add (lua_State *L) { return cdata_arith(L, '+'); }
-static int cdata_sub (lua_State *L) { return cdata_arith(L, '-'); }
-static int cdata_mul (lua_State *L) { return cdata_arith(L, '*'); }
-static int cdata_div (lua_State *L) { return cdata_arith(L, '/'); }
-static int cdata_mod (lua_State *L) { return cdata_arith(L, '%'); }
+/* LUAR: a metatype may override arithmetic for struct/union cdata, as in
+** LuaJIT.  Numeric cdata has no metatype and keeps the FFI fast paths. */
+static int cdata_add (lua_State *L) {
+  if (meta_binop(L, "__add")) return 1;
+  return cdata_arith(L, '+');
+}
+static int cdata_sub (lua_State *L) {
+  if (meta_binop(L, "__sub")) return 1;
+  return cdata_arith(L, '-');
+}
+static int cdata_mul (lua_State *L) {
+  if (meta_binop(L, "__mul")) return 1;
+  return cdata_arith(L, '*');
+}
+static int cdata_div (lua_State *L) {
+  if (meta_binop(L, "__div")) return 1;
+  return cdata_arith(L, '/');
+}
+static int cdata_mod (lua_State *L) {
+  if (meta_binop(L, "__mod")) return 1;
+  return cdata_arith(L, '%');
+}
 
 
 static int cdata_unm (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
   CData *r;
+  if (meta_push(L, cdata_metatype(a), "__unm")) {
+    /* The VM passes a unary operand as both arguments, so the handler
+    ** observes the same pair under LuaJIT. */
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 1);
+    lua_call(L, 2, 1);
+    return 1;
+  }
   if (a == NULL || (a->flags & CDATA_CTYPE) != 0 ||
       !ffi_is_numeric(a->ct))
     luaL_error(L, "ffi: invalid operand for unary minus");
@@ -2011,19 +2044,47 @@ static int cdata_bitwise (lua_State *L, int op) {
 }
 
 
-static int cdata_band (lua_State *L) { return cdata_bitwise(L, '&'); }
-static int cdata_bor (lua_State *L) { return cdata_bitwise(L, '|'); }
-static int cdata_bxor (lua_State *L) { return cdata_bitwise(L, '^'); }
-static int cdata_bnot (lua_State *L) { return cdata_bitwise(L, '~'); }
-static int cdata_shl (lua_State *L) { return cdata_bitwise(L, 'L'); }
-static int cdata_shr (lua_State *L) { return cdata_bitwise(L, 'R'); }
+static int cdata_band (lua_State *L) {
+  if (meta_binop(L, "__band")) return 1;
+  return cdata_bitwise(L, '&');
+}
+static int cdata_bor (lua_State *L) {
+  if (meta_binop(L, "__bor")) return 1;
+  return cdata_bitwise(L, '|');
+}
+static int cdata_bxor (lua_State *L) {
+  if (meta_binop(L, "__bxor")) return 1;
+  return cdata_bitwise(L, '^');
+}
+static int cdata_bnot (lua_State *L) {
+  CData *a = ffi_tocdata(L, 1);
+  if (meta_push(L, cdata_metatype(a), "__bnot")) {
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 1);
+    lua_call(L, 2, 1);
+    return 1;
+  }
+  return cdata_bitwise(L, '~');
+}
+static int cdata_shl (lua_State *L) {
+  if (meta_binop(L, "__shl")) return 1;
+  return cdata_bitwise(L, 'L');
+}
+static int cdata_shr (lua_State *L) {
+  if (meta_binop(L, "__shr")) return 1;
+  return cdata_bitwise(L, 'R');
+}
 
 
-static int cdata_idiv (lua_State *L) { return cdata_arith(L, '/'); }
+static int cdata_idiv (lua_State *L) {
+  if (meta_binop(L, "__idiv")) return 1;
+  return cdata_arith(L, '/');
+}
 
 
 static int cdata_pow (lua_State *L) {
   FFIState *S = ffi_getstate(L);
+  if (meta_binop(L, "__pow")) return 1;
   CData *a = ffi_tocdata(L, 1);
   CData *b = ffi_tocdata(L, 2);
   int uns;
@@ -2118,6 +2179,15 @@ static int cdata_gc (lua_State *L) {
     else {
       lua_pop(L, 1);
     }
+  }
+  /* LUAR: a metatype __gc is the default finalizer, but an explicit
+  ** ffi.gc() call (including ffi.gc(x, nil)) overrides it, as in
+  ** LuaJIT.  The closure-free path is exactly the previous behaviour. */
+  if ((cd->flags & CDATA_GC_SET) == 0 &&
+      meta_push(L, cdata_metatype(cd), "__gc")) {
+    lua_pushvalue(L, 1);
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK)
+      lua_pop(L, 1);
   }
   if ((cd->flags & CDATA_CALLBACK) != 0)
     ffi_callback_free(L, cd);
@@ -2426,6 +2496,7 @@ static int ffi_gc (lua_State *L) {
   CData *cd = ffi_checkcdata(L, 1, "gc");
   if ((cd->flags & CDATA_CTYPE) != 0)
     luaL_error(L, "ffi.gc: cannot set a finalizer on a C type");
+  cd->flags |= CDATA_GC_SET;
   if (lua_isnoneornil(L, 2)) {
     lua_pushnil(L);
     lua_setiuservalue(L, 1, 2);
@@ -2578,6 +2649,7 @@ static const luaL_Reg cdata_meta[] = {
   {"__lt", cdata_lt},
   {"__le", cdata_le},
   {"__len", cdata_len},
+  {"__concat", cdata_concat},
   {"__add", cdata_add},
   {"__sub", cdata_sub},
   {"__mul", cdata_mul},

@@ -134,6 +134,7 @@ struct CType {
 #define CDATA_CTYPE	0x04u	/* this object denotes a C type */
 #define CDATA_FUNC	0x08u	/* value is a C function address */
 #define CDATA_CALLBACK	0x10u	/* CDATA_FUNC created by ffi.callback */
+#define CDATA_GC_SET	0x20u	/* ffi.gc was called, even with nil */
 
 typedef union CDataValue {
   int64_t i64;
