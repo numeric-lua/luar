@@ -1947,6 +1947,9 @@ static int64_t pow_i64 (int64_t x, int64_t y) {
   if (y < 0) {
     if (x == 1) return 1;
     if (x == -1) return ((y & 1) != 0) ? -1 : 1;
+    /* 0 ** negative is +infinity.  LuaJIT converts that to the int64
+    ** sentinel INT64_MAX; returning zero silently changed the result. */
+    if (x == 0) return INT64_MAX;
     return 0;
   }
   return (int64_t)pow_u64((uint64_t)x, (uint64_t)y);
