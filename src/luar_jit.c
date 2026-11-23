@@ -5046,6 +5046,7 @@ static Table *tint_upval_table (Proto *p, TValue *base, int slot) {
 
 
 static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir);
+static int ir_integer_only (const LuaR_TraceIR *ir);
 static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir);
 
 static int entry_sig_matches (Proto *p, int slot, TValue *base) {
@@ -6035,7 +6036,14 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawtable = 1;
       continue;
     }
-    if (op->kind == LUAR_IR_ADDK || op->kind == LUAR_IR_SUBK) {
+    if (op->kind == LUAR_IR_ADDK || op->kind == LUAR_IR_SUBK ||
+        op->kind == LUAR_IR_MODK || op->kind == LUAR_IR_IDIVK) {
+      /* LUAR: there is no float form of these K ops.  A float constant is
+      ** still recorded as an integer kind with ival == 0; emitting it would
+      ** compute with 0 and retag the result as an integer.  Reject so the
+      ** side trace falls back to the interpreter instead of miscompiling. */
+      if (op->nval != (double)op->ival)
+        return 0;
       sawtable = 1;
       continue;
     }
@@ -6128,13 +6136,15 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
 
 
 static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir) {
-  int i;
-  if (p->luar_ir_float && ir_floatify(p, base, ir))
+  /* LUAR: always analyse the side trace.  The old check skipped
+  ** 'ir_floatify' when the *root* trace was integer-only, so a side trace
+  ** with a float-producing K op (but no float GUARD) slipped through and
+  ** the integer emitter used ival == 0.  If the trace is not a supported
+  ** float trace it must be provably integer-only. */
+  if (ir_floatify(p, base, ir))
     return 1;
-  for (i = 0; i < ir->nins; i++)
-    if (ir->ins[i].kind == LUAR_IR_GUARD &&
-        ir->ins[i].b == LUAR_IR_TAG_FLOAT)
-      return 0;
+  if (!ir_integer_only(ir))
+    return 0;
   return 1;
 }
 
@@ -6144,6 +6154,12 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
   for (i = 0; i < ir->nins; i++)
     if (ir->ins[i].kind == LUAR_IR_ITOF ||
         ir->ins[i].kind == LUAR_IR_FADDI ||
+        ir->ins[i].kind == LUAR_IR_FADD ||
+        ir->ins[i].kind == LUAR_IR_FSUB ||
+        ir->ins[i].kind == LUAR_IR_FMULK ||
+        ir->ins[i].kind == LUAR_IR_FDIVK ||
+        ir->ins[i].kind == LUAR_IR_TGETF ||
+        ir->ins[i].kind == LUAR_IR_TGETKF ||
         ir->ins[i].kind == LUAR_IR_CPGETI64 ||
         ir->ins[i].kind == LUAR_IR_CPSETI64)
       return 0;

@@ -94,6 +94,16 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad addi");
           return 0;
         }
+        /* LUAR: these integer K ops have no float form.  A float constant
+        ** is recorded with ival == 0 and must be rejected before emission;
+        ** MULK/DIVK are excluded because ir_floatify turns their float
+        ** constants into FMULK/FDIVK. */
+        if ((in->kind == LUAR_IR_ADDK || in->kind == LUAR_IR_SUBK ||
+             in->kind == LUAR_IR_MODK || in->kind == LUAR_IR_IDIVK) &&
+            in->nval != (double)in->ival) {
+          if (err != NULL && errlen > 0) snprintf(err, errlen, "bad kconst");
+          return 0;
+        }
         break;
       case LUAR_IR_SLOAD:
       case LUAR_IR_SSTORE:
