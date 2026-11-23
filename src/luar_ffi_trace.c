@@ -722,7 +722,7 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
   if (dstv == NULL || av == NULL || bv == NULL || it == NULL ||
       ct == NULL || st == NULL || tmpa == NULL || tmpb == NULL ||
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
-      op < 0 || op > 2)
+      op < 0 || op > 3)
     return 0;
   if (!ffi_view_init(dstv, &vd) || !ffi_view_init(av, &va) ||
       !ffi_view_init(bv, &vb))
@@ -746,8 +746,11 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
         lastres = ffi_num_add(lasta, lastb);
       else if (op == 1)
         lastres = ffi_num_sub(lasta, lastb);
-      else
+      else if (op == 2)
         lastres = ffi_num_mul(lasta, lastb);
+      else
+        lastres = ffi_num_flt(ffi_num_double(lasta) /
+                              ffi_num_double(lastb));
       ffi_view_store(&vd, pd, lastres);
       pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
       pa += (ptrdiff_t)step * (ptrdiff_t)va.esz;
