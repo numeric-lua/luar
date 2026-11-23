@@ -69,6 +69,9 @@ as `"int *"`, `"int[4]"`, `"struct Foo"`, or `"int (*)(const char *, int)"`),
 a CType object, or a cdata value.  CType objects are ordinary cdata objects
 whose textual representation is `ctype<...>`; they are interned per Lua
 state, so the same type always yields the same object (`rawequal` is true).
+Parsed type strings are cached per Lua state, keyed by the exact spelling
+and capped at 1024 entries.  Only successful parses are cached, so a later
+`ffi.cdef` can still define a missing typedef or complete a forward struct.
 
 `ffi.sizeof` accepts a CType object, a type string, or a cdata value.  For a
 variable-length array it needs the length, either as the second argument or
@@ -546,9 +549,10 @@ Call features:
   required LuaJIT behavior impossible.  Comparison ordering is handled by
   the normal `__lt`/`__le` metamethods.
 * `string.format` is wrapped when the FFI loads: integer cdata formats with
-  `%d %i %u %o %x %X`, `%s`/`%q` use cdata `tostring`, and float cdata is
-  rejected by numeric conversions, matching LuaJIT.  Non-cdata values keep
-  stock Lua 5.5 behavior.
+  `%d %i %u %o %x %X`, and `%s`/`%q` use cdata `tostring` for every cdata
+  kind, including pointers, arrays, aggregates and CType objects.  Float
+  cdata is rejected by numeric conversions, matching LuaJIT.  Non-cdata
+  values keep stock Lua 5.5 behavior.
 * Typedef names are not preserved in type representations; see above.
 * `ffi.string`, `ffi.copy`, and `ffi.fill` perform stricter bounds checks
   for owned arrays than LuaJIT.

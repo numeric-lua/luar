@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.206.0. This document describes the system as built and the design
+Status: 0.207.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -99,11 +99,13 @@ make correct against an unmodified VM.
   or 4/8-byte floats) is validated and run by a C helper in the same tier;
   so are two-source cdata reductions (`s = s + a[i] + b[i]`, the subtract
   form, and dot-product/sum-of-squares).  Bounded cdata writes use the same
-  tier: `a[i] = v|i|constant`, element-wise copies `a[i] = b[i]`,
-  in-place `a[i] = a[i] +|-|*|/ v`, and two-source stores
-  `a[i] = b[i] +|-|* c[i]`, all with the FFI store conversions and the
+  tier: `a[i] = v|i|constant` (also over 8-byte integer elements),
+  element-wise copies `a[i] = b[i]`, in-place `a[i] = a[i] +|-|*|/ v`,
+  scaled source stores `a[i] = b[i] +|-|*|/ v`, and two-source stores
+  `a[i] = b[i] +|-|*|/ c[i]`, all with the FFI store conversions and the
   interpreter's FORLOOP key sequence.  Pointer sources without a length
-  stay on the interpreter.
+  stay on the interpreter, as do 8-byte integer element reads because they
+  produce cdata rather than Lua numbers.
   Experimental
   register-cached prefix/square-sum loops and opt-in raw array
   lookups/stores use the 5.5 split array representation,
@@ -207,7 +209,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.206.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.207.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

@@ -6,6 +6,51 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.207.0] — 2026-11-24
+
+### Added
+
+- J2 stores scaled bounded cdata arrays with `a[i] = b[i] +|-|*|/ v`,
+  including register, immediate and constant scalar operands and the
+  commutative add/multiply order.  The helper performs Lua's
+  int-wrap/float-promotion arithmetic before the FFI element-store
+  conversion and preserves the bytecode result temporary.
+- J2 divides two bounded cdata arrays with `a[i] = b[i] / c[i]`, joining
+  the existing add/subtract/multiply pair stores.  Division always
+  produces a Lua float before the destination store conversion.
+- J2 fills 8-byte integer cdata arrays with `a[i] = v|i|constant`
+  (`int64_t` and `uint64_t` elements), including the out-of-range
+  double-to-integer sentinel and unsigned wraparound.  Copy/update/pair
+  forms stay interpreted because an 8-byte element read yields cdata, not
+  a Lua number, and its temporary must remain observable.
+
+### Fixed
+
+- `string.format("%q", cdata)` now formats pointers, arrays, aggregates
+  and CType objects through `tostring`, matching LuaJIT.  Previously only
+  numeric cdata reached the wrapper and the others raised "value has no
+  literal form".
+
+### Performance
+
+- Parsed C type names are cached per Lua state (bounded at 1024 distinct
+  spellings) for `ffi.new`/`ffi.cast`/`ffi.sizeof`/`ffi.typeof`.  Cached
+  lookups avoid reparsing the declaration on every call; successful
+  forward-struct and later-typedef definitions still work.  A 200k-call
+  lookup check measured `ffi.sizeof` at 62 ms cached versus 945 ms with a
+  new spelling each time, and `ffi.typeof` at 64 versus 954 ms.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `tools/upstream-check.sh` and
+`make dynasm-check` are green.  New coverage:
+`tests/ffi/135_j2_cdata_scalar_store.lua`,
+`tests/ffi/136_j2_cdata_pair_div.lua`,
+`tests/ffi/137_j2_cdata_i64_fill.lua`,
+`tests/ffi/138_ctype_string_cache.lua` and
+`tests/ffi/139_format_q_cdata.lua`.
+
 ## [0.206.0] — 2026-11-23
 
 ### Added

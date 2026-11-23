@@ -1,3 +1,13 @@
+> **0.207 check (2026-11-24, development host).**  New default-tier cdata
+> stores and the C type-name cache were measured on 20M-element arrays
+> (`os.clock`, J2 on versus off) and with a 200k-call type lookup loop.
+> `int64_t` fill 3520 -> 74 ms (48x), `uint64_t` fill 3477 -> 78 ms (45x),
+> `d[i] = b[i] * 2.5` 6394 -> 84 ms (76x), `d[i] = b[i] / c[i]`
+> 9692 -> 105 ms (92x), and `int32_t` `d[i] = b[i] + 3` 6659 -> 117 ms
+> (57x).  A cached `ffi.sizeof("int[1]")` lookup took 62 ms per 200k calls
+> versus 945 ms when every spelling was new (15x); `ffi.typeof` showed
+> 64 versus 954 ms.  These are shared-host microchecks, not release gates.
+
 > **0.206 check (2026-11-23, development host).**  The default J2 tier now
 > writes bounded cdata arrays as well as reducing them.  On a 2M-element
 > `int32_t[?]` microcheck, fill (`a[i] = 7`) measured about 288 ms

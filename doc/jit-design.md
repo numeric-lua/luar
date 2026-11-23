@@ -48,10 +48,13 @@ is provably observationally equivalent to that interpreter.
   sequence for any nonzero integer step, including descending loops; the
   first/last keys are overflow- and bounds-checked before the run.
   Bounded cdata arrays additionally support writes in the default tier:
-  `a[i] = v|i|constant`, `a[i] = b[i]`, `a[i] = a[i] OP v` and
-  `a[i] = b[i] OP c[i]`.  The C helpers replicate Lua's arithmetic
-  promotion, then apply the FFI element-store conversion; pointers (which
-  have no bounded length) and out-of-bounds runs stay on the interpreter.
+  `a[i] = v|i|constant` (including 8-byte integer elements),
+  `a[i] = b[i]`, `a[i] = a[i] OP v`, `a[i] = b[i] OP v` and
+  `a[i] = b[i] OP c[i]` for add/subtract/multiply/divide.  The C helpers
+  replicate Lua's arithmetic promotion, then apply the FFI element-store
+  conversion; pointers (which have no bounded length), out-of-bounds runs
+  and 8-byte integer element reads stay on the interpreter because those
+  reads produce cdata, not Lua numbers.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled
