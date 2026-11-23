@@ -1680,7 +1680,18 @@ static int numeric_arg (lua_State *L, FFIState *S, int idx,
     return *ok;
   }
   if (lua_type(L, idx) == LUA_TNUMBER) {
-    *out = (int64_t)lua_tointeger(L, idx);
+    if (lua_isinteger(L, idx))
+      *out = (int64_t)lua_tointeger(L, idx);
+    else {
+      /* LuaJIT accepts a floating offset and truncates it towards zero.
+      ** Out-of-range/NaN/infinite values behave like a zero offset instead
+      ** of invoking undefined integer conversion. */
+      lua_Number n = lua_tonumber(L, idx);
+      if (n >= -9223372036854775808.0 && n < 9223372036854775808.0)
+        *out = (int64_t)n;
+      else
+        *out = 0;
+    }
     *ok = 1;
     return 1;
   }
@@ -1723,6 +1734,41 @@ static size_t pointer_elem_size (lua_State *L, FFIState *S, CType *pt) {
 }
 
 
+/* LuaJIT rejects 'p - q' when the two pointers do not have compatible
+** base types (for example 'int *' and 'char *', or two different struct
+** tags).  Integer types with the same size are compatible regardless of
+** signedness; enums behave like their underlying integer type; structs
+** and unions need the same interned type. */
+static int pointer_base_compatible (CType *a, CType *b) {
+  int aint, bint;
+  if (a == b)
+    return 1;
+  aint = (a->kind == CT_INT || a->kind == CT_ENUM);
+  bint = (b->kind == CT_INT || b->kind == CT_ENUM);
+  if (a->kind != b->kind) {
+    if (aint && bint)
+      return a->size == b->size;
+    return 0;
+  }
+  switch (a->kind) {
+    case CT_VOID:
+    case CT_BOOL:
+      return 1;
+    case CT_INT:
+    case CT_ENUM:
+    case CT_FLOAT:
+      return a->size == b->size;
+    case CT_POINTER:
+      return pointer_base_compatible(a->child, b->child);
+    case CT_ARRAY:
+      return a->length == b->length &&
+             pointer_base_compatible(a->child, b->child);
+    default:   /* struct, union, function */
+      return 0;
+  }
+}
+
+
 static int cdata_arith (lua_State *L, int op) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
@@ -1735,8 +1781,10 @@ static int cdata_arith (lua_State *L, int op) {
     if (aptr && bptr) {
       if (op != '-')
         luaL_error(L, "ffi: invalid pointer arithmetic");
-      if (a->ct->child->kind == CT_FUNC)
+      if (a->ct->child->kind == CT_FUNC || b->ct->child->kind == CT_FUNC)
         luaL_error(L, "ffi: pointer arithmetic on a function pointer");
+      if (!pointer_base_compatible(a->ct->child, b->ct->child))
+        luaL_error(L, "ffi: pointer subtraction requires compatible types");
       {
         size_t esz = pointer_elem_size(L, S, a->ct);
         ptrdiff_t diff = (char *)a->v.p - (char *)b->v.p;
