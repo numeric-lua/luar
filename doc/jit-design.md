@@ -41,7 +41,8 @@ is provably observationally equivalent to that interpreter.
   Conditional backedges from `repeat ... until` are recorded and compiled,
   with register-cached sum/subtraction/product/square fast paths (integer
   or float); other backward inner loops still fall back.  The raw-array
-  tier also has a `s = s + a[i] + b[i] + c[i]` intrinsic over three arrays.
+  tier also has a `s = s + a[i] + b[i] + c[i]` intrinsic over three arrays,
+  each of which may be a register table or a closure upvalue.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled

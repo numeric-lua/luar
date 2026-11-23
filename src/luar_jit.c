@@ -394,96 +394,6 @@ static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
-/* LUAR: `s = s + a[i] + b[i] + c[i]` over three raw arrays.  This is a
-** common dot-product shape that the generic table decoder rejected because
-** it allows at most two raw reads.  The C intrinsic runs the remaining
-** iterations; it re-checks every array and the element tags, so a short
-** table, metatable or non-numeric element falls back without changing the
-** visible accumulator. */
-static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
-                              int for_a, int t1, int t2, int t3,
-                              int acc, int res) {
-  int slot = -1, k;
-  if (res == acc)
-    return 0;
-  for (k = 0; k < 2; k++) {
-    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
-      slot = k;
-      break;
-    }
-  }
-  if (slot < 0)
-    slot = 1;
-  p->luar_code[slot] = NULL;
-  p->luar_tint[slot] = 11;
-  p->luar_tint_pc[slot] = (int)backedge;
-  p->luar_tint_table[slot] = t1;
-  p->luar_tint_keys[slot] = t2;
-  p->luar_tint_upval[slot] = t3;
-  p->luar_tint_acc[slot] = acc;
-  p->luar_tint_res[slot] = res;
-  p->luar_tint_base[slot] = for_a;
-  p->luar_tint_epoch[slot] = J->epoch;
-  J->compiled++;
-  return 1;
-}
-
-
-static int match_three_table_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
-                                  ptrdiff_t backedge, int for_a, TValue *b) {
-  Instruction i0, i1, i2, i3, i4, i5, i6, i7, i8;
-  int r1, r2, r3, acc, t1, t2, t3, idx;
-  if (backedge != start + 9)
-    return 0;
-  i0 = p->code[start];
-  i1 = p->code[start + 1];
-  i2 = p->code[start + 2];
-  i3 = p->code[start + 3];
-  i4 = p->code[start + 4];
-  i5 = p->code[start + 5];
-  i6 = p->code[start + 6];
-  i7 = p->code[start + 7];
-  i8 = p->code[start + 8];
-  if (GET_OPCODE(i0) != OP_GETTABLE || GET_OPCODE(i1) != OP_ADD ||
-      GET_OPCODE(i2) != OP_MMBIN ||
-      GET_OPCODE(i3) != OP_GETTABLE || GET_OPCODE(i4) != OP_ADD ||
-      GET_OPCODE(i5) != OP_MMBIN ||
-      GET_OPCODE(i6) != OP_GETTABLE || GET_OPCODE(i7) != OP_ADD ||
-      GET_OPCODE(i8) != OP_MMBIN)
-    return 0;
-  r1 = GETARG_A(i0);
-  t1 = GETARG_B(i0);
-  idx = GETARG_C(i0);
-  r2 = GETARG_A(i3);
-  t2 = GETARG_B(i3);
-  r3 = GETARG_A(i6);
-  t3 = GETARG_B(i6);
-  acc = GETARG_A(i7);
-  if (GETARG_C(i3) != idx || GETARG_C(i6) != idx || idx != for_a + 2)
-    return 0;
-  if (GETARG_A(i1) != r1 || GETARG_B(i1) != acc || GETARG_C(i1) != r1)
-    return 0;
-  if (GETARG_A(i4) != r1 || GETARG_B(i4) != r1 || GETARG_C(i4) != r2)
-    return 0;
-  if (GETARG_B(i7) != r1 || GETARG_C(i7) != r3)
-    return 0;
-  /* The compiler reuses the dead second-element temp for the third read,
-  ** so r2 == r3 is normal; both must stay distinct from the live sum temp
-  ** and the accumulator. */
-  if (r1 == r2 || r1 == r3 ||
-      acc == r1 || acc == r2 || acc == r3)
-    return 0;
-  if (is_control_reg(r1, for_a) || is_control_reg(r2, for_a) ||
-      is_control_reg(r3, for_a) || is_control_reg(acc, for_a))
-    return 0;
-  if (!ttistable(&b[t1]) || !ttistable(&b[t2]) || !ttistable(&b[t3]))
-    return 0;
-  if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
-    return 0;
-  return install_three_sum(p, J, backedge, for_a, t1, t2, t3, acc, r3);
-}
-
-
 /* A raw-array read used by the pair intrinsics.  The table can be a
 ** register local/parameter or a closure upvalue; the value lands in a
 ** separate register (the compiler may reuse that register for the table
@@ -526,6 +436,151 @@ static int match_pair_read (Proto *p, ptrdiff_t *pos, ptrdiff_t backedge,
     return 1;
   }
   return 0;
+}
+
+
+static int encode_pair_source (const LuaR_PairRead *r) {
+  return (r->upval >= 0) ? (-1 - r->upval) : r->table;
+}
+
+
+/* LUAR: `s = s + a[i] + b[i] + c[i]` over three raw arrays.  Each source
+** may be a register table or a closure upvalue; the compiler emits a
+** GETUPVAL before the GETTABLE for an upvalue read. */
+static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                              int for_a, const LuaR_PairRead *r1,
+                              const LuaR_PairRead *r2,
+                              const LuaR_PairRead *r3, int acc, int res) {
+  int slot = -1, k;
+  if (res == acc)
+    return 0;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = 11;
+  p->luar_tint_pc[slot] = (int)backedge;
+  p->luar_tint_table[slot] = encode_pair_source(r1);
+  p->luar_tint_keys[slot] = encode_pair_source(r2);
+  p->luar_tint_upval[slot] = encode_pair_source(r3);
+  p->luar_tint_acc[slot] = acc;
+  p->luar_tint_res[slot] = res;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
+/* A register table source must not have been overwritten before its
+** GETTABLE.  An upvalue source is reloaded by GETUPVAL into its own
+** register, so only the read destinations matter there. */
+static int three_source_ok (const LuaR_PairRead *src,
+                            const LuaR_PairRead *prev, int nprev,
+                            int sumreg, int acc, int first) {
+  int j;
+  if (src->upval >= 0)
+    return 1;
+  if (src->table == acc)
+    return 0;
+  if (!first && src->table == sumreg)
+    return 0;
+  for (j = 0; j < nprev; j++)
+    if (src->table == prev[j].val)
+      return 0;
+  return 1;
+}
+
+
+static int match_three_table_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                                  ptrdiff_t backedge, int for_a, TValue *b) {
+  LuaR_PairRead r[3];
+  Instruction add1, add2, add3;
+  ptrdiff_t i = start;
+  int sumreg, acc;
+  if (!match_pair_read(p, &i, backedge, for_a, &r[0]))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  add1 = p->code[i++];
+  if (GET_OPCODE(add1) != OP_ADD || GETARG_A(add1) != r[0].val ||
+      GETARG_C(add1) != r[0].val)
+    return 0;
+  sumreg = GETARG_A(add1);
+  acc = GETARG_B(add1);
+  if (sumreg == acc || is_control_reg(sumreg, for_a) ||
+      is_control_reg(acc, for_a) || is_control_reg(r[0].val, for_a))
+    return 0;
+  if (r[0].upval < 0 && r[0].table == acc)
+    return 0;
+  if (i >= backedge || GET_OPCODE(p->code[i]) != OP_MMBIN)
+    return 0;
+  i++;
+  if (!match_pair_read(p, &i, backedge, for_a, &r[1]))
+    return 0;
+  if (r[1].val == sumreg || r[1].val == acc ||
+      is_control_reg(r[1].val, for_a))
+    return 0;
+  if (!three_source_ok(&r[1], r, 1, sumreg, acc, 0))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  add2 = p->code[i++];
+  if (GET_OPCODE(add2) != OP_ADD || GETARG_A(add2) != sumreg ||
+      GETARG_B(add2) != sumreg || GETARG_C(add2) != r[1].val)
+    return 0;
+  if (i >= backedge || GET_OPCODE(p->code[i]) != OP_MMBIN)
+    return 0;
+  i++;
+  if (!match_pair_read(p, &i, backedge, for_a, &r[2]))
+    return 0;
+  if (r[2].val == sumreg || r[2].val == acc ||
+      is_control_reg(r[2].val, for_a))
+    return 0;
+  if (!three_source_ok(&r[2], r, 2, sumreg, acc, 0))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  add3 = p->code[i++];
+  if (GET_OPCODE(add3) != OP_ADD || GETARG_A(add3) != acc)
+    return 0;
+  if (!((GETARG_B(add3) == sumreg && GETARG_C(add3) == r[2].val) ||
+        (GETARG_B(add3) == r[2].val && GETARG_C(add3) == sumreg)))
+    return 0;
+  if (i >= backedge || GET_OPCODE(p->code[i]) != OP_MMBIN)
+    return 0;
+  i++;
+  if (i != backedge)
+    return 0;
+  if (acc == r[0].val || acc == r[1].val || acc == r[2].val)
+    return 0;
+  /* A register read whose destination is its own table register is the
+  ** 't = t[i]' shape.  It is only meaningful for the first read; later
+  ** reads must keep their source table alive. */
+  {
+    int j;
+    for (j = 1; j < 3; j++)
+      if (r[j].upval < 0 && r[j].table == r[j].val)
+        return 0;
+  }
+  if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
+    return 0;
+  /* Register sources must hold a table at entry; upvalue sources are
+  ** re-resolved by the intrinsic at every entry. */
+  {
+    int j;
+    for (j = 0; j < 3; j++) {
+      if (r[j].upval < 0 && !ttistable(&b[r[j].table]))
+        return 0;
+    }
+  }
+  return install_three_sum(p, J, backedge, for_a, &r[0], &r[1], &r[2],
+                           acc, r[2].val);
 }
 
 
@@ -3133,15 +3188,18 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
 }
 
 
+static Table *pair_source_table (TValue *base, int reg, int upval);
+
+
 static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
-                               int t1, int t2, int t3, int acc_reg,
+                               int s1, int s2, int s3, int acc_reg,
                                int res_reg) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
   TValue *at = &base[acc_reg];
-  TValue *tv[3];
   Table *h[3];
+  int enc[3];
   lua_Integer count, step, idx, last, k;
   int j;
   (void)L;
@@ -3155,14 +3213,14 @@ static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
   if (idx > LUA_MAXINTEGER - count)
     return 0;
   last = idx + count;
-  tv[0] = &base[t1];
-  tv[1] = &base[t2];
-  tv[2] = &base[t3];
+  enc[0] = s1;
+  enc[1] = s2;
+  enc[2] = s3;
   for (j = 0; j < 3; j++) {
-    if (!ttistable(tv[j]))
-      return 0;
-    h[j] = hvalue(tv[j]);
-    if (h[j]->metatable != NULL ||
+    int reg = (enc[j] >= 0) ? enc[j] : -1;
+    int up = (enc[j] >= 0) ? -1 : (-1 - enc[j]);
+    h[j] = pair_source_table(base, reg, up);
+    if (h[j] == NULL || h[j]->metatable != NULL ||
         (lua_Unsigned)last > (lua_Unsigned)h[j]->asize)
       return 0;
   }

@@ -89,7 +89,8 @@ make correct against an unmodified VM.
   branch bodies in both), simple `while` loops, constant string-key field
   reads with an entry value guard, up to two raw array reads per loop
   (`t[1]`/`GETI` or `t[i]`/`GETTABLE`, including inside a branch body), a
-  three-table `a[i] + b[i] + c[i]` sum intrinsic, two-array sum/difference
+  three-table `a[i] + b[i] + c[i]` sum intrinsic over register or upvalue
+  arrays, two-array sum/difference
   and dot-product/sum-of-squares intrinsics over register or upvalue arrays,
   and raw-array sum intrinsics over a register table or a closure upvalue.
   Experimental
