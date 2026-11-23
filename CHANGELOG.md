@@ -6,6 +6,42 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Added
+
+- J2 sums and subtracts two raw arrays in one C pass
+  (`s = s + a[i] + b[i]` and `s = s + a[i] - b[i]`).  Register and closure
+  upvalue arrays are supported, and the accumulator and every element or
+  temporary register visible after the loop are updated with the interpreter
+  value.  `jit.stats().tint_hits` observes the intrinsic.
+- J2 computes dot products and sums of squares over raw arrays
+  (`s = s + a[i] * b[i]` and `s = s + a[i] * a[i]`) with the interpreter's
+  int64 wrap and mixed int/float promotion order.  The product temporary is
+  preserved for code that reads it after the loop.
+- FFI integer and length arguments accept numeric cdata: `ffi.new` VLA
+  lengths, `ffi.sizeof`, `ffi.string`, `ffi.copy`, `ffi.fill`, `ffi.errno`
+  and integer cdata array indices.  Float cdata is truncated for lengths but
+  rejected as an array index, as in LuaJIT.
+
+### Fixed
+
+- The fast `while` peephole kept only the last step when the body wrote its
+  induction variable more than once.  `while i < n do ...; i = i + 1;
+  i = i + 1 end` ran with step 1 and silently produced a different result;
+  such loops now fall back to the generic emitter/interpreter.
+- `ffi.offsetof` reported packed bitfields relative to their first byte and
+  returned a bit position for full-width bitfields.  It now matches LuaJIT:
+  narrow packed fields are byte-relative, wider packed fields use the base
+  type's storage unit, and a full-width bitfield is returned like a normal
+  member.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test` and `make JIT=0 test` are green.  New
+coverage: `tests/jit/164_fast_while_multi_inc.lua`,
+`tests/jit/165_pair_array_sum.lua`, `tests/jit/166_dot_product.lua`,
+`tests/ffi/117_offsetof_bitfields.lua` and
+`tests/ffi/118_cdata_int_args.lua`.
+
 ## [0.201.0] — 2026-11-23
 
 ### Added
