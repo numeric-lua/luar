@@ -1391,6 +1391,23 @@ static int meta_tostring (lua_State *L, CType *ct, int idx) {
 }
 
 
+/* Defined with the comparison metamethods below. */
+static CType *cdata_metatype (CData *cd);
+static int meta_push (lua_State *L, CType *ct, const char *name);
+
+
+static int cdata_len (lua_State *L) {
+  CData *cd = ffi_tocdata(L, 1);
+  if (meta_push(L, cdata_metatype(cd), "__len")) {
+    lua_pushvalue(L, 1);
+    lua_call(L, 1, 1);
+    return 1;
+  }
+  luaL_error(L, "attempt to get length of a cdata value");
+  return 0;
+}
+
+
 static int cdata_tostring (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *cd = ffi_checkcdata(L, 1, "__tostring");
@@ -1495,10 +1512,53 @@ static int numeric_compare (lua_State *L, FFIState *S, int i1, int i2,
 }
 
 
+/* LuaJIT dispatches a metatype's __eq/__lt/__le/__len for struct and
+** union cdata.  Other cdata (numbers, pointers, arrays, CType objects)
+** keep the built-in FFI semantics. */
+static CType *cdata_metatype (CData *cd) {
+  if (cd == NULL || (cd->flags & CDATA_CTYPE) != 0 || cd->ct == NULL)
+    return NULL;
+  if (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION)
+    return NULL;
+  if (cd->ct->metatype_ref == LUA_NOREF)
+    return NULL;
+  return cd->ct;
+}
+
+
+static int meta_push (lua_State *L, CType *ct, const char *name) {
+  if (ct == NULL)
+    return 0;
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ct->metatype_ref);
+  lua_getfield(L, -1, name);
+  if (!lua_isfunction(L, -1)) {
+    lua_pop(L, 2);
+    return 0;
+  }
+  lua_remove(L, -2);   /* keep the function only */
+  return 1;
+}
+
+
+static int meta_binop (lua_State *L, const char *name) {
+  CData *a = ffi_tocdata(L, 1);
+  CData *b = ffi_tocdata(L, 2);
+  if (!meta_push(L, cdata_metatype(a), name) &&
+      !meta_push(L, cdata_metatype(b), name))
+    return 0;
+  lua_pushvalue(L, 1);
+  lua_pushvalue(L, 2);
+  lua_call(L, 2, 1);
+  return 1;
+}
+
+
 static int cdata_eq (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
   CData *b = ffi_tocdata(L, 2);
+  if (meta_binop(L, "__eq"))
+    return 1;
   if (a != NULL && b != NULL) {
     if ((a->flags & CDATA_CTYPE) != 0 || (b->flags & CDATA_CTYPE) != 0) {
       CType *ta = a->ct, *tb = b->ct;
@@ -1557,6 +1617,8 @@ static int cdata_lt (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
   CData *b = ffi_tocdata(L, 2);
+  if (meta_binop(L, "__lt"))
+    return 1;
   if (a != NULL && b != NULL &&
       (a->ct->kind == CT_POINTER || a->ct->kind == CT_FUNC) &&
       (b->ct->kind == CT_POINTER || b->ct->kind == CT_FUNC)) {
@@ -1579,6 +1641,8 @@ static int cdata_le (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
   CData *b = ffi_tocdata(L, 2);
+  if (meta_binop(L, "__le"))
+    return 1;
   if (a != NULL && b != NULL &&
       (a->ct->kind == CT_POINTER || a->ct->kind == CT_FUNC) &&
       (b->ct->kind == CT_POINTER || b->ct->kind == CT_FUNC)) {
@@ -2427,6 +2491,7 @@ static const luaL_Reg cdata_meta[] = {
   {"__eq", cdata_eq},
   {"__lt", cdata_lt},
   {"__le", cdata_le},
+  {"__len", cdata_len},
   {"__add", cdata_add},
   {"__sub", cdata_sub},
   {"__mul", cdata_mul},
