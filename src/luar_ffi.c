@@ -191,7 +191,7 @@ static int ffi_scalar_truth (lua_State *L, FFIState *S, int idx, int *ok) {
         }
       }
       if (ffi_is_numeric(ct)) {
-        if (ct->is_unsigned)
+        if (ct->is_unsigned || ct->kind == CT_ENUM)
           return ffi_load_uint(p, ct->size) != 0;
         return ffi_load_int(p, ct->size) != 0;
       }
@@ -265,7 +265,7 @@ uint64_t ffi_to_uint (lua_State *L, FFIState *S, int idx, int *ok) {
             return (uint64_t)d;
           }
         }
-        if (ct->is_unsigned)
+        if (ct->is_unsigned || ct->kind == CT_ENUM)
           return ffi_load_uint(p, ct->size);
         return (uint64_t)ffi_load_int(p, ct->size);
       }
@@ -310,7 +310,7 @@ int64_t ffi_to_int (lua_State *L, FFIState *S, int idx, int *ok) {
             return (int64_t)d;
           }
         }
-        if (ct->is_unsigned)
+        if (ct->is_unsigned || ct->kind == CT_ENUM)
           return (int64_t)ffi_load_uint(p, ct->size);
         return ffi_load_int(p, ct->size);
       }
@@ -347,7 +347,7 @@ double ffi_to_double (lua_State *L, FFIState *S, int idx, int *ok) {
             return d;
           }
         }
-        if (ct->is_unsigned)
+        if (ct->is_unsigned || ct->kind == CT_ENUM)
           return (double)ffi_load_uint(p, ct->size);
         return (double)ffi_load_int(p, ct->size);
       }
@@ -1342,9 +1342,9 @@ void ffi_push_value_len (lua_State *L, FFIState *S, CType *ct, void *p,
       lua_pushboolean(L, ffi_load_uint(p, ct->size) != 0);
       break;
     case CT_ENUM: {
-      int64_t v = ct->is_unsigned ? (int64_t)ffi_load_uint(p, ct->size)
-                                  : ffi_load_int(p, ct->size);
-      lua_pushinteger(L, (lua_Integer)v);
+      /* LUAR: enum values stored as -1 display as -1 but convert as the
+      ** unsigned 32-bit value 4294967295, matching LuaJIT's numeric view. */
+      lua_pushinteger(L, (lua_Integer)ffi_load_uint(p, ct->size));
       break;
     }
     case CT_INT:
