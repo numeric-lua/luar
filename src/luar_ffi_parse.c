@@ -39,6 +39,7 @@ enum TokenKind {
   TK_EOF,
   TK_IDENT,
   TK_INT,
+  TK_CHAR,
   TK_FLOAT,
   TK_PUNCT
 };
@@ -179,6 +180,89 @@ static void lex_next (Parser *P) {
     P->tok.kind = TK_IDENT;
     P->tok.start = s;
     P->tok.len = (size_t)(q - s);
+    P->p = q;
+    return;
+  }
+  if (*s == '\'') {
+    /* C character constant.  Luar keeps LuaJIT's declaration parser
+    ** semantics: one character (plain or escaped), sign-extended through
+    ** plain 'char'.  Multi-character constants are rejected. */
+    const char *q = s + 1;
+    unsigned int value = 0;
+    int nchars = 0;
+    while (q < P->end && *q != '\'') {
+      unsigned int ch;
+      if (*q == '\n')
+        lex_error(P, "unterminated character constant");
+      if (*q == '\\') {
+        q++;
+        if (q >= P->end)
+          lex_error(P, "unterminated character constant");
+        switch (*q) {
+          case 'a': ch = 7; q++; break;
+          case 'b': ch = 8; q++; break;
+          case 'f': ch = 12; q++; break;
+          case 'n': ch = 10; q++; break;
+          case 'r': ch = 13; q++; break;
+          case 't': ch = 9; q++; break;
+          case 'v': ch = 11; q++; break;
+          case '\\': ch = '\\'; q++; break;
+          case '\'': ch = '\''; q++; break;
+          case '"': ch = '"'; q++; break;
+          case '?': ch = '?'; q++; break;
+          case 'x': {
+            unsigned int hv = 0;
+            int nd = 0;
+            q++;
+            while (q < P->end && isxdigit((unsigned char)*q)) {
+              int d = (*q <= '9') ? *q - '0'
+                    : (tolower((unsigned char)*q) - 'a' + 10);
+              hv = (hv << 4) | (unsigned int)d;
+              q++;
+              nd++;
+            }
+            if (nd == 0)
+              lex_error(P, "malformed hexadecimal escape");
+            ch = hv & 0xffu;
+            break;
+          }
+          case '0': case '1': case '2': case '3':
+          case '4': case '5': case '6': case '7': {
+            unsigned int ov = 0;
+            int nd = 0;
+            while (q < P->end && nd < 3 && *q >= '0' && *q <= '7') {
+              ov = (ov << 3) | (unsigned int)(*q - '0');
+              q++;
+              nd++;
+            }
+            ch = ov & 0xffu;
+            break;
+          }
+          default:
+            lex_error(P, "unsupported escape in character constant");
+            ch = 0;
+            break;
+        }
+      }
+      else {
+        ch = (unsigned char)*q;
+        q++;
+      }
+      if (nchars == 0)
+        value = ch;
+      nchars++;
+    }
+    if (q >= P->end || *q != '\'')
+      lex_error(P, "unterminated character constant");
+    if (nchars == 0)
+      lex_error(P, "empty character constant");
+    if (nchars > 1)
+      lex_error(P, "multi-character constants are not supported");
+    q++;
+    P->tok.kind = TK_CHAR;
+    P->tok.start = s;
+    P->tok.len = (size_t)(q - s);
+    P->tok.ival = (int64_t)(signed char)value;
     P->p = q;
     return;
   }
@@ -711,7 +795,7 @@ static int64_t parse_primary (Parser *P) {
       parser_error(P, "offsetof of a bitfield is not supported");
     return (int64_t)off;
   }
-  if (P->tok.kind == TK_INT) {
+  if (P->tok.kind == TK_INT || P->tok.kind == TK_CHAR) {
     int64_t v = P->tok.ival;
     lex_next(P);
     return v;
