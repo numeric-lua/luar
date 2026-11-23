@@ -1,3 +1,12 @@
+> **0.210 check (2026-11-24, development host).**  New default-tier cdata
+> paths were measured on 2M-element arrays (`os.clock`, best of three, J2
+> on versus off).  An `enum`-element sum dropped 332 -> 6.5 ms (~51x), a
+> `_Bool` constant fill 348 -> 2.1 ms (~166x), a `_Bool` key fill 343 ->
+> 1.1 ms, and an in-place update through a closure upvalue 702 -> 9.4 ms
+> (~75x).  These are shared-host microchecks, not release gates; bool
+> updates that load an element and narrower J4 pointer fields remain
+> interpreter-side by design.
+>
 > **0.207 check (2026-11-24, development host).**  New default-tier cdata
 > stores and the C type-name cache were measured on 20M-element arrays
 > (`os.clock`, J2 on versus off) and with a 200k-call type lookup loop.
