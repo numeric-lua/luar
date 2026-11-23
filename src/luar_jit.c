@@ -402,6 +402,7 @@ typedef struct {
   int table;   /* register holding the table, or -1 for an upvalue */
   int upval;   /* upvalue index, or -1 for a register */
   int val;     /* register receiving the element */
+  int treg;    /* GETUPVAL destination (== table for a register read) */
 } LuaR_PairRead;
 
 
@@ -417,12 +418,13 @@ static int match_pair_read (Proto *p, ptrdiff_t *pos, ptrdiff_t backedge,
     if (*pos + 1 >= backedge)
       return 0;
     gt = p->code[*pos + 1];
-    if (GET_OPCODE(gt) != OP_GETTABLE || GETARG_A(gt) != reg ||
+    if (GET_OPCODE(gt) != OP_GETTABLE ||
         GETARG_B(gt) != reg || GETARG_C(gt) != for_a + 2)
       return 0;
     r->table = -1;
     r->upval = GETARG_B(ins);
-    r->val = reg;
+    r->treg = reg;
+    r->val = GETARG_A(gt);
     *pos += 2;
     return 1;
   }
@@ -431,6 +433,7 @@ static int match_pair_read (Proto *p, ptrdiff_t *pos, ptrdiff_t backedge,
       return 0;
     r->table = GETARG_B(ins);
     r->upval = -1;
+    r->treg = GETARG_B(ins);
     r->val = GETARG_A(ins);
     *pos += 1;
     return 1;
@@ -477,6 +480,43 @@ static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* LUAR: `s = s + a[i] * k` where `k` is a numeric constant, a register
+** scalar or a closure upvalue scalar.  The scalar encoding is positive for
+** a register, -1-index for an upvalue and 0x40000000|k for a Proto
+** constant. */
+#define LUAR_TINT_SCALAR_CONST 0x40000000
+
+static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                               int for_a, const LuaR_PairRead *r,
+                               int scalar_enc, int elem_reg, int prod_reg,
+                               int acc) {
+  int slot = -1, k;
+  if (prod_reg == acc)
+    return 0;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = 15;
+  p->luar_tint_pc[slot] = (int)backedge;
+  p->luar_tint_table[slot] = encode_pair_source(r);
+  p->luar_tint_keys[slot] = scalar_enc;
+  p->luar_tint_upval[slot] = elem_reg;
+  p->luar_tint_arg4[slot] = prod_reg;
+  p->luar_tint_acc[slot] = acc;
+  p->luar_tint_res[slot] = prod_reg;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
 /* A register table source must not have been overwritten before its
 ** GETTABLE.  An upvalue source is reloaded by GETUPVAL into its own
 ** register, so only the read destinations matter there. */
@@ -484,14 +524,17 @@ static int three_source_ok (const LuaR_PairRead *src,
                             const LuaR_PairRead *prev, int nprev,
                             int sumreg, int acc, int first) {
   int j;
+  if (src->treg == acc)
+    return 0;
+  if (!first && src->treg == sumreg)
+    return 0;
+  /* A register table must survive until its GETTABLE.  An upvalue read
+  ** reloads its table into treg, so only the still-live accumulator and
+  ** intermediate matter there; earlier element temporaries are dead. */
   if (src->upval >= 0)
     return 1;
-  if (src->table == acc)
-    return 0;
-  if (!first && src->table == sumreg)
-    return 0;
   for (j = 0; j < nprev; j++)
-    if (src->table == prev[j].val)
+    if (src->treg == prev[j].val)
       return 0;
   return 1;
 }
@@ -516,7 +559,7 @@ static int match_three_table_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (sumreg == acc || is_control_reg(sumreg, for_a) ||
       is_control_reg(acc, for_a) || is_control_reg(r[0].val, for_a))
     return 0;
-  if (r[0].upval < 0 && r[0].table == acc)
+  if (r[0].treg == acc)
     return 0;
   if (i >= backedge || GET_OPCODE(p->code[i]) != OP_MMBIN)
     return 0;
@@ -646,7 +689,8 @@ static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   else
     return 0;
   if (is_control_reg(t1, for_a) || is_control_reg(acc, for_a) ||
-      t1 == for_a + 2 || acc == for_a + 2 || ra.val == acc)
+      t1 == for_a + 2 || acc == for_a + 2 || ra.val == acc ||
+      ra.treg == acc)
     return 0;
   i++;
   if (i >= backedge)
@@ -658,8 +702,10 @@ static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (!match_pair_read(p, &i, backedge, for_a, &rb))
     return 0;
   /* The two element reads must not overwrite each other or the cached
-  ** accumulator before the final arithmetic. */
-  if (rb.val == acc || rb.val == ra.val || rb.val == t1)
+  ** accumulator before the final arithmetic.  An upvalue read also writes
+  ** its GETUPVAL table temporary, so check that register too. */
+  if (rb.val == acc || rb.val == ra.val || rb.val == t1 ||
+      rb.treg == acc || rb.treg == ra.val || rb.treg == t1)
     return 0;
   if (i >= backedge)
     return 0;
@@ -695,6 +741,115 @@ static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `s = s + a[i] * k` with a numeric constant or a scalar held in a
+** register/upvalue.  This is the weighted-sum shape; the generic table
+** decoder only handles the two-array product. */
+static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                             ptrdiff_t backedge, int for_a, TValue *b) {
+  LuaR_PairRead r;
+  Instruction mul, add;
+  ptrdiff_t i = start;
+  int mul_a, mul_b, mul_c, scalar_enc = -1, scalar_reg = -1;
+  int scalar_pre = -1;
+  int acc, prod_reg;
+  if (!match_pair_read(p, &i, backedge, for_a, &r))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  /* An upvalue scalar is loaded just before the multiply. */
+  if (GET_OPCODE(p->code[i]) == OP_GETUPVAL) {
+    Instruction up = p->code[i++];
+    int sreg = GETARG_A(up);
+    if (i >= backedge || sreg == r.val || is_control_reg(sreg, for_a))
+      return 0;
+    scalar_reg = sreg;
+    scalar_pre = sreg;
+    scalar_enc = -1 - GETARG_B(up);
+  }
+  if (i >= backedge)
+    return 0;
+  mul = p->code[i++];
+  if (GET_OPCODE(mul) == OP_MULK) {
+    int kidx = GETARG_C(mul);
+    TValue *k;
+    if (GETARG_B(mul) != r.val || kidx >= p->sizek ||
+        scalar_enc != -1)
+      return 0;
+    k = &p->k[kidx];
+    if (!ttisinteger(k) && !ttisfloat(k))
+      return 0;
+    if (kidx >= LUAR_TINT_SCALAR_CONST)
+      return 0;
+    scalar_enc = LUAR_TINT_SCALAR_CONST | kidx;
+    mul_a = GETARG_A(mul);
+  }
+  else if (GET_OPCODE(mul) == OP_MUL) {
+    mul_a = GETARG_A(mul);
+    mul_b = GETARG_B(mul);
+    mul_c = GETARG_C(mul);
+    if (mul_b == r.val)
+      scalar_reg = mul_c;
+    else if (mul_c == r.val)
+      scalar_reg = mul_b;
+    else
+      return 0;
+    if (scalar_pre >= 0) {
+      if (scalar_reg != scalar_pre)
+        return 0;
+    }
+    else {
+      if (scalar_reg < 0 || scalar_reg > 255 ||
+          is_control_reg(scalar_reg, for_a))
+        return 0;
+      scalar_enc = scalar_reg;
+    }
+  }
+  else
+    return 0;
+  if (i >= backedge ||
+      (GET_OPCODE(p->code[i]) != OP_MMBIN &&
+       GET_OPCODE(p->code[i]) != OP_MMBINK))
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  add = p->code[i++];
+  if (GET_OPCODE(add) != OP_ADD)
+    return 0;
+  acc = GETARG_A(add);
+  if (!((GETARG_B(add) == acc && GETARG_C(add) == mul_a) ||
+        (GETARG_B(add) == mul_a && GETARG_C(add) == acc)))
+    return 0;
+  if (i >= backedge || GET_OPCODE(p->code[i]) != OP_MMBIN)
+    return 0;
+  i++;
+  if (i != backedge)
+    return 0;
+  prod_reg = mul_a;
+  if (acc == r.val || acc == prod_reg)
+    return 0;
+  if (is_control_reg(acc, for_a) || is_control_reg(prod_reg, for_a) ||
+      is_control_reg(r.val, for_a))
+    return 0;
+  if (r.treg == acc || r.treg == scalar_reg)
+    return 0;
+  if (scalar_enc >= 0 && scalar_enc < LUAR_TINT_SCALAR_CONST) {
+    /* A register scalar must not be overwritten by the element read or
+    ** the multiply; otherwise later iterations see a different value. */
+    if (scalar_reg == r.val || scalar_reg == prod_reg || scalar_reg == acc)
+      return 0;
+    if (!ttisinteger(&b[scalar_reg]) && !ttisfloat(&b[scalar_reg]))
+      return 0;
+  }
+  if (r.upval < 0 && !ttistable(&b[r.table]))
+    return 0;
+  if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
+    return 0;
+  return install_scaled_sum(p, J, backedge, for_a, &r, scalar_enc,
+                            r.val, prod_reg, acc);
+}
+
+
 /* LUAR: `s = s + a[i] * b[i]` (and its `a[i] * a[i]` square special case).
 ** The two reads and the MUL live in a temporary, then the accumulator gets
 ** the product.  Both sources may be registers or upvalues. */
@@ -709,6 +864,8 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (!match_pair_read(p, &i, backedge, for_a, &rb))
     return 0;
   if (ra.val == rb.val)   /* the second read would clobber the first */
+    return 0;
+  if (rb.treg == ra.val)  /* the upvalue load would clobber the first */
     return 0;
   if (i >= backedge)
     return 0;
@@ -741,7 +898,8 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (!((ab == acc && ac == res) || (ab == res && ac == acc)))
     return 0;
   if (is_control_reg(acc, for_a) || acc == for_a + 2 || acc == res ||
-      acc == ra.val || acc == rb.val)
+      acc == ra.val || acc == rb.val ||
+      ra.treg == acc || rb.treg == acc)
     return 0;
   i++;
   if (i >= backedge)
@@ -1229,6 +1387,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_dot_product(p, J, start, backedge, for_a))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_scaled_sum(p, J, start, backedge, for_a, b))
       return 1;
     if (n >= 9 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -3484,6 +3645,90 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
 }
 
 
+/* Resolve a scaled-sum scalar encoding to its current value.  Constants
+** come from Proto->k (integer or float, never collectable), register
+** scalars from the frame and upvalue scalars from the current closure. */
+static TValue *tint_scalar (Proto *p, TValue *base, int enc) {
+  if (enc >= LUAR_TINT_SCALAR_CONST) {
+    unsigned k = (unsigned)(enc - LUAR_TINT_SCALAR_CONST);
+    if (k >= (unsigned)p->sizek)
+      return NULL;
+    return &p->k[k];
+  }
+  if (enc >= 0) {
+    if (enc > 255)
+      return NULL;
+    return &base[enc];
+  }
+  {
+    int up = -1 - enc;
+    TValue *fv = &base[-1];
+    LClosure *cl;
+    if (!ttisLclosure(fv))
+      return NULL;
+    cl = clLvalue(fv);
+    if (up < 0 || up >= cl->p->sizeupvalues)
+      return NULL;
+    return cl->upvals[up]->v.p;
+  }
+}
+
+
+/* kind 15: s = s + a[i] * k.  The scalar is numeric in every iteration;
+** the element and product registers keep their last bytecode values. */
+static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
+                                   Table *h, const TValue *scalar,
+                                   int elem_reg, int prod_reg, int acc_reg) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *at = &base[acc_reg];
+  lua_Integer count, step, idx, last, k;
+  LuaR_PairNum acc, fac, last_elem, last_prod;
+  int ok = 1;
+  (void)L;
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0)
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  if (h == NULL || !pair_check_array(h, idx, count))
+    return 0;
+  if (!ttisinteger(scalar) && !ttisfloat(scalar))
+    return 0;
+  if (!ttisinteger(at) && !ttisfloat(at))
+    return 0;
+  acc = pair_from_slot(at, &ok);
+  fac = pair_from_slot(scalar, &ok);
+  if (!ok)
+    return 0;
+  last_elem = pair_int(0);
+  last_prod = pair_int(0);
+  for (k = 0; k <= count; k++) {
+    unsigned key = (unsigned)(idx + k - 1);
+    LuaR_PairNum elem = pair_from_array(h, key);
+    last_elem = elem;
+    last_prod = pair_mul(elem, fac);
+    acc = pair_add(acc, last_prod);
+  }
+  if (acc.isflt)
+    { setfltvalue(at, acc.d); }
+  else
+    { setivalue(at, acc.i); }
+  if (elem_reg >= 0 && elem_reg != prod_reg)
+    pair_store_slot(base, elem_reg, last_elem, acc_reg);
+  pair_store_slot(base, prod_reg, last_prod, acc_reg);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 static int method_add_intrinsic (lua_State *L, Proto *caller, TValue *base,
                                 int for_a, TValue *tt, int method_key) {
   TValue *ct = &base[for_a];
@@ -4616,6 +4861,21 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                    p->luar_tint_arg4[i], kind);
           break;
         }
+        case 15: {
+          TValue *sc = tint_scalar(p, (TValue *)base,
+                                   p->luar_tint_keys[i]);
+          Table *h = pair_source_table((TValue *)base,
+                                       (p->luar_tint_table[i] >= 0)
+                                         ? p->luar_tint_table[i] : -1,
+                                       (p->luar_tint_table[i] >= 0)
+                                         ? -1 : (-1 - p->luar_tint_table[i]));
+          r = (sc == NULL || h == NULL) ? 0
+              : scaled_array_intrinsic(L, (TValue *)base, expected_base, h,
+                                       sc, p->luar_tint_upval[i],
+                                       p->luar_tint_arg4[i],
+                                       p->luar_tint_acc[i]);
+          break;
+        }
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
@@ -4683,7 +4943,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 14))
+        if (kind <= 4 || (kind >= 10 && kind <= 15))
           p->luar_tint[i] = 0;
       }
       else

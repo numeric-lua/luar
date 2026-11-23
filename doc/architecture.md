@@ -90,8 +90,10 @@ make correct against an unmodified VM.
   reads with an entry value guard, up to two raw array reads per loop
   (`t[1]`/`GETI` or `t[i]`/`GETTABLE`, including inside a branch body), a
   three-table `a[i] + b[i] + c[i]` sum intrinsic over register or upvalue
-  arrays, two-array sum/difference
-  and dot-product/sum-of-squares intrinsics over register or upvalue arrays,
+  arrays, two-array sum/difference,
+  dot-product/sum-of-squares and scaled `a[i] * k` sum intrinsics
+  over register or upvalue arrays (the scalar may be a constant, register
+  or upvalue),
   and raw-array sum intrinsics over a register table or a closure upvalue.
   Experimental
   register-cached prefix/square-sum loops and opt-in raw array

@@ -3,7 +3,7 @@ local H = dofile("tests/helpers.lua")
 
 jit.flush()
 jit.on()
-jit.opt.start("table=1")
+jit.opt.start("table=1", "tint=0")
 if jit.status() ~= true then
   print("jit/35_midloop_exit: skipped (no native target)")
   return
