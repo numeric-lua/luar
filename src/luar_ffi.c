@@ -479,11 +479,11 @@ int ffi_convert (lua_State *L, FFIState *S, CType *ct, void *dst,
       else {
         CData *cd = ffi_tocdata(L, idx);
         if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
-            cd->ct == ct->child &&
+            (cd->ct == ct->child || ct->child->kind == CT_VOID) &&
             (cd->ct->kind == CT_STRUCT || cd->ct->kind == CT_UNION ||
              cd->ct->kind == CT_ARRAY)) {
           /* LuaJIT accepts an aggregate lvalue where a pointer to the
-          ** exact same aggregate type is expected. */
+          ** exact same aggregate type (or void *) is expected. */
           p = value_addr(cd);
         }
         else {
@@ -921,9 +921,11 @@ static int ffi_new_pointer (lua_State *L, FFIState *S, CType *ct, int idx,
     CData *src = ffi_tocdata(L, idx);
     if (src == NULL || (src->flags & CDATA_CTYPE) != 0)
       conv_error(L, S, ct, idx, NULL);
-    if (src->ct == ct->child &&
+    if ((src->ct == ct->child || ct->child->kind == CT_VOID) &&
         (src->ct->kind == CT_STRUCT || src->ct->kind == CT_UNION ||
          src->ct->kind == CT_ARRAY)) {
+      /* Any aggregate lvalue converts to an object pointer, and to void *
+      ** in particular, as in LuaJIT. */
       p = value_addr(src);
     }
     else if (src->ct->kind == CT_POINTER || src->ct->kind == CT_ARRAY) {
