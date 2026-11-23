@@ -1865,10 +1865,16 @@ static int cdata_eq (lua_State *L) {
     return 1;
   }
   if (a != NULL && b != NULL) {
-    if ((a->flags & CDATA_CTYPE) != 0 || (b->flags & CDATA_CTYPE) != 0) {
+    int actype = (a->flags & CDATA_CTYPE) != 0;
+    int bctype = (b->flags & CDATA_CTYPE) != 0;
+    if (actype || bctype) {
+      /* A CType object denotes a type; ordinary cdata *is* a value of that
+      ** type.  LuaJIT keeps those identities separate, and two CType
+      ** objects of the same interned type still compare equal. */
       CType *ta = a->ct, *tb = b->ct;
-      lua_pushboolean(L, ta == tb ||
-                         (ta != NULL && tb != NULL && ta->id == tb->id));
+      lua_pushboolean(L, actype && bctype &&
+                         (ta == tb ||
+                          (ta != NULL && tb != NULL && ta->id == tb->id)));
       return 1;
     }
     if ((a->ct->kind == CT_POINTER || a->ct->kind == CT_FUNC) &&
