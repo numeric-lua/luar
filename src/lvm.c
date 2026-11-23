@@ -1966,7 +1966,16 @@ void luaV_execute (lua_State *L, CallInfo *ci) {
         else if (floatforloop(L, ra)) {  /* float loop */
           pc -= GETARG_Bx(i);  /* jump back */
 #if !defined(LUAR_JIT_DISABLE)
+          int luarjr;
           LUAR_JIT_HOT(L, cl->p, luarb, (void *)base);  /* LUAR */
+          updatebase(ci);
+          luarjr = LUAR_JIT_RUN(L, cl->p, (int)(luarb - cl->p->code),
+                                (void *)base, GETARG_A(i));
+          updatebase(ci);
+          if (luarjr > 0)
+            pc = luarb + 1;  /* LUAR: the native float loop finished it */
+          else if (luarjr < -1)
+            LUAR_JIT_SET_EXIT_PC(cl->p, pc, luarjr);
 #endif
         }
         updatetrap(ci);  /* allows a signal to break the loop */
