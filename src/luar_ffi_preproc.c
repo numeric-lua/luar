@@ -485,40 +485,380 @@ static int parse_pack_num (const char *p, size_t n, int *out) {
 }
 
 
-static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
-                    int line) {
-  const char *p = expr;
-  size_t len = n;
-  trim(&p, &len);
-  if (len == 1 && (p[0] == '0' || p[0] == '1'))
-    return p[0] == '1';
-  if (len > 8 && memcmp(p, "defined(", 8) == 0 && p[len - 1] == ')') {
-    const char *name = p + 8;
-    size_t nn = len - 9;
-    trim(&name, &nn);
-    return macro_find(S, name, nn) != NULL;
+typedef struct IfExpr {
+  lua_State *L;
+  FFIState *S;
+  const char *p;
+  const char *end;
+  int line;
+} IfExpr;
+
+static void if_error (IfExpr *E, const char *msg) {
+  luaL_error(E->L, "ffi.cdef:%d: %s", E->line, msg);
+}
+
+static void if_skip (IfExpr *E) {
+  while (E->p < E->end && isspace((unsigned char)*E->p))
+    E->p++;
+}
+
+static int if_ident_char (int c) {
+  return isalnum((unsigned char)c) || c == '_';
+}
+
+static uint64_t if_parse_number (IfExpr *E) {
+  const char *s = E->p;
+  const char *q = s;
+  uint64_t v = 0;
+  int base = 10;
+  if (q + 1 < E->end && q[0] == '0' &&
+      (q[1] == 'x' || q[1] == 'X')) {
+    q += 2;
+    base = 16;
+    if (q >= E->end || !isxdigit((unsigned char)*q))
+      if_error(E, "malformed hexadecimal constant in #if");
   }
-  if (len > 9 && memcmp(p, "!defined(", 9) == 0 && p[len - 1] == ')') {
-    const char *name = p + 9;
-    size_t nn = len - 10;
-    trim(&name, &nn);
-    return macro_find(S, name, nn) == NULL;
+  else if (q + 1 < E->end && q[0] == '0' &&
+           (q[1] == 'b' || q[1] == 'B')) {
+    q += 2;
+    base = 2;
+    if (q >= E->end || (*q != '0' && *q != '1'))
+      if_error(E, "malformed binary constant in #if");
+  }
+  else if (q[0] == '0' && q + 1 < E->end && isdigit((unsigned char)q[1])) {
+    base = 8;
   }
   {
-    /* Expand object macros, then accept a decimal integer literal. */
-    Buf b;
-    char *end = NULL;
-    long v;
-    int bc = 0, ins = 0;
-    memset(&b, 0, sizeof(b));
-    expand(L, S, &b, p, len, 0, &bc, &ins);
-    buf_char(L, &b, '\0');
-    v = strtol(b.p, &end, 0);
-    if (end == b.p || *end != '\0')
-      luaL_error(L, "ffi.cdef:%d: unsupported #if expression", line);
-    free(b.p);
-    return v != 0;
+    int nd = 0;
+    while (q < E->end) {
+      int d;
+      if (*q >= '0' && *q <= '9') d = *q - '0';
+      else if (*q >= 'a' && *q <= 'f') d = *q - 'a' + 10;
+      else if (*q >= 'A' && *q <= 'F') d = *q - 'A' + 10;
+      else break;
+      if (d >= base)
+        if_error(E, "malformed integer constant in #if");
+      v = v * (uint64_t)base + (uint64_t)d;
+      q++;
+      nd++;
+    }
+    if (nd == 0)
+      if_error(E, "expected an integer constant in #if");
   }
+  while (q < E->end && (*q == 'u' || *q == 'U' ||
+                        *q == 'l' || *q == 'L'))
+    q++;
+  if (q < E->end && if_ident_char((unsigned char)*q))
+    if_error(E, "malformed integer constant in #if");
+  E->p = q;
+  return v;
+}
+
+static int64_t if_parse_char (IfExpr *E) {
+  const char *q = E->p + 1;
+  unsigned int value = 0;
+  int nchars = 0;
+  while (q < E->end && *q != '\'') {
+    unsigned int ch;
+    if (*q == '\n')
+      if_error(E, "unterminated character constant in #if");
+    if (*q == '\\') {
+      q++;
+      if (q >= E->end)
+        if_error(E, "unterminated character constant in #if");
+      switch (*q) {
+        case 'a': ch = 7; q++; break;
+        case 'b': ch = 8; q++; break;
+        case 'f': ch = 12; q++; break;
+        case 'n': ch = 10; q++; break;
+        case 'r': ch = 13; q++; break;
+        case 't': ch = 9; q++; break;
+        case 'v': ch = 11; q++; break;
+        case '\\': ch = '\\'; q++; break;
+        case '\'': ch = '\''; q++; break;
+        case '"': ch = '"'; q++; break;
+        case '?': ch = '?'; q++; break;
+        case 'x': {
+          unsigned int hv = 0;
+          int nd = 0;
+          q++;
+          while (q < E->end && isxdigit((unsigned char)*q)) {
+            int d = (*q <= '9') ? *q - '0'
+                  : (tolower((unsigned char)*q) - 'a' + 10);
+            hv = (hv << 4) | (unsigned int)d;
+            q++;
+            nd++;
+          }
+          if (nd == 0)
+            if_error(E, "malformed hexadecimal escape in #if");
+          ch = hv & 0xffu;
+          break;
+        }
+        case '0': case '1': case '2': case '3':
+        case '4': case '5': case '6': case '7': {
+          unsigned int ov = 0;
+          int nd = 0;
+          while (q < E->end && nd < 3 && *q >= '0' && *q <= '7') {
+            ov = (ov << 3) | (unsigned int)(*q - '0');
+            q++;
+            nd++;
+          }
+          ch = ov & 0xffu;
+          break;
+        }
+        default:
+          if_error(E, "unsupported escape in #if character constant");
+          ch = 0;
+          break;
+      }
+    }
+    else {
+      ch = (unsigned char)*q;
+      q++;
+    }
+    if (nchars == 0)
+      value = ch;
+    nchars++;
+  }
+  if (q >= E->end || *q != '\'')
+    if_error(E, "unterminated character constant in #if");
+  if (nchars == 0)
+    if_error(E, "empty character constant in #if");
+  if (nchars > 1)
+    if_error(E, "multi-character constants are not supported in #if");
+  E->p = q + 1;
+  return (int64_t)(signed char)value;
+}
+
+static int64_t if_parse_expr (IfExpr *E, int minprec);
+
+static int64_t if_parse_unary (IfExpr *E) {
+  int64_t v;
+  if_skip(E);
+  if (E->p < E->end && *E->p == '!') {
+    E->p++;
+    return !if_parse_unary(E);
+  }
+  if (E->p < E->end && *E->p == '~') {
+    E->p++;
+    return ~if_parse_unary(E);
+  }
+  if (E->p < E->end && *E->p == '-') {
+    E->p++;
+    v = if_parse_unary(E);
+    return (int64_t)(0 - (uint64_t)v);
+  }
+  if (E->p < E->end && *E->p == '+') {
+    E->p++;
+    return if_parse_unary(E);
+  }
+  if (E->p < E->end && *E->p == '(') {
+    E->p++;
+    v = if_parse_expr(E, 1);
+    if_skip(E);
+    if (E->p >= E->end || *E->p != ')')
+      if_error(E, "unbalanced parentheses in #if");
+    E->p++;
+    return v;
+  }
+  if (E->p < E->end && *E->p == '\'')
+    return if_parse_char(E);
+  if (E->p < E->end && isdigit((unsigned char)*E->p))
+    return (int64_t)if_parse_number(E);
+  if (E->p < E->end && (isalpha((unsigned char)*E->p) || *E->p == '_')) {
+    /* C evaluates an unknown identifier in #if as zero. */
+    while (E->p < E->end && if_ident_char((unsigned char)*E->p))
+      E->p++;
+    return 0;
+  }
+  if_error(E, "unsupported #if expression");
+  return 0;
+}
+
+static int if_binop (IfExpr *E, int *op, int *olen) {
+  const char *p = E->p;
+  const char *end = E->end;
+  if (p + 1 < end) {
+    if (p[0] == '|' && p[1] == '|') { *op = 1; *olen = 2; return 1; }
+    if (p[0] == '&' && p[1] == '&') { *op = 2; *olen = 2; return 1; }
+    if (p[0] == '=' && p[1] == '=') { *op = 6; *olen = 2; return 1; }
+    if (p[0] == '!' && p[1] == '=') { *op = 7; *olen = 2; return 1; }
+    if (p[0] == '<' && p[1] == '=') { *op = 9; *olen = 2; return 1; }
+    if (p[0] == '>' && p[1] == '=') { *op = 10; *olen = 2; return 1; }
+    if (p[0] == '<' && p[1] == '<') { *op = 11; *olen = 2; return 1; }
+    if (p[0] == '>' && p[1] == '>') { *op = 12; *olen = 2; return 1; }
+  }
+  switch (p < end ? *p : '\0') {
+    case '|': *op = 3; *olen = 1; return 1;
+    case '^': *op = 4; *olen = 1; return 1;
+    case '&': *op = 5; *olen = 1; return 1;
+    case '<': *op = 8; *olen = 1; return 1;
+    case '>': *op = 13; *olen = 1; return 1;
+    case '+': *op = 14; *olen = 1; return 1;
+    case '-': *op = 15; *olen = 1; return 1;
+    case '*': *op = 16; *olen = 1; return 1;
+    case '/': *op = 17; *olen = 1; return 1;
+    case '%': *op = 18; *olen = 1; return 1;
+    default: return 0;
+  }
+}
+
+static int if_prec (int op) {
+  switch (op) {
+    case 1: return 1;
+    case 2: return 2;
+    case 3: return 3;
+    case 4: return 4;
+    case 5: return 5;
+    case 6: case 7: return 6;
+    case 8: case 9: case 10: case 13: return 7;
+    case 11: case 12: return 8;
+    case 14: case 15: return 9;
+    case 16: case 17: case 18: return 10;
+    default: return 0;
+  }
+}
+
+static int64_t if_parse_expr (IfExpr *E, int minprec) {
+  int64_t lhs = if_parse_unary(E);
+  for (;;) {
+    int op, olen, prec;
+    int64_t rhs;
+    if_skip(E);
+    if (!if_binop(E, &op, &olen))
+      break;
+    prec = if_prec(op);
+    if (prec < minprec)
+      break;
+    E->p += olen;
+    rhs = if_parse_expr(E, prec + 1);
+    switch (op) {
+      case 1: lhs = (lhs != 0 || rhs != 0); break;
+      case 2: lhs = (lhs != 0 && rhs != 0); break;
+      case 3: lhs = lhs | rhs; break;
+      case 4: lhs = lhs ^ rhs; break;
+      case 5: lhs = lhs & rhs; break;
+      case 6: lhs = (lhs == rhs); break;
+      case 7: lhs = (lhs != rhs); break;
+      case 8: lhs = (lhs < rhs); break;
+      case 9: lhs = (lhs <= rhs); break;
+      case 10: lhs = (lhs >= rhs); break;
+      case 11:
+        if (rhs < 0 || rhs >= 64)
+          if_error(E, "shift count out of range in #if");
+        lhs = (int64_t)((uint64_t)lhs << (unsigned)rhs);
+        break;
+      case 12:
+        if (rhs < 0 || rhs >= 64)
+          if_error(E, "shift count out of range in #if");
+        lhs = lhs >> (unsigned)rhs;
+        break;
+      case 13: lhs = (lhs > rhs); break;
+      case 14: lhs = (int64_t)((uint64_t)lhs + (uint64_t)rhs); break;
+      case 15: lhs = (int64_t)((uint64_t)lhs - (uint64_t)rhs); break;
+      case 16: lhs = (int64_t)((uint64_t)lhs * (uint64_t)rhs); break;
+      case 17:
+        if (rhs == 0)
+          if_error(E, "division by zero in #if");
+        lhs = (lhs == INT64_MIN && rhs == -1) ? INT64_MIN : lhs / rhs;
+        break;
+      case 18:
+        if (rhs == 0)
+          if_error(E, "division by zero in #if");
+        lhs = (lhs == INT64_MIN && rhs == -1) ? 0 : lhs % rhs;
+        break;
+      default: break;
+    }
+  }
+  return lhs;
+}
+
+/* Replace defined NAME / defined(NAME) before macro expansion, so the
+** operand is never expanded as a macro. */
+static void if_replace_defined (lua_State *L, FFIState *S, const char *p,
+                                size_t n, Buf *out) {
+  size_t i = 0;
+  while (i < n) {
+    char c = p[i];
+    if (c == '"' || c == '\'') {
+      char quote = c;
+      buf_char(L, out, c);
+      i++;
+      while (i < n) {
+        buf_char(L, out, p[i]);
+        if (p[i] == '\\' && i + 1 < n) {
+          buf_char(L, out, p[i + 1]);
+          i += 2;
+          continue;
+        }
+        if (p[i] == quote) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    if (isalpha((unsigned char)c) || c == '_') {
+      size_t j = i + 1;
+      size_t k;
+      while (j < n && (isalnum((unsigned char)p[j]) || p[j] == '_'))
+        j++;
+      if (j - i == 7 && memcmp(p + i, "defined", 7) == 0) {
+        const char *name;
+        size_t nn;
+        k = j;
+        while (k < n && isspace((unsigned char)p[k]))
+          k++;
+        if (k < n && p[k] == '(') {
+          k++;
+          while (k < n && isspace((unsigned char)p[k]))
+            k++;
+        }
+        if (k >= n || !(isalpha((unsigned char)p[k]) || p[k] == '_'))
+          luaL_error(L, "ffi.cdef: expected a macro name after 'defined'");
+        name = p + k;
+        k++;
+        while (k < n && (isalnum((unsigned char)p[k]) || p[k] == '_'))
+          k++;
+        nn = (size_t)(p + k - name);
+        while (k < n && isspace((unsigned char)p[k]))
+          k++;
+        if (k < n && p[k] == ')')
+          k++;
+        buf_char(L, out, macro_find(S, name, nn) != NULL ? '1' : '0');
+        i = k;
+        continue;
+      }
+      buf_mem(L, out, p + i, j - i);
+      i = j;
+      continue;
+    }
+    buf_char(L, out, c);
+    i++;
+  }
+}
+
+static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
+                    int line) {
+  Buf def, ex;
+  IfExpr E;
+  int64_t v;
+  int bc = 0, ins = 0;
+  memset(&def, 0, sizeof(def));
+  memset(&ex, 0, sizeof(ex));
+  if_replace_defined(L, S, expr, n, &def);
+  expand(L, S, &ex, def.p != NULL ? def.p : "", def.n, 0, &bc, &ins);
+  buf_char(L, &ex, '\0');
+  E.L = L;
+  E.S = S;
+  E.p = ex.p;
+  E.end = ex.p + ex.n - 1;
+  E.line = line;
+  v = if_parse_expr(&E, 1);
+  if_skip(&E);
+  if (E.p != E.end)
+    luaL_error(L, "ffi.cdef:%d: unsupported #if expression", line);
+  free(def.p);
+  free(ex.p);
+  return v != 0;
 }
 
 static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,

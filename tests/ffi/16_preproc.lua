@@ -117,8 +117,12 @@ end
 H.raises(function ()
   return ffi.cdef("#include <definitely_missing.h>")
 end, "cannot open")
-H.raises(function ()
-  return ffi.cdef("#if 1 + 2\n#endif")
-end, "unsupported #if")
+-- A full #if expression is evaluated rather than rejected.
+ffi.cdef[[
+#if 1 + 2
+struct PpIfExpr { int x; };
+#endif
+]]
+H.eq(ffi.sizeof("struct PpIfExpr"), 4)
 
 print("ffi/16_preproc ok")
