@@ -84,11 +84,12 @@ make correct against an unmodified VM.
   whitelisted loop body is emitted with DynASM and runs the remaining
   iterations on the stack slots, with int/double tag guards, exact numeric
   comparisons/forward branches, numeric `and`/`or` truth tests, integer
-  bitwise, variable and constant shifts, unary minus/not, integer floor
+  bitwise, variable and constant shifts, unary minus, integer floor
   division/modulo, integer and float-controlled `for` loops (including
   branch bodies in both), simple `while` loops, constant string-key field
-  reads with an entry value guard, and constant-index array reads
-  (`t[1]`, `GETI`).  Experimental
+  reads with an entry value guard, and one raw array read per loop
+  (`t[1]`/`GETI` or `t[i]`/`GETTABLE`, including inside a branch body).
+  Experimental
   register-cached prefix/square-sum loops and opt-in raw array
   lookups/stores use the 5.5 split array representation,
   independent retry after a rejected sibling loop, up to two compiled

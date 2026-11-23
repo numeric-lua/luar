@@ -6,6 +6,31 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Added
+
+- J2 decodes the loop's one raw array read (`GETI`/`GETTABLE`) anywhere in a
+  branch body, not only as the first instruction.  `if cond then s = s + t[i]
+  end` now runs natively while keeping the table/metatable/bounds guards and
+  the exact exit PC.
+- `jit.stats().tint_hits` reports successful raw-table intrinsic runs, so the
+  table fill/sum fast paths are observable without timing.
+- FFI integer arguments (lengths, `ffi.fill` byte, `ffi.errno`, array
+  indices) use C conversion rules: finite Lua floats truncate towards zero
+  and numeric strings are rejected.  NaN, infinity and out-of-range values
+  raise instead of invoking an undefined C conversion.
+
+### Fixed
+
+- Branch-loop entry guards use the operand flavour for float `ADDK`/`SUBK`/
+  `MULK`/`DIVK` and `UNM`.  These loops compiled but always failed their own
+  integer guard, so float branch bodies silently stayed interpreted.
+- Inlined leaf calls no longer turn a zero divisor into zero.  `leaf_eval()`
+  now bails to the interpreter for `//`/`%` by zero, preserving the exact
+  divide-by-zero error instead of finishing the loop with a wrong sum.
+- Integer-accumulator raw table and keyed sums promote to float when the
+  first float element or value is added, matching the interpreter's mixed
+  arithmetic instead of falling back to the interpreter.
+
 ## [0.198.0] — 2026-11-23
 
 ### Added
