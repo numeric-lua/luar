@@ -147,7 +147,11 @@ preprocessor subset is available.
   shifts, comparisons, `& ^ |`, `&&` and `||`, including
   decimal/hexadecimal/octal/binary literals and character constants; an
   undefined identifier is zero, and division by zero, malformed literals
-  and unbalanced parentheses are clear errors.  `#elif` selects the first
+  and unbalanced parentheses are clear errors.  Integer operands follow
+  C's `intmax_t`/`uintmax_t` rules: a hex/octal/binary literal above
+  `INTmax_t` is unsigned, a mixed signed/unsigned expression compares,
+  divides and shifts as unsigned, and an unsigned right shift is logical.
+  `#elif` selects the first
   true branch, `#else` is taken only when no earlier branch was, and a
   skipped group is not parsed (only its conditional nesting is tracked).
   Compact `#if(expr)`/`#elif(expr)` and comments immediately after

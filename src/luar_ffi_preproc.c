@@ -16,6 +16,7 @@
 #include "lprefix.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -537,11 +538,66 @@ static int if_ident_char (int c) {
   return isalnum((unsigned char)c) || c == '_';
 }
 
-static uint64_t if_parse_number (IfExpr *E) {
+/* A preprocessor integer and its C signedness.  C evaluates #if operands
+** as intmax_t/uintmax_t, and the usual arithmetic conversions make a mixed
+** expression unsigned.  Keeping the flag is what makes
+** '0xffffffffffffffff > 0' true instead of comparing it as -1. */
+typedef struct IfNum {
+  uint64_t u;
+  int uns;
+} IfNum;
+
+static IfNum if_signed (int64_t v) {
+  IfNum r;
+  r.u = (uint64_t)v;
+  r.uns = 0;
+  return r;
+}
+
+static IfNum if_unsigned (uint64_t v) {
+  IfNum r;
+  r.u = v;
+  r.uns = 1;
+  return r;
+}
+
+/* C literal typing: decimal constants are signed unless suffixed 'u';
+** hex/octal/binary constants pick the first type in
+** int, unsigned int, long, unsigned long, long long, unsigned long long
+** (restricted by the 'l'/'ll' suffix) that can represent the value. */
+static IfNum if_number (uint64_t v, int base, int suffix_u, int suffix_l) {
+  if (suffix_u)
+    return if_unsigned(v);
+  if (base == 10) {
+    if (v <= (uint64_t)LLONG_MAX)
+      return if_signed((int64_t)v);
+    return if_unsigned(v);   /* GNU extension for oversized decimals */
+  }
+  if (suffix_l == 0) {
+    if (v <= (uint64_t)INT_MAX) return if_signed((int64_t)v);
+    if (v <= (uint64_t)UINT_MAX) return if_unsigned(v);
+    if (v <= (uint64_t)LONG_MAX) return if_signed((int64_t)v);
+    if (v <= (uint64_t)ULONG_MAX) return if_unsigned(v);
+    if (v <= (uint64_t)LLONG_MAX) return if_signed((int64_t)v);
+    return if_unsigned(v);
+  }
+  if (suffix_l == 1) {
+    if (v <= (uint64_t)LONG_MAX) return if_signed((int64_t)v);
+    if (v <= (uint64_t)ULONG_MAX) return if_unsigned(v);
+    if (v <= (uint64_t)LLONG_MAX) return if_signed((int64_t)v);
+    return if_unsigned(v);
+  }
+  if (v <= (uint64_t)LLONG_MAX)
+    return if_signed((int64_t)v);
+  return if_unsigned(v);
+}
+
+static IfNum if_parse_number (IfExpr *E) {
   const char *s = E->p;
   const char *q = s;
   uint64_t v = 0;
   int base = 10;
+  int suffix_u = 0, suffix_l = 0;
   if (q + 1 < E->end && q[0] == '0' &&
       (q[1] == 'x' || q[1] == 'X')) {
     q += 2;
@@ -577,15 +633,20 @@ static uint64_t if_parse_number (IfExpr *E) {
       if_error(E, "expected an integer constant in #if");
   }
   while (q < E->end && (*q == 'u' || *q == 'U' ||
-                        *q == 'l' || *q == 'L'))
+                        *q == 'l' || *q == 'L')) {
+    if (*q == 'u' || *q == 'U')
+      suffix_u = 1;
+    else
+      suffix_l++;
     q++;
+  }
   if (q < E->end && if_ident_char((unsigned char)*q))
     if_error(E, "malformed integer constant in #if");
   E->p = q;
-  return v;
+  return if_number(v, base, suffix_u, suffix_l);
 }
 
-static int64_t if_parse_char (IfExpr *E) {
+static IfNum if_parse_char (IfExpr *E) {
   const char *q = E->p + 1;
   unsigned int value = 0;
   int nchars = 0;
@@ -658,26 +719,29 @@ static int64_t if_parse_char (IfExpr *E) {
   if (nchars > 1)
     if_error(E, "multi-character constants are not supported in #if");
   E->p = q + 1;
-  return (int64_t)(signed char)value;
+  return if_signed((int64_t)(signed char)value);
 }
 
-static int64_t if_parse_expr (IfExpr *E, int minprec);
+static IfNum if_parse_expr (IfExpr *E, int minprec);
 
-static int64_t if_parse_unary (IfExpr *E) {
-  int64_t v;
+static IfNum if_parse_unary (IfExpr *E) {
+  IfNum v;
   if_skip(E);
   if (E->p < E->end && *E->p == '!') {
     E->p++;
-    return !if_parse_unary(E);
+    return if_signed(!(if_parse_unary(E).u != 0));
   }
   if (E->p < E->end && *E->p == '~') {
     E->p++;
-    return ~if_parse_unary(E);
+    v = if_parse_unary(E);
+    v.u = ~v.u;
+    return v;
   }
   if (E->p < E->end && *E->p == '-') {
     E->p++;
     v = if_parse_unary(E);
-    return (int64_t)(0 - (uint64_t)v);
+    v.u = 0 - v.u;   /* C wraps both signed and unsigned unary minus */
+    return v;
   }
   if (E->p < E->end && *E->p == '+') {
     E->p++;
@@ -695,15 +759,15 @@ static int64_t if_parse_unary (IfExpr *E) {
   if (E->p < E->end && *E->p == '\'')
     return if_parse_char(E);
   if (E->p < E->end && isdigit((unsigned char)*E->p))
-    return (int64_t)if_parse_number(E);
+    return if_parse_number(E);
   if (E->p < E->end && (isalpha((unsigned char)*E->p) || *E->p == '_')) {
     /* C evaluates an unknown identifier in #if as zero. */
     while (E->p < E->end && if_ident_char((unsigned char)*E->p))
       E->p++;
-    return 0;
+    return if_signed(0);
   }
   if_error(E, "unsupported #if expression");
-  return 0;
+  return if_signed(0);
 }
 
 static int if_binop (IfExpr *E, int *op, int *olen) {
@@ -750,11 +814,11 @@ static int if_prec (int op) {
   }
 }
 
-static int64_t if_parse_expr (IfExpr *E, int minprec) {
-  int64_t lhs = if_parse_unary(E);
+static IfNum if_parse_expr (IfExpr *E, int minprec) {
+  IfNum lhs = if_parse_unary(E);
   for (;;) {
-    int op, olen, prec;
-    int64_t rhs;
+    int op, olen, prec, uns;
+    IfNum rhs;
     if_skip(E);
     if (!if_binop(E, &op, &olen))
       break;
@@ -763,40 +827,68 @@ static int64_t if_parse_expr (IfExpr *E, int minprec) {
       break;
     E->p += olen;
     rhs = if_parse_expr(E, prec + 1);
+    uns = lhs.uns || rhs.uns;
     switch (op) {
-      case 1: lhs = (lhs != 0 || rhs != 0); break;
-      case 2: lhs = (lhs != 0 && rhs != 0); break;
-      case 3: lhs = lhs | rhs; break;
-      case 4: lhs = lhs ^ rhs; break;
-      case 5: lhs = lhs & rhs; break;
-      case 6: lhs = (lhs == rhs); break;
-      case 7: lhs = (lhs != rhs); break;
-      case 8: lhs = (lhs < rhs); break;
-      case 9: lhs = (lhs <= rhs); break;
-      case 10: lhs = (lhs >= rhs); break;
+      case 1: lhs = if_signed(lhs.u != 0 || rhs.u != 0); break;
+      case 2: lhs = if_signed(lhs.u != 0 && rhs.u != 0); break;
+      case 3: lhs.u = lhs.u | rhs.u; lhs.uns = uns; break;
+      case 4: lhs.u = lhs.u ^ rhs.u; lhs.uns = uns; break;
+      case 5: lhs.u = lhs.u & rhs.u; lhs.uns = uns; break;
+      case 6: lhs = if_signed(lhs.u == rhs.u); break;
+      case 7: lhs = if_signed(lhs.u != rhs.u); break;
+      case 8:
+        lhs = if_signed(uns ? (lhs.u < rhs.u)
+                            : ((int64_t)lhs.u < (int64_t)rhs.u));
+        break;
+      case 9:
+        lhs = if_signed(uns ? (lhs.u <= rhs.u)
+                            : ((int64_t)lhs.u <= (int64_t)rhs.u));
+        break;
+      case 10:
+        lhs = if_signed(uns ? (lhs.u >= rhs.u)
+                            : ((int64_t)lhs.u >= (int64_t)rhs.u));
+        break;
       case 11:
-        if (rhs < 0 || rhs >= 64)
+        if (rhs.uns ? (rhs.u >= 64)
+                    : ((int64_t)rhs.u < 0 || (int64_t)rhs.u >= 64))
           if_error(E, "shift count out of range in #if");
-        lhs = (int64_t)((uint64_t)lhs << (unsigned)rhs);
+        lhs.u = lhs.u << (unsigned)rhs.u;
         break;
       case 12:
-        if (rhs < 0 || rhs >= 64)
+        if (rhs.uns ? (rhs.u >= 64)
+                    : ((int64_t)rhs.u < 0 || (int64_t)rhs.u >= 64))
           if_error(E, "shift count out of range in #if");
-        lhs = lhs >> (unsigned)rhs;
+        if (lhs.uns)
+          lhs.u = lhs.u >> (unsigned)rhs.u;
+        else
+          lhs.u = (uint64_t)((int64_t)lhs.u >> (unsigned)rhs.u);
         break;
-      case 13: lhs = (lhs > rhs); break;
-      case 14: lhs = (int64_t)((uint64_t)lhs + (uint64_t)rhs); break;
-      case 15: lhs = (int64_t)((uint64_t)lhs - (uint64_t)rhs); break;
-      case 16: lhs = (int64_t)((uint64_t)lhs * (uint64_t)rhs); break;
+      case 13:
+        lhs = if_signed(uns ? (lhs.u > rhs.u)
+                            : ((int64_t)lhs.u > (int64_t)rhs.u));
+        break;
+      case 14: lhs.u = lhs.u + rhs.u; lhs.uns = uns; break;
+      case 15: lhs.u = lhs.u - rhs.u; lhs.uns = uns; break;
+      case 16: lhs.u = lhs.u * rhs.u; lhs.uns = uns; break;
       case 17:
-        if (rhs == 0)
+        if (rhs.u == 0)
           if_error(E, "division by zero in #if");
-        lhs = (lhs == INT64_MIN && rhs == -1) ? INT64_MIN : lhs / rhs;
+        if (uns)
+          lhs.u = lhs.u / rhs.u;
+        else {
+          int64_t a = (int64_t)lhs.u, b = (int64_t)rhs.u;
+          lhs = if_signed((a == INT64_MIN && b == -1) ? INT64_MIN : a / b);
+        }
         break;
       case 18:
-        if (rhs == 0)
+        if (rhs.u == 0)
           if_error(E, "division by zero in #if");
-        lhs = (lhs == INT64_MIN && rhs == -1) ? 0 : lhs % rhs;
+        if (uns)
+          lhs.u = lhs.u % rhs.u;
+        else {
+          int64_t a = (int64_t)lhs.u, b = (int64_t)rhs.u;
+          lhs = if_signed((a == INT64_MIN && b == -1) ? 0 : a % b);
+        }
         break;
       default: break;
     }
@@ -871,7 +963,7 @@ static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
                     int line) {
   Buf def, ex;
   IfExpr E;
-  int64_t v;
+  IfNum v;
   int bc = 0, ins = 0;
   memset(&def, 0, sizeof(def));
   memset(&ex, 0, sizeof(ex));
@@ -889,7 +981,7 @@ static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
     luaL_error(L, "ffi.cdef:%d: unsupported #if expression", line);
   free(def.p);
   free(ex.p);
-  return v != 0;
+  return v.u != 0;
 }
 
 static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
