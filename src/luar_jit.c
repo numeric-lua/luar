@@ -1449,7 +1449,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       case OP_GETI: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins);
         int kidx = (int)GETARG_C(ins);
-        if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
+        if (d.has_table) return 0;   /* one raw table read per loop */
         if (kidx < 1) return 0;                /* t[0] belongs to the hash part */
         if (is_control_reg(ka, for_a)) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
@@ -1497,7 +1497,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       }
       case OP_GETTABLE: {
         int ka = GETARG_A(ins), kb = GETARG_B(ins), kc = GETARG_C(ins);
-        if (i != 0 || d.has_table) return 0;   /* only a leading lookup */
+        if (d.has_table) return 0;   /* one raw table read per loop */
         if (is_control_reg(ka, for_a)) return 0;
         if (slot_type(b, cur, def, kb) != LUAR_T_TABLE) return 0;
         if (slot_type(b, cur, def, kc) != LUAR_T_INT) return 0;
