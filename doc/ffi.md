@@ -235,6 +235,10 @@ Struct/union definitions cannot be redefined in the same Lua state.
   initializer.  An aggregate lvalue initializes an object pointer of its
   own type or a `void *`, as in C and LuaJIT; numeric scalars are not
   pointers.
+* `ffi.cast` is more permissive than `ffi.new`: a Lua string may be cast
+  to any pointer or function-pointer type, not only to `char *`/`void *`,
+  matching LuaJIT.  As everywhere else, the cast does not anchor the
+  string; keep it alive while the pointer is used.
 * A type has one metatype: a second `ffi.metatype` call for the same
   struct/union raises even when it passes the original table again.
 

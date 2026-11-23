@@ -6,6 +6,38 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Added
+
+- J2 runs bounded cdata array stores in the default tier:
+  `a[i] = v`, `a[i] = i` and `a[i] = constant`, for 1/2/4-byte integer and
+  4/8-byte float elements.  A bounds-checked C helper follows the
+  interpreter's FORLOOP key sequence for any nonzero integer step, applies
+  the FFI element-store conversion (including LuaJIT's out-of-range
+  double-to-integer sentinel) and keeps pointer sources on the interpreter.
+- J2 copies bounded cdata arrays with `a[i] = b[i]`, converting between
+  integer widths and float/double element types at each store while
+  preserving the source-element temporary.
+- J2 updates bounded cdata arrays in place with
+  `a[i] = a[i] +|-|*|/ v`, including register, immediate and constant
+  scalar operands, with Lua's int-wrap/float-promotion rules followed by
+  the C store conversion.
+- J2 stores two-source cdata results with `a[i] = b[i] +|-|* c[i]` over
+  bounded arrays, converting the computed value to the destination element
+  type and preserving both source temporaries.
+- `ffi.cast` accepts a Lua string for any pointer or function-pointer type,
+  matching LuaJIT; `ffi.new` keeps its stricter initializer rules.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `tools/upstream-check.sh` and
+`make dynasm-check` are green.  New coverage:
+`tests/ffi/130_j2_cdata_store.lua`,
+`tests/ffi/131_j2_cdata_copy.lua`,
+`tests/ffi/132_j2_cdata_update.lua`,
+`tests/ffi/133_cast_string_pointer.lua` and
+`tests/ffi/134_j2_cdata_pair_store.lua`.
+
 ## [0.205.0] — 2026-11-23
 
 ### Added

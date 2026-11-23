@@ -47,6 +47,11 @@ is provably observationally equivalent to that interpreter.
   or closure upvalue.  These raw-array reductions follow the FORLOOP key
   sequence for any nonzero integer step, including descending loops; the
   first/last keys are overflow- and bounds-checked before the run.
+  Bounded cdata arrays additionally support writes in the default tier:
+  `a[i] = v|i|constant`, `a[i] = b[i]`, `a[i] = a[i] OP v` and
+  `a[i] = b[i] OP c[i]`.  The C helpers replicate Lua's arithmetic
+  promotion, then apply the FFI element-store conversion; pointers (which
+  have no bounded length) and out-of-bounds runs stay on the interpreter.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled

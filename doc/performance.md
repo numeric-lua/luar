@@ -1,3 +1,12 @@
+> **0.206 check (2026-11-23, development host).**  The default J2 tier now
+> writes bounded cdata arrays as well as reducing them.  On a 2M-element
+> `int32_t[?]` microcheck, fill (`a[i] = 7`) measured about 288 ms
+> interpreted versus 7 ms native, element copy (`a[i] = b[i]`) 528 ms versus
+> 8 ms, two-source add (`a[i] = b[i] + c[i]`) 804 ms versus 11 ms, and
+> in-place multiply (`a[i] = a[i] * 2`) 613 ms versus 13 ms.  `os.clock`
+> timings on a shared laptop-class host, not release gates; the J4 corpus
+> still uses the opt-in `ir=1` tier.
+
 > **0.201 check (2026-11-23, development host).**  J2 now rejects loops
 > whose carried slots change type and no longer trusts a float limit in the
 > fast `while` peephole; J4 rejects mixed float/integer traces instead of

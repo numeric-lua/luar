@@ -98,7 +98,11 @@ make correct against an unmodified VM.
   A bounded cdata array reduction (`s = s + a[i]` over 1/2/4-byte integers
   or 4/8-byte floats) is validated and run by a C helper in the same tier;
   so are two-source cdata reductions (`s = s + a[i] + b[i]`, the subtract
-  form, and dot-product/sum-of-squares).  Pointer sources without a length
+  form, and dot-product/sum-of-squares).  Bounded cdata writes use the same
+  tier: `a[i] = v|i|constant`, element-wise copies `a[i] = b[i]`,
+  in-place `a[i] = a[i] +|-|*|/ v`, and two-source stores
+  `a[i] = b[i] +|-|* c[i]`, all with the FFI store conversions and the
+  interpreter's FORLOOP key sequence.  Pointer sources without a length
   stay on the interpreter.
   Experimental
   register-cached prefix/square-sum loops and opt-in raw array
