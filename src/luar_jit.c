@@ -2080,7 +2080,12 @@ decode_done:
         accum_i = (int)i;
       }
       else if (op->kind == LUAR_OP_ADDI) {
-        if (op->a != idx || op->b != idx || op->imm == 0 ||
+        /* The fast emitter keeps exactly one step for the induction
+        ** variable.  A second increment (`i=i+1; i=i+1`, or
+        ** `i=i+1; i=i+2`) used to overwrite d.fw_step and silently run a
+        ** different loop than the interpreter.  Only one write is
+        ** representable, so reject every additional one. */
+        if (inc_i >= 0 || op->a != idx || op->b != idx || op->imm == 0 ||
             op->ta != LUAR_T_INT) { ok = 0; break; }
         inc_i = (int)i;
       }
