@@ -1095,8 +1095,9 @@ static int ffi_cast (lua_State *L) {
       p = NULL;
     }
     else if (lua_type(L, 2) == LUA_TSTRING) {
-      if (!ctype_char_like(ct->child))
-        conv_error(L, S, ct, 2, "cast");
+      /* LUAR: LuaJIT's ffi.cast accepts a Lua string for any pointer type,
+      ** not just char pointers.  The string is not anchored by the cdata;
+      ** callers must keep it alive, as documented. */
       p = (void *)lua_tolstring(L, 2, NULL);
     }
     else {
