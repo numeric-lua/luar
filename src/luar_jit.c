@@ -36,6 +36,7 @@
 
 static void pushtrace (lua_State *L, const LuaR_Trace *t);
 static void pushir (lua_State *L, const LuaR_Trace *t);
+static TValue *pair_source_value (TValue *base, int reg, int upval);
 
 /*
 ** Clang's -fsanitize=function (part of -fsanitize=undefined) checks an
@@ -1760,6 +1761,32 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         GET_OPCODE(p->code[start + 2]) == OP_ADD &&
         GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
         backedge == start + 4) {
+      /* LUAR: `s = s + a[i]` where `a` is a bounded cdata array captured
+      ** as a closure upvalue.  The upvalue is re-resolved on every entry,
+      ** so reassigning it is observed like the interpreter. */
+      Instruction i1 = p->code[start + 1];
+      Instruction i2 = p->code[start + 2];
+      int treg = GETARG_A(i0), tmp = GETARG_A(i1), arr = GETARG_B(i1);
+      int acc = GETARG_A(i2);
+      TValue *av = pair_source_value((TValue *)b, -1, GETARG_B(i0));
+      if (GETARG_A(i1) == treg && arr == treg &&
+          GETARG_C(i1) == for_a + 2 &&
+          GETARG_A(i2) == GETARG_B(i2) &&
+          GETARG_C(i2) == tmp &&
+          tmp != acc && arr != acc &&
+          !is_control_reg(tmp, for_a) &&
+          !is_control_reg(acc, for_a) &&
+          !is_control_reg(arr, for_a) &&
+          av != NULL && luar_ffi_trace_array_kind(av) != 0)
+        return install_cdata_tint(p, J, backedge, 16, -1 - GETARG_B(i0),
+                                  0, 0, acc, tmp, 0, for_a);
+    }
+    if (!for_float && J->enable_tint && n >= 5 &&
+        GET_OPCODE(i0) == OP_GETUPVAL &&
+        GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
+        GET_OPCODE(p->code[start + 2]) == OP_ADD &&
+        GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
+        backedge == start + 4) {
       Instruction i1 = p->code[start + 1];
       Instruction i2 = p->code[start + 2];
       int treg = GETARG_A(i0), rreg = GETARG_A(i1), areg = GETARG_A(i2);
@@ -1809,27 +1836,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           !is_control_reg(tmp, for_a) &&
           !is_control_reg(acc, for_a) &&
           !is_control_reg(arr, for_a) &&
-          luar_ffi_trace_array_kind(&b[arr]) != 0) {
-        int slot = -1, k;
-        for (k = 0; k < 2; k++) {
-          if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
-            slot = k;
-            break;
-          }
-        }
-        if (slot < 0)
-          slot = 1;
-        p->luar_code[slot] = NULL;
-        p->luar_tint[slot] = 16;
-        p->luar_tint_pc[slot] = (int)backedge;
-        p->luar_tint_table[slot] = arr;
-        p->luar_tint_acc[slot] = acc;
-        p->luar_tint_res[slot] = tmp;
-        p->luar_tint_base[slot] = for_a;
-        p->luar_tint_epoch[slot] = J->epoch;
-        J->compiled++;
-        return 1;
-      }
+          luar_ffi_trace_array_kind(&b[arr]) != 0)
+        return install_cdata_tint(p, J, backedge, 16, arr, 0, 0,
+                                  acc, tmp, 0, for_a);
     }
     if (!for_float && J->enable_tint &&
         match_three_table_sum(p, J, start, backedge, for_a, b))
@@ -5371,15 +5380,21 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                        p->luar_tint_acc[i]);
           break;
         }
-        case 16:
-          r = luar_ffi_trace_sum_array(
-                  &((TValue *)base)[p->luar_tint_table[i]],
-                  &((TValue *)base)[expected_base + 2],
-                  &((TValue *)base)[expected_base],
-                  &((TValue *)base)[expected_base + 1],
-                  &((TValue *)base)[p->luar_tint_acc[i]],
-                  &((TValue *)base)[p->luar_tint_res[i]]);
+        case 16: {
+          int enc = p->luar_tint_table[i];
+          TValue *av = pair_source_value((TValue *)base,
+                                         (enc >= 0) ? enc : -1,
+                                         (enc >= 0) ? -1 : (-1 - enc));
+          r = (av == NULL) ? 0
+              : luar_ffi_trace_sum_array(
+                    av,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[p->luar_tint_acc[i]],
+                    &((TValue *)base)[p->luar_tint_res[i]]);
           break;
+        }
         case 17:
         case 18:
         case 19: {
