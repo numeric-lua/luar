@@ -2430,8 +2430,20 @@ static int cdata_call (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *cd = ffi_checkcdata(L, 1, "__call");
   CType *ct = cd->ct;
-  if ((cd->flags & CDATA_CTYPE) != 0)
+  if ((cd->flags & CDATA_CTYPE) != 0) {
+    /* LUAR: LuaJIT lets a metatype override construction through __new;
+    ** only calling the CType object goes through it.  ffi.new/ffi.cast
+    ** keep the built-in constructor, so a handler may call them without
+    ** recursing.  The handler receives the type object first. */
+    CType *mct = meta_ctype(ct);
+    int nargs = lua_gettop(L);
+    if (mct != NULL && meta_push(L, mct, "__new")) {
+      lua_insert(L, 1);              /* handler before the arguments */
+      lua_call(L, nargs, LUA_MULTRET);
+      return lua_gettop(L);
+    }
     return ffi_do_new(L, S, ct, 2);
+  }
   if (ct->kind == CT_FUNC ||
       (ct->kind == CT_POINTER && ct->child != NULL &&
        ct->child->kind == CT_FUNC))
