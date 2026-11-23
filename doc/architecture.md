@@ -129,8 +129,12 @@ make correct against an unmodified VM.
   in-place int64 array arithmetic (add/subtract, multiply, signed/unsigned
   divide and modulo, bitwise, logical shifts, unary minus/not, copy and
   integer stores), with full 64-bit constants and two's-complement wrap.
-  64-bit cdata struct/union fields are deliberately not traced because a
-  field read yields cdata int64 rather than a Lua integer.
+  J4 roots only integer-controlled `FORLOOP` backedges; a float-controlled
+  loop (or any other shape J4 cannot record) falls through to the J2 emitter
+  instead of staying interpreted.  A `jit.flush()` invalidates a Proto's
+  stale J4 root before it is recorded again.  64-bit cdata struct/union
+  fields are deliberately not traced because a field read yields cdata
+  int64 rather than a Lua integer.
 * **T3** removes helper-call overhead for FFI-heavy code, the main use case
   of the numeric-Lua ecosystem.
 

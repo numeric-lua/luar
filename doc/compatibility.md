@@ -73,9 +73,9 @@ Lua 5.5 spelling and is left untouched.
 | `jit.os`, `jit.arch` | implemented | `Linux`/`OSX`/..., `x64`/`arm64`/... |
 | `jit.status()` | implemented | `true, arch` when the J2 x86-64 engine is active; `false` after `jit.off()` or on unsupported hosts |
 | `jit.on()`, `jit.off()` | implemented | toggles native loop entry; the interpreter stays authoritative |
-| `jit.flush()` | implemented | bumps the epoch, frees code and clears trace/stats; already-hot Protos are not walked (J1 limitation) |
+| `jit.flush()` | implemented | bumps the epoch, frees code and clears trace/stats; a `Proto` holding a stale J2/J4 pointer is revalidated and recompiled on its next hot backedge |
 | `jit.dump(mode)` | implemented | `"t"` prints bytecode snapshots and `"i"` linear IR to stderr; no file/function output argument |
-| `jit.opt.start(...)` | implemented | `hotloop=N` sets the threshold for newly created Protos; `hotexit=N` sets the guard-exit threshold for recording a variant; `table=1`/`call=1` toggle generic table emission and the partial-call tier; `tint=1` toggles the default raw fill/sum table intrinsics |
+| `jit.opt.start(...)` | implemented | `hotloop=N` sets the threshold for newly created Protos; `hotexit=N` sets the guard-exit threshold for recording a variant; `ir=1` enables the J4 for-loop tier (non-J4 loop shapes still use J2); `table=1`/`call=1` toggle generic table emission and the partial-call tier; `tint=1` toggles the default raw fill/sum table intrinsics |
 | `jit.attach()` | not implemented | planned with the profiler |
 | `jit.security()` | not implemented | out of scope |
 | `jit.util.*` | not implemented | LuaJIT-specific bytecode introspection |
@@ -134,11 +134,14 @@ Deliberate deviations, all documented:
   libffi, including `cb:set`/`cb:free`; errors in the Lua callback become a
   zero C return plus a stored message.
 * Bounds checks for owned arrays are stricter than LuaJIT's.
+* `ffi.cdef`'s preprocessor supports `#elif` chains and skips the bodies of
+  inactive groups.  Non-pack `#pragma` directives are ignored as diagnostic
+  or optimisation hints, as a C compiler does; `#pragma pack` still controls
+  layout.
 
 Not supported: fully general system-header parsing (angle includes search
 local paths, `LUAR_FFI_INCLUDE`/`CPATH`/`C_INCLUDE_PATH`, and the usual
 `/usr/local/include`/`/usr/include` directories),
-non-pack `#pragma`,
 oversized unions, `long double`/complex/vector
 types, C→Lua callbacks `ffi.typeinfo`, and aggregate/variadic
 callback shapes.  `ffi.callback` itself is implemented, including

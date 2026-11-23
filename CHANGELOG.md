@@ -6,6 +6,46 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+### Added
+
+- `ffi.cdef` supports C preprocessor `#elif` chains: the first true branch
+  wins, later branch expressions are not evaluated, `#else` is taken only
+  when no earlier branch was, and `#elif` without `#if`, `#elif` after
+  `#else` and duplicate `#else` are clear errors.  The bodies of inactive
+  groups are not parsed at all, so dead `#include`, `#define`, `#error`,
+  malformed `#elif` expressions and unknown directives cannot fail an
+  otherwise usable declaration.  Compact `#if(expr)`/`#elif(expr)` and
+  comments directly after `#else`/`#endif` are accepted.
+- `ffi.cdef` ignores non-pack `#pragma` directives (diagnostic and
+  optimisation hints such as `#pragma once` or `#pragma GCC ...`) instead
+  of rejecting headers that carry them; `#pragma pack(n/push/pop)` still
+  controls layout.
+
+### Fixed
+
+- J4 (`jit.opt.start("ir=1")`) no longer records a float-controlled
+  `FORLOOP` with its integer-count emitter.  The recorder rejects a loop
+  whose counter/limit/step slots are not all integers, so a loop such as
+  `for i = 1.0, n do s = s + 1 end` can no longer hang or wrap; J2 or the
+  interpreter handles it.
+- `jit.flush()` now clears a Proto's stale J4 root pointer together with
+  its pc/start/base fields.  A flushed IR loop recompiles on its next hot
+  backedge instead of being blocked by the already-unmapped trace.
+
+### Performance
+
+- With `ir=1`, backedges that J4 does not own (a `while`/`repeat` loop, a
+  float-controlled `for`, or a rejected trace) now fall through to the J2
+  emitter instead of staying interpreted.  A compiled J4 root keeps
+  ownership of its own backedge.
+
+### Tests
+
+New coverage: `tests/ffi/160_preproc_elif.lua`,
+`tests/ffi/161_pragma_unknown.lua`, `tests/jit/179_j4_float_for.lua`,
+`tests/jit/180_j4_flush_recompile.lua` and
+`tests/jit/181_ir_j2_fallback.lua`.
+
 ## [0.211.0] — 2026-11-23
 
 ### Added

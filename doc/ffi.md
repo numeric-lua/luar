@@ -135,19 +135,24 @@ preprocessor subset is available.
 ### Parser limitations (clear errors, never silent misparses)
 
 * A small C preprocessor is implemented: object- and function-like
-  `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#else`/`#endif`, with
-  object macros expanded outside strings/comments.  Function-like macros
-  support named and variadic (`...`/`__VA_ARGS__`) parameters on a single
-  line.  Quoted `#include "path"` resolves relative to the including file
-  first (falling back to the working directory), with depth/size limits; token pasting (`##`) and
-  parameter stringification (`#`) are supported, and `#error` text is
-  macro-expanded; angle includes use the same local resolution.  `#if`
-  and `#else` take integer constant expressions with `defined` (with or
-  without parentheses), `! ~ + -`, `* / %`, `+ -`, shifts, comparisons,
-  `& ^ |`, `&&` and `||`, including decimal/hexadecimal/octal/binary
-  literals and character constants; an undefined identifier is zero, and
-  division by zero, malformed literals and unbalanced parentheses are
-  clear errors.  `#elif` and non-pack `#pragma` are rejected;
+  `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#elif`/`#else`/`#endif`,
+  with object macros expanded outside strings/comments.  Function-like
+  macros support named and variadic (`...`/`__VA_ARGS__`) parameters on a
+  single line.  Quoted `#include "path"` resolves relative to the including
+  file first (falling back to the working directory), with depth/size
+  limits; token pasting (`##`) and parameter stringification (`#`) are
+  supported, and `#error` text is macro-expanded; angle includes use the
+  same local resolution.  `#if`/`#elif` take integer constant expressions
+  with `defined` (with or without parentheses), `! ~ + -`, `* / %`, `+ -`,
+  shifts, comparisons, `& ^ |`, `&&` and `||`, including
+  decimal/hexadecimal/octal/binary literals and character constants; an
+  undefined identifier is zero, and division by zero, malformed literals
+  and unbalanced parentheses are clear errors.  `#elif` selects the first
+  true branch, `#else` is taken only when no earlier branch was, and a
+  skipped group is not parsed (only its conditional nesting is tracked).
+  Compact `#if(expr)`/`#elif(expr)` and comments immediately after
+  `#else`/`#endif` are accepted.  Non-pack `#pragma` directives are ignored
+  like a C compiler treats diagnostic/optimisation hints;
   `#pragma pack(n/push/pop)` drives layout.
 * `__attribute__((packed))`/`aligned(n)` before the struct tag or after
   the body (alone or combined) are supported; other attributes,
