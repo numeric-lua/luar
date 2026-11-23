@@ -87,14 +87,16 @@ make correct against an unmodified VM.
   bitwise, variable and constant shifts, unary minus, integer floor
   division/modulo, integer and float-controlled `for` loops (including
   branch bodies in both), simple `while` loops, constant string-key field
-  reads with an entry value guard, one raw array read per loop
-  (`t[1]`/`GETI` or `t[i]`/`GETTABLE`, including inside a branch body), and
-  raw-array sum intrinsics over a register table or a closure upvalue.
+  reads with an entry value guard, up to two raw array reads per loop
+  (`t[1]`/`GETI` or `t[i]`/`GETTABLE`, including inside a branch body), a
+  three-table `a[i] + b[i] + c[i]` sum intrinsic, and raw-array sum
+  intrinsics over a register table or a closure upvalue.
   Experimental
   register-cached prefix/square-sum loops and opt-in raw array
   lookups/stores use the 5.5 split array representation,
   independent retry after a rejected sibling loop, up to two compiled
-  loops per Proto, and a fixed register ABI.  `jit.flush()` invalidates
+  loops per Proto, a fixed register ABI, and rejection of any loop whose
+  carried registers change type across iterations.  `jit.flush()` invalidates
   the per-Proto hot state so flushed loops recompile.
 * **T2 compiles traces.** Guards fall back to the interpreter at the exact
   bytecode PC; there is no deoptimisation of compiled frames, because

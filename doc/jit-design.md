@@ -40,7 +40,11 @@ is provably observationally equivalent to that interpreter.
   register-cached fill/sum loops.
   Conditional backedges from `repeat ... until` are recorded and compiled,
   with register-cached sum/subtraction/product/square fast paths (integer
-  or float); other backward inner loops still fall back.  A `Proto` keeps the first compiled
+  or float); other backward inner loops still fall back.  The raw-array
+  tier also has a `s = s + a[i] + b[i] + c[i]` intrinsic over three arrays.
+  A loop whose carried registers change type between iterations is rejected
+  (the emitter guards tags only at entry), including straight-line bodies
+  that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled
   loop and the most recently compiled one (two slots); a 64-bit bloom of
   hot backedges prevents retrying rejected loops.  Guard failures increment `jit.stats().exits` and a per-code-slot counter;
   a failed guarded loop can compile a second numeric variant from the live

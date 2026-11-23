@@ -394,6 +394,96 @@ static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* LUAR: `s = s + a[i] + b[i] + c[i]` over three raw arrays.  This is a
+** common dot-product shape that the generic table decoder rejected because
+** it allows at most two raw reads.  The C intrinsic runs the remaining
+** iterations; it re-checks every array and the element tags, so a short
+** table, metatable or non-numeric element falls back without changing the
+** visible accumulator. */
+static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                              int for_a, int t1, int t2, int t3,
+                              int acc, int res) {
+  int slot = -1, k;
+  if (res == acc)
+    return 0;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = 11;
+  p->luar_tint_pc[slot] = (int)backedge;
+  p->luar_tint_table[slot] = t1;
+  p->luar_tint_keys[slot] = t2;
+  p->luar_tint_upval[slot] = t3;
+  p->luar_tint_acc[slot] = acc;
+  p->luar_tint_res[slot] = res;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
+static int match_three_table_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                                  ptrdiff_t backedge, int for_a, TValue *b) {
+  Instruction i0, i1, i2, i3, i4, i5, i6, i7, i8;
+  int r1, r2, r3, acc, t1, t2, t3, idx;
+  if (backedge != start + 9)
+    return 0;
+  i0 = p->code[start];
+  i1 = p->code[start + 1];
+  i2 = p->code[start + 2];
+  i3 = p->code[start + 3];
+  i4 = p->code[start + 4];
+  i5 = p->code[start + 5];
+  i6 = p->code[start + 6];
+  i7 = p->code[start + 7];
+  i8 = p->code[start + 8];
+  if (GET_OPCODE(i0) != OP_GETTABLE || GET_OPCODE(i1) != OP_ADD ||
+      GET_OPCODE(i2) != OP_MMBIN ||
+      GET_OPCODE(i3) != OP_GETTABLE || GET_OPCODE(i4) != OP_ADD ||
+      GET_OPCODE(i5) != OP_MMBIN ||
+      GET_OPCODE(i6) != OP_GETTABLE || GET_OPCODE(i7) != OP_ADD ||
+      GET_OPCODE(i8) != OP_MMBIN)
+    return 0;
+  r1 = GETARG_A(i0);
+  t1 = GETARG_B(i0);
+  idx = GETARG_C(i0);
+  r2 = GETARG_A(i3);
+  t2 = GETARG_B(i3);
+  r3 = GETARG_A(i6);
+  t3 = GETARG_B(i6);
+  acc = GETARG_A(i7);
+  if (GETARG_C(i3) != idx || GETARG_C(i6) != idx || idx != for_a + 2)
+    return 0;
+  if (GETARG_A(i1) != r1 || GETARG_B(i1) != acc || GETARG_C(i1) != r1)
+    return 0;
+  if (GETARG_A(i4) != r1 || GETARG_B(i4) != r1 || GETARG_C(i4) != r2)
+    return 0;
+  if (GETARG_B(i7) != r1 || GETARG_C(i7) != r3)
+    return 0;
+  /* The compiler reuses the dead second-element temp for the third read,
+  ** so r2 == r3 is normal; both must stay distinct from the live sum temp
+  ** and the accumulator. */
+  if (r1 == r2 || r1 == r3 ||
+      acc == r1 || acc == r2 || acc == r3)
+    return 0;
+  if (is_control_reg(r1, for_a) || is_control_reg(r2, for_a) ||
+      is_control_reg(r3, for_a) || is_control_reg(acc, for_a))
+    return 0;
+  if (!ttistable(&b[t1]) || !ttistable(&b[t2]) || !ttistable(&b[t3]))
+    return 0;
+  if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
+    return 0;
+  return install_three_sum(p, J, backedge, for_a, t1, t2, t3, acc, r3);
+}
+
+
 static int match_closure_loop (Proto *p, ptrdiff_t start,
                                ptrdiff_t backedge, int for_a, TValue *base,
                                LuaR_LoopDesc *d) {
@@ -856,6 +946,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                                  GETARG_B(i2), 0, GETARG_B(i0),
                                  GETARG_A(i3), GETARG_A(i2));
     }
+    if (!for_float && J->enable_tint &&
+        match_three_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
     if (n >= 9 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
         (GET_OPCODE(p->code[start + 2]) == OP_LOADI ||
@@ -2801,6 +2894,105 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
 }
 
 
+static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
+                               int t1, int t2, int t3, int acc_reg,
+                               int res_reg) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *at = &base[acc_reg];
+  TValue *tv[3];
+  Table *h[3];
+  lua_Integer count, step, idx, last, k;
+  int j;
+  (void)L;
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0)
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  tv[0] = &base[t1];
+  tv[1] = &base[t2];
+  tv[2] = &base[t3];
+  for (j = 0; j < 3; j++) {
+    if (!ttistable(tv[j]))
+      return 0;
+    h[j] = hvalue(tv[j]);
+    if (h[j]->metatable != NULL ||
+        (lua_Unsigned)last > (lua_Unsigned)h[j]->asize)
+      return 0;
+  }
+  if (ttisinteger(at)) {
+    lua_Unsigned sum = l_castS2U(ivalue(at));
+    lua_Number fsum = 0;
+    int promoted = 0;
+    for (k = 0; k <= count; k++) {
+      unsigned key = (unsigned)(idx + k - 1);
+      for (j = 0; j < 3; j++) {
+        lu_byte tag = *getArrTag(h[j], key);
+        if (tag == LUA_VNUMINT) {
+          if (promoted)
+            fsum += cast_num(getArrVal(h[j], key)->i);
+          else
+            sum += l_castS2U(getArrVal(h[j], key)->i);
+        }
+        else if (tag == LUA_VNUMFLT) {
+          if (!promoted) {
+            fsum = cast_num(l_castU2S(sum));
+            promoted = 1;
+          }
+          fsum += getArrVal(h[j], key)->n;
+        }
+        else
+          return 0;
+      }
+    }
+    if (promoted) {
+      setfltvalue(at, fsum);
+    }
+    else {
+      chgivalue(at, l_castU2S(sum));
+    }
+  }
+  else if (ttisfloat(at)) {
+    lua_Number sum = fltvalue(at);
+    for (k = 0; k <= count; k++) {
+      unsigned key = (unsigned)(idx + k - 1);
+      for (j = 0; j < 3; j++) {
+        lu_byte tag = *getArrTag(h[j], key);
+        if (tag == LUA_VNUMINT)
+          sum += cast_num(getArrVal(h[j], key)->i);
+        else if (tag == LUA_VNUMFLT)
+          sum += getArrVal(h[j], key)->n;
+        else
+          return 0;
+      }
+    }
+    setfltvalue(at, sum);
+  }
+  else
+    return 0;
+  if (res_reg != acc_reg && res_reg >= 0) {
+    unsigned rkey = (unsigned)(idx + count - 1);
+    lu_byte rtag = *getArrTag(h[2], rkey);
+    if (rtag == LUA_VNUMINT) {
+      setivalue(&base[res_reg], getArrVal(h[2], rkey)->i);
+    }
+    else {
+      setfltvalue(&base[res_reg], getArrVal(h[2], rkey)->n);
+    }
+  }
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 static int method_add_intrinsic (lua_State *L, Proto *caller, TValue *base,
                                 int for_a, TValue *tt, int method_key) {
   TValue *ct = &base[for_a];
@@ -3908,6 +4100,14 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                 p->luar_tint_acc[i], p->luar_tint_res[i]);
           break;
         }
+        case 11:
+          r = table_sum3_intrinsic(L, (TValue *)base, expected_base,
+                                   p->luar_tint_table[i],
+                                   p->luar_tint_keys[i],
+                                   p->luar_tint_upval[i],
+                                   p->luar_tint_acc[i],
+                                   p->luar_tint_res[i]);
+          break;
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
@@ -3975,7 +4175,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || kind == 10)
+        if (kind <= 4 || kind == 10 || kind == 11)
           p->luar_tint[i] = 0;
       }
       else
