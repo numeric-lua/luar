@@ -78,13 +78,60 @@ CData *ffi_checkcdata (lua_State *L, int idx, const char *fname) {
 }
 
 
+/* LUAR: parsed type names are the hot path of ffi.new/ffi.cast/ffi.sizeof
+** in numeric code.  Cache the interned ctype object keyed by the exact
+** source spelling, capped so dynamically generated names cannot grow the
+** registry without bound.  Only successful parses are cached; a later
+** cdef can still define a typedef or complete a forward struct, because
+** both cases mutate/reuse the interned CType or simply miss the cache
+** until the first successful parse. */
+#define LUAR_FFI_TYPECACHE	"luar.ffi.typecache"
+#define LUAR_FFI_TYPECACHE_MAX	1024
+
+static CType *ffi_parse_type_cached (lua_State *L, FFIState *S,
+                                     const char *s, size_t len) {
+  CType *ct;
+  lua_getfield(L, LUA_REGISTRYINDEX, LUAR_FFI_TYPECACHE);
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    lua_newtable(L);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, LUA_REGISTRYINDEX, LUAR_FFI_TYPECACHE);
+  }
+  lua_pushlstring(L, s, len);
+  lua_rawget(L, -2);
+  if (lua_type(L, -1) == LUA_TUSERDATA) {
+    CData *cd = ffi_tocdata(L, -1);
+    if (cd != NULL && (cd->flags & CDATA_CTYPE) != 0) {
+      ct = cd->ct;
+      lua_pop(L, 2);
+      return ct;
+    }
+  }
+  lua_pop(L, 1);			/* drop the miss */
+  ct = ffi_parse_type(L, S, s, len);
+  {
+    size_t n = lua_rawlen(L, -1);
+    if (n < LUAR_FFI_TYPECACHE_MAX) {
+      lua_pushboolean(L, 1);
+      lua_rawseti(L, -2, (lua_Integer)n + 1);	/* count marker */
+      lua_pushlstring(L, s, len);
+      ffi_push_ctype(L, S, ct);
+      lua_rawset(L, -3);		/* cache[name] = ctype */
+    }
+  }
+  lua_pop(L, 1);
+  return ct;
+}
+
+
 CType *ffi_checkctype (lua_State *L, int idx, const char *fname) {
   int t = lua_type(L, idx);
   (void)fname;
   if (t == LUA_TSTRING) {
     size_t len;
     const char *s = lua_tolstring(L, idx, &len);
-    return ffi_parse_type(L, ffi_getstate(L), s, len);
+    return ffi_parse_type_cached(L, ffi_getstate(L), s, len);
   }
   if (t == LUA_TUSERDATA) {
     CData *cd = ffi_tocdata(L, idx);
@@ -2470,7 +2517,7 @@ static int ffi_typeof (lua_State *L) {
   if (lua_type(L, 1) == LUA_TSTRING) {
     size_t len;
     const char *s = lua_tolstring(L, 1, &len);
-    CType *ct = ffi_parse_type(L, S, s, len);
+    CType *ct = ffi_parse_type_cached(L, S, s, len);
     ffi_push_ctype(L, S, ct);
     return 1;
   }
