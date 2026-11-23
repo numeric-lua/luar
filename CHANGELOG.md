@@ -6,6 +6,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.202.0] — 2026-11-23
+
 ### Added
 
 - J2 sums and subtracts two raw arrays in one C pass
