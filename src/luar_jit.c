@@ -640,6 +640,70 @@ static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `s = s + a[i] * b[i]` (and its `a[i] * a[i]` square special case).
+** The two reads and the MUL live in a temporary, then the accumulator gets
+** the product.  Both sources may be registers or upvalues. */
+static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                              ptrdiff_t backedge, int for_a) {
+  LuaR_PairRead ra, rb;
+  Instruction mul, mm1, add, mm2;
+  ptrdiff_t i = start;
+  int res, acc, mb, mc, ab, ac;
+  if (!match_pair_read(p, &i, backedge, for_a, &ra))
+    return 0;
+  if (!match_pair_read(p, &i, backedge, for_a, &rb))
+    return 0;
+  if (ra.val == rb.val)   /* the second read would clobber the first */
+    return 0;
+  if (i >= backedge)
+    return 0;
+  mul = p->code[i];
+  if (GET_OPCODE(mul) != OP_MUL)
+    return 0;
+  res = GETARG_A(mul);
+  mb = GETARG_B(mul);
+  mc = GETARG_C(mul);
+  if (!((mb == ra.val && mc == rb.val) ||
+        (mb == rb.val && mc == ra.val)))
+    return 0;
+  if (is_control_reg(res, for_a) || res == for_a + 2)
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  mm1 = p->code[i];
+  if (GET_OPCODE(mm1) != OP_MMBIN)
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  add = p->code[i];
+  if (GET_OPCODE(add) != OP_ADD)
+    return 0;
+  acc = GETARG_A(add);
+  ab = GETARG_B(add);
+  ac = GETARG_C(add);
+  if (!((ab == acc && ac == res) || (ab == res && ac == acc)))
+    return 0;
+  if (is_control_reg(acc, for_a) || acc == for_a + 2 || acc == res ||
+      acc == ra.val || acc == rb.val)
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  mm2 = p->code[i];
+  if (GET_OPCODE(mm2) != OP_MMBIN)
+    return 0;
+  i++;
+  if (i != backedge)
+    return 0;
+  if (is_control_reg(ra.val, for_a) || is_control_reg(rb.val, for_a))
+    return 0;
+  return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, res,
+                                14);
+}
+
+
 static int match_closure_loop (Proto *p, ptrdiff_t start,
                                ptrdiff_t backedge, int for_a, TValue *base,
                                LuaR_LoopDesc *d) {
@@ -1107,6 +1171,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_pair_sum(p, J, start, backedge, for_a))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_dot_product(p, J, start, backedge, for_a))
       return 1;
     if (n >= 9 && GET_OPCODE(i0) == OP_MOVE &&
         GET_OPCODE(p->code[start + 1]) == OP_MOVE &&
@@ -3212,6 +3279,13 @@ static LuaR_PairNum pair_sub (LuaR_PairNum a, LuaR_PairNum b) {
 }
 
 
+static LuaR_PairNum pair_mul (LuaR_PairNum a, LuaR_PairNum b) {
+  if (a.isflt || b.isflt)
+    return pair_flt(pair_number(a) * pair_number(b));
+  return pair_int(l_castU2S(l_castS2U(a.i) * l_castS2U(b.i)));
+}
+
+
 static LuaR_PairNum pair_from_slot (const TValue *v, int *ok) {
   if (ttisinteger(v))
     return pair_int(ivalue(v));
@@ -3267,7 +3341,8 @@ static int pair_check_array (Table *h, lua_Integer idx, lua_Integer count) {
 
 
 /* kind 12: s = s + a[i] + b[i]
-** kind 13: s = s + a[i] - b[i] */
+** kind 13: s = s + a[i] - b[i]
+** kind 14: s = s + a[i] * b[i]  (a and b may be the same table) */
 static void pair_store_slot (TValue *base, int reg, LuaR_PairNum v,
                              int acc_reg) {
   if (reg < 0 || reg == acc_reg)
@@ -3322,7 +3397,12 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
     LuaR_PairNum bv = pair_from_array(hb, key);
     last_a = av;
     last_b = bv;
-    {
+    if (kind == 14) {
+      LuaR_PairNum prod = pair_mul(av, bv);
+      last_temp = prod;
+      acc = pair_add(acc, prod);
+    }
+    else {
       LuaR_PairNum t = pair_add(acc, av);
       last_temp = t;
       acc = (kind == 13) ? pair_sub(t, bv) : pair_add(t, bv);
@@ -4462,7 +4542,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                    p->luar_tint_res[i]);
           break;
         case 12:
-        case 13: {
+        case 13:
+        case 14: {
           int aenc = p->luar_tint_table[i];
           int benc = p->luar_tint_keys[i];
           int areg = (aenc >= 0) ? aenc : -1;
