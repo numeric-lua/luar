@@ -2584,14 +2584,14 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
+  if (count < 0 || step != 1 || idx <= 0)
     return 0;
   if (idx > LUA_MAXINTEGER - count)
     return 0;
   last = idx + count;
-  if (last > (1 << 22))
-    return 0;
-  if (h->metatable != NULL || (unsigned)last > h->asize)
+  /* The array size is a 32-bit unsigned, so a larger remaining count can
+  ** never be fully inside the array part.  Compare without truncating. */
+  if (h->metatable != NULL || (lua_Unsigned)last > (lua_Unsigned)h->asize)
     return 0;
   if (ttisinteger(at)) {
     lua_Unsigned sum = l_castS2U(ivalue(at));
@@ -2723,7 +2723,7 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
+  if (count < 0 || step != 1 || idx <= 0)
     return 0;
   if (idx > LUA_MAXINTEGER - count)
     return 0;
@@ -3873,11 +3873,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
     if (p->luar_tint[i] != 0 && p->luar_tint_pc[i] == pc &&
         p->luar_tint_base[i] == expected_base) {
       int r;
+      int kind = p->luar_tint[i];
       if (p->luar_tint_epoch[i] != J->epoch) {
         p->luar_tint[i] = 0;
         continue;
       }
-      switch (p->luar_tint[i]) {
+      switch (kind) {
         case 1:
           r = table_fill_intrinsic(L, (TValue *)base, expected_base,
                                    p->luar_tint_table[i]);
@@ -3962,8 +3963,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           break;
         }
       }
-      if (r == 0)
+      if (r == 0) {
         J->exits++;
+        /* LUAR: a raw-table intrinsic that cannot cover this iteration
+        ** (non-array shape, metatable, short table, size cap) would fail
+        ** again at every backedge.  A missing key late in a large loop
+        ** made that quadratic.  The backedge is already in the seen bloom,
+        ** so dropping the slot falls back to the interpreter for good. */
+        if (kind <= 4 || kind == 10)
+          p->luar_tint[i] = 0;
+      }
       else
         J->tint_hits++;   /* LUAR: observable proof the intrinsic ran */
       return r;
