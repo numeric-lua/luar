@@ -490,7 +490,9 @@ int luar_trace_ir_snapshot (LuaR_IRExitState *ex, int32_t pc, TValue *base,
   ex->pc = pc;
   ex->nslots = (uint8_t)nslots;
   for (i = 0; i < nslots; i++) {
-    ex->tags[i] = ttypetag(&base[i]);
+    /* Keep the collectable bit: ttypetag() strips it, and restoring a table
+    ** as a bare LUA_VTABLE tag makes the VM treat the slot as non-table. */
+    ex->tags[i] = rawtt(&base[i]);
     memcpy(&ex->bits[i], &base[i].value_, sizeof(uint64_t));
   }
   return 1;
@@ -4771,6 +4773,16 @@ int luar_trace_ir_selftest (void) {
   if (base[0].tt_ == LUA_VNUMINT) return 0;
   if (!luar_trace_ir_restore(&ex, base)) return 0;
   if (!ttisinteger(&base[0]) || ivalue(&base[0]) != 41) return 0;
+  /* The snapshot must keep the collectable bit for heap values. */
+  base[0].tt_ = ctb(LUA_VTABLE);
+  base[0].value_.p = (void *)(uintptr_t)0x1234;
+  if (!luar_trace_ir_snapshot(&ex, 12, base, 1)) return 0;
+  base[0].tt_ = LUA_VNIL;
+  base[0].value_.p = NULL;
+  if (!luar_trace_ir_restore(&ex, base)) return 0;
+  if (rawtt(&base[0]) != ctb(LUA_VTABLE) ||
+      base[0].value_.p != (void *)(uintptr_t)0x1234)
+    return 0;
   in.kind = LUAR_IR_SLOAD; in.a = 4; in.b = 0;
   if (!luar_trace_ir_emit(&t, &in)) return 0;
   if (luar_trace_ir_verify(&t, err, sizeof(err))) return 0;  /* bad slot */
