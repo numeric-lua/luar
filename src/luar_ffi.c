@@ -1048,11 +1048,26 @@ int ffi_do_new (lua_State *L, FFIState *S, CType *ct, int argstart) {
       }
       else if (nrem == 1 && t == LUA_TUSERDATA) {
         CData *src = ffi_tocdata(L, argi);
-        if (src != NULL && src->ct == ct) {
+        if (src != NULL && (src->flags & CDATA_CTYPE) == 0 &&
+            src->ct == ct) {
           if (ffi_cdata_size(src) != bytes)
             luaL_error(L, "ffi: incompatible array initializer for '%s'",
                        ffi_type_repr(S, ct));
           memcpy(cd->v.p, value_addr(src), bytes);
+        }
+        else if (src != NULL && (src->flags & CDATA_CTYPE) == 0 &&
+                 (src->ct->kind == CT_ARRAY ||
+                  src->ct->kind == CT_STRUCT ||
+                  src->ct->kind == CT_UNION ||
+                  src->ct->kind == CT_POINTER ||
+                  src->ct->kind == CT_FUNC)) {
+          /* LUAR: one aggregate/pointer cdata is an element initializer,
+          ** not an array to copy.  The old fall-through converted its
+          ** address to the element type and then broadcast that scalar,
+          ** which both read an array out of bounds and silently produced
+          ** garbage for a mismatched source array. */
+          luaL_error(L, "ffi: incompatible array initializer for '%s'",
+                     ffi_type_repr(S, ct));
         }
         else {
           init_array_args(L, S, ct, cd->v.p, n, argi, total,

@@ -235,7 +235,10 @@ Struct/union definitions cannot be redefined in the same Lua state.
   (0-based or 1-based numeric keys), with positional constructor arguments
   (`ffi.new("int[3]", 1, 2, 3)`), or with a string for 1-byte element
   types.  A single initializer is replicated across the whole array, as in
-  LuaJIT.  All remaining bytes are zero.
+  LuaJIT.  All remaining bytes are zero.  Only scalar cdata (numeric,
+  boolean or enum) can be that single broadcast initializer; a cdata array,
+  struct, union, pointer or function value is rejected instead of being
+  converted to its address and copied as an element.
 * Structs and unions are zero-initialized and can be initialized from a
   table with named and/or positional fields, or from positional arguments
   (`ffi.new("struct P", 1, 2)` fills the first two named fields; omitted
