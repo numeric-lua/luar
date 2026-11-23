@@ -6,6 +6,55 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.203.0] — 2026-11-23
+
+### Added
+
+- FFI arrays decay to pointers for arithmetic and address comparison, as in
+  C and LuaJIT: `a + 1`, `1 + a`, `a - 1`, `a - a`, `a == p` and compatible
+  array/pointer ordering now work and produce pointer or integer results.
+  Pointer ordering also requires compatible base types, and mixing function
+  pointers with object pointers or arrays raises.
+- J2 sums three raw arrays from any mix of register locals and closure
+  upvalues (`s = s + a[i] + b[i] + c[i]`), re-resolving each upvalue at
+  every entry and preserving the exact int-wrap/float-promotion order.
+- J2 runs scaled raw-array reductions (`s = s + a[i] * k`) where the scalar
+  is a numeric constant, a register local/parameter or a closure upvalue.
+  The element and product registers keep their post-loop values.
+- J2 raw-array reductions now follow the interpreter's FORLOOP key sequence
+  for any nonzero integer step, including descending loops.  The
+  single-array sum, pair sum/difference, dot product, three-array sum and
+  scaled sum intrinsics share overflow- and bounds-checked strided walks.
+
+### Fixed
+
+- The method-add intrinsic used the GETFIELD key as the store key, so
+  `function o:add(x) self.w = self.v + x end` accumulated into `self.v` and
+  never updated `self.w`.  It now requires the same constant key for the
+  read and write and a `self` receiver.
+- The fast `while` peephole dropped an `i*i` temporary when the body also
+  used `s = s * i`, `s = s - i` or `s = s / i`: the emitter selects one
+  operation and only the square/linear forms write the temporary.  Such
+  bodies fall back to the generic branch emitter.
+- Generic bottom-tested `repeat` loops used a reusable local DynASM label
+  for their exit.  On a negative-step body whose work precedes the
+  increment, the exit label resolved incorrectly, leaving `eax` unset; the
+  caller then re-ran the body one extra time (or looped).  The exit now
+  uses the same epilogue label as ordinary `while` loops.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/119_array_decay.lua`,
+`tests/jit/167_three_sum_upvalues.lua`,
+`tests/jit/168_scaled_array_sum.lua`,
+`tests/jit/169_strided_array_sum.lua`,
+`tests/jit/170_method_distinct_field.lua`,
+`tests/jit/171_while_temp_writes.lua` and
+`tests/jit/172_repeat_negative_step.lua`.
+
 ## [0.202.0] — 2026-11-23
 
 ### Added
