@@ -718,11 +718,12 @@ static void init_struct_to (lua_State *L, FFIState *S, CType *ct,
 /* ------------------------------------------------------------------ */
 
 /* LUAR: LuaJIT's FFI integer arguments are C conversions, not Lua integer
-** coercions.  A finite float is truncated towards zero, while strings and
-** booleans are not accepted.  Lua 5.5's luaL_checkinteger rejects 1.9 and
-** accepts "1", which is the opposite of LuaJIT and surprising for a C API;
+** coercions.  A finite float is truncated towards zero, while strings are
+** not accepted.  Lua 5.5's luaL_checkinteger rejects 1.9 and accepts "1",
+** which is the opposite of LuaJIT and surprising for a C API;
 ** NaN/infinity/out-of-range values are rejected instead of invoking
-** undefined C conversions. */
+** undefined C conversions.  Numeric cdata is accepted with the same rules,
+** so a length or index can be an int64/uint64/enum value. */
 static lua_Integer check_c_int_arg (lua_State *L, int idx, const char *what,
                                     int optional, lua_Integer def) {
   if (lua_isnoneornil(L, idx)) {
@@ -730,16 +731,40 @@ static lua_Integer check_c_int_arg (lua_State *L, int idx, const char *what,
       return def;
     luaL_error(L, "ffi: %s is required", what);
   }
-  if (lua_type(L, idx) != LUA_TNUMBER)
-    luaL_error(L, "ffi: %s must be a number", what);
-  if (lua_isinteger(L, idx))
-    return lua_tointeger(L, idx);
-  {
-    lua_Number n = lua_tonumber(L, idx);
-    if (!(n >= -9223372036854775808.0 && n < 9223372036854775808.0))
-      luaL_error(L, "ffi: %s is out of range", what);
-    return (lua_Integer)n;
+  if (lua_type(L, idx) == LUA_TNUMBER) {
+    if (lua_isinteger(L, idx))
+      return lua_tointeger(L, idx);
+    {
+      lua_Number n = lua_tonumber(L, idx);
+      if (!(n >= -9223372036854775808.0 && n < 9223372036854775808.0))
+        luaL_error(L, "ffi: %s is out of range", what);
+      return (lua_Integer)n;
+    }
   }
+  {
+    CData *cd = ffi_tocdata(L, idx);
+    if (cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
+        ffi_is_numeric(cd->ct)) {
+      FFIState *S = ffi_getstate(L);
+      if (cd->ct->kind == CT_FLOAT) {
+        int ok = 1;
+        lua_Number n = ffi_to_double(L, S, idx, &ok);
+        if (!ok || !(n >= -9223372036854775808.0 &&
+                     n < 9223372036854775808.0))
+          luaL_error(L, "ffi: %s is out of range", what);
+        return (lua_Integer)n;
+      }
+      {
+        int ok = 1;
+        lua_Integer n = ffi_to_int(L, S, idx, &ok);
+        if (!ok)
+          luaL_error(L, "ffi: %s must be a number", what);
+        return n;
+      }
+    }
+  }
+  luaL_error(L, "ffi: %s must be a number", what);
+  return 0;
 }
 
 
@@ -1227,6 +1252,15 @@ static int cdata_set_index (lua_State *L, FFIState *S, CData *cd,
 }
 
 
+/* LuaJIT accepts an integer cdata as an array index, but rejects float and
+** bool cdata (even though the latter are numeric for length arguments). */
+static int cdata_integer_index (lua_State *L, int idx) {
+  CData *cd = ffi_tocdata(L, idx);
+  return cd != NULL && (cd->flags & CDATA_CTYPE) == 0 &&
+         (cd->ct->kind == CT_INT || cd->ct->kind == CT_ENUM);
+}
+
+
 static int cdata_index (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CData *cd = ffi_checkcdata(L, 1, "__index");
@@ -1256,6 +1290,11 @@ static int cdata_index (lua_State *L) {
     }
     luaL_error(L, "ffi: '%s' has no member named '%s'",
                ffi_type_repr(S, ct), name);
+  }
+  if (lua_type(L, 2) == LUA_TUSERDATA && cdata_integer_index(L, 2)) {
+    if (ct->kind == CT_ARRAY || ct->kind == CT_POINTER)
+      return cdata_get_index(L, S, cd,
+                             check_c_int_arg(L, 2, "array index", 0, 0));
   }
   if (lua_type(L, 2) == LUA_TNUMBER) {
     if (ct->kind == CT_ARRAY || ct->kind == CT_POINTER)
@@ -1299,6 +1338,13 @@ static int cdata_newindex (lua_State *L) {
     }
     luaL_error(L, "ffi: '%s' has no member named '%s'",
                ffi_type_repr(S, ct), name);
+  }
+  if (lua_type(L, 2) == LUA_TUSERDATA && cdata_integer_index(L, 2)) {
+    if (ct->kind == CT_ARRAY || ct->kind == CT_POINTER) {
+      cdata_set_index(L, S, cd,
+                      check_c_int_arg(L, 2, "array index", 0, 0));
+      return 0;
+    }
   }
   if (lua_type(L, 2) == LUA_TNUMBER) {
     if (ct->kind == CT_ARRAY || ct->kind == CT_POINTER) {
