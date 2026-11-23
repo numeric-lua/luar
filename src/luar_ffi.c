@@ -2807,18 +2807,14 @@ static int ffi_metatype (lua_State *L) {
   if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
     luaL_error(L, "ffi.metatype: only struct/union types can have "
                   "a metatype");
-  if (ct->metatype_ref != LUA_NOREF) {
-    int same;
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ct->metatype_ref);
-    same = lua_rawequal(L, -1, 2);
-    lua_pop(L, 1);
-    if (!same)
-      luaL_error(L, "ffi.metatype: cannot change a protected metatable");
-  }
-  else {
-    lua_pushvalue(L, 2);
-    ct->metatype_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-  }
+  /* LUAR: a type has exactly one metatype.  LuaJIT raises even when the
+  ** same table is passed again; silently accepting a repeat made a second
+  ** registration look successful while the first table stayed in effect.
+  ** Reject every repeat so callers cannot believe they replaced it. */
+  if (ct->metatype_ref != LUA_NOREF)
+    luaL_error(L, "ffi.metatype: cannot change a protected metatable");
+  lua_pushvalue(L, 2);
+  ct->metatype_ref = luaL_ref(L, LUA_REGISTRYINDEX);
   ffi_push_ctype(L, S, ct);
   return 1;
 }

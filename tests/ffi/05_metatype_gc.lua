@@ -25,7 +25,8 @@ local vecmt = {
   end,
 }
 H.check(rawequal(ffi.metatype(Vec, vecmt), Vec))
-H.check(rawequal(ffi.metatype(Vec, vecmt), Vec))  -- same table is allowed
+-- A type has exactly one metatype; even the same table cannot be set twice.
+H.raises(function() ffi.metatype(Vec, vecmt) end, "protected")
 
 local v = ffi.new("Vec", {x = 3, y = 4})
 H.eq(type(v), "cdata")
