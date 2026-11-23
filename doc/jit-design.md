@@ -53,11 +53,17 @@ is provably observationally equivalent to that interpreter.
   `a[i] = b[i] OP c[i]` for add/subtract/multiply/divide/floor-divide/
   modulo.  Integer `//`/`%` by zero declines before any store so the
   interpreter raises the exact error; float zero follows the non-raising
-  float path.  The C helpers
-  replicate Lua's arithmetic promotion, then apply the FFI element-store
-  conversion; pointers (which have no bounded length), out-of-bounds runs
-  and 8-byte integer element reads stay on the interpreter because those
-  reads produce cdata, not Lua numbers.
+  float path.  Cdata arrays held in closure upvalues also reduce
+  (`s = s + a[i]`) and accept pure fills (`a[i] = v|i|constant`), with the
+  upvalue re-resolved on every entry.  Eight-byte integer destinations are
+  accepted by copy/scalar/pair stores because the destination is only
+  written; integer element arrays also update in place with `&`, `|`, `~`,
+  `<<`, `>>` and unary `~`/`-`.  A raw table reduction may read through a
+  constant table field (`s = s + obj.arr[i]`), re-validating that field on
+  every entry.  The C helpers replicate Lua's arithmetic promotion, then
+  apply the FFI element-store conversion; pointers (which have no bounded
+  length), out-of-bounds runs and 8-byte integer element reads stay on the
+  interpreter because those reads produce cdata, not Lua numbers.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled

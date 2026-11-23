@@ -6,6 +6,48 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.209.0] — 2026-11-24
+
+### Added
+
+- J2 sums bounded cdata arrays captured as closure upvalues
+  (`s = s + a[i]`).  The upvalue is re-resolved on every native entry, so
+  rebinding it to another array is observed like the interpreter; strided
+  and descending loops use the same FORLOOP key sequence as the register
+  form.
+- J2 fills cdata arrays held in closure upvalues (`a[i] = v`, `a[i] = i`
+  and numeric constants), including 8-byte integer destinations.  The
+  upvalue is re-resolved per entry and the GETUPVAL temporary keeps the
+  live array after the run.
+- J2 stores into 8-byte integer cdata destinations for element-wise copy,
+  source-scalar arithmetic and two-source arithmetic.  These are pure store
+  contexts: the helper applies the FFI C-store conversion and never loads
+  the destination element into a Lua slot, so int64_t/uint64_t arrays no
+  longer need to stay interpreted for writes.
+- J2 updates integer cdata arrays in place with `a[i] = a[i] & v`, `|`,
+  `~`, `<<`, `>>`, their immediate forms and unary `~a[i]`/`-a[i]`.  Lua's
+  integer conversion, two's-complement wrap and shift rules are preserved
+  (negative counts shift the other way, `|count| >= 64` yields zero), and a
+  non-integral operand declines before the first store so the interpreter
+  raises the exact error.
+- J2 sums a raw table array reached through a constant table field
+  (`s = s + obj.arr[i]`).  The field is re-read and validated on every
+  native entry, so replacing it, shrinking the array or making it missing
+  falls back to the interpreter; the GETFIELD/GETTABLE temporary keeps the
+  last element.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared`, `make test-dist`,
+`tools/upstream-check.sh` and `make dynasm-check` are green.  New
+coverage: `tests/ffi/144_j2_cdata_upval_sum.lua`,
+`tests/ffi/145_j2_cdata_i64_store.lua`,
+`tests/ffi/146_j2_cdata_bitwise_update.lua`,
+`tests/ffi/147_j2_cdata_upval_fill.lua` and
+`tests/jit/176_field_table_sum.lua`.
+
+
 ## [0.208.0] — 2026-11-24
 
 ### Added
