@@ -682,6 +682,7 @@ typedef struct Proto {
   int luar_tint_res[2];	/* LUAR: intermediate result slot */
   int luar_tint_arg4[2];
   int luar_tint_base[2];
+  l_uint32 luar_tint_suspend[2];	/* LUAR: call generation that declined */
   l_uint32 luar_tint_epoch[2];
   void *luar_fc_closure[2];
   int luar_fc_func[2];

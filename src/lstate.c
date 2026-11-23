@@ -156,6 +156,7 @@ static void resetCI (lua_State *L) {
   ci->top.p = ci->func.p + 1 + LUA_MINSTACK;  /* +1 for 'function' entry */
   ci->u.c.k = NULL;
   ci->callstatus = CIST_C;
+  ci->luar_gen = 0;  /* LUAR */
   L->status = LUA_OK;
   L->errfunc = 0;  /* stack unwind can "throw away" the error function */
 }
@@ -235,6 +236,7 @@ static void preinit_thread (lua_State *L, global_State *g) {
   L->nci = 0;
   L->twups = L;  /* thread has no upvalues */
   L->nCcalls = 0;
+  L->luar_callgen = 0;  /* LUAR */
   L->errorJmp = NULL;
   L->hook = NULL;
   L->hookmask = 0;

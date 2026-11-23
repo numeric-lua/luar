@@ -634,6 +634,7 @@ l_sinline CallInfo *prepCallInfo (lua_State *L, StkId func, unsigned status,
   lua_assert((status & ~(CIST_NRESULTS | CIST_C | MAX_CCMT)) == 0);
   ci->callstatus = status;
   ci->top.p = top;
+  ci->luar_gen = ++L->luar_callgen;  /* LUAR: new call identity */
   return ci;
 }
 

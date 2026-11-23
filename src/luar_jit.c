@@ -191,6 +191,7 @@ static int install_keyed_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 4;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = table;
   p->luar_tint_keys[slot] = keys;
@@ -222,6 +223,7 @@ static int install_upval_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 10;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = 0;
   p->luar_tint_keys[slot] = 0;
@@ -251,6 +253,7 @@ static int install_leaf4_intrinsic (Proto *p, LuaR_JIT *J,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 9;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = func_slot;
   p->luar_tint_keys[slot] = arg2_slot;
@@ -279,6 +282,7 @@ static int install_leaf3_intrinsic (Proto *p, LuaR_JIT *J,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 8;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = func_slot;
   p->luar_tint_keys[slot] = arg2_slot;
@@ -306,6 +310,7 @@ static int install_leaf2_intrinsic (Proto *p, LuaR_JIT *J,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 7;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = func_slot;
   p->luar_tint_keys[slot] = arg2_slot;
@@ -332,6 +337,7 @@ static int install_leaf_intrinsic (Proto *p, LuaR_JIT *J,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 6;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = func_slot;
   p->luar_tint_keys[slot] = 0;
@@ -358,6 +364,7 @@ static int install_method_intrinsic (Proto *p, LuaR_JIT *J,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 5;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = table;
   p->luar_tint_keys[slot] = method_key;
@@ -383,6 +390,7 @@ static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 3;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = table;
   p->luar_tint_keys[slot] = keys;
@@ -412,6 +420,7 @@ static int install_cdata_tint (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = kind;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = table;
   p->luar_tint_keys[slot] = keys;
@@ -1054,6 +1063,7 @@ static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 11;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = encode_pair_source(r1);
   p->luar_tint_keys[slot] = encode_pair_source(r2);
@@ -1090,6 +1100,7 @@ static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = 15;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = encode_pair_source(r);
   p->luar_tint_keys[slot] = scalar_enc;
@@ -1229,6 +1240,7 @@ static int install_pair_intrinsic (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
     slot = 1;
   p->luar_code[slot] = NULL;
   p->luar_tint[slot] = kind;
+  p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   /* Pack each source into one int: a register is the value itself, an
   ** upvalue is -1-index.  The two remaining slots keep the element
@@ -1933,8 +1945,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
   for (i = 0; i < 2; i++) {
     if (p->luar_code[i] != NULL && p->luar_code_epoch[i] != J->epoch)
       p->luar_code[i] = NULL;
-    if (p->luar_tint[i] != 0 && p->luar_tint_epoch[i] != J->epoch)
-      p->luar_tint[i] = 0;
+    if (p->luar_tint_epoch[i] != J->epoch || p->luar_tint[i] == 0) {
+      if (p->luar_tint_epoch[i] != J->epoch)
+        p->luar_tint[i] = 0;
+      p->luar_tint_suspend[i] = 0;
+    }
   }
   /* The emitter hard-codes the default 16-byte TValue, 64-bit integers and
   ** double floats; other configurations stay on the interpreter. */
@@ -3372,6 +3387,7 @@ decode_done:
       slot = 1;
     p->luar_code[slot] = NULL;
     p->luar_tint[slot] = tint;
+  p->luar_tint_suspend[slot] = 0;
     p->luar_tint_pc[slot] = (int)backedge;
     p->luar_tint_table[slot] = d.fast_fill ? d.ff_table : d.ft_table;
     p->luar_tint_acc[slot] = d.fast_tsum ? d.ft_acc : 0;
@@ -5567,7 +5583,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
   }
   for (i = 0; i < 2; i++) {
     if (p->luar_tint[i] != 0 && p->luar_tint_pc[i] == pc &&
-        p->luar_tint_base[i] == expected_base) {
+        p->luar_tint_base[i] == expected_base &&
+        p->luar_tint_suspend[i] != L->ci->luar_gen) {
       int r = 0;
       int kind = p->luar_tint[i];
       if (p->luar_tint_epoch[i] != J->epoch) {
@@ -5885,16 +5902,21 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       }
       if (r == 0) {
         J->exits++;
-        /* LUAR: a raw-table intrinsic that cannot cover this iteration
-        ** (non-array shape, metatable, short table, size cap) would fail
-        ** again at every backedge.  A missing key late in a large loop
-        ** made that quadratic.  The backedge is already in the seen bloom,
-        ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 27))
-          p->luar_tint[i] = 0;
+        /* LUAR: an intrinsic that cannot cover this iteration (out-of-range
+        ** call, non-array shape, metatable, short table, size cap) would
+        ** fail again at every backedge.  Suspend it only for this CallInfo,
+        ** so the rest of the current invocation runs on the interpreter but
+        ** the next invocation of the same loop retries.  A single transient
+        ** out-of-bounds call must not permanently disable a loop that is
+        ** native for every normal input.  A shape the intrinsic can never
+        ** handle pays one cheap helper attempt per call, not per
+        ** iteration. */
+        p->luar_tint_suspend[i] = L->ci->luar_gen;
       }
-      else
+      else {
+        p->luar_tint_suspend[i] = 0;
         J->tint_hits++;   /* LUAR: observable proof the intrinsic ran */
+      }
       return r;
     }
   }

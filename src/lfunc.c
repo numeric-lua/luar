@@ -273,6 +273,8 @@ Proto *luaF_newproto (lua_State *L) {
   f->luar_epoch = 0;
   f->luar_code[0] = NULL;     /* LUAR: J2 native loops */
   f->luar_code[1] = NULL;
+  f->luar_tint_suspend[0] = 0; /* LUAR: per-call intrinsic fallback */
+  f->luar_tint_suspend[1] = 0;
   f->luar_code_pc[0] = -1;
   f->luar_code_pc[1] = -1;
   f->luar_code_base[0] = -1;

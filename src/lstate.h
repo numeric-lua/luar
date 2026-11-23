@@ -207,6 +207,7 @@ struct CallInfo {
     int nres;  /* number of values returned */
   } u2;
   l_uint32 callstatus;
+  l_uint32 luar_gen;  /* LUAR: per-call generation (JIT intrinsic fallback) */
 };
 
 
@@ -301,6 +302,7 @@ struct lua_State {
   volatile lua_Hook hook;
   ptrdiff_t errfunc;  /* current error handling function (stack index) */
   l_uint32 nCcalls;  /* number of nested non-yieldable or C calls */
+  l_uint32 luar_callgen;  /* LUAR: monotonic call generation */
   int oldpc;  /* last pc traced */
   int nci;  /* number of items in 'ci' list */
   int basehookcount;
