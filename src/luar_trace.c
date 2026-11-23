@@ -4740,6 +4740,16 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         break;
       }
       case OP_FORLOOP:
+        /* LUAR: J4 has no float FORLOOP form.  The emitter's integer
+        ** decrement/add path reads the raw slot payloads, so recording a
+        ** float-controlled loop (including one whose body itself stays on
+        ** integers) would make it hang or wrap.  Reject it here and let
+        ** the J2 tier handle float loops; an integer loop has all three
+        ** control slots tagged as integers. */
+        if (!ttisinteger(&base[a]) ||
+            !ttisinteger(&base[a + 1]) ||
+            !ttisinteger(&base[a + 2]))
+          return 0;
         in.kind = LUAR_IR_FORLOOP; in.a = (uint8_t)a; in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         sawloop = 1;
