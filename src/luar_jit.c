@@ -730,6 +730,59 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* Match `s = s + obj.field[i]` where `obj` is a table in a register and
+** `field` is a constant string key naming a raw table field.  The helper
+** re-reads the field on every entry, so replacing it or changing the array
+** shape falls back to the interpreter.  The GETFIELD/GETTABLE destination
+** register keeps the last element after the run. */
+static int match_field_table_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                                  ptrdiff_t backedge, int for_a, TValue *b) {
+  ptrdiff_t n = backedge - start + 1;
+  Instruction i0, i1, i2, i3;
+  int treg, obj, keyidx, tmp, t2, keyreg, acc;
+  TValue *objv, field;
+  if (n != 5)
+    return 0;
+  i0 = p->code[start];
+  i1 = p->code[start + 1];
+  i2 = p->code[start + 2];
+  i3 = p->code[start + 3];
+  if (GET_OPCODE(i0) != OP_GETFIELD ||
+      GET_OPCODE(i1) != OP_GETTABLE ||
+      GET_OPCODE(i2) != OP_ADD ||
+      GET_OPCODE(i3) != OP_MMBIN)
+    return 0;
+  treg = GETARG_A(i0);
+  obj = GETARG_B(i0);
+  keyidx = GETARG_C(i0);
+  tmp = GETARG_A(i1);
+  t2 = GETARG_B(i1);
+  keyreg = GETARG_C(i1);
+  acc = GETARG_A(i2);
+  if (keyidx < 0 || keyidx >= p->sizek ||
+      !ttisstring(&p->k[keyidx]))
+    return 0;
+  if (tmp != treg || t2 != treg || keyreg != for_a + 2)
+    return 0;
+  if (GETARG_A(i2) != GETARG_B(i2) || GETARG_C(i2) != tmp)
+    return 0;
+  if (tmp == acc || is_control_reg(tmp, for_a) ||
+      is_control_reg(acc, for_a) || is_control_reg(obj, for_a))
+    return 0;
+  objv = &b[obj];
+  if (!ttistable(objv))
+    return 0;
+  memset(&field, 0, sizeof(field));
+  if (luaH_getstr(hvalue(objv), tsvalue(&p->k[keyidx]), &field) ==
+      LUA_TNIL)
+    return 0;
+  if (!ttistable(&field))
+    return 0;
+  return install_cdata_tint(p, J, backedge, 26, obj, keyidx, tmp,
+                            acc, tmp, 0, for_a);
+}
+
+
 /* A raw-array read used by the pair intrinsics.  The table can be a
 ** register local/parameter or a closure upvalue; the value lands in a
 ** separate register (the compiler may reuse that register for the table
@@ -5490,7 +5543,22 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   &((TValue *)base)[expected_base + 1],
                   &scalar,
                   &((TValue *)base)[p->luar_tint_acc[i]],
-                  p->luar_tint_upval[i]);
+                  op);
+          break;
+        }
+        case 26: {
+          int obj = p->luar_tint_table[i];
+          int keyidx = p->luar_tint_keys[i];
+          int tmp = p->luar_tint_upval[i];
+          TValue *ov = &((TValue *)base)[obj];
+          if (ttistable(ov)) {
+            TValue field;
+            memset(&field, 0, sizeof(field));
+            if (luaH_getstr(hvalue(ov), tsvalue(&p->k[keyidx]), &field) !=
+                LUA_TNIL && ttistable(&field))
+              r = table_sum_table(L, (TValue *)base, expected_base,
+                                  hvalue(&field), p->luar_tint_acc[i], tmp);
+          }
           break;
         }
         case 23:
@@ -5593,7 +5661,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 24))
+        if (kind <= 4 || (kind >= 10 && kind <= 26))
           p->luar_tint[i] = 0;
       }
       else
