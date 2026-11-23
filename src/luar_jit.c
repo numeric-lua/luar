@@ -2095,6 +2095,14 @@ decode_done:
                (temp >= 0 && (temp == acc || temp == idx ||
                               (limit >= 0 && temp == limit)))))
       ok = 0;
+    /* emit_fast_while compares the limit as a 64-bit integer.  A float
+    ** limit would otherwise pass the later branch-guard pass (which
+    ** re-reads the live type) and the native loop would compare against
+    ** the double's raw bits, possibly running a different number of
+    ** iterations or never terminating.  Let the generic branch emitter
+    ** handle mixed int/float comparisons. */
+    if (ok && limit >= 0 && ops[0].tb != LUAR_T_INT)
+      ok = 0;
     if (ok && acc >= 0 && idx >= 0 && accum_i >= 0 && inc_i > accum_i &&
         (limit >= 0 || has_imm)) {
       memset(seen, 0, sizeof(seen));
@@ -4395,6 +4403,159 @@ LUA_API int luar_has_jit (void) {
 /* Recording                                                         */
 /* ---------------------------------------------------------------- */
 
+/* FFI traces have their own cdata/call type rules and were already covered
+** by the FFI J4 suite; leave their floatification alone. */
+static int ir_has_ffi_ops (const LuaR_TraceIR *ir) {
+  int i;
+  for (i = 0; i < ir->nins; i++) {
+    switch (ir->ins[i].kind) {
+      case LUAR_IR_CGETI:
+      case LUAR_IR_CGETF:
+      case LUAR_IR_CSETI:
+      case LUAR_IR_CSETF:
+      case LUAR_IR_CGETFIELD:
+      case LUAR_IR_CSETFIELD:
+      case LUAR_IR_CSETFIELDK:
+      case LUAR_IR_CPGETI:
+      case LUAR_IR_CPGETF:
+      case LUAR_IR_CPSETI:
+      case LUAR_IR_CPSETF:
+      case LUAR_IR_CPGETI64:
+      case LUAR_IR_CPSETI64:
+      case LUAR_IR_CCPYI64:
+      case LUAR_IR_CADDI64:
+      case LUAR_IR_CMULI64:
+      case LUAR_IR_CDIVI64:
+      case LUAR_IR_CUDIVI64:
+      case LUAR_IR_CMODI64:
+      case LUAR_IR_CUMODI64:
+      case LUAR_IR_CBANDI64:
+      case LUAR_IR_CBORI64:
+      case LUAR_IR_CBXORI64:
+      case LUAR_IR_CSHLI64:
+      case LUAR_IR_CSHRI64:
+      case LUAR_IR_CNEGI64:
+      case LUAR_IR_CBNOTI64:
+      case LUAR_IR_CSETI64:
+      case LUAR_IR_CCALL0I:
+      case LUAR_IR_CCALL0D:
+      case LUAR_IR_CCALL1I:
+      case LUAR_IR_CCALL1DI:
+      case LUAR_IR_CCALL1DD:
+      case LUAR_IR_CCALL1FF:
+      case LUAR_IR_CCALL2DD:
+      case LUAR_IR_CCALL2FF:
+      case LUAR_IR_CCALL2FI:
+      case LUAR_IR_CCALL2IF:
+      case LUAR_IR_CCALL2FD:
+      case LUAR_IR_CCALL2DF:
+      case LUAR_IR_CCALL2DI:
+      case LUAR_IR_CCALL2ID:
+      case LUAR_IR_CCALL2II:
+      case LUAR_IR_CCALL3DD:
+      case LUAR_IR_CCALL3DDI:
+      case LUAR_IR_CCALL3DID:
+      case LUAR_IR_CCALL3IDD:
+        return 1;
+      default:
+        break;
+    }
+  }
+  return 0;
+}
+
+
+/* LUAR: after the float pass, verify that every remaining integer
+** arithmetic instruction really has integer operands.  The old pass
+** converted only the chain rooted at the first float it saw; a later
+** independent `t = t * 1` or `u = s * -1` stayed an integer MULK while
+** its operand was a double, and the emitter then reinterpreted the double
+** payload.  Rejecting the trace keeps the interpreter authoritative.
+*/
+static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
+  int type[LUAR_IR_MAX_SLOTS];
+  int i, ns = ir->maxslots;
+  if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
+  for (i = 0; i < ns; i++)
+    type[i] = ttisinteger(&base[i]) ? 1
+              : ttisfloat(&base[i]) ? 2 : 0;
+  for (i = 0; i < ir->nins; i++) {
+    const LuaR_IRIns *in = &ir->ins[i];
+    switch (in->kind) {
+      case LUAR_IR_GUARD:
+        if (in->b == LUAR_IR_TAG_INT) type[in->a] = 1;
+        else if (in->b == LUAR_IR_TAG_FLOAT) type[in->a] = 2;
+        break;
+      case LUAR_IR_KINT:
+      case LUAR_IR_LOADI:
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_LOADF:
+        type[in->a] = 2;
+        break;
+      case LUAR_IR_SLOAD:
+        type[in->a] = (in->b < ns) ? type[in->b] : 0;
+        break;
+      case LUAR_IR_ULOAD:
+        type[in->a] = 0;
+        break;
+      case LUAR_IR_ADDI:
+        if (type[in->b] != 1) return 0;
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_ADDK:
+      case LUAR_IR_SUBK:
+      case LUAR_IR_MODK:
+      case LUAR_IR_IDIVK:
+        /* No float variants exist for these K operations. */
+        if (type[in->b] != 1 || in->nval != (double)in->ival) return 0;
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_MULK:
+        if (type[in->b] != 1 || in->nval != (double)in->ival) return 0;
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_ADD:
+      case LUAR_IR_SUB:
+      case LUAR_IR_MUL:
+      case LUAR_IR_DIV:
+        if (type[in->b] != 1 || type[in->c] != 1) return 0;
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_FMULK:
+      case LUAR_IR_FDIVK:
+        if (type[in->b] != 2) return 0;
+        type[in->a] = 2;
+        break;
+      case LUAR_IR_FADDI:
+        if (type[in->b] != 2) return 0;
+        type[in->a] = 2;
+        break;
+      case LUAR_IR_FADD:
+      case LUAR_IR_FSUB:
+        if (type[in->b] != 2 || type[in->c] != 2) return 0;
+        type[in->a] = 2;
+        break;
+      case LUAR_IR_ITOF:
+        type[in->a] = 2;
+        break;
+      case LUAR_IR_TGET:
+      case LUAR_IR_TGETI:
+      case LUAR_IR_TGETK:
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_TGETF:
+      case LUAR_IR_TGETKF:
+        type[in->a] = 2;
+        break;
+      default:
+        break;
+    }
+  }
+  return 1;
+}
+
+
 static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
   int i, fslot = -1, sawtable = 0, sawfloat = 0;
   for (i = 0; i < ir->nins; i++) {
@@ -4607,7 +4768,8 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       continue;
     return 0;
   }
-  return sawtable && sawfloat;
+  return sawtable && sawfloat &&
+         (ir_has_ffi_ops(ir) || ir_float_consistent(ir, base));
 }
 
 

@@ -27,6 +27,11 @@ mid-loop side-trace milestone.
 - Side-link metadata: depth cap 4, cycle detection against the root loop
   target, reported by `ir_max_depth`/`ir_cycles`.
 - IR type/liveness analysis: **implemented** for integer and table ops.
+- Float specialization consistency: after `ir_floatify`, a trace that still
+  contains an integer arithmetic op on a float slot is rejected instead of
+  emitted.  This prevents an independent `t = t * 1` or `u = s * -1` chain
+  from reinterpreting a double payload as an integer; such loops fall back
+  to the interpreter (or a supported J2 path).
 - IR-to-x86-64 emission: **implemented for integer and table root traces**
   (constants, moves, guards, arithmetic, K-ops, `TGET`/`TSET`, `FORLOOP`,
   exit/ret), counted by `jit.stats().ir_compiled/ir_code_bytes`.
