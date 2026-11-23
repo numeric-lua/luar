@@ -1640,6 +1640,18 @@ static CType *uint64_type (FFIState *S) {
 }
 
 
+/* C pointer arithmetic is defined only for pointers to complete object
+** types: 'void *' and pointers to incomplete structs/unions have no
+** element size.  LuaJIT rejects both; accepting them with a one-byte
+** element size silently turns a type error into byte arithmetic. */
+static size_t pointer_elem_size (lua_State *L, FFIState *S, CType *pt) {
+  size_t esz = ffi_type_size(pt->child);
+  if (esz == FFI_SIZE_UNKNOWN || esz == 0)
+    luaL_error(L, "ffi: pointer arithmetic on '%s'", ffi_type_repr(S, pt));
+  return esz;
+}
+
+
 static int cdata_arith (lua_State *L, int op) {
   FFIState *S = ffi_getstate(L);
   CData *a = ffi_tocdata(L, 1);
@@ -1655,13 +1667,9 @@ static int cdata_arith (lua_State *L, int op) {
       if (a->ct->child->kind == CT_FUNC)
         luaL_error(L, "ffi: pointer arithmetic on a function pointer");
       {
-        size_t esz = ffi_type_size(a->ct->child);
-        ptrdiff_t diff;
-        CData *r;
-        if (esz == FFI_SIZE_UNKNOWN || esz == 0)
-          esz = 1;
-        diff = (char *)a->v.p - (char *)b->v.p;
-        r = ffi_push_scalar(L, S, int64_type(S));
+        size_t esz = pointer_elem_size(L, S, a->ct);
+        ptrdiff_t diff = (char *)a->v.p - (char *)b->v.p;
+        CData *r = ffi_push_scalar(L, S, int64_type(S));
         ffi_store_int(&r->v, r->ct->size, (int64_t)(diff / (ptrdiff_t)esz));
         return 1;
       }
@@ -1685,10 +1693,11 @@ static int cdata_arith (lua_State *L, int op) {
       numeric_arg(L, S, idx, &n, &ok);
       if (!ok)
         luaL_error(L, "ffi: pointer arithmetic requires an integer offset");
-      esz = ffi_type_size(pcd->ct->child);
-      if (esz == FFI_SIZE_UNKNOWN || esz == 0)
-        esz = 1;
-      p = (char *)pcd->v.p + (ptrdiff_t)n * (ptrdiff_t)esz;
+      esz = pointer_elem_size(L, S, pcd->ct);
+      if (op == '-')
+        p = (char *)pcd->v.p - (ptrdiff_t)n * (ptrdiff_t)esz;
+      else
+        p = (char *)pcd->v.p + (ptrdiff_t)n * (ptrdiff_t)esz;
       return push_pointer_result(L, S, pcd->ct, p);
     }
   }
