@@ -68,5 +68,5 @@ H.eq(edge[101], "edge", "hash key above the fill range was lost")
 H.eq(edge[100], 100, "fill did not write the last array slot")
 
 jit.flush()
-jit.opt.start("ir=0", "hotloop=56")
+jit.opt.start("ir=0", "table=0", "tint=1", "call=0", "alloc=0", "hotloop=56", "hotexit=10")
 print("jit/173_fill_preserves_hash ok")

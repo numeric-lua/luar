@@ -88,5 +88,5 @@ H.check(jit.stats().compiled >= 1 and jit.stats().tint_hits > before,
         "constant leaf argument no longer compiles")
 
 jit.flush()
-jit.opt.start("ir=0", "hotloop=56")
+jit.opt.start("ir=0", "table=0", "tint=1", "call=0", "alloc=0", "hotloop=56", "hotexit=10")
 print("jit/174_leaf_arg_variation ok")
