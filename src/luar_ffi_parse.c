@@ -185,19 +185,36 @@ static void lex_next (Parser *P) {
   if (isdigit((unsigned char)*s) ||
       (*s == '.' && s + 1 < P->end && isdigit((unsigned char)s[1]))) {
     const char *q = s;
+    const char *digits = s;
     int isfloat = 0;
     int base = 10;
     if (s[0] == '0' && s + 1 < P->end && (s[1] == 'x' || s[1] == 'X')) {
-      q = s + 2;
+      digits = s + 2;
+      q = digits;
       base = 16;
       if (q >= P->end || !isxdigit((unsigned char)*q))
         lex_error(P, "malformed hexadecimal constant");
       while (q < P->end && isxdigit((unsigned char)*q))
         q++;
     }
-    else {
-      while (q < P->end && isdigit((unsigned char)*q))
+    else if (s[0] == '0' && s + 1 < P->end &&
+             (s[1] == 'b' || s[1] == 'B')) {
+      digits = s + 2;
+      q = digits;
+      base = 2;
+      if (q >= P->end || (*q != '0' && *q != '1'))
+        lex_error(P, "malformed binary constant");
+      while (q < P->end && (*q == '0' || *q == '1'))
         q++;
+    }
+    else {
+      if (s[0] == '0' && s + 1 < P->end && isdigit((unsigned char)s[1]))
+        base = 8;               /* C: a leading zero introduces octal */
+      while (q < P->end && isdigit((unsigned char)*q)) {
+        if (base == 8 && (*q == '8' || *q == '9'))
+          lex_error(P, "malformed octal constant");
+        q++;
+      }
       if (q < P->end && *q == '.') {
         isfloat = 1;
         q++;
@@ -220,6 +237,8 @@ static void lex_next (Parser *P) {
       while (q < P->end && (*q == 'u' || *q == 'U' ||
                             *q == 'l' || *q == 'L'))
         q++;
+      if (q < P->end && (isalnum((unsigned char)*q) || *q == '_'))
+        lex_error(P, "malformed integer constant");
     }
     P->tok.kind = isfloat ? TK_FLOAT : TK_INT;
     P->tok.start = s;
@@ -228,7 +247,20 @@ static void lex_next (Parser *P) {
       P->tok.dval = strtod(s, NULL);
     }
     else {
-      P->tok.ival = (int64_t)strtoull(s, NULL, base);
+      uint64_t v = 0;
+      const char *d = digits;
+      while (d < q && (isdigit((unsigned char)*d) ||
+                       isxdigit((unsigned char)*d))) {
+        int dv;
+        if (*d >= '0' && *d <= '9') dv = *d - '0';
+        else if (*d >= 'a' && *d <= 'f') dv = *d - 'a' + 10;
+        else if (*d >= 'A' && *d <= 'F') dv = *d - 'A' + 10;
+        else break;
+        if (dv >= base) break;
+        v = v * (uint64_t)base + (uint64_t)dv;
+        d++;
+      }
+      P->tok.ival = (int64_t)v;
     }
     P->p = q;
     return;
