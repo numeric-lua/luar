@@ -1771,7 +1771,11 @@ static int cdata_address_like (CData *cd) {
 }
 
 static int meta_push (lua_State *L, CType *ct, const char *name) {
-  if (ct == NULL)
+  /* LUAR: a plain struct/union has no metatype.  LUA_NOREF is not a valid
+  ** registry index; indexing it produced nil and then made lua_getfield
+  ** raise "attempt to index a nil value" from __len/__pairs instead of the
+  ** intended cdata error. */
+  if (ct == NULL || ct->metatype_ref == LUA_NOREF)
     return 0;
   lua_rawgeti(L, LUA_REGISTRYINDEX, ct->metatype_ref);
   lua_getfield(L, -1, name);
