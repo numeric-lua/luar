@@ -658,6 +658,59 @@ int luar_ffi_trace_update_array (TValue *arrv, TValue *it, TValue *ct,
 }
 
 
+/* J2: `a[i] = b[i] + c[i]` (and the subtract/multiply forms) over three
+** bounded arrays.  op is 0/1/2.  tmpa is the first GETTABLE/result
+** temporary and tmpb the second source temporary; the recognizer only
+** accepts shapes whose ADD/SUB/MUL destination is tmpa. */
+int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
+                               TValue *it, TValue *ct, TValue *st,
+                               TValue *tmpa, TValue *tmpb, int op) {
+  FfiView vd, va, vb;
+  FfiNum lasta, lastb, lastres;
+  lua_Integer count, step, idx, last, k;
+  if (dstv == NULL || av == NULL || bv == NULL || it == NULL ||
+      ct == NULL || st == NULL || tmpa == NULL || tmpb == NULL ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      op < 0 || op > 2)
+    return 0;
+  if (!ffi_view_init(dstv, &vd) || !ffi_view_init(av, &va) ||
+      !ffi_view_init(bv, &vb))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&vd, count, step, idx, &last) ||
+      !ffi_store_range(&va, count, step, idx, &last) ||
+      !ffi_store_range(&vb, count, step, idx, &last))
+    return 0;
+  lasta = lastb = lastres = ffi_num_int(0);
+  {
+    char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
+    const char *pa = va.base + (ptrdiff_t)idx * (ptrdiff_t)va.esz;
+    const char *pb = vb.base + (ptrdiff_t)idx * (ptrdiff_t)vb.esz;
+    for (k = 0; k <= count; k++) {
+      lasta = ffi_view_load(&va, pa);
+      lastb = ffi_view_load(&vb, pb);
+      if (op == 0)
+        lastres = ffi_num_add(lasta, lastb);
+      else if (op == 1)
+        lastres = ffi_num_sub(lasta, lastb);
+      else
+        lastres = ffi_num_mul(lasta, lastb);
+      ffi_view_store(&vd, pd, lastres);
+      pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
+      pa += (ptrdiff_t)step * (ptrdiff_t)va.esz;
+      pb += (ptrdiff_t)step * (ptrdiff_t)vb.esz;
+    }
+  }
+  ffi_num_store(tmpa, lastres);
+  ffi_num_store(tmpb, lastb);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 int luar_ffi_trace_i64_array (TValue *tv) {
   Udata *u; CData *cd; CType *ct, *elem;
   if (tv == NULL || !ttisfulluserdata(tv)) return 0;

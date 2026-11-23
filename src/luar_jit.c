@@ -560,6 +560,56 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* Match `a[i] = b[i] OP c[i]`: GETTABLE ta, b, key; GETTABLE tb, c, key;
+** arithmetic; SETTABLE.  The arithmetic destination must be ta, which is
+** the common compiler shape. */
+static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
+                                   ptrdiff_t backedge, int for_a, TValue *b) {
+  ptrdiff_t n = backedge - start + 1;
+  Instruction g1, g2, opins, s;
+  int key = for_a + 2, op;
+  if (n != 6 || GET_OPCODE(p->code[start]) != OP_GETTABLE ||
+      GET_OPCODE(p->code[start + 1]) != OP_GETTABLE)
+    return 0;
+  g1 = p->code[start];
+  g2 = p->code[start + 1];
+  opins = p->code[start + 2];
+  s = p->code[start + 4];
+  if (GETARG_C(g1) != key || GETARG_C(g2) != key)
+    return 0;
+  if (GET_OPCODE(p->code[start + 3]) != OP_MMBIN ||
+      GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) ||
+      GETARG_B(s) != key)
+    return 0;
+  if (GETARG_A(opins) != GETARG_A(g1) ||
+      GETARG_B(opins) != GETARG_A(g1) ||
+      GETARG_C(opins) != GETARG_A(g2))
+    return 0;
+  switch (GET_OPCODE(opins)) {
+    case OP_ADD: op = 0; break;
+    case OP_SUB: op = 1; break;
+    case OP_MUL: op = 2; break;
+    default: return 0;
+  }
+  {
+    int dst = GETARG_A(s), av = GETARG_B(g1), bv = GETARG_B(g2);
+    int ta = GETARG_A(g1), tb = GETARG_A(g2);
+    if (GETARG_C(s) != ta || dst == for_a || dst == for_a + 1 ||
+        dst == for_a + 2 || av == for_a || av == for_a + 1 ||
+        av == for_a + 2 || bv == for_a || bv == for_a + 1 ||
+        bv == for_a + 2 || ta == key || tb == key || ta == tb ||
+        ta == av || ta == bv || ta == dst ||
+        tb == av || tb == bv || tb == dst ||
+        luar_ffi_trace_array_kind(&b[dst]) == 0 ||
+        luar_ffi_trace_array_kind(&b[av]) == 0 ||
+        luar_ffi_trace_array_kind(&b[bv]) == 0)
+      return 0;
+    return install_cdata_tint(p, J, backedge, 23, dst, av, bv, ta, tb, op,
+                              for_a);
+  }
+}
+
+
 /* A raw-array read used by the pair intrinsics.  The table can be a
 ** register local/parameter or a closure upvalue; the value lands in a
 ** separate register (the compiler may reuse that register for the table
@@ -1701,6 +1751,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_scaled_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_pair_store(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_store(p, J, start, backedge, for_a, b))
@@ -5298,6 +5351,18 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   p->luar_tint_upval[i]);
           break;
         }
+        case 23:
+          r = luar_ffi_trace_pair_store(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_acc[i]],
+                  &((TValue *)base)[p->luar_tint_res[i]],
+                  p->luar_tint_arg4[i]);
+          break;
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
