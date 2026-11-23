@@ -6853,8 +6853,9 @@ static int jit_opt_start (lua_State *L) {
         J->hotexit = (uint32_t)v;
     }
     else if (J != NULL && strncmp(opt, "hotloop=", 8) == 0) {
-      unsigned long v = strtoul(opt + 8, NULL, 10);
-      if (v >= 1 && v <= 100000)
+      char *end = NULL;
+      unsigned long v = strtoul(opt + 8, &end, 10);
+      if (end != NULL && *end == '\0' && v <= 100000)
         J->hotloop = (uint32_t)v;
     }
     lua_pushstring(L, opt);

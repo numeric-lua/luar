@@ -267,8 +267,8 @@ Proto *luaF_newproto (lua_State *L) {
   {
     LuaR_JIT *J = G(L)->luar_jit;
     f->luar_hot = 0;    /* LUAR: J1 counters */
-    f->luar_hot_limit = (J != NULL && J->hotloop != 0) ? J->hotloop
-                                                       : LUAR_JIT_HOTCOUNT;
+    /* hotloop=0 disables tracing for newly created Protos. */
+    f->luar_hot_limit = (J != NULL) ? J->hotloop : LUAR_JIT_HOTCOUNT;
   }
   f->luar_epoch = 0;
   f->luar_code[0] = NULL;     /* LUAR: J2 native loops */

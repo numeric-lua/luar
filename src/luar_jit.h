@@ -135,6 +135,9 @@ static inline int luari_jit_hot (lua_State *L, Proto *p,
     p->luar_seen = 0;
     p->luar_variant_tried = 0;
   }
+  /* hotloop=0 is the documented way to disable tracing for new Protos. */
+  if (p->luar_hot_limit == 0)
+    return 0;
   if (p->luar_hot > p->luar_hot_limit)
     return 0;
   if (p->luar_hot == p->luar_hot_limit) {
