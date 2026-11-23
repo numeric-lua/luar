@@ -3735,6 +3735,13 @@ decode_done:
         acc = -1;
         left = 0;
       }
+      /* LUAR: a float constant comparison (`until i == 3.5`) is recorded
+      ** as OP_EQK with the value in num, not imm; the fast repeat emitter
+      ** compares against the integer immediate and would terminate at zero.
+      ** Such a loop has no integer solution anyway, so leave it to the
+      ** interpreter instead of emitting a compare against the wrong value. */
+      if (imm && cmp->b == 0xFF && cmp->tb != LUAR_T_INT)
+        acc = -1;
       /* Same aliasing rule as the fast while path: the cached limit must
       ** be a different register from the accumulator and the counter. */
       if (acc == idx || (limit >= 0 && (limit == acc || limit == idx)) ||
