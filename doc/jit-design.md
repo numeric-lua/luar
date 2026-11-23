@@ -23,8 +23,10 @@ is provably observationally equivalent to that interpreter.
   and tag guards.  Entry tag guards check every register read initially; the native
   code runs the remaining iterations on the Lua stack slots and returns to
   the VM after the loop.  Mixed int/double operands are handled with the
-  conversions Lua performs, and float `for` control uses the interpreter's
-  limit/step/index layout with NaN-aware termination.  The default 16-byte
+  conversions Lua performs, and both integer- and float-controlled `for`
+  loops (including bodies with branches) use the interpreter's
+  limit/step/index layout with NaN-aware termination and hand the next
+  iteration to the compiled code.  The default 16-byte
   TValue, 64-bit integer and double layout is checked before compiling, as
   is the 5.5 split array representation used by raw table access.
 - **Deviations from this design.**  There is no general trace recorder, no

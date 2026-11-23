@@ -262,7 +262,12 @@ Pointer arithmetic is defined only for pointers to complete object types:
 `p + n`, `n + p` and `p - n` scale by `sizeof(*p)`, while `p - q` returns a
 Lua integer count of elements.  As in C and LuaJIT, `void *` and pointers to
 incomplete structs/unions have no element size and are rejected rather than
-treated as byte pointers.
+treated as byte pointers.  `p - q` also requires compatible base types:
+same-size integer types (including enums) are compatible, but pointers to
+different struct tags, different element widths, struct/union mixes and
+function pointers raise.  A floating Lua offset is truncated towards zero;
+NaN, infinite and out-of-range offsets behave as zero, matching LuaJIT's
+observable results.
 
 Out-of-bounds writes on owned arrays, `ffi.string`, `ffi.copy`, and
 `ffi.fill` are rejected, including for fixed-size character arrays.  This
@@ -346,7 +351,9 @@ metatype metamethods are:
 * `__tostring`: used by `tostring`;
 * `__call`: makes a struct cdata callable;
 * `__eq`, `__lt`, `__le`: replace the built-in comparison for struct/union
-  cdata; a handler on either operand is used, as in LuaJIT;
+  cdata; a handler on either operand is used, as in LuaJIT.  The handler is
+  also called when both operands are the same cdata object; `rawequal()`
+  stays a raw identity test.
 * `__len`: supplies the result of `#cdata` for a struct/union value.
 
 Real struct fields always take priority over `__index`/`__newindex`.
@@ -495,7 +502,8 @@ Call features:
 * `ffi.string`, `ffi.copy`, and `ffi.fill` perform stricter bounds checks
   for owned arrays than LuaJIT.
 * Pointer arithmetic on `void *` and incomplete object types is rejected,
-  and pointer differences are Lua integers, matching LuaJIT.
+  `p - q` returns a Lua integer and rejects incompatible base types, and
+  floating offsets truncate as in LuaJIT.
 * Only the metatype metamethods listed above are dispatched.
 * Variadic default conversions differ from LuaJIT in two places.  LuaJIT
   passes every Lua number as `double`, while Luar passes an integer Lua

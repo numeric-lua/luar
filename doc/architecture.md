@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.197.0. This document describes the system as built and the design
+Status: 0.198.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -85,9 +85,10 @@ make correct against an unmodified VM.
   iterations on the stack slots, with int/double tag guards, exact numeric
   comparisons/forward branches, numeric `and`/`or` truth tests, integer
   bitwise, variable and constant shifts, unary minus/not, integer floor
-  division/modulo, integer and float-controlled `for` loops, simple `while`
-  loops, constant string-key field reads with an entry value guard, and
-  constant-index array reads (`t[1]`, `GETI`).  Experimental
+  division/modulo, integer and float-controlled `for` loops (including
+  branch bodies in both), simple `while` loops, constant string-key field
+  reads with an entry value guard, and constant-index array reads
+  (`t[1]`, `GETI`).  Experimental
   register-cached prefix/square-sum loops and opt-in raw array
   lookups/stores use the 5.5 split array representation,
   independent retry after a rejected sibling loop, up to two compiled
@@ -187,7 +188,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.197.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.198.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

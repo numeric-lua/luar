@@ -6,6 +6,47 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.198.0] — 2026-11-23
+
+### Added
+
+- J2 executes compiled float-controlled `for` loops.  The VM recorded and
+  compiled these backedges but never handed the next iteration to the
+  generated code, so they ran on the interpreter despite appearing in
+  `jit.stats().compiled`.  The float `FORLOOP` path now mirrors the integer
+  one, including guard exits and `jit.flush()` invalidation.
+- J2 compiles branch bodies (`if`/`else`, numeric `and`/`or`) inside
+  float-controlled `for` loops.  Branch loops added integer entry guards for
+  the control triplet regardless of `for_float`, so a float loop with an
+  `if` always failed its own guard and silently stayed interpreted.
+
+### Fixed
+
+- A fused `acc = acc + t[const]` (`GETI`) no longer loses the bytecode
+  result register.  `local x = t[1]; s = s + x` left `x` at its pre-loop
+  value when the loop ran natively; the native path now materialises
+  `R[A]`, and the fusion is rejected when the lookup result is also the
+  accumulator.
+- FFI metatype `__eq` is called for two references to the same struct or
+  union cdata, matching LuaJIT.  Stock Lua short-circuits identical
+  userdata; the FFI-aware equality hook now routes the pair through the
+  handler, while `rawequal()` and cdata without an `__eq` handler keep raw
+  identity.
+- Pointer subtraction requires compatible base types, matching LuaJIT:
+  same-size integer types (including enums) are compatible, while different
+  struct tags, struct/union mixes, different element widths and function
+  pointers are rejected.  Floating Lua offsets truncate towards zero, and
+  NaN/infinite/out-of-range offsets behave as zero instead of an undefined
+  integer conversion.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test` and
+`make WITH_FFI=1 test-asan` are green.  New coverage:
+`tests/jit/146_geti_result.lua`, `tests/jit/147_float_for_native.lua`,
+`tests/jit/148_float_for_branch.lua`, `tests/ffi/109_pointer_compat.lua`
+and `tests/ffi/110_metatype_eq_identity.lua`.
+
 ## [0.197.0] — 2026-11-23
 
 ### Added
