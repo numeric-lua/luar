@@ -388,6 +388,10 @@ and returns the type object.  A type can only have one metatype; trying to
 replace it raises "cannot change a protected metatable".  The supported
 metatype metamethods are:
 
+* `__new`: called when the CType object itself is called (`ct(...)`).
+  It receives the type object followed by the call arguments, and all of
+  its results become the call's results.  `ffi.new`/`ffi.cast` keep the
+  built-in constructor and do not dispatch it.
 * `__index` (table or function): fallback for missing fields;
 * `__newindex` (table or function): fallback for missing-field writes;
 * `__tostring`: used by `tostring`;

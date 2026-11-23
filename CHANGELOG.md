@@ -6,6 +6,71 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.210.0] — 2026-11-24
+
+### Added
+
+- J2 updates bounded cdata arrays held in closure upvalues in place:
+  `a[i] = a[i] +|-|*|/|//|% v`, the bitwise family, shifts and unary
+  `~`/`-`, with register, immediate and constant scalar operands.  The
+  upvalue is re-resolved on every native entry, the GETUPVAL destination
+  and arithmetic temporary are preserved, and a rebinding to a non-array
+  declines so the interpreter raises the exact error.
+- J2 reduces and updates enum-element cdata arrays.  Elements use the
+  interpreter's unsigned 32-bit numeric view, including negative enum
+  constants and values with the high bit set, and the store helpers apply
+  the same `CT_ENUM` conversion as `ffi_convert`.
+- J2 stores into store-only `_Bool` cdata arrays.  Pure fills, value
+  slots, copies, source-scalar stores and two-source stores normalize any
+  non-zero scalar to 1 (C `_Bool` semantics) instead of writing the raw
+  low byte; bool element reads stay on the interpreter because they yield
+  Lua booleans.
+
+### Fixed
+
+- A metatype `__new` handler is now dispatched when the CType object is
+  called (`ct(...)`), matching LuaJIT.  The handler receives the type
+  object and the original arguments, and all its results become the
+  call's results.  `ffi.new`/`ffi.cast` keep the built-in constructor.
+- `ffi.new` accepts a Lua string only for a 1-byte character pointer.
+  `void *` and other pointer destinations now reject the initializer, as
+  LuaJIT does, instead of silently reinterpreting the string bytes.
+  `ffi.cast` and string arguments in calls remain permissive.
+- J4 pointer-field reads/stores only accept the widths their helpers can
+  actually address: 4/8-byte integers and 8-byte doubles.  `char *`,
+  `short *` and `float *` fields previously used the wrong stride, which
+  could return wrong values or overwrite neighbouring elements; they now
+  stay on the interpreter.
+- J4 scalar C-call returns preserve the interpreter's result type and
+  width: 64-bit integer results stay cdata and the loop is interpreted,
+  narrow signed/unsigned integers are extended according to the declared
+  type, and `float`-returning `void` calls are read as 4-byte floats rather
+  than doubles.
+- CType objects no longer compare equal to an ordinary cdata value of the
+  denoted type (`ffi.typeof("int") == ffi.new("int")` is false in both
+  orders, as in LuaJIT); two CType objects of the same interned type still
+  compare equal.
+- The arm64 non-HFA large-union by-value argument override is no longer
+  cleared immediately, restoring AAPCS64 by-reference passing.
+- `jit.opt.start("hotloop=0")` now disables tracing for newly created
+  Protos instead of silently keeping the default threshold.
+- J4's slot-writer analysis now accounts for every IR op that writes a
+  result slot, preventing a stale constant from being substituted for a
+  later table/call result.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared`, `make test-dist`,
+`make dynasm-check` and `tools/upstream-check.sh` are green.  New
+coverage: `tests/ffi/148_metatype_new.lua`,
+`tests/ffi/149_new_pointer_string.lua`,
+`tests/ffi/150_j2_enum_array.lua`, `tests/ffi/151_j2_bool_fill.lua`,
+`tests/ffi/152_j2_cdata_upval_update.lua`,
+`tests/ffi/153_j4_call_widths.lua`,
+`tests/ffi/154_j4_ptr_field_widths.lua`,
+`tests/ffi/155_ctype_equality.lua` and `tests/jit/177_hotloop_zero.lua`.
+
 ## [0.209.0] — 2026-11-24
 
 ### Added

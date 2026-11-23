@@ -48,22 +48,25 @@ is provably observationally equivalent to that interpreter.
   sequence for any nonzero integer step, including descending loops; the
   first/last keys are overflow- and bounds-checked before the run.
   Bounded cdata arrays additionally support writes in the default tier:
-  `a[i] = v|i|constant` (including 8-byte integer elements),
-  `a[i] = b[i]`, `a[i] = a[i] OP v`, `a[i] = b[i] OP v` and
-  `a[i] = b[i] OP c[i]` for add/subtract/multiply/divide/floor-divide/
-  modulo.  Integer `//`/`%` by zero declines before any store so the
-  interpreter raises the exact error; float zero follows the non-raising
-  float path.  Cdata arrays held in closure upvalues also reduce
-  (`s = s + a[i]`) and accept pure fills (`a[i] = v|i|constant`), with the
-  upvalue re-resolved on every entry.  Eight-byte integer destinations are
-  accepted by copy/scalar/pair stores because the destination is only
-  written; integer element arrays also update in place with `&`, `|`, `~`,
-  `<<`, `>>` and unary `~`/`-`.  A raw table reduction may read through a
-  constant table field (`s = s + obj.arr[i]`), re-validating that field on
-  every entry.  The C helpers replicate Lua's arithmetic promotion, then
-  apply the FFI element-store conversion; pointers (which have no bounded
-  length), out-of-bounds runs and 8-byte integer element reads stay on the
-  interpreter because those reads produce cdata, not Lua numbers.
+  `a[i] = v|i|constant` (including 8-byte integer elements and store-only
+  `_Bool`/enum destinations), `a[i] = b[i]`, `a[i] = a[i] OP v`,
+  `a[i] = b[i] OP v` and `a[i] = b[i] OP c[i]` for add/subtract/multiply/
+  divide/floor-divide/modulo.  Integer `//`/`%` by zero declines before any
+  store so the interpreter raises the exact error; float zero follows the
+  non-raising float path.  Cdata arrays held in closure upvalues also reduce
+  (`s = s + a[i]`), accept pure fills (`a[i] = v|i|constant`) and update in
+  place (`a[i] = a[i] OP v`), with the upvalue re-resolved on every entry.
+  Eight-byte integer destinations are accepted by copy/scalar/pair stores
+  because the destination is only written; integer element arrays, including
+  32-bit enums, also update in place with `&`, `|`, `~`, `<<`, `>>` and
+  unary `~`/`-`.  Enum elements use the interpreter's unsigned 32-bit
+  numeric view, and a `_Bool` destination applies the C scalar truth rule
+  rather than storing the raw low byte.  A raw table reduction may read
+  through a constant table field (`s = s + obj.arr[i]`), re-validating that
+  field on every entry.  The C helpers replicate Lua's arithmetic promotion,
+  then apply the FFI element-store conversion; pointers (which have no
+  bounded length), out-of-bounds runs and 8-byte integer element reads stay
+  on the interpreter because those reads produce cdata, not Lua numbers.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled
