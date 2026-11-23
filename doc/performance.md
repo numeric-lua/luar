@@ -1,3 +1,14 @@
+> **0.201 check (2026-11-23, development host).**  J2 now rejects loops
+> whose carried slots change type and no longer trusts a float limit in the
+> fast `while` peephole; J4 rejects mixed float/integer traces instead of
+> emitting them.  These are correctness decisions, not performance claims.
+> `make bench-jit` reports `j4/int_sum` 2.78x, `j4/multi_table` 6.23x,
+> `j4/long_loop` 4.03x, `j4/float_addi` 2.11x, `j4/call_leaf` 8.66x and
+> `j4/call_exit` 0.60x (JIT on versus off) on the shared development host.
+> The new three-array sum intrinsic is not in the `bench-jit` corpus; a
+> 2M-element `a[i]+b[i]+c[i]` microcheck measured about 1.02x over the
+> interpreter, so it is recorded as coverage rather than a speed headline.
+
 # Luar performance baseline
 
 > **0.196 refresh (2026-11-22, development host).**  Best CPU milliseconds

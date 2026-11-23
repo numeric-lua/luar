@@ -6,6 +6,54 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ## [Unreleased]
 
+## [0.201.0] — 2026-11-23
+
+### Added
+
+- J2 runs a `s = s + a[i] + b[i] + c[i]` intrinsic over three raw arrays.
+  The intrinsic re-checks every table's array shape and each element tag, so
+  short tables, metatables and non-numeric elements fall back without
+  changing the visible accumulator.  `jit.stats().tint_hits` observes it.
+- FFI metatypes dispatch `__add`, `__sub`, `__mul`, `__div`, `__idiv`,
+  `__mod`, `__pow`, `__band`, `__bor`, `__bxor`, `__unm`, `__bnot` and
+  `__concat`, matching LuaJIT's left-then-right handler selection and the
+  duplicated operand pair for unary handlers.
+- A metatype `__gc` is the default finalizer for its struct/union cdata.
+  `ffi.gc(x, f)` replaces it and `ffi.gc(x, nil)` suppresses it, as in
+  LuaJIT.
+- Metatype `__tostring`, `__len` and `__pairs` apply to a pointer to the
+  owning struct/union, as they already did for `__index`, `__newindex` and
+  `__call`.
+
+### Fixed
+
+- J2 rejected only branch loops whose carried registers change type.  A
+  straight-line body such as `t = u + i * 1.5; u = s - i` changed `u` from
+  an integer to a float; the next native iteration read the double payload
+  as an integer.  All non-specialised loops now require a single type per
+  carried register and fall back to the interpreter otherwise.
+- The fast `while` peephole compared a float limit as its raw 64-bit bit
+  pattern.  A subnormal limit with bit pattern 100 ran the wrong number of
+  iterations, and `while i < 100.0` could hang.  Float limits now use the
+  generic branch emitter's exact mixed int/float comparison.
+- J4 `ir_floatify` converted only the arithmetic chain rooted at the first
+  float slot it saw.  Later independent `t = t * 1` or `u = s * -1` ops
+  stayed integer MULK instructions on double operands.  A trace with an
+  unconverted integer op on a float slot is now rejected.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `tests/upstream/run.sh` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/jit/160_straight_type_change.lua`,
+`tests/jit/161_three_table_sum.lua`,
+`tests/jit/162_while_float_limit.lua`,
+`tests/jit/163_ir_mixed_float.lua`,
+`tests/ffi/114_metatype_arith.lua`,
+`tests/ffi/115_metatype_gc.lua` and
+`tests/ffi/116_metatype_pointer.lua`.
+
 ## [0.200.0] — 2026-11-23
 
 ### Added
