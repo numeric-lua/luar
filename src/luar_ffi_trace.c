@@ -122,6 +122,10 @@ int luar_ffi_trace_array_store_kind (TValue *tv) {
   ** unsigned conversion for CT_ENUM destinations. */
   if (elem->kind == CT_ENUM && elem->size == 4)
     return 1;
+  /* A bool destination only stores the normalized truth of a Lua number;
+  ** no element is ever loaded into a Lua slot. */
+  if (elem->kind == CT_BOOL && elem->size == 1)
+    return 3;
   if (elem->kind == CT_FLOAT &&
       (elem->size == 4 || elem->size == 8))
     return 2;
@@ -311,6 +315,7 @@ typedef struct {
   size_t esz;
   int isflt;
   int is_unsigned;
+  int isbool;   /* store-only C _Bool view: values normalize to 0/1 */
 } FfiView;
 
 static FfiNum ffi_num_int (int64_t v) {
@@ -418,6 +423,7 @@ static int ffi_view_init_ex (TValue *tv, FfiView *v, int allow64) {
     return 0;
   ct = cd->ct;
   elem = ct->child;
+  v->isbool = 0;
   if (elem->kind == CT_INT &&
       (elem->size == 1 || elem->size == 2 || elem->size == 4 ||
        (allow64 && elem->size == 8))) {
@@ -427,6 +433,14 @@ static int ffi_view_init_ex (TValue *tv, FfiView *v, int allow64) {
   else if (elem->kind == CT_ENUM && elem->size == 4) {
     v->isflt = 0;
     v->is_unsigned = 1;   /* enum reads use the unsigned 32-bit view */
+  }
+  else if (elem->kind == CT_BOOL && allow64) {
+    /* A _Bool read yields a Lua boolean, not a number, so only a pure
+    ** store context may use this view.  ffi_convert normalizes any
+    ** non-zero scalar to 1. */
+    v->isflt = 0;
+    v->is_unsigned = 1;
+    v->isbool = 1;
   }
   else if (elem->kind == CT_FLOAT &&
            (elem->size == 4 || elem->size == 8)) {
@@ -455,6 +469,8 @@ static int ffi_view_init_dst (TValue *tv, FfiView *v) {
 }
 
 static FfiNum ffi_view_load (const FfiView *v, const char *p) {
+  if (v->isbool)
+    return ffi_num_int(0);   /* bool views are store-only */
   if (v->isflt) {
     if (v->esz == 4) {
       float f;
@@ -602,7 +618,11 @@ static int ffi_num_from_tv (const TValue *tv, FfiNum *n) {
 ** out-of-range double sentinel), float destinations round through the
 ** declared element size. */
 static void ffi_view_store (const FfiView *v, char *p, FfiNum n) {
-  if (v->isflt) {
+  if (v->isbool) {
+    uint64_t b = n.isflt ? (n.d != 0.0) : (n.i != 0);
+    ffi_store_uint(p, 1, b);
+  }
+  else if (v->isflt) {
     double d = ffi_num_double(n);
     if (v->esz == 4) {
       float f = (float)d;
