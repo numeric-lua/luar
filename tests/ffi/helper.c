@@ -599,3 +599,9 @@ unsigned long long widebit_b (struct WideBit *p) { return p->b; }
 void widebit_set_b (struct WideBit *p, unsigned long long v) { p->b = v; }
 long long widebits_b (struct WideBitS *p) { return p->b; }
 int widebit3_c (struct WideBit3 *p) { return p->c; }
+
+/* Scalar zero-argument returns used by the J4 call-width tests. */
+float trace_float_ret (void) { return 1.25f; }
+double trace_double_ret (void) { return 2.5; }
+signed char trace_schar_ret (void) { return -5; }
+unsigned int trace_uint_ret (void) { return 0xffffffffu; }

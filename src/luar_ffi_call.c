@@ -1081,7 +1081,6 @@ static void convert_call_arg (lua_State *L, FFIState *S, CType *at,
 #else
     *argtype_override = NULL;
 #endif
-      *argtype_override = NULL;
     return;
   }
   memset(slot, 0, sizeof(*slot));
@@ -2753,7 +2752,11 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
   CType *ft, *rt;
   ffi_cif cif, *cifp_ = NULL;
   ffi_type *rtype;
-  union { int64_t i; double d; } ret;
+  union {
+    int8_t i8; int16_t i16; int32_t i32; int64_t i64;
+    uint8_t u8; uint16_t u16; uint32_t u32; uint64_t u64;
+    float f; double d;
+  } ret;
   if (fn == NULL || kind == NULL || iv == NULL || dv == NULL ||
       fn->magic != LUAR_FFI_MAGIC ||
       (fn->flags & (CDATA_CTYPE | CDATA_CALLBACK |
@@ -2769,11 +2772,13 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
   memset(&ret, 0, sizeof(ret));
   if (rt->kind == CT_INT) {
     switch (rt->size) {
-      case 1: rtype = &ffi_type_sint8; break;
-      case 2: rtype = &ffi_type_sint16; break;
-      case 4: rtype = &ffi_type_sint32; break;
-      case 8: rtype = &ffi_type_sint64; break;
-      default: return 0;
+      case 1: rtype = rt->is_unsigned ? &ffi_type_uint8
+                                      : &ffi_type_sint8; break;
+      case 2: rtype = rt->is_unsigned ? &ffi_type_uint16
+                                      : &ffi_type_sint16; break;
+      case 4: rtype = rt->is_unsigned ? &ffi_type_uint32
+                                      : &ffi_type_sint32; break;
+      default: return 0;   /* 64-bit results are cdata, not Lua integers */
     }
     *kind = 1;
   }
@@ -2787,8 +2792,18 @@ int ffi_trace_call0 (CData *fn, int *kind, int64_t *iv, double *dv) {
     return 0;
   FFI_TRACE_PREP(ft, cif, cifp_, 0, rtype, NULL);
   ffi_call(cifp_, FFI_FN(fn->v.p), &ret, NULL);
-  if (*kind == 1) *iv = ret.i;
-  else *dv = ret.d;
+  if (*kind == 1) {
+    switch (rt->size) {
+      case 1: *iv = rt->is_unsigned ? (int64_t)ret.u8 : (int64_t)ret.i8;
+              break;
+      case 2: *iv = rt->is_unsigned ? (int64_t)ret.u16 : (int64_t)ret.i16;
+              break;
+      default: *iv = rt->is_unsigned ? (int64_t)ret.u32 : (int64_t)ret.i32;
+               break;
+    }
+  }
+  else
+    *dv = (rt->size == 4) ? (double)ret.f : ret.d;
   return 1;
 }
 

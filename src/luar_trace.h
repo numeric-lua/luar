@@ -216,6 +216,8 @@ int luar_ffi_trace_field4 (TValue *cdv, const char *n1, const char *n2,
                            const char *n3, const char *n4, int *kind,
                            size_t *off, size_t *size);
 int luar_ffi_trace_ccall0_kind (TValue *fn);
+int luar_ffi_trace_is_function (TValue *fn);
+int luar_ffi_trace_call_unsupported (TValue *fn);
 int64_t luar_ffi_trace_ccall0_double (TValue *fn, TValue *out);
 int64_t luar_ffi_trace_ccall0_int (TValue *fn, TValue *out);
 int luar_ffi_trace_ccall1_kind (TValue *fn);

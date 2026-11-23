@@ -1745,8 +1745,12 @@ int luar_ffi_trace_ccall0_kind (TValue *fn) {
   rt = ft->ret;
   if (rt == NULL)
     return 0;
+  /* A 64-bit integer result is cdata int64/uint64 in the interpreter, not
+  ** a Lua integer.  The J4 scalar-call ops materialise Lua integers, so
+  ** leave those calls on the interpreter instead of changing the result
+  ** type (and precision) at the trace boundary. */
   if (rt->kind == CT_INT &&
-      (rt->size == 1 || rt->size == 2 || rt->size == 4 || rt->size == 8))
+      (rt->size == 1 || rt->size == 2 || rt->size == 4))
     return 1;
   if (rt->kind == CT_FLOAT && (rt->size == 4 || rt->size == 8))
     return 2;
@@ -1825,7 +1829,8 @@ int luar_ffi_trace_ccall1_kind (TValue *fn) {
     return 0;
   if (at->size != 1 && at->size != 2 && at->size != 4 && at->size != 8)
     return 0;
-  if (rt->size != 1 && rt->size != 2 && rt->size != 4 && rt->size != 8)
+  /* The helper returns a Lua integer; 64-bit C results are cdata. */
+  if (rt->size != 1 && rt->size != 2 && rt->size != 4)
     return 0;
   return 1;
 }
@@ -2586,11 +2591,15 @@ int luar_ffi_trace_ptr_field (TValue *cdv, const char *name, int *kind,
     if (ft == NULL || ft->kind != CT_POINTER || ft->child == NULL)
       return 0;
     elem = ft->child;
-    if (elem->kind == CT_INT &&
-        (elem->size == 1 || elem->size == 2 || elem->size == 4 ||
-         elem->size == 8))
+    /* The pointer-field helpers below read/write 4-byte ints (CPGETI/
+    ** CPSETI) or 8-byte values (CPGETI64/CPSETI64 and CPGETF/CPSETF).
+    ** Their signatures do not carry the element width, so accepting a
+    ** 1/2-byte integer or a 4-byte float here would silently use the
+    ** wrong stride and corrupt neighbouring elements.  Leave those
+    ** widths on the interpreter. */
+    if (elem->kind == CT_INT && (elem->size == 4 || elem->size == 8))
       *kind = 1;
-    else if (elem->kind == CT_FLOAT && (elem->size == 4 || elem->size == 8))
+    else if (elem->kind == CT_FLOAT && elem->size == 8)
       *kind = 2;
     else
       return 0;
@@ -2777,4 +2786,51 @@ int64_t luar_ffi_trace_cset_ptr_i64 (TValue *cdv, size_t off, TValue *kt,
   v = (uint64_t)ivalue(val);
   memcpy((char *)ptr + (ptrdiff_t)idx * 8, &v, 8);
   return 1;
+}
+
+
+/* True for any FFI function cdata (callable), regardless of whether a J4
+** scalar-call op can inline it.  The recorder uses this to remember the
+** live function value instead of reading a result slot left by the
+** preceding iteration. */
+int luar_ffi_trace_is_function (TValue *fn) {
+  Udata *u;
+  CData *cd;
+  if (fn == NULL || !ttisfulluserdata(fn))
+    return 0;
+  u = (Udata *)fn->value_.gc;
+  cd = (CData *)getudatamem(u);
+  return cd->magic == LUAR_FFI_MAGIC &&
+         (cd->flags & (CDATA_CTYPE | CDATA_CALLBACK | CDATA_FUNC)) ==
+           CDATA_FUNC;
+}
+
+
+/* True when `fn` is an FFI function cdata that no J4 scalar-call op can
+** inline.  Recording such a CALL as a generic call exit would run the
+** post-call continuation with the interpreter's cdata/aggregate result in
+** a slot the continuation assumes is a Lua value (64-bit ints are the
+** common case).  The recorder aborts the trace instead, leaving the whole
+** loop on the interpreter. */
+int luar_ffi_trace_call_unsupported (TValue *fn) {
+  if (!luar_ffi_trace_is_function(fn))
+    return 0;
+  return !(luar_ffi_trace_ccall0_kind(fn) > 0 ||
+           luar_ffi_trace_ccall1_kind(fn) > 0 ||
+           luar_ffi_trace_ccall1di_kind(fn) > 0 ||
+           luar_ffi_trace_ccall1dd_kind(fn) > 0 ||
+           luar_ffi_trace_ccall1ff_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2dd_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2ff_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2di_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2id_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2fi_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2if_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2fd_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2df_kind(fn) > 0 ||
+           luar_ffi_trace_ccall2ii_kind(fn) > 0 ||
+           luar_ffi_trace_ccall3dd_kind(fn) > 0 ||
+           luar_ffi_trace_ccall3ddi_kind(fn) > 0 ||
+           luar_ffi_trace_ccall3did_kind(fn) > 0 ||
+           luar_ffi_trace_ccall3idd_kind(fn) > 0);
 }

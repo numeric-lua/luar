@@ -1878,6 +1878,8 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_SSTORE:
     case LUAR_IR_LOADI:
     case LUAR_IR_LOADF:
+    case LUAR_IR_KSTR:
+    case LUAR_IR_KBOOL:
     case LUAR_IR_ADDI:
     case LUAR_IR_ADDK:
     case LUAR_IR_SUBK:
@@ -1890,6 +1892,18 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_MUL:
     case LUAR_IR_DIV:
     case LUAR_IR_TGET:
+    case LUAR_IR_TGETI:
+    case LUAR_IR_TGETK:
+    case LUAR_IR_TGETKF:
+    case LUAR_IR_TGETKS:
+    case LUAR_IR_TGETKB:
+    case LUAR_IR_TGETKT:
+    case LUAR_IR_TNEW:
+    case LUAR_IR_CONCAT2:
+    case LUAR_IR_CONCAT3:
+    case LUAR_IR_CONCATN:
+    case LUAR_IR_STRLEN:
+    case LUAR_IR_TLEN:
     case LUAR_IR_CGETI:
     case LUAR_IR_CGETF:
     case LUAR_IR_CGETFIELD:
@@ -1897,12 +1911,20 @@ static int ir_writes_slot (uint8_t kind) {
     case LUAR_IR_CPGETI64:
     case LUAR_IR_CPGETF:
     case LUAR_IR_CCALL0I:
+    case LUAR_IR_CCALL0D:
     case LUAR_IR_CCALL1I:
     case LUAR_IR_CCALL1DI:
     case LUAR_IR_CCALL1DD:
     case LUAR_IR_CCALL1FF:
     case LUAR_IR_CCALL2II:
     case LUAR_IR_CCALL2DD:
+    case LUAR_IR_CCALL2FF:
+    case LUAR_IR_CCALL2DI:
+    case LUAR_IR_CCALL2ID:
+    case LUAR_IR_CCALL2FI:
+    case LUAR_IR_CCALL2IF:
+    case LUAR_IR_CCALL2FD:
+    case LUAR_IR_CCALL2DF:
     case LUAR_IR_CCALL3DD:
     case LUAR_IR_CCALL3DDI:
     case LUAR_IR_CCALL3DID:
@@ -2090,28 +2112,6 @@ static LClosure *ir_current_closure (lua_State *L) {
 }
 
 
-static int ir_is_cdata_function (TValue *v) {
-  return luar_ffi_trace_ccall0_kind(v) > 0 ||
-         luar_ffi_trace_ccall1_kind(v) > 0 ||
-         luar_ffi_trace_ccall1di_kind(v) > 0 ||
-         luar_ffi_trace_ccall1dd_kind(v) > 0 ||
-         luar_ffi_trace_ccall1ff_kind(v) > 0 ||
-         luar_ffi_trace_ccall2dd_kind(v) > 0 ||
-         luar_ffi_trace_ccall2ff_kind(v) > 0 ||
-         luar_ffi_trace_ccall2di_kind(v) > 0 ||
-         luar_ffi_trace_ccall2id_kind(v) > 0 ||
-         luar_ffi_trace_ccall2fi_kind(v) > 0 ||
-         luar_ffi_trace_ccall2if_kind(v) > 0 ||
-         luar_ffi_trace_ccall2fd_kind(v) > 0 ||
-         luar_ffi_trace_ccall2df_kind(v) > 0 ||
-         luar_ffi_trace_ccall3ddi_kind(v) > 0 ||
-         luar_ffi_trace_ccall3did_kind(v) > 0 ||
-         luar_ffi_trace_ccall3idd_kind(v) > 0 ||
-         luar_ffi_trace_ccall2ii_kind(v) > 0 ||
-         luar_ffi_trace_ccall3dd_kind(v) > 0;
-}
-
-
 static int record_loop (Proto *p, int start, int backedge, TValue *base,
                         lua_State *L, LuaR_TraceIR *t, int partial,
                         int *callpc, int suffix) {
@@ -2178,7 +2178,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         if (!r) return 0;
-        if (ir_is_cdata_function(&uv)) {
+        if (luar_ffi_trace_is_function(&uv)) {
           known_fn[a] = uv;
           known[a] = 1;
         }
@@ -4059,6 +4059,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
                         ir_latest_writer_is(t, a, LUAR_IR_ULOAD);
         TValue *fv = use_known ? &known_fn[a] : &base[fs];
         TValue *fn = fv;
+        /* A cdata function no scalar-call op can inline may return
+        ** int64/uint64 cdata or an aggregate; a generic call-exit
+        ** continuation would then treat that cdata as a Lua value.  Keep
+        ** the whole loop interpreted instead. */
+        if (luar_ffi_trace_call_unsupported(fv))
+          return 0;
         int inline_ok = (c == 2 && (b == 2 || b == 3) &&
                          a + b - 1 < ns && ttisLclosure(fv) &&
                          ttisinteger(&base[a + 1]) &&

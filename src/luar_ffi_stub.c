@@ -147,6 +147,8 @@ int luar_ffi_trace_fieldn (TValue *cdv, const char *const *names, int n,
 }
 
 int luar_ffi_trace_ccall0_kind (TValue *fn) { (void)fn; return 0; }
+int luar_ffi_trace_is_function (TValue *fn) { (void)fn; return 0; }
+int luar_ffi_trace_call_unsupported (TValue *fn) { (void)fn; return 0; }
 int64_t luar_ffi_trace_ccall0_double (TValue *fn, TValue *out) {
   (void)fn; (void)out;
   return 0;
