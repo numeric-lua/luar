@@ -249,6 +249,219 @@ int luar_ffi_trace_sum_array (TValue *arrv, TValue *it, TValue *ct,
 }
 
 
+/* ------------------------------------------------------------------ */
+/* J2 two-source cdata reductions                                      */
+/* ------------------------------------------------------------------ */
+
+/* Lua arithmetic distinguishes wrapped integers from doubles.  The pair
+** helpers below reproduce the interpreter's per-operation promotion so
+** `s = s + a[i] + b[i]` matches even when an element or the accumulator
+** changes flavour in the middle of a run. */
+typedef struct {
+  int isflt;
+  int64_t i;
+  double d;
+} FfiNum;
+
+typedef struct {
+  CType *elem;
+  const char *base;
+  size_t len;
+  size_t esz;
+  int isflt;
+  int is_unsigned;
+} FfiView;
+
+static FfiNum ffi_num_int (int64_t v) {
+  FfiNum n;
+  n.isflt = 0;
+  n.i = v;
+  n.d = 0.0;
+  return n;
+}
+
+static FfiNum ffi_num_flt (double v) {
+  FfiNum n;
+  n.isflt = 1;
+  n.i = 0;
+  n.d = v;
+  return n;
+}
+
+static double ffi_num_double (FfiNum n) {
+  return n.isflt ? n.d : cast_num(n.i);
+}
+
+static FfiNum ffi_num_add (FfiNum a, FfiNum b) {
+  if (a.isflt || b.isflt)
+    return ffi_num_flt(ffi_num_double(a) + ffi_num_double(b));
+  return ffi_num_int(l_castU2S(l_castS2U(a.i) + l_castS2U(b.i)));
+}
+
+static FfiNum ffi_num_sub (FfiNum a, FfiNum b) {
+  if (a.isflt || b.isflt)
+    return ffi_num_flt(ffi_num_double(a) - ffi_num_double(b));
+  return ffi_num_int(l_castU2S(l_castS2U(a.i) - l_castS2U(b.i)));
+}
+
+static FfiNum ffi_num_mul (FfiNum a, FfiNum b) {
+  if (a.isflt || b.isflt)
+    return ffi_num_flt(ffi_num_double(a) * ffi_num_double(b));
+  return ffi_num_int(l_castU2S(l_castS2U(a.i) * l_castS2U(b.i)));
+}
+
+static void ffi_num_store (TValue *dst, FfiNum n) {
+  if (n.isflt) {
+    setfltvalue(dst, n.d);
+  }
+  else {
+    setivalue(dst, n.i);
+  }
+}
+
+/* Bounded cdata array view.  Pointers have no length and are rejected, as
+** in the single-array reduction. */
+static int ffi_view_init (TValue *tv, FfiView *v) {
+  Udata *u;
+  CData *cd;
+  CType *ct, *elem;
+  if (tv == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL || cd->ct->kind != CT_ARRAY || cd->ct->child == NULL)
+    return 0;
+  ct = cd->ct;
+  elem = ct->child;
+  if (elem->kind == CT_INT &&
+      (elem->size == 1 || elem->size == 2 || elem->size == 4)) {
+    v->isflt = 0;
+    v->is_unsigned = elem->is_unsigned;
+  }
+  else if (elem->kind == CT_FLOAT &&
+           (elem->size == 4 || elem->size == 8)) {
+    v->isflt = 1;
+    v->is_unsigned = 0;
+  }
+  else
+    return 0;
+  v->elem = elem;
+  v->esz = elem->size;
+  v->len = ct->vla ? cd->len : ct->length;
+  v->base = (cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
+                                                         : (void *)&cd->v;
+  return v->base != NULL;
+}
+
+static FfiNum ffi_view_load (const FfiView *v, const char *p) {
+  if (v->isflt) {
+    if (v->esz == 4) {
+      float f;
+      memcpy(&f, p, sizeof(f));
+      return ffi_num_flt((double)f);
+    }
+    else {
+      double d;
+      memcpy(&d, p, sizeof(d));
+      return ffi_num_flt(d);
+    }
+  }
+  if (v->is_unsigned)
+    return ffi_num_int((int64_t)trace_load_uint(p, v->esz));
+  return ffi_num_int(trace_load_int(p, v->esz));
+}
+
+static FfiNum ffi_num_from_slot (TValue *tv) {
+  if (ttisfloat(tv))
+    return ffi_num_flt(fltvalue(tv));
+  return ffi_num_int(ivalue(tv));
+}
+
+/* J2: `s = s + a[i] + b[i]`, `s = s + a[i] - b[i]` and
+** `s = s + a[i] * b[i]` over two bounded cdata arrays.  Both the element
+** temporaries and the intermediate/final accumulator registers are left
+** with the values the interpreter would hold after the run.  kind is 0
+** (add), 1 (subtract) or 2 (multiply/dot product). */
+int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *it,
+                               TValue *ct, TValue *st, TValue *at,
+                               TValue *ra, TValue *rb, TValue *rt,
+                               int kind) {
+  FfiView va, vb;
+  FfiNum acc, last_temp, last_a, last_b;
+  lua_Integer count, step, idx, last, delta, ckey, k;
+  if (av == NULL || bv == NULL || it == NULL || ct == NULL || st == NULL ||
+      at == NULL || ra == NULL || rb == NULL || rt == NULL ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      (!ttisinteger(at) && !ttisfloat(at)))
+    return 0;
+  if (!ffi_view_init(av, &va) || !ffi_view_init(bv, &vb))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  last = idx + delta;
+  if (idx < 0 || last < 0 ||
+      (uint64_t)idx >= (uint64_t)va.len ||
+      (uint64_t)last >= (uint64_t)va.len ||
+      (uint64_t)idx >= (uint64_t)vb.len ||
+      (uint64_t)last >= (uint64_t)vb.len)
+    return 0;
+  acc = ffi_num_from_slot(at);
+  last_temp = acc;
+  last_a = ffi_num_int(0);
+  last_b = ffi_num_int(0);
+  {
+    const char *pa = va.base + (ptrdiff_t)idx * (ptrdiff_t)va.esz;
+    const char *pb = vb.base + (ptrdiff_t)idx * (ptrdiff_t)vb.esz;
+    for (k = 0, ckey = idx; k <= count; k++, ckey += step) {
+      FfiNum x, y;
+      (void)ckey;
+      x = ffi_view_load(&va, pa);
+      y = ffi_view_load(&vb, pb);
+      last_a = x;
+      last_b = y;
+      if (kind == 2) {
+        FfiNum prod = ffi_num_mul(x, y);
+        last_temp = prod;
+        acc = ffi_num_add(acc, prod);
+      }
+      else {
+        FfiNum t = ffi_num_add(acc, x);
+        last_temp = t;
+        acc = (kind == 1) ? ffi_num_sub(t, y) : ffi_num_add(t, y);
+      }
+      pa += (ptrdiff_t)step * (ptrdiff_t)va.esz;
+      pb += (ptrdiff_t)step * (ptrdiff_t)vb.esz;
+    }
+  }
+  ffi_num_store(at, acc);
+  /* Preserve the bytecode-visible temporaries.  If a temp register is also
+  ** the result destination, the interpreter leaves the result there (the
+  ** table pair intrinsic follows the same rule). */
+  ffi_num_store(rt, last_temp);
+  ffi_num_store(ra, (ra == rt) ? last_temp : last_a);
+  ffi_num_store(rb, (rb == rt) ? last_temp : last_b);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 int luar_ffi_trace_i64_array (TValue *tv) {
   Udata *u; CData *cd; CType *ct, *elem;
   if (tv == NULL || !ttisfulluserdata(tv)) return 0;

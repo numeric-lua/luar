@@ -257,6 +257,12 @@ int luar_ffi_trace_sum_array (TValue *a, TValue *i, TValue *c, TValue *s,
                               TValue *acc, TValue *r) {
   (void)a; (void)i; (void)c; (void)s; (void)acc; (void)r; return 0;
 }
+int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *i,
+                               TValue *c, TValue *s, TValue *acc,
+                               TValue *ra, TValue *rb, TValue *r, int kind) {
+  (void)av; (void)bv; (void)i; (void)c; (void)s; (void)acc;
+  (void)ra; (void)rb; (void)r; (void)kind; return 0;
+}
 int64_t luar_ffi_trace_copy_i64 (TValue *d, TValue *s, TValue *k) {
   (void)d; (void)s; (void)k; return 0;
 }

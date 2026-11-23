@@ -447,6 +447,35 @@ static int encode_pair_source (const LuaR_PairRead *r) {
 }
 
 
+/* Resolve a pair source to its live value: a register slot or a closure
+** upvalue.  Used both to choose a table/cdata intrinsic and to verify that
+** the source still has the shape the intrinsic expects. */
+static TValue *pair_source_value (TValue *base, int reg, int upval) {
+  if (upval >= 0) {
+    TValue *fv = &base[-1];
+    LClosure *cl;
+    if (!ttisLclosure(fv))
+      return NULL;
+    cl = clLvalue(fv);
+    if (upval >= cl->p->sizeupvalues)
+      return NULL;
+    return cl->upvals[upval]->v.p;
+  }
+  if (reg < 0 || reg > 255)
+    return NULL;
+  return &base[reg];
+}
+
+
+/* A cdata array source is one of the bounded 1/2/4-byte integer or
+** 4/8-byte float arrays accepted by the FFI trace helpers.  A table source
+** returns 0. */
+static int pair_cdata_source (TValue *base, const LuaR_PairRead *r) {
+  TValue *tv = pair_source_value(base, r->table, r->upval);
+  return (tv != NULL) ? luar_ffi_trace_array_kind(tv) : 0;
+}
+
+
 /* LUAR: `s = s + a[i] + b[i] + c[i]` over three raw arrays.  Each source
 ** may be a register table or a closure upvalue; the compiler emits a
 ** GETUPVAL before the GETTABLE for an upvalue read. */
@@ -667,7 +696,7 @@ static int install_pair_intrinsic (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 ** from registers or closure upvalues, which the generic register-table
 ** emitter does not cover. */
 static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
-                           ptrdiff_t backedge, int for_a) {
+                           ptrdiff_t backedge, int for_a, TValue *base) {
   LuaR_PairRead ra, rb;
   Instruction op1, mm1, op2, mm2;
   ptrdiff_t i = start;
@@ -736,8 +765,20 @@ static int match_pair_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return 0;
   if (is_control_reg(ra.val, for_a) || is_control_reg(rb.val, for_a))
     return 0;
-  return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, t1,
-                                sub ? 13 : 12);
+  {
+    /* The bytecode shape is the same for Lua tables and bounded cdata
+    ** arrays; choose the helper from the live source values.  A mixed
+    ** table/cdata pair has no common reduction, so leave it interpreted. */
+    int acd = pair_cdata_source(base, &ra);
+    int bcd = pair_cdata_source(base, &rb);
+    if ((acd != 0) != (bcd != 0))
+      return 0;
+    if (acd != 0)
+      return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc,
+                                    t1, sub ? 18 : 17);
+    return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, t1,
+                                  sub ? 13 : 12);
+  }
 }
 
 
@@ -854,7 +895,7 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 ** The two reads and the MUL live in a temporary, then the accumulator gets
 ** the product.  Both sources may be registers or upvalues. */
 static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
-                              ptrdiff_t backedge, int for_a) {
+                              ptrdiff_t backedge, int for_a, TValue *base) {
   LuaR_PairRead ra, rb;
   Instruction mul, mm1, add, mm2;
   ptrdiff_t i = start;
@@ -912,8 +953,14 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return 0;
   if (is_control_reg(ra.val, for_a) || is_control_reg(rb.val, for_a))
     return 0;
-  return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, res,
-                                14);
+  {
+    int acd = pair_cdata_source(base, &ra);
+    int bcd = pair_cdata_source(base, &rb);
+    if ((acd != 0) != (bcd != 0))
+      return 0;
+    return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, res,
+                                  (acd != 0) ? 19 : 14);
+  }
 }
 
 
@@ -1423,10 +1470,10 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         match_three_table_sum(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
-        match_pair_sum(p, J, start, backedge, for_a))
+        match_pair_sum(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
-        match_dot_product(p, J, start, backedge, for_a))
+        match_dot_product(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_scaled_sum(p, J, start, backedge, for_a, b))
@@ -3612,23 +3659,8 @@ static LuaR_PairNum pair_from_array (Table *h, unsigned key) {
 
 
 static Table *pair_source_table (TValue *base, int reg, int upval) {
-  TValue *tv;
-  if (upval >= 0) {
-    TValue *fv = &base[-1];
-    LClosure *cl;
-    if (!ttisLclosure(fv))
-      return NULL;
-    cl = clLvalue(fv);
-    if (upval >= cl->p->sizeupvalues)
-      return NULL;
-    tv = cl->upvals[upval]->v.p;
-  }
-  else {
-    if (reg < 0 || reg > 255)
-      return NULL;
-    tv = &base[reg];
-  }
-  return ttistable(tv) ? hvalue(tv) : NULL;
+  TValue *tv = pair_source_value(base, reg, upval);
+  return (tv != NULL && ttistable(tv)) ? hvalue(tv) : NULL;
 }
 
 
@@ -4961,6 +4993,30 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   &((TValue *)base)[p->luar_tint_acc[i]],
                   &((TValue *)base)[p->luar_tint_res[i]]);
           break;
+        case 17:
+        case 18:
+        case 19: {
+          int aenc = p->luar_tint_table[i];
+          int benc = p->luar_tint_keys[i];
+          TValue *av = pair_source_value((TValue *)base,
+                                         (aenc >= 0) ? aenc : -1,
+                                         (aenc >= 0) ? -1 : (-1 - aenc));
+          TValue *bv = pair_source_value((TValue *)base,
+                                         (benc >= 0) ? benc : -1,
+                                         (benc >= 0) ? -1 : (-1 - benc));
+          r = (av == NULL || bv == NULL) ? 0
+              : luar_ffi_trace_pair_array(
+                    av, bv,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[p->luar_tint_acc[i]],
+                    &((TValue *)base)[p->luar_tint_upval[i]],
+                    &((TValue *)base)[p->luar_tint_arg4[i]],
+                    &((TValue *)base)[p->luar_tint_res[i]],
+                    kind - 17);
+          break;
+        }
         case 9:
           r = leaf4_call_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
@@ -5028,7 +5084,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         ** again at every backedge.  A missing key late in a large loop
         ** made that quadratic.  The backedge is already in the seen bloom,
         ** so dropping the slot falls back to the interpreter for good. */
-        if (kind <= 4 || (kind >= 10 && kind <= 16))
+        if (kind <= 4 || (kind >= 10 && kind <= 19))
           p->luar_tint[i] = 0;
       }
       else
