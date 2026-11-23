@@ -7,6 +7,7 @@
 */
 #include "lprefix.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -337,6 +338,46 @@ static FfiNum ffi_num_mul (FfiNum a, FfiNum b) {
   return ffi_num_int(l_castU2S(l_castS2U(a.i) * l_castS2U(b.i)));
 }
 
+/* Integer floor division/modulo with Lua's wrap rules.  A zero divisor is
+** never passed here: the store helpers pre-scan it and fall back so the
+** interpreter can raise the exact n//0 / n%0 error before any store. */
+static int64_t ffi_idiv_int (int64_t m, int64_t n) {
+  int64_t q;
+  if (n == -1)   /* avoid overflow for mininteger // -1 */
+    return l_castU2S(0u - l_castS2U(m));
+  q = m / n;
+  if (((m ^ n) < 0) && m % n != 0)
+    q -= 1;
+  return q;
+}
+
+static int64_t ffi_mod_int (int64_t m, int64_t n) {
+  int64_t r;
+  if (n == -1)   /* m % -1 == 0, avoid overflow */
+    return 0;
+  r = m % n;
+  if (r != 0 && ((r ^ n) < 0))
+    r += n;
+  return r;
+}
+
+static FfiNum ffi_num_idiv (FfiNum a, FfiNum b) {
+  if (a.isflt || b.isflt)
+    return ffi_num_flt(floor(ffi_num_double(a) / ffi_num_double(b)));
+  return ffi_num_int(ffi_idiv_int(a.i, b.i));
+}
+
+static FfiNum ffi_num_mod (FfiNum a, FfiNum b) {
+  if (a.isflt || b.isflt) {
+    double m = fmod(ffi_num_double(a), ffi_num_double(b));
+    double y = ffi_num_double(b);
+    if ((m > 0) ? y < 0 : (m < 0 && y > 0))
+      m += y;
+    return ffi_num_flt(m);
+  }
+  return ffi_num_int(ffi_mod_int(a.i, b.i));
+}
+
 static void ffi_num_store (TValue *dst, FfiNum n) {
   if (n.isflt) {
     setfltvalue(dst, n.d);
@@ -405,6 +446,21 @@ static FfiNum ffi_view_load (const FfiView *v, const char *p) {
   if (v->is_unsigned)
     return ffi_num_int((int64_t)trace_load_uint(p, v->esz));
   return ffi_num_int(trace_load_int(p, v->esz));
+}
+
+/* True when an integer view contains a zero in the run.  Used by the // and
+** % store helpers to reject before mutating; the interpreter then reports
+** the exact division-by-zero error at the failing element. */
+static int ffi_view_has_zero (const FfiView *v, lua_Integer count,
+                              lua_Integer step, lua_Integer idx) {
+  const char *p = v->base + (ptrdiff_t)idx * (ptrdiff_t)v->esz;
+  lua_Integer k;
+  for (k = 0; k <= count; k++) {
+    if (ffi_view_load(v, p).i == 0)
+      return 1;
+    p += (ptrdiff_t)step * (ptrdiff_t)v->esz;
+  }
+  return 0;
 }
 
 static FfiNum ffi_num_from_slot (TValue *tv) {
@@ -759,7 +815,7 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
   if (dstv == NULL || av == NULL || bv == NULL || it == NULL ||
       ct == NULL || st == NULL || tmpa == NULL || tmpb == NULL ||
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
-      op < 0 || op > 3)
+      op < 0 || op > 5)
     return 0;
   if (!ffi_view_init(dstv, &vd) || !ffi_view_init(av, &va) ||
       !ffi_view_init(bv, &vb))
@@ -770,6 +826,12 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
   if (!ffi_store_range(&vd, count, step, idx, &last) ||
       !ffi_store_range(&va, count, step, idx, &last) ||
       !ffi_store_range(&vb, count, step, idx, &last))
+    return 0;
+  /* Integer // and % by zero raise, and the helper must not leave partial
+  ** stores behind.  Scan the divisor first; a float operand takes the
+  ** non-raising float path instead. */
+  if ((op == 4 || op == 5) && !va.isflt && !vb.isflt &&
+      ffi_view_has_zero(&vb, count, step, idx))
     return 0;
   lasta = lastb = lastres = ffi_num_int(0);
   {
@@ -785,9 +847,13 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
         lastres = ffi_num_sub(lasta, lastb);
       else if (op == 2)
         lastres = ffi_num_mul(lasta, lastb);
-      else
+      else if (op == 3)
         lastres = ffi_num_flt(ffi_num_double(lasta) /
                               ffi_num_double(lastb));
+      else if (op == 4)
+        lastres = ffi_num_idiv(lasta, lastb);
+      else
+        lastres = ffi_num_mod(lasta, lastb);
       ffi_view_store(&vd, pd, lastres);
       pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
       pa += (ptrdiff_t)step * (ptrdiff_t)va.esz;

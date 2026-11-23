@@ -672,6 +672,8 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     case OP_SUB: op = 1; break;
     case OP_MUL: op = 2; break;
     case OP_DIV: op = 3; break;
+    case OP_IDIV: op = 4; break;
+    case OP_MOD: op = 5; break;
     default: return 0;
   }
   {
