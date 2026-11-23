@@ -2913,6 +2913,11 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
         if (a >= fp->maxstacksize || b >= fp->maxstacksize ||
             c >= fp->maxstacksize || kind[b] != 1 || kind[c] != 1)
           return 0;
+        /* LUAR: a zero divisor must raise in the interpreter, not become
+        ** a zero result.  Bail out of the intrinsic and let T0 report the
+        ** exact 'attempt to divide by zero' / n//0 error. */
+        if ((op == OP_MOD || op == OP_IDIV) && r[c] == 0)
+          return 0;
         if (op == OP_ADD) r[a] = jit_wrap_add(r[b], r[c]);
         else if (op == OP_SUB)
           r[a] = l_castU2S(l_castS2U(r[b]) - l_castS2U(r[c]));
@@ -2932,6 +2937,8 @@ static int leaf_eval (Proto *fp, lua_Integer arg, lua_Integer arg2,
           return 0;
         k = &fp->k[c];
         if (!ttisinteger(k)) return 0;
+        if ((op == OP_MODK || op == OP_IDIVK) && ivalue(k) == 0)
+          return 0;   /* LUAR: let the interpreter raise the zero-divisor error */
         if (op == OP_ADDK) r[a] = jit_wrap_add(r[b], ivalue(k));
         else if (op == OP_SUBK)
           r[a] = jit_wrap_add(r[b], -ivalue(k));
