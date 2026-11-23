@@ -2457,7 +2457,7 @@ decode_done:
         ** it (for example `a=a+i*i; a=a*i`) must not be folded into the
         ** square/product peephole: the emitter chooses one operation and
         ** would compute a different sequence from the bytecode. */
-        if (acc >= 0) { ok = 0; break; }
+        if (acc >= 0 || temp >= 0) { ok = 0; break; }
         if (op->a == op->b && op->c == idx && op->a != idx &&
             (op->ta == LUAR_T_INT || op->ta == LUAR_T_FLOAT)) {
           prod = 1;
@@ -2480,8 +2480,8 @@ decode_done:
         fconst = op->num;
       }
       else if (op->kind == LUAR_OP_DIV) {
-        if (prod || acc >= 0 || op->a != op->b || op->c != idx ||
-            op->ta != LUAR_T_FLOAT) { ok = 0; break; }
+        if (prod || acc >= 0 || temp >= 0 || op->a != op->b ||
+            op->c != idx || op->ta != LUAR_T_FLOAT) { ok = 0; break; }
         acc = op->a;
         is_float = 1;
         div = 1;
@@ -2512,7 +2512,8 @@ decode_done:
         accum_i = (int)i;
       }
       else if (op->kind == LUAR_OP_SUB) {
-        if (prod || acc >= 0 || op->a != op->b || op->c != idx ||
+        if (prod || acc >= 0 || temp >= 0 || op->a != op->b ||
+            op->c != idx ||
             (op->ta != LUAR_T_INT && op->ta != LUAR_T_FLOAT)) {
           ok = 0; break;
         }
@@ -3792,6 +3793,7 @@ static int method_add_intrinsic (lua_State *L, Proto *caller, TValue *base,
     return 0;
   if (GET_OPCODE(cl->p->code[0]) != OP_GETFIELD ||
       GETARG_A(cl->p->code[0]) != 2 ||
+      GETARG_B(cl->p->code[0]) != 0 ||
       GET_OPCODE(cl->p->code[1]) != OP_ADD ||
       GETARG_A(cl->p->code[1]) != 2 ||
       GETARG_B(cl->p->code[1]) != 2 ||
@@ -3801,6 +3803,12 @@ static int method_add_intrinsic (lua_State *L, Proto *caller, TValue *base,
       GETARG_A(cl->p->code[3]) != 0 ||
       GETARG_C(cl->p->code[3]) != 2 ||
       GET_OPCODE(cl->p->code[4]) != OP_RETURN0)
+    return 0;
+  /* The method must read and write the same field on self.  Using only
+  ** the GETFIELD key made `self.w = self.v + x` accumulate into self.v
+  ** and leave self.w untouched. */
+  if (GETARG_C(cl->p->code[0]) != GETARG_B(cl->p->code[3]) ||
+      GETARG_C(cl->p->code[0]) >= cl->p->sizek)
     return 0;
   field_key = &cl->p->k[GETARG_C(cl->p->code[0])];
   if (luaH_get(t, field_key, &fval) != LUA_VNUMINT)

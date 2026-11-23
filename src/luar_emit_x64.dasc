@@ -997,13 +997,19 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
       case LUAR_OP_GT:
       case LUAR_OP_GE:
       case LUAR_OP_EQ:
-        emit_cmp(Dst, d, op, i + 2);
-        /* false/true fall-through skips the paired JMP; repeat loops
-        ** exit at the descriptor's end label instead. */
-        if (d->repeat && i == d->nops - 1)
-          | jmp =>((int)(d->nops + 1))
-        else
+        /* The repeat exit is a global label: numeric labels 1-9 are
+        ** redefinable locals reused by emit_body/emit_int_one, and binding
+        ** the exit to one of them left eax unset on the fall-through path.
+        ** The caller then interpreted the return value as "not finished"
+        ** and re-ran the body one extra time. */
+        if (d->repeat && i == d->nops - 1) {
+          emit_cmp(Dst, d, op, (int)d->nops);
+          | jmp =>((int)d->nops)
+        }
+        else {
+          emit_cmp(Dst, d, op, i + 2);
           | jmp =>((int)(i + 2))
+        }
         break;
       case LUAR_OP_JMP:
         | jmp =>((int)op->target)
@@ -1041,12 +1047,10 @@ static void emit_branch_code (dasm_State **Dst, const LuaR_LoopDesc *d)
     }
   }
   if (d->is_while) {
-    if (!d->repeat)
+    if (!d->repeat) {
       | jmp =>0
-    if (d->repeat)
-      |=>((int)(d->nops + 1)):
-    else
-      |=>((int)d->nops):
+    }
+    |=>((int)d->nops):
     | mov eax, 1
     if (d->has_table2) {
       | pop r15
