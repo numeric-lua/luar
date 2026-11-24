@@ -4,6 +4,25 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.225.0] — 2026-11-24
+
+### Fixed
+
+- Sparse nil-range clears pass the Lua key (not the zero-based loop
+  offset) to `luaH_setint`; clearing `t[1000..1200]` no longer misses the
+  range start/end.
+- Generic table copies, fills and nil clears accept negative/hash integer
+  keys, with a separate endpoint helper and a `1 << 22` iteration cap.
+- Numeric constant fills through a closure-upvalue destination
+  (`U[i] = 7`) use the generic fill path instead of staying interpreted.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/jit/220_table_generic_keys.lua`.
+
 ## [0.224.0] — 2026-11-24
 
 ### Added
