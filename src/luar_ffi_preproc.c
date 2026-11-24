@@ -523,6 +523,7 @@ typedef struct IfExpr {
   const char *p;
   const char *end;
   int line;
+  int dead;             /* parsing an unchosen ?: branch: no eval errors */
 } IfExpr;
 
 static void if_error (IfExpr *E, const char *msg) {
@@ -820,13 +821,39 @@ static IfNum if_parse_expr (IfExpr *E, int minprec) {
     int op, olen, prec, uns;
     IfNum rhs;
     if_skip(E);
+    /* C's conditional operator binds below || and is right-associative.
+    ** Only the chosen branch is evaluated; syntax errors still surface. */
+    if (minprec <= 1 && E->p < E->end && *E->p == '?') {
+      IfNum chosen, other;
+      int saved = E->dead;
+      E->p++;
+      E->dead = saved || (lhs.u == 0);
+      chosen = if_parse_expr(E, 1);
+      if_skip(E);
+      if (E->p >= E->end || *E->p != ':')
+        if_error(E, "expected ':' in #if conditional");
+      E->p++;
+      E->dead = saved || (lhs.u != 0);
+      other = if_parse_expr(E, 1);
+      E->dead = saved;
+      lhs = (lhs.u != 0) ? chosen : other;
+      continue;
+    }
     if (!if_binop(E, &op, &olen))
       break;
     prec = if_prec(op);
     if (prec < minprec)
       break;
     E->p += olen;
-    rhs = if_parse_expr(E, prec + 1);
+    {
+      int saved = E->dead;
+      /* C short-circuits && and ||; an unchosen operand must still parse
+      ** but must not raise evaluation errors. */
+      if ((op == 2 && lhs.u == 0) || (op == 1 && lhs.u != 0))
+        E->dead = 1;
+      rhs = if_parse_expr(E, prec + 1);
+      E->dead = saved;
+    }
     uns = lhs.uns || rhs.uns;
     switch (op) {
       case 1: lhs = if_signed(lhs.u != 0 || rhs.u != 0); break;
@@ -850,14 +877,22 @@ static IfNum if_parse_expr (IfExpr *E, int minprec) {
         break;
       case 11:
         if (rhs.uns ? (rhs.u >= 64)
-                    : ((int64_t)rhs.u < 0 || (int64_t)rhs.u >= 64))
-          if_error(E, "shift count out of range in #if");
+                    : ((int64_t)rhs.u < 0 || (int64_t)rhs.u >= 64)) {
+          if (!E->dead)
+            if_error(E, "shift count out of range in #if");
+          lhs = if_signed(0);
+          break;
+        }
         lhs.u = lhs.u << (unsigned)rhs.u;
         break;
       case 12:
         if (rhs.uns ? (rhs.u >= 64)
-                    : ((int64_t)rhs.u < 0 || (int64_t)rhs.u >= 64))
-          if_error(E, "shift count out of range in #if");
+                    : ((int64_t)rhs.u < 0 || (int64_t)rhs.u >= 64)) {
+          if (!E->dead)
+            if_error(E, "shift count out of range in #if");
+          lhs = if_signed(0);
+          break;
+        }
         if (lhs.uns)
           lhs.u = lhs.u >> (unsigned)rhs.u;
         else
@@ -871,8 +906,12 @@ static IfNum if_parse_expr (IfExpr *E, int minprec) {
       case 15: lhs.u = lhs.u - rhs.u; lhs.uns = uns; break;
       case 16: lhs.u = lhs.u * rhs.u; lhs.uns = uns; break;
       case 17:
-        if (rhs.u == 0)
-          if_error(E, "division by zero in #if");
+        if (rhs.u == 0) {
+          if (!E->dead)
+            if_error(E, "division by zero in #if");
+          lhs = if_signed(0);
+          break;
+        }
         if (uns)
           lhs.u = lhs.u / rhs.u;
         else {
@@ -881,8 +920,12 @@ static IfNum if_parse_expr (IfExpr *E, int minprec) {
         }
         break;
       case 18:
-        if (rhs.u == 0)
-          if_error(E, "division by zero in #if");
+        if (rhs.u == 0) {
+          if (!E->dead)
+            if_error(E, "division by zero in #if");
+          lhs = if_signed(0);
+          break;
+        }
         if (uns)
           lhs.u = lhs.u % rhs.u;
         else {
@@ -984,6 +1027,7 @@ static int eval_if (lua_State *L, FFIState *S, const char *expr, size_t n,
   E.p = ex.p;
   E.end = ex.p + ex.n - 1;
   E.line = line;
+  E.dead = 0;
   v = if_parse_expr(&E, 1);
   if_skip(&E);
   if (E.p != E.end)
