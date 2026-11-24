@@ -477,6 +477,19 @@ static int install_cdata_tint (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* LUAR: `dst[i] = src[i] +|-|*|/ k` over raw tables.  Kind 42 keeps the
+** destination register, scalar encoding, value temp and operation. */
+static int install_table_scaled_store (Proto *p, LuaR_JIT *J,
+                                       ptrdiff_t backedge, int for_a,
+                                       int dst, int src_enc, int scalar_enc,
+                                       int scalar_imm, int elem_reg,
+                                       int res_reg, int op) {
+  int regs = (elem_reg & 0xff) | ((res_reg & 0xff) << 8);
+  return install_cdata_tint(p, J, backedge, 42, dst, scalar_enc, regs,
+                            op, scalar_imm, src_enc, for_a);
+}
+
+
 /* Match a cdata fill whose destination array is a closure upvalue:
 **   GETUPVAL a, U; SETTABLE a, key, value
 ** The upvalue is re-resolved on every entry, so rebinding it is observed.
@@ -1144,6 +1157,7 @@ static int install_cdata_scaled (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 ** divide; only the left operand of `/` is ever the element because
 ** division does not commute. */
 #define LUAR_TINT_SCALAR_CONST 0x40000000
+#define LUAR_TINT_SCALAR_IMM   0x20000000
 
 static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
                                int for_a, const LuaR_PairRead *r,
@@ -1551,6 +1565,119 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return 0;
   return install_scaled_sum(p, J, backedge, for_a, &r, scalar_enc,
                             r.val, prod_reg, acc, div, sub);
+}
+
+
+/* LUAR: `dst[i] = src[i] +|-|*|/ k` over raw table arrays.  The source
+** and destination may be the same table.  The scalar is a numeric
+** constant, register local or closure upvalue. */
+static int match_table_scaled_store (Proto *p, LuaR_JIT *J,
+                                     ptrdiff_t start, ptrdiff_t backedge,
+                                     int for_a, TValue *b) {
+  LuaR_PairRead r;
+  Instruction op, set;
+  ptrdiff_t i = start;
+  int opcode, op_a, op_b, op_c, scalar_enc = -1, scalar_reg = -1;
+  int scalar_imm = 0, scalar_pre = -1, dst, kind;
+  if (!match_pair_read(p, &i, backedge, for_a, &r))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  if (GET_OPCODE(p->code[i]) == OP_GETUPVAL) {
+    Instruction up = p->code[i++];
+    int sreg = GETARG_A(up);
+    if (i >= backedge || sreg == r.val || is_control_reg(sreg, for_a))
+      return 0;
+    scalar_reg = sreg;
+    scalar_pre = sreg;
+    scalar_enc = -1 - GETARG_B(up);
+  }
+  if (i >= backedge)
+    return 0;
+  op = p->code[i++];
+  opcode = GET_OPCODE(op);
+  op_a = GETARG_A(op);
+  op_b = GETARG_B(op);
+  op_c = GETARG_C(op);
+  if (opcode == OP_ADDI) {
+    if (op_b != r.val || scalar_enc != -1)
+      return 0;
+    scalar_enc = LUAR_TINT_SCALAR_IMM;
+    scalar_imm = (int)GETARG_sC(op);
+    kind = 0;
+  }
+  else if (opcode == OP_ADDK || opcode == OP_SUBK ||
+      opcode == OP_MULK || opcode == OP_DIVK) {
+    int kidx = op_c;
+    if (op_b != r.val || scalar_enc != -1 || kidx >= p->sizek)
+      return 0;
+    if (!ttisinteger(&p->k[kidx]) && !ttisfloat(&p->k[kidx]))
+      return 0;
+    if (kidx >= LUAR_TINT_SCALAR_CONST)
+      return 0;
+    scalar_enc = LUAR_TINT_SCALAR_CONST | kidx;
+    kind = (opcode == OP_ADDK) ? 0 : (opcode == OP_SUBK) ? 1
+         : (opcode == OP_MULK) ? 2 : 3;
+  }
+  else if (opcode == OP_ADD || opcode == OP_SUB ||
+           opcode == OP_MUL || opcode == OP_DIV) {
+    int commutative = (opcode == OP_ADD || opcode == OP_MUL);
+    if (op_b == r.val)
+      scalar_reg = op_c;
+    else if (commutative && op_c == r.val)
+      scalar_reg = op_b;
+    else
+      return 0;
+    if (scalar_pre >= 0) {
+      if (scalar_reg != scalar_pre)
+        return 0;
+    }
+    else {
+      if (scalar_reg < 0 || scalar_reg > 255 ||
+          is_control_reg(scalar_reg, for_a))
+        return 0;
+      scalar_enc = scalar_reg;
+    }
+    kind = (opcode == OP_ADD) ? 0 : (opcode == OP_SUB) ? 1
+         : (opcode == OP_MUL) ? 2 : 3;
+  }
+  else
+    return 0;
+  if (is_control_reg(op_a, for_a))
+    return 0;
+  if (i >= backedge ||
+      (GET_OPCODE(p->code[i]) != OP_MMBIN &&
+       GET_OPCODE(p->code[i]) != OP_MMBINI &&
+       GET_OPCODE(p->code[i]) != OP_MMBINK))
+    return 0;
+  i++;
+  if (i >= backedge)
+    return 0;
+  set = p->code[i++];
+  if (GET_OPCODE(set) != OP_SETTABLE ||
+      GETARG_B(set) != for_a + 2 || GETARG_C(set) != op_a)
+    return 0;
+  dst = GETARG_A(set);
+  if (dst == r.val || dst == op_a || is_control_reg(dst, for_a) ||
+      is_control_reg(r.val, for_a) || is_control_reg(scalar_reg, for_a))
+    return 0;
+  if (r.upval < 0 && (r.treg == r.val || r.treg == op_a))
+    return 0;
+  if (scalar_reg >= 0) {
+    if (scalar_reg == r.val || scalar_reg == op_a || scalar_reg == dst)
+      return 0;
+    if (!ttisinteger(&b[scalar_reg]) && !ttisfloat(&b[scalar_reg]))
+      return 0;
+  }
+  if (r.upval < 0 && !ttistable(&b[r.table]))
+    return 0;
+  if (!ttistable(&b[dst]))
+    return 0;
+  if (i != backedge)
+    return 0;
+  return install_table_scaled_store(p, J, backedge, for_a, dst,
+                                    encode_pair_source(&r), scalar_enc,
+                                    scalar_imm, r.val, op_a, kind);
 }
 
 
@@ -2248,6 +2375,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_scaled_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_table_scaled_store(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_fill(p, J, start, backedge, for_a, b))
@@ -4683,6 +4813,87 @@ static TValue *tint_scalar (Proto *p, TValue *base, int enc) {
 }
 
 
+/* kind 42: dst[i] = src[i] +|-|*|/ k over raw table arrays.  The run is
+** checked against the source array before any store; the destination may
+** be the same table and is grown only when the source run is known to be
+** safe.  Metatables are rejected so __index/__newindex never matter. */
+static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
+                                         TValue *base, int for_a,
+                                         int dst_reg, int src_enc,
+                                         int scalar_enc, int scalar_imm,
+                                         int elem_reg, int res_reg,
+                                         int op) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *tt = &base[dst_reg];
+  Table *src, *dst;
+  TValue *sc;
+  TValue immval;
+  LuaR_PairNum fac, last_elem, last_res;
+  lua_Integer count, step, idx, lastkey, maxkey, ckey, k;
+  int sreg = (src_enc >= 0) ? src_enc : -1;
+  int sup = (src_enc >= 0) ? -1 : (-1 - src_enc);
+  int ok = 1;
+  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!for_run_last(idx, count, step, &lastkey))
+    return 0;
+  src = pair_source_table(base, sreg, sup);
+  if (!array_run_bounds(src, idx, lastkey) ||
+      !array_run_numeric(src, idx, count, step))
+    return 0;
+  if (scalar_enc == LUAR_TINT_SCALAR_IMM) {
+    setivalue(&immval, (lua_Integer)scalar_imm);
+    sc = &immval;
+  }
+  else
+    sc = tint_scalar(p, base, scalar_enc);
+  if (sc == NULL || (!ttisinteger(sc) && !ttisfloat(sc)))
+    return 0;
+  fac = pair_from_slot(sc, &ok);
+  if (!ok)
+    return 0;
+  dst = hvalue(tt);
+  maxkey = (idx > lastkey) ? idx : lastkey;
+  if (dst->metatable != NULL || maxkey > (1 << 22))
+    return 0;
+  if (dst->asize < (unsigned)maxkey)
+    luaH_resizearray(L, dst, (unsigned)maxkey);
+  last_elem = pair_int(0);
+  last_res = pair_int(0);
+  for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+    LuaR_PairNum elem = pair_from_array(src, (unsigned)ckey);
+    TValue v;
+    last_elem = elem;
+    if (op == 0)
+      last_res = pair_add(elem, fac);
+    else if (op == 1)
+      last_res = pair_sub(elem, fac);
+    else if (op == 2)
+      last_res = pair_mul(elem, fac);
+    else
+      last_res = pair_div(elem, fac);
+    if (last_res.isflt) {
+      setfltvalue(&v, last_res.d);
+    }
+    else {
+      setivalue(&v, last_res.i);
+    }
+    obj2arr(dst, (unsigned)ckey, &v);
+  }
+  pair_store_slot(base, elem_reg, last_elem, -1);
+  pair_store_slot(base, res_reg, last_res, -1);
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 /* kind 15: s = s + a[i] * k.  The scalar is numeric in every iteration;
 ** the element and product registers keep their last bytecode values. */
 static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
@@ -5859,6 +6070,15 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                     p->luar_tint_res[i]);
           break;
         }
+        case 42:
+          r = table_scaled_store_intrinsic(
+                  L, p, (TValue *)base, expected_base,
+                  p->luar_tint_table[i], p->luar_tint_arg4[i],
+                  p->luar_tint_keys[i], p->luar_tint_res[i],
+                  p->luar_tint_upval[i] & 0xff,
+                  (p->luar_tint_upval[i] >> 8) & 0xff,
+                  p->luar_tint_acc[i]);
+          break;
         case 29:
           r = table_affine_fill_intrinsic(L, (TValue *)base, expected_base,
                                           p->luar_tint_table[i],
