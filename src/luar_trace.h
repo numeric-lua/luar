@@ -155,6 +155,7 @@ enum {
 typedef struct LuaR_IRIns {
   uint8_t kind;
   uint8_t a, b, c;
+  uint8_t kfloat;	/* K operand is a float constant (even 0.0) */
   int32_t pc;		/* originating Proto instruction, -1 if synthetic */
   int64_t ival;
   double nval;
@@ -394,7 +395,8 @@ int64_t luar_ffi_trace_copy_i64 (TValue *dst, TValue *src, TValue *key);
 int luar_ffi_trace_array_kind (TValue *tv);
 int luar_ffi_trace_array_store_kind (TValue *tv);
 int luar_ffi_trace_sum_array (TValue *arr, TValue *idx, TValue *count,
-                              TValue *step, TValue *acc, TValue *res);
+                              TValue *step, TValue *acc, TValue *res,
+                              int sub);
 int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *idx,
                                TValue *count, TValue *step, TValue *acc,
                                TValue *ra, TValue *rb, TValue *res,

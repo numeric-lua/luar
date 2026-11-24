@@ -100,7 +100,7 @@ int luar_trace_ir_verify (const LuaR_TraceIR *t, char *err, size_t errlen) {
         ** constants into FMULK/FDIVK. */
         if ((in->kind == LUAR_IR_ADDK || in->kind == LUAR_IR_SUBK ||
              in->kind == LUAR_IR_MODK || in->kind == LUAR_IR_IDIVK) &&
-            in->nval != (double)in->ival) {
+            in->kfloat) {
           if (err != NULL && errlen > 0) snprintf(err, errlen, "bad kconst");
           return 0;
         }
@@ -1498,8 +1498,6 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_ADDI:
       case LUAR_IR_ADDK:
       case LUAR_IR_SUBK:
-      case LUAR_IR_MULK:
-      case LUAR_IR_DIVK:
       case LUAR_IR_MODK:
       case LUAR_IR_IDIVK:
       case LUAR_IR_ADD:
@@ -1507,6 +1505,12 @@ int luar_trace_ir_analyze (LuaR_TraceIR *t, char *err, size_t errlen) {
       case LUAR_IR_MUL:
       case LUAR_IR_DIV:
         kind[in->a] = 1;
+        break;
+      case LUAR_IR_MULK:
+        kind[in->a] = in->kfloat ? 2 : 1;
+        break;
+      case LUAR_IR_DIVK:
+        kind[in->a] = 2;   /* Lua '/' always produces a float */
         break;
       case LUAR_IR_TGET:
       case LUAR_IR_TSET:
@@ -1994,6 +1998,8 @@ static int ir_slot_is_int (const LuaR_TraceIR *t, int slot, int end,
     if (t->ins[i].kind == LUAR_IR_LOADI ||
         t->ins[i].kind == LUAR_IR_ADDI)
       return 1;
+    if (t->ins[i].kind == LUAR_IR_MULK && t->ins[i].kfloat)
+      return 0;
     if (t->ins[i].kind == LUAR_IR_MULK ||
         t->ins[i].kind == LUAR_IR_ADDK ||
         t->ins[i].kind == LUAR_IR_SUBK)
@@ -2054,8 +2060,7 @@ static int ir_ins_is_float (const LuaR_TraceIR *t, int i, int depth) {
     case LUAR_IR_DIVK:
       return 1;   /* Lua `/` always produces a float */
     case LUAR_IR_MULK:
-      return in->nval != (double)in->ival ||
-             ir_slot_is_float(t, in->b, i, depth + 1);
+      return in->kfloat || ir_slot_is_float(t, in->b, i, depth + 1);
     case LUAR_IR_ADD:
     case LUAR_IR_SUB:
       return ir_slot_is_float(t, in->b, i, depth + 1) ||
@@ -2426,6 +2431,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         in.ival = ttisinteger(&p->k[c]) ? ivalue(&p->k[c]) : 0;
         in.nval = ttisfloat(&p->k[c]) ? fltvalue(&p->k[c]) :
                   (double)in.ival;
+        in.kfloat = (uint8_t)ttisfloat(&p->k[c]);
         in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
         break;

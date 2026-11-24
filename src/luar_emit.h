@@ -64,6 +64,7 @@ typedef struct LuaR_Op {
   uint8_t elem;		/* raw array element flavour for table reads */
   uint8_t k;		/* comparison jump condition */
   uint8_t isconst;	/* RK(C) store value is op->imm/op->num */
+  uint8_t is_sub;	/* fused table read subtracts instead of adds */
   int32_t target;	/* branch target instruction index */
   int32_t keyimm;	/* SETI immediate array key */
   int pc;		/* Proto instruction index */
@@ -136,6 +137,7 @@ typedef struct LuaR_LoopDesc {
   int ft_idx;
   int ft_acc;
   int ft_res;			/* element result slot, -1 if none */
+  int ft_sub;			/* fast_tsum uses subtraction */
   int fast_sub;			/* acc = acc - idx fast path */
   int fsb_acc;
   int fsb_float;

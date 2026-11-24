@@ -2023,10 +2023,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     if (!for_float && J->enable_tint && n >= 5 &&
         GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
-        GET_OPCODE(p->code[start + 2]) == OP_ADD &&
+        (GET_OPCODE(p->code[start + 2]) == OP_ADD ||
+         GET_OPCODE(p->code[start + 2]) == OP_SUB) &&
         GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
         backedge == start + 4) {
-      /* LUAR: `s = s + a[i]` where `a` is a bounded cdata array captured
+      /* LUAR: `s = s +/- a[i]` where `a` is a bounded cdata array captured
       ** as a closure upvalue.  The upvalue is re-resolved on every entry,
       ** so reassigning it is observed like the interpreter. */
       Instruction i1 = p->code[start + 1];
@@ -2044,7 +2045,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           !is_control_reg(arr, for_a) &&
           av != NULL && luar_ffi_trace_array_kind(av) != 0)
         return install_cdata_tint(p, J, backedge, 16, -1 - GETARG_B(i0),
-                                  0, 0, acc, tmp, 0, for_a);
+                                  0, 0, acc, tmp,
+                                  GET_OPCODE(i2) == OP_SUB, for_a);
     }
     if (!for_float && J->enable_tint && n >= 5 &&
         GET_OPCODE(i0) == OP_GETUPVAL &&
@@ -2085,10 +2087,11 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     }
     if (!for_float && J->enable_tint && n >= 4 &&
         GET_OPCODE(i0) == OP_GETTABLE &&
-        GET_OPCODE(p->code[start + 1]) == OP_ADD &&
+        (GET_OPCODE(p->code[start + 1]) == OP_ADD ||
+         GET_OPCODE(p->code[start + 1]) == OP_SUB) &&
         GET_OPCODE(p->code[start + 2]) == OP_MMBIN &&
         backedge == start + 3) {
-      /* LUAR: `s = s + a[i]` over a bounded FFI cdata array.  The generic
+      /* LUAR: `s = s +/- a[i]` over a bounded FFI cdata array.  The generic
       ** decoder only knows Lua tables, so recognise the raw GETTABLE shape
       ** here and let a C helper run the remaining iterations. */
       Instruction i1 = p->code[start + 1];
@@ -2103,7 +2106,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           !is_control_reg(arr, for_a) &&
           luar_ffi_trace_array_kind(&b[arr]) != 0)
         return install_cdata_tint(p, J, backedge, 16, arr, 0, 0,
-                                  acc, tmp, 0, for_a);
+                                  acc, tmp,
+                                  GET_OPCODE(i1) == OP_SUB, for_a);
     }
     if (!for_float && J->enable_tint &&
         match_three_table_sum(p, J, start, backedge, for_a, b))
@@ -2904,15 +2908,26 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         /* Fuse the common "acc = acc + t[key]" shape.  See GETI above. */
         if (!d.has_table2 && i + 1 < n - 1) {
           Instruction nx = p->code[start + i + 1];
-          if (GET_OPCODE(nx) == OP_ADD) {
+          if (GET_OPCODE(nx) == OP_ADD || GET_OPCODE(nx) == OP_SUB) {
             int na = GETARG_A(nx), nb = GETARG_B(nx), nc = GETARG_C(nx);
-            int acct = 0;
-            if ((nb == ka && nc == na) || (nc == ka && nb == na))
+            int acct = 0, is_sub = 0;
+            if (GET_OPCODE(nx) == OP_SUB) {
+              /* acc - t[key]; the reverse order is not this shape.  Only
+              ** fuse when this read is the whole body (the C helper shape);
+              ** in a branch the generic emitter must see the real SUB. */
+              if (nb == na && nc == ka && d.table_reads == 1 &&
+                  start + i + 3 == backedge) {
+                acct = slot_type(b, cur, def, na);
+                is_sub = 1;
+              }
+            }
+            else if ((nb == ka && nc == na) || (nc == ka && nb == na))
               acct = slot_type(b, cur, def, na);
             if ((acct == LUAR_T_INT || acct == LUAR_T_FLOAT) &&
                 !is_control_reg(na, for_a) && ka != na) {
-              /* R[ka] is part of the ADD's bytecode effect; materialise it
-              ** so later reads (and the post-loop value) stay correct. */
+              /* R[ka] is part of the arithmetic's bytecode effect;
+              ** materialise it so later reads and the post-loop value stay
+              ** correct. */
               op->kind = LUAR_OP_TABLE_ADD;
               op->a = (uint8_t)na;
               op->b = (uint8_t)kb;
@@ -2922,6 +2937,7 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
               op->tb = LUAR_T_TABLE;
               op->tc = LUAR_T_INT;
               op->elem = LUAR_T_INT;
+              op->is_sub = (uint8_t)is_sub;
               memset(&ops[i + 1], 0, sizeof(ops[i + 1]));
               ops[i + 1].kind = LUAR_OP_NOP;
               cur[na] = (uint8_t)acct;
@@ -3355,6 +3371,12 @@ decode_done:
       d.ft_table = ops[0].b;
       d.ft_idx = ops[0].c;
       d.ft_acc = ops[0].a;
+      d.ft_sub = ops[0].is_sub;
+      /* The native fast_tsum emitter only adds.  With tint disabled there
+      ** is no C helper for subtraction, so leave the loop interpreted
+      ** instead of silently turning it into an addition. */
+      if (d.ft_sub && !J->enable_tint)
+        return 0;
     }
   }
 
@@ -3392,6 +3414,7 @@ decode_done:
     p->luar_tint_table[slot] = d.fast_fill ? d.ff_table : d.ft_table;
     p->luar_tint_acc[slot] = d.fast_tsum ? d.ft_acc : 0;
     p->luar_tint_res[slot] = d.fast_tsum ? d.ft_res : 0;
+    p->luar_tint_arg4[slot] = d.fast_tsum ? d.ft_sub : 0;
     p->luar_tint_base[slot] = for_a;
     p->luar_tint_epoch[slot] = J->epoch;
     J->compiled++;
@@ -3947,7 +3970,7 @@ static int array_run_numeric (Table *h, lua_Integer idx, lua_Integer count,
 /* Raw array sum over an already resolved table.  Used by the register and
 ** upvalue-table intrinsic entries. */
 static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
-                            int acc_reg, int res_reg) {
+                            int acc_reg, int res_reg, int sub) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
@@ -3970,8 +3993,12 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
       unsigned key = (unsigned)ckey;
       lu_byte tag = *getArrTag(h, key);
       if (tag == LUA_VNUMINT) {
-        if (promoted)
-          fsum += cast_num(getArrVal(h, key)->i);
+        if (promoted) {
+          if (sub) fsum -= cast_num(getArrVal(h, key)->i);
+          else fsum += cast_num(getArrVal(h, key)->i);
+        }
+        else if (sub)
+          sum -= l_castS2U(getArrVal(h, key)->i);
         else
           sum += l_castS2U(getArrVal(h, key)->i);
       }
@@ -3984,7 +4011,8 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
           fsum = cast_num(l_castU2S(sum));
           promoted = 1;
         }
-        fsum += getArrVal(h, key)->n;
+        if (sub) fsum -= getArrVal(h, key)->n;
+        else fsum += getArrVal(h, key)->n;
       }
       else
         return 0;
@@ -4001,10 +4029,14 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
     for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
       unsigned key = (unsigned)ckey;
       lu_byte tag = *getArrTag(h, key);
-      if (tag == LUA_VNUMINT)
-        sum += cast_num(getArrVal(h, key)->i);
-      else if (tag == LUA_VNUMFLT)
-        sum += getArrVal(h, key)->n;
+      if (tag == LUA_VNUMINT) {
+        if (sub) sum -= cast_num(getArrVal(h, key)->i);
+        else sum += cast_num(getArrVal(h, key)->i);
+      }
+      else if (tag == LUA_VNUMFLT) {
+        if (sub) sum -= getArrVal(h, key)->n;
+        else sum += getArrVal(h, key)->n;
+      }
       else
         return 0;
     }
@@ -4030,11 +4062,11 @@ static int table_sum_table (lua_State *L, TValue *base, int for_a, Table *h,
 
 static int table_sum_intrinsic (lua_State *L, TValue *base,
                                 int for_a, int table_reg, int acc_reg,
-                                int res_reg) {
+                                int res_reg, int sub) {
   TValue *tt = &base[table_reg];
   if (!ttistable(tt))
     return 0;
-  return table_sum_table(L, base, for_a, hvalue(tt), acc_reg, res_reg);
+  return table_sum_table(L, base, for_a, hvalue(tt), acc_reg, res_reg, sub);
 }
 
 
@@ -5610,7 +5642,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           r = table_sum_intrinsic(L, (TValue *)base, expected_base,
                                   p->luar_tint_table[i],
                                   p->luar_tint_acc[i],
-                                  p->luar_tint_res[i]);
+                                  p->luar_tint_res[i],
+                                  p->luar_tint_arg4[i]);
           break;
         case 3: {
           Table *keys = tint_keys_table(p, (TValue *)base, i);
@@ -5623,7 +5656,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           Table *h = tint_upval_table(p, (TValue *)base, i);
           r = (h == NULL) ? 0
               : table_sum_table(L, (TValue *)base, expected_base, h,
-                                p->luar_tint_acc[i], p->luar_tint_res[i]);
+                                p->luar_tint_acc[i], p->luar_tint_res[i],
+                                0);
           break;
         }
         case 11:
@@ -5678,7 +5712,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     &((TValue *)base)[p->luar_tint_acc[i]],
-                    &((TValue *)base)[p->luar_tint_res[i]]);
+                    &((TValue *)base)[p->luar_tint_res[i]],
+                    p->luar_tint_arg4[i]);
           break;
         }
         case 17:
@@ -5813,7 +5848,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             if (luaH_getstr(hvalue(ov), tsvalue(&p->k[keyidx]), &field) !=
                 LUA_TNIL && ttistable(&field))
               r = table_sum_table(L, (TValue *)base, expected_base,
-                                  hvalue(&field), p->luar_tint_acc[i], tmp);
+                                  hvalue(&field), p->luar_tint_acc[i], tmp,
+                                  0);
           }
           break;
         }
@@ -6142,68 +6178,6 @@ LUA_API int luar_has_jit (void) {
 /* Recording                                                         */
 /* ---------------------------------------------------------------- */
 
-/* FFI traces have their own cdata/call type rules and were already covered
-** by the FFI J4 suite; leave their floatification alone. */
-static int ir_has_ffi_ops (const LuaR_TraceIR *ir) {
-  int i;
-  for (i = 0; i < ir->nins; i++) {
-    switch (ir->ins[i].kind) {
-      case LUAR_IR_CGETI:
-      case LUAR_IR_CGETF:
-      case LUAR_IR_CSETI:
-      case LUAR_IR_CSETF:
-      case LUAR_IR_CGETFIELD:
-      case LUAR_IR_CSETFIELD:
-      case LUAR_IR_CSETFIELDK:
-      case LUAR_IR_CPGETI:
-      case LUAR_IR_CPGETF:
-      case LUAR_IR_CPSETI:
-      case LUAR_IR_CPSETF:
-      case LUAR_IR_CPGETI64:
-      case LUAR_IR_CPSETI64:
-      case LUAR_IR_CCPYI64:
-      case LUAR_IR_CADDI64:
-      case LUAR_IR_CMULI64:
-      case LUAR_IR_CDIVI64:
-      case LUAR_IR_CUDIVI64:
-      case LUAR_IR_CMODI64:
-      case LUAR_IR_CUMODI64:
-      case LUAR_IR_CBANDI64:
-      case LUAR_IR_CBORI64:
-      case LUAR_IR_CBXORI64:
-      case LUAR_IR_CSHLI64:
-      case LUAR_IR_CSHRI64:
-      case LUAR_IR_CNEGI64:
-      case LUAR_IR_CBNOTI64:
-      case LUAR_IR_CSETI64:
-      case LUAR_IR_CCALL0I:
-      case LUAR_IR_CCALL0D:
-      case LUAR_IR_CCALL1I:
-      case LUAR_IR_CCALL1DI:
-      case LUAR_IR_CCALL1DD:
-      case LUAR_IR_CCALL1FF:
-      case LUAR_IR_CCALL2DD:
-      case LUAR_IR_CCALL2FF:
-      case LUAR_IR_CCALL2FI:
-      case LUAR_IR_CCALL2IF:
-      case LUAR_IR_CCALL2FD:
-      case LUAR_IR_CCALL2DF:
-      case LUAR_IR_CCALL2DI:
-      case LUAR_IR_CCALL2ID:
-      case LUAR_IR_CCALL2II:
-      case LUAR_IR_CCALL3DD:
-      case LUAR_IR_CCALL3DDI:
-      case LUAR_IR_CCALL3DID:
-      case LUAR_IR_CCALL3IDD:
-        return 1;
-      default:
-        break;
-    }
-  }
-  return 0;
-}
-
-
 /* LUAR: after the float pass, verify that every remaining integer
 ** arithmetic instruction really has integer operands.  The old pass
 ** converted only the chain rooted at the first float it saw; a later
@@ -6247,12 +6221,18 @@ static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
       case LUAR_IR_MODK:
       case LUAR_IR_IDIVK:
         /* No float variants exist for these K operations. */
-        if (type[in->b] != 1 || in->nval != (double)in->ival) return 0;
+        if (type[in->b] != 1 || in->kfloat) return 0;
         type[in->a] = 1;
         break;
       case LUAR_IR_MULK:
-        if (type[in->b] != 1 || in->nval != (double)in->ival) return 0;
-        type[in->a] = 1;
+        if (in->kfloat) {
+          if (type[in->b] == 0 || type[in->b] > 2) return 0;
+          type[in->a] = 2;
+        }
+        else {
+          if (type[in->b] != 1) return 0;
+          type[in->a] = 1;
+        }
         break;
       case LUAR_IR_ADD:
       case LUAR_IR_SUB:
@@ -6263,7 +6243,7 @@ static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
         break;
       case LUAR_IR_FMULK:
       case LUAR_IR_FDIVK:
-        if (type[in->b] != 2) return 0;
+        if (type[in->b] == 0 || type[in->b] > 2) return 0;
         type[in->a] = 2;
         break;
       case LUAR_IR_FADDI:
@@ -6272,7 +6252,14 @@ static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
         break;
       case LUAR_IR_FADD:
       case LUAR_IR_FSUB:
-        if (type[in->b] != 2 || type[in->c] != 2) return 0;
+        /* Mixed int/float operands are converted by the runtime helper;
+        ** both sides must still be numeric.  A both-int FADD/FSUB is not
+        ** produced by ir_floatify, but reject it here if it ever is. */
+        if (type[in->b] == 0 || type[in->b] > 2 ||
+            type[in->c] == 0 || type[in->c] > 2)
+          return 0;
+        if (type[in->b] == 1 && type[in->c] == 1)
+          return 0;
         type[in->a] = 2;
         break;
       case LUAR_IR_ITOF:
@@ -6285,6 +6272,44 @@ static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
         break;
       case LUAR_IR_TGETF:
       case LUAR_IR_TGETKF:
+        type[in->a] = 2;
+        break;
+      /* LUAR: cdata reads are producers too.  Without these cases an
+      ** otherwise valid mixed FFI trace had an unknown operand type and
+      ** was accepted by the old ir_has_ffi_ops() shortcut even when a
+      ** float guard met an integer ADD/MUL (or the reverse). */
+      case LUAR_IR_CGETI:
+      case LUAR_IR_CPGETI:
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_CGETF:
+      case LUAR_IR_CPGETF:
+        type[in->a] = 2;
+        break;
+      case LUAR_IR_CGETFIELD:
+        type[in->a] = (in->c == 2) ? 2 : 1;
+        break;
+      case LUAR_IR_CCALL0I:
+      case LUAR_IR_CCALL1I:
+      case LUAR_IR_CCALL2II:
+        type[in->a] = 1;
+        break;
+      case LUAR_IR_CCALL0D:
+      case LUAR_IR_CCALL1DI:
+      case LUAR_IR_CCALL1DD:
+      case LUAR_IR_CCALL1FF:
+      case LUAR_IR_CCALL2DD:
+      case LUAR_IR_CCALL2FF:
+      case LUAR_IR_CCALL2FI:
+      case LUAR_IR_CCALL2IF:
+      case LUAR_IR_CCALL2FD:
+      case LUAR_IR_CCALL2DF:
+      case LUAR_IR_CCALL2DI:
+      case LUAR_IR_CCALL2ID:
+      case LUAR_IR_CCALL3DD:
+      case LUAR_IR_CCALL3DDI:
+      case LUAR_IR_CCALL3DID:
+      case LUAR_IR_CCALL3IDD:
         type[in->a] = 2;
         break;
       default:
@@ -6324,6 +6349,103 @@ static int ir_has_float_get (Proto *p, TValue *base,
         ir_tget_is_float(p, base, &ir->ins[i]))
       return 1;
   return 0;
+}
+
+
+/* LUAR: the type a slot holds just before instruction 'at'.  The trace is
+** a linear sequence, so replay the producers up to that point.  Keeping
+** this local to the float pass lets ADD/SUB use the runtime helpers for a
+** mixed operand without rewriting the source slot. */
+static int ir_slot_type_at (const LuaR_TraceIR *ir, TValue *base,
+                            int slot, int at) {
+  int typ[LUAR_IR_MAX_SLOTS];
+  int i, ns = ir->maxslots;
+  if (slot < 0 || slot >= LUAR_IR_MAX_SLOTS)
+    return 0;
+  if (ns > LUAR_IR_MAX_SLOTS) ns = LUAR_IR_MAX_SLOTS;
+  for (i = 0; i < LUAR_IR_MAX_SLOTS; i++)
+    typ[i] = (i < ns) ? (ttisinteger(&base[i]) ? 1
+                        : ttisfloat(&base[i]) ? 2 : 0) : 0;
+  for (i = 0; i < at && i < ir->nins; i++) {
+    const LuaR_IRIns *in = &ir->ins[i];
+    int a = in->a;
+    if (a >= LUAR_IR_MAX_SLOTS)
+      continue;
+    switch (in->kind) {
+      case LUAR_IR_GUARD:
+        typ[a] = (in->b == LUAR_IR_TAG_INT) ? 1
+                 : (in->b == LUAR_IR_TAG_FLOAT) ? 2
+                 : (in->b == LUAR_IR_TAG_TABLE) ? 3 : 0;
+        break;
+      case LUAR_IR_KINT:
+      case LUAR_IR_LOADI:
+      case LUAR_IR_ADDI:
+      case LUAR_IR_ADDK:
+      case LUAR_IR_SUBK:
+      case LUAR_IR_MODK:
+      case LUAR_IR_IDIVK:
+      case LUAR_IR_ADD:
+      case LUAR_IR_SUB:
+      case LUAR_IR_MUL:
+      case LUAR_IR_DIV:
+      case LUAR_IR_TGET:
+      case LUAR_IR_TGETI:
+      case LUAR_IR_TGETK:
+      case LUAR_IR_CGETI:
+      case LUAR_IR_CPGETI:
+      case LUAR_IR_CCALL0I:
+      case LUAR_IR_CCALL1I:
+      case LUAR_IR_CCALL2II:
+        typ[a] = 1;
+        break;
+      case LUAR_IR_KFLOAT:
+      case LUAR_IR_LOADF:
+      case LUAR_IR_ITOF:
+      case LUAR_IR_FADDI:
+      case LUAR_IR_FMULK:
+      case LUAR_IR_FADD:
+      case LUAR_IR_FSUB:
+      case LUAR_IR_FDIVK:
+      case LUAR_IR_DIVK:
+      case LUAR_IR_TGETF:
+      case LUAR_IR_TGETKF:
+      case LUAR_IR_CGETF:
+      case LUAR_IR_CPGETF:
+      case LUAR_IR_CCALL0D:
+      case LUAR_IR_CCALL1DI:
+      case LUAR_IR_CCALL1DD:
+      case LUAR_IR_CCALL1FF:
+      case LUAR_IR_CCALL2DD:
+      case LUAR_IR_CCALL2FF:
+      case LUAR_IR_CCALL2FI:
+      case LUAR_IR_CCALL2IF:
+      case LUAR_IR_CCALL2FD:
+      case LUAR_IR_CCALL2DF:
+      case LUAR_IR_CCALL2DI:
+      case LUAR_IR_CCALL2ID:
+      case LUAR_IR_CCALL3DD:
+      case LUAR_IR_CCALL3DDI:
+      case LUAR_IR_CCALL3DID:
+      case LUAR_IR_CCALL3IDD:
+        typ[a] = 2;
+        break;
+      case LUAR_IR_MULK:
+        typ[a] = in->kfloat ? 2 : 1;
+        break;
+      case LUAR_IR_CGETFIELD:
+        typ[a] = (in->c == 2) ? 2 : 1;
+        break;
+      case LUAR_IR_SLOAD:
+        typ[a] = (in->b < LUAR_IR_MAX_SLOTS) ? typ[in->b] : 0;
+        break;
+      case LUAR_IR_ULOAD:
+        typ[a] = 0;
+        break;
+      default:
+        break;
+    }
+  }
+  return typ[slot];
 }
 
 
@@ -6438,8 +6560,7 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       continue;
     }
     if (op->kind == LUAR_IR_MULK) {
-      int is_float = (op->nval != (double)op->ival);
-      if ((sawfloat && op->b == fslot) || is_float) {
+      if ((sawfloat && op->b == fslot) || op->kfloat) {
         op->kind = LUAR_IR_FMULK;
         fslot = op->a;
         sawfloat = 1;
@@ -6454,7 +6575,7 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       ** still recorded as an integer kind with ival == 0; emitting it would
       ** compute with 0 and retag the result as an integer.  Reject so the
       ** side trace falls back to the interpreter instead of miscompiling. */
-      if (op->nval != (double)op->ival)
+      if (op->kfloat)
         return 0;
       sawtable = 1;
       continue;
@@ -6519,19 +6640,28 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawfloat = 1;
       continue;
     }
-    if (op->kind == LUAR_IR_ADD && sawfloat &&
-        (op->b == fslot || op->c == fslot)) {
-      op->kind = LUAR_IR_FADD;
-      fslot = op->a;
-      continue;
+    if ((op->kind == LUAR_IR_ADD || op->kind == LUAR_IR_SUB) &&
+        sawfloat) {
+      int bt = ir_slot_type_at(ir, base, op->b, i);
+      int ct = ir_slot_type_at(ir, base, op->c, i);
+      /* The runtime FADD/FSUB helpers read both operands with Lua's mixed
+      ** numeric conversion, exactly like the interpreter, and write only
+      ** the result.  Do not manufacture an in-place ITOF: the integer
+      ** operand can be a visible local or a FORLOOP control slot, and
+      ** converting it would corrupt the loop state or the local's type. */
+      if ((bt == 2 || ct == 2) &&
+          (bt == 1 || bt == 2) && (ct == 1 || ct == 2)) {
+        op->kind = (op->kind == LUAR_IR_ADD) ? LUAR_IR_FADD
+                                             : LUAR_IR_FSUB;
+        fslot = op->a;
+        sawfloat = 1;
+        continue;
+      }
+      if (bt != 1 || ct != 1)
+        return 0;              /* unknown operand type: stay interpreted */
     }
-    if (op->kind == LUAR_IR_SUB && sawfloat &&
-        (op->b == fslot || op->c == fslot)) {
-      op->kind = LUAR_IR_FSUB;
-      fslot = op->a;
-      continue;
-    }
-    if (op->kind == LUAR_IR_DIVK && (sawfloat || op->nval != (double)op->ival)) {
+    if (op->kind == LUAR_IR_DIVK) {
+      /* Lua '/' always produces a float, even for two integers. */
       op->kind = LUAR_IR_FDIVK;
       fslot = op->a;
       sawfloat = 1;
@@ -6549,8 +6679,13 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       continue;
     return 0;
   }
-  return sawtable && sawfloat &&
-         (ir_has_ffi_ops(ir) || ir_float_consistent(ir, base));
+  /* LUAR: every floatified trace must also pass the operand-type check,
+  ** including traces that contain FFI ops.  The old ir_has_ffi_ops()
+  ** bypass let a float guard coexist with an integer ADD/MUL over the
+  ** same slot; the emitter then reinterpreted the double payload.  A
+  ** trace that cannot be made consistent is rejected and J2/interpreter
+  ** stays authoritative. */
+  return sawtable && sawfloat && ir_float_consistent(ir, base);
 }
 
 
@@ -6581,6 +6716,8 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
         ir->ins[i].kind == LUAR_IR_FDIVK ||
         ir->ins[i].kind == LUAR_IR_TGETF ||
         ir->ins[i].kind == LUAR_IR_TGETKF ||
+        ir->ins[i].kind == LUAR_IR_DIVK ||
+        ir->ins[i].kfloat ||
         ir->ins[i].kind == LUAR_IR_CPGETI64 ||
         ir->ins[i].kind == LUAR_IR_CPSETI64)
       return 0;
@@ -6634,7 +6771,7 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
          tag[in->b] == LUAR_IR_TAG_OTHER))
       return 0;
     if (in->kind >= LUAR_IR_ADDK && in->kind <= LUAR_IR_IDIVK &&
-        in->nval != (double)in->ival)
+        in->kfloat)
       return 0;
   }
   return 1;

@@ -257,8 +257,9 @@ int luar_ffi_trace_i64_unsigned (TValue *tv) { (void)tv; return 0; }
 int luar_ffi_trace_array_kind (TValue *tv) { (void)tv; return 0; }
 int luar_ffi_trace_array_store_kind (TValue *tv) { (void)tv; return 0; }
 int luar_ffi_trace_sum_array (TValue *a, TValue *i, TValue *c, TValue *s,
-                              TValue *acc, TValue *r) {
-  (void)a; (void)i; (void)c; (void)s; (void)acc; (void)r; return 0;
+                              TValue *acc, TValue *r, int sub) {
+  (void)a; (void)i; (void)c; (void)s; (void)acc; (void)r; (void)sub;
+  return 0;
 }
 int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *i,
                                TValue *c, TValue *s, TValue *acc,

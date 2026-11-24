@@ -139,7 +139,8 @@ int luar_ffi_trace_array_store_kind (TValue *tv) {
 ** 'idx', and on success the control slots are finished (count 0, index at
 ** the last visited key) so the VM resumes after FORLOOP. */
 int luar_ffi_trace_sum_array (TValue *arrv, TValue *it, TValue *ct,
-                              TValue *st, TValue *at, TValue *rt) {
+                              TValue *st, TValue *at, TValue *rt,
+                              int sub) {
   Udata *u; CData *cd; CType *ctp, *elem; void *base;
   size_t len, esz, k;
   lua_Integer count, step, idx, last, delta;
@@ -221,13 +222,16 @@ int luar_ffi_trace_sum_array (TValue *arrv, TValue *it, TValue *ct,
           fsum = cast_num(l_castU2S(sum));
           promoted = 1;
         }
-        fsum += d;
+        if (sub) fsum -= d; else fsum += d;
       }
       else {
         int64_t v = is_unsigned ? (int64_t)trace_load_uint(p, esz)
                                 : trace_load_int(p, esz);
-        if (promoted)
-          fsum += cast_num(v);
+        if (promoted) {
+          if (sub) fsum -= cast_num(v); else fsum += cast_num(v);
+        }
+        else if (sub)
+          sum -= l_castS2U(v);
         else
           sum += l_castS2U(v);
       }
@@ -248,18 +252,18 @@ int luar_ffi_trace_sum_array (TValue *arrv, TValue *it, TValue *ct,
         if (esz == 4) {
           float f;
           memcpy(&f, p, sizeof(f));
-          sum += (double)f;
+          if (sub) sum -= (double)f; else sum += (double)f;
         }
         else {
           double d;
           memcpy(&d, p, sizeof(d));
-          sum += d;
+          if (sub) sum -= d; else sum += d;
         }
       }
       else {
         int64_t v = is_unsigned ? (int64_t)trace_load_uint(p, esz)
                                 : trace_load_int(p, esz);
-        sum += cast_num(v);
+        if (sub) sum -= cast_num(v); else sum += cast_num(v);
       }
       p += (ptrdiff_t)step * (ptrdiff_t)esz;
     }
