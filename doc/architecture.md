@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.219.0. This document describes the system as built and the design
+Status: 0.220.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -106,9 +106,10 @@ make correct against an unmodified VM.
   the same tier: `a[i] = v|i|constant` (also over 8-byte integer elements and
   store-only `_Bool` and enum destinations), element-wise copies
   `a[i] = b[i]`, in-place `a[i] = a[i] +|-|*|/|//|% v`, scaled source stores
-  `a[i] = b[i] +|-|*|/|//|% v`, and two-source stores
-  `a[i] = b[i] +|-|*|/|//|% c[i]`, all with the FFI store conversions and the
-  interpreter's FORLOOP key sequence.  Raw table element stores and
+  `a[i] = b[i] +|-|*|/|//|% v`, bitwise scalar forms
+  `a[i] = b[i] &|~|<<|>> v`, unary `a[i] = -b[i]`/`~b[i]`, and two-source
+  stores `a[i] = b[i] +|-|*|/|//|%|&|^|<<|>> c[i]`, all with the FFI store
+  conversions and the interpreter's FORLOOP key sequence.  Raw table element stores and
   copies (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`,
   unary `-`/`~`, and two-source `dst[i] = a[i] OP b[i]`) use a separate
   helper with the same scalar/operand forms, grow the destination to the
@@ -242,7 +243,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.219.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.220.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

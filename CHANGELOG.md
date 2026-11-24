@@ -4,6 +4,39 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.220.0] — 2026-11-24
+
+### Added
+
+- J2 runs two-source cdata bitwise stores
+  `a[i] = b[i] &|~|<<|>> c[i]` over bounded integer arrays, including
+  in-place destinations.  Negative shift counts reverse and 64 or more
+  yields zero.
+- J2 runs scaled cdata bitwise stores `a[i] = b[i] &|~|<<|>> k` with
+  constant, immediate and register scalars.
+- J2 runs cdata unary stores `a[i] = -b[i]` and `a[i] = ~b[i]`, with
+  separate element/result temporaries and in-place, descending and strided
+  ranges.
+
+### Fixed
+
+- J4 integer-key table reads initialize their result before
+  `luaH_getint`; a miss now exits to `__index` instead of reusing the
+  previous lookup's element when the same trace reads a missing key.
+- J4 string-key reads and the float/table/bool/string field helpers do the
+  same before `luaH_getstr`, fixing the corresponding stale-value miss.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/180_j2_cdata_bitwise_pair.lua`,
+`tests/ffi/181_j2_cdata_bitwise_scalar.lua`,
+`tests/ffi/182_j2_cdata_unary_store.lua`,
+`tests/jit/209_j4_tgeti_miss.lua` and
+`tests/jit/210_j4_tgetk_miss.lua`.
+
 ## [0.219.0] — 2026-11-24
 
 ### Added

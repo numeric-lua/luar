@@ -58,8 +58,9 @@ is provably observationally equivalent to that interpreter.
   Bounded cdata arrays additionally support writes in the default tier:
   `a[i] = v|i|constant` (including 8-byte integer elements and store-only
   `_Bool`/enum destinations), `a[i] = b[i]`, `a[i] = a[i] OP v`,
-  `a[i] = b[i] OP v` and `a[i] = b[i] OP c[i]` for add/subtract/multiply/
-  divide/floor-divide/modulo.  Integer `//`/`%` by zero declines before any
+  `a[i] = b[i] OP v`, unary `a[i] = -b[i]`/`~b[i]`, and two-source
+  `a[i] = b[i] OP c[i]` for add/subtract/multiply/divide/floor-divide/
+  modulo and the bitwise/shift family.  Integer `//`/`%` by zero declines before any
   store so the interpreter raises the exact error; float zero follows the
   non-raising float path.  Cdata arrays held in closure upvalues also reduce
   (`s = s + a[i]`), accept pure fills (`a[i] = v|i|constant`) and update in
