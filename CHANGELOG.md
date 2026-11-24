@@ -4,6 +4,22 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.233.0] — 2026-11-24
+
+### Added
+
+- J2 reduces bounded 8-byte integer cdata arrays with bitwise AND/OR/XOR
+  and logical left/right shifts into a cdata accumulator.  Shift counts
+  use the cdata mask-to-six-bits rule; int64/uint64 accumulators,
+  strided/descending runs and upvalue arrays are supported.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/194_j2_i64_bitwise_sum.lua`.
+
 ## [0.232.0] — 2026-11-24
 
 ### Added
