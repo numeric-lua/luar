@@ -1012,10 +1012,33 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
     const char *p;
     size_t n;
     int directive = 0;
+    int spliced = 0;
+    Buf joined;
+    memset(&joined, 0, sizeof(joined));
     while (end < len && src[end] != '\n')
       end++;
-    p = src + pos;
-    n = end - pos;
+    /* LUAR: C line splicing happens before tokenisation, so a backslash
+    ** immediately before a newline joins the physical lines.  Build a
+    ** logical line lazily; joining here (instead of a pre-pass) keeps the
+    ** per-file line counter and the recursion for #include intact. */
+    while (end > pos && src[end - 1] == '\\' && end < len) {
+      buf_mem(L, &joined, src + pos, end - 1 - pos);
+      spliced = 1;
+      line++;
+      end++;
+      pos = end;
+      while (end < len && src[end] != '\n')
+        end++;
+    }
+    if (spliced) {
+      buf_mem(L, &joined, src + pos, end - pos);
+      p = joined.p;
+      n = joined.n;
+    }
+    else {
+      p = src + pos;
+      n = end - pos;
+    }
     if (!block_comment && !in_string) {
       const char *q = p;
       size_t qn = n;
@@ -1044,6 +1067,7 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
         ** bodies (or unknown directives); only the conditional stack is
         ** maintained until its #endif. */
         buf_char(L, &b, '\n');
+        free(joined.p);
         pos = (end < len) ? end + 1 : end;
         line++;
         continue;
@@ -1476,6 +1500,7 @@ static char *preprocess_impl (lua_State *L, FFIState *S, const char *src,
     else {
       buf_char(L, &b, '\n');
     }
+    free(joined.p);
     pos = (end < len) ? end + 1 : end;
     line++;
   }
