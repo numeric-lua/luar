@@ -3119,7 +3119,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
         (GET_OPCODE(p->code[start + 2]) == OP_ADD ||
-         GET_OPCODE(p->code[start + 2]) == OP_SUB) &&
+         GET_OPCODE(p->code[start + 2]) == OP_SUB ||
+         GET_OPCODE(p->code[start + 2]) == OP_MUL) &&
         GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
         backedge == start + 4) {
       /* LUAR: `s = s +/- a[i]` where `a` is a bounded cdata array captured
@@ -3145,7 +3146,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         return install_cdata_tint(p, J, backedge,
                                   luar_ffi_trace_array_kind64(av) != 0 ? 69 : 16,
                                   -1 - GETARG_B(i0), 0, 0, acc, tmp,
-                                  GET_OPCODE(i2) == OP_SUB, for_a);
+                                  GET_OPCODE(i2) == OP_MUL ? 2 :
+                                  GET_OPCODE(i2) == OP_SUB ? 1 : 0, for_a);
     }
     if (!for_float && J->enable_tint && n >= 5 &&
         GET_OPCODE(i0) == OP_GETUPVAL &&
@@ -3193,7 +3195,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
     if (!for_float && J->enable_tint && n >= 4 &&
         GET_OPCODE(i0) == OP_GETTABLE &&
         (GET_OPCODE(p->code[start + 1]) == OP_ADD ||
-         GET_OPCODE(p->code[start + 1]) == OP_SUB) &&
+         GET_OPCODE(p->code[start + 1]) == OP_SUB ||
+         GET_OPCODE(p->code[start + 1]) == OP_MUL) &&
         GET_OPCODE(p->code[start + 2]) == OP_MMBIN &&
         backedge == start + 3) {
       /* LUAR: `s = s +/- a[i]` over a bounded FFI cdata array.  The generic
@@ -3215,7 +3218,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         return install_cdata_tint(p, J, backedge,
                                   luar_ffi_trace_array_kind64(&b[arr]) != 0 ? 68 : 16,
                                   arr, 0, 0, acc, tmp,
-                                  GET_OPCODE(i1) == OP_SUB, for_a);
+                                  GET_OPCODE(i1) == OP_MUL ? 2 :
+                                  GET_OPCODE(i1) == OP_SUB ? 1 : 0, for_a);
     }
     if (!for_float && J->enable_tint &&
         match_three_table_sum(p, J, start, backedge, for_a, b))

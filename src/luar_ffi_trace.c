@@ -1261,7 +1261,7 @@ int luar_ffi_trace_fill_array_i64 (TValue *dstv, TValue *it, TValue *ct,
 
 int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
                                   TValue *ct, TValue *st, TValue *tmp,
-                                  int tmp_reg, int sub, lua_State *L) {
+                                  int tmp_reg, int op, lua_State *L) {
   FfiView va;
   Udata *u;
   CData *acd, *tcd;
@@ -1292,7 +1292,12 @@ int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
     for (k = 0; k <= count; k++) {
       memcpy(&bits, ps, 8);
       last = bits;
-      acc = sub ? acc - bits : acc + bits;
+      if (op == 2)
+        acc *= bits;
+      else if (op == 1)
+        acc -= bits;
+      else
+        acc += bits;
       ps += (ptrdiff_t)step * (ptrdiff_t)va.esz;
     }
   }

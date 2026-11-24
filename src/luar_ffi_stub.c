@@ -254,9 +254,9 @@ int64_t luar_ffi_trace_ccall2ff (TValue *fn, double a0, double a1,
 
 int luar_ffi_trace_sum_array_i64 (TValue *a, TValue *r, TValue *i,
                                    TValue *c, TValue *st, TValue *t,
-                                   int tr, int sub, lua_State *L) {
+                                   int tr, int op, lua_State *L) {
   (void)a; (void)r; (void)i; (void)c; (void)st; (void)t; (void)tr;
-  (void)sub; (void)L; return 0;
+  (void)op; (void)L; return 0;
 }
 int luar_ffi_trace_i64_scalar (TValue *tv) {
   (void)tv; return 0;
