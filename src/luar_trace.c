@@ -3655,9 +3655,13 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
             if (!luar_trace_ir_emit(t, &in)) return 0;
             seen[a] = 1;
           }
+          uint64_t bits;
+          int64_t iv = (int64_t)ivalue(v);
+          memcpy(&bits, &iv, sizeof(bits));
           in.kind = LUAR_IR_TSETKK; in.a = (uint8_t)a;
           in.ival = (int64_t)(intptr_t)tsvalue(&p->k[b]);
-          in.nval = (double)ivalue(v); in.pc = pc;
+          memcpy(&in.nval, &bits, sizeof(bits));
+          in.pc = pc;
           r = luar_trace_ir_emit(t, &in);
           break;
         }
@@ -3994,6 +3998,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         ** instruction to the interpreter instead of treating the constant
         ** index as a register. */
         if (TESTARG_k(ins))
+          return 0;
+        /* The generic TSET helper takes an integer key; a string/float/bool
+        ** key would be used as its raw payload.  Non-integer keys stay on
+        ** the interpreter (the dynamic path above only accepts tables
+        ** without a metatable). */
+        if (!ttisinteger(&base[b]))
           return 0;
         if (!seen[a]) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
