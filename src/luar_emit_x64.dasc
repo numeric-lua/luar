@@ -2152,8 +2152,6 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | test eax, eax
         | jz >2
         break;
-      case LUAR_IR_CPSETI:
-      case LUAR_IR_CPSETF:
       case LUAR_IR_CCALL0D:
         | lea rdi, [rbx + ((int)LUAR_SLOT(in->b))]
         | lea rsi, [rbx + ((int)LUAR_SLOT(in->a))]
@@ -2801,6 +2799,8 @@ static int emit_trace_ir_func (dasm_State **Dst, const LuaR_TraceIR *t) {
         | jz >2
         | mov byte [rbx + ((int)LUAR_TAG(in->a))], LUA_VNUMINT
         break;
+      case LUAR_IR_CPSETI:
+      case LUAR_IR_CPSETF:
       case LUAR_IR_CPSETI64: {
         const void *setfn = (in->kind == LUAR_IR_CPSETF) ?
           (const void *)&luar_ffi_trace_cset_ptr_double :
