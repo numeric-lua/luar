@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.214.0. This document describes the system as built and the design
+Status: 0.215.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -94,11 +94,12 @@ make correct against an unmodified VM.
   dot-product/sum-of-squares and scaled `a[i] * k` sum intrinsics
   over register or upvalue arrays (the scalar may be a constant, register
   or upvalue), with unit or strided (positive/negative) integer steps,
-  and raw-array sum intrinsics over a register table or a closure upvalue.
-  A bounded cdata array reduction (`s = s + a[i]` over 1/2/4-byte integers,
-  32-bit enums or 4/8-byte floats) is validated and run by a C helper in the
-  same tier; so are two-source cdata reductions (`s = s + a[i] + b[i]`, the
-  subtract form, and dot-product/sum-of-squares).  Bounded cdata writes use
+  and raw-array sum and subtraction intrinsics over a register table or a
+  closure upvalue.  A bounded cdata array reduction (`s = s + a[i]` or
+  `s = s - a[i]` over 1/2/4-byte integers, 32-bit enums or 4/8-byte floats)
+  is validated and run by a C helper in the same tier; so are two-source
+  cdata reductions (`s = s + a[i] + b[i]`, the subtract form, and
+  dot-product/sum-of-squares).  Bounded cdata writes use
   the same tier: `a[i] = v|i|constant` (also over 8-byte integer elements and
   store-only `_Bool` and enum destinations), element-wise copies
   `a[i] = b[i]`, in-place `a[i] = a[i] +|-|*|/|//|% v`, scaled source stores
@@ -135,9 +136,13 @@ make correct against an unmodified VM.
   stale J4 root before it is recorded again.  Integer and double
   reductions may coexist in one trace (for example an integer accumulator
   over `int[]` beside a double accumulator over `double[]`), with each
-  chain keeping its own guards.  64-bit cdata struct/union fields are
-  deliberately not traced because a field read yields cdata int64 rather
-  than a Lua integer.
+  chain keeping its own guards.  Mixed integer/float `ADD`/`SUB` operands
+  are converted by the same runtime helpers as the interpreter and never
+  rewrite a source slot (which may be a visible local or a loop-control
+  register); a float K constant carries an explicit tag, so `0.0` is not
+  mistaken for an integer zero, and `/` is always float.  64-bit cdata
+  struct/union fields are deliberately not traced because a field read
+  yields cdata int64 rather than a Lua integer.
 * **T3** removes helper-call overhead for FFI-heavy code, the main use case
   of the numeric-Lua ecosystem.
 
@@ -225,7 +230,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.214.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.215.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

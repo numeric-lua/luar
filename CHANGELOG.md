@@ -4,6 +4,47 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.215.0] — 2026-11-23
+
+### Fixed
+
+- J4 (`jit.opt.start("ir=1")`) rejects mixed integer/float operand traces
+  that it cannot represent faithfully, instead of letting the integer
+  emitter reinterpret a double payload.  The FFI-operand shortcut that
+  bypassed the post-floatification operand check is gone.  Mixed numeric
+  `ADD`/`SUB` traces that are representable now use the runtime conversion
+  helpers, which convert the integer operand without rewriting it: a
+  source slot may be a visible local or a `FORLOOP` control register, and
+  the old in-place `ITOF` insertion could change its value or subtype.
+- K constants carry an explicit float tag.  A float `0.0` used with
+  `ADDK`/`SUBK`/`MULK` was classified as integer because `0.0 == 0`, so
+  the result was computed with the wrong semantics and tagged as an
+  integer (`x + 0.0` returned an integer).  Such traces now stay on the
+  interpreter/J2 path.  `DIVK` is recognized as always producing a float.
+- `table.clear()` resets every cleared node's collision link.  Keys and
+  values were reset, but a later insertion at the same main position
+  inherited the old `next` offset, so collision walks could lose keys or
+  loop forever.  The clear/refill stress case now completes and returns
+  every key.
+
+### Performance
+
+- J2 runs `s = s - a[i]` over bounded cdata arrays through its reduction
+  helper for 1/2/4-byte integers, 32-bit enums and 4/8-byte floats,
+  including negative steps and mixed integer/float accumulators.
+- J2 runs `s = s - t[i]` over a raw table array through a C helper, with
+  integer/float promotion and negative steps.  Branch bodies keep using
+  the generic emitter, whose subtraction behaviour is unchanged.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test` and
+`make WITH_FFI=1 test-asan` are green.  New coverage:
+`tests/jit/184_j4_mixed_ffi_operands.lua`,
+`tests/jit/185_j4_kfloat_zero.lua`, `tests/jit/186_j2_table_sub.lua`,
+`tests/ffi/169_j2_cdata_sub.lua` and
+`tests/compat/table_clear_hash_chain.lua`.
+
 ## [0.214.0] — 2026-11-23
 
 ### Added
