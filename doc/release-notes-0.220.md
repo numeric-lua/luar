@@ -23,10 +23,12 @@ extends bitwise and unary cdata stores and fixes two J4 table-read misses.
 - J4 string-key reads and the float/table/bool/string field helpers do the
   same before `luaH_getstr`, fixing the stale-value miss for `t.b` after
   `t.a` (and the typed variants).
-- J4's dynamic `GETTABLE` accepts only integer keys; float/string/bool
-  keys stay on the interpreter instead of being reinterpreted as raw
-  payload integers (for example `t[1.5]` reading the entry keyed by the
-  IEEE bit pattern).
+- J4's dynamic `GETTABLE` always guards the key as an integer at the read
+  point.  Float/string/bool keys stay on the interpreter instead of being
+  reinterpreted as raw payload integers; this also covers a key slot whose
+  earlier producer already set a non-integer guard.
+- J4's `CCALL2FF` argument no longer folds a mutable integer upvalue to its
+  record-time value; changing the upvalue is observed by later calls.
 - Bitwise stores require integer elements; float arrays remain
   interpreted, and shifts guard `INT64_MIN` counts.
 
@@ -50,6 +52,8 @@ New tests:
 - `tests/jit/209_j4_tgeti_miss.lua`
 - `tests/jit/210_j4_tgetk_miss.lua`
 - `tests/jit/211_j4_tget_key_type.lua`
+- `tests/jit/212_j4_tget_key_guard.lua`
+- `tests/ffi/183_j4_ccall2ff_upvalue.lua`
 
 ## Known limitations
 

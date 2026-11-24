@@ -25,9 +25,14 @@ the runtime, while the Lua language surface follows upstream Lua.
   previous lookup's element when the same trace reads a missing key.
 - J4 string-key reads and the float/table/bool/string field helpers do the
   same before `luaH_getstr`, fixing the corresponding stale-value miss.
-- J4 rejects dynamic `GETTABLE` reads whose key is not an integer.  The
-  side helper was reinterpreting a float/string/bool key as its raw payload
-  integer, so `t[1.5]` could read an unrelated integer entry.
+- J4 always guards a dynamic `GETTABLE` key as an integer at the read
+  point.  A record-time check was bypassable when an earlier boolean or
+  string producer had already marked the key slot seen; the side helper
+  could reinterpret the payload as an integer (`t[1.5]` or a boolean key
+  reading `t[1]`).
+- J4 no longer folds a mutable integer upvalue into a `CCALL2FF` argument.
+  The record-time value froze `fmodf(k, 2.0)` calls after `k` changed; the
+  live upvalue is read and converted instead.
 
 ### Tests
 
@@ -38,8 +43,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 `tests/ffi/181_j2_cdata_bitwise_scalar.lua`,
 `tests/ffi/182_j2_cdata_unary_store.lua`,
 `tests/jit/209_j4_tgeti_miss.lua`,
-`tests/jit/210_j4_tgetk_miss.lua` and
-`tests/jit/211_j4_tget_key_type.lua`.
+`tests/jit/210_j4_tgetk_miss.lua`,
+`tests/jit/211_j4_tget_key_type.lua`,
+`tests/jit/212_j4_tget_key_guard.lua` and
+`tests/ffi/183_j4_ccall2ff_upvalue.lua`.
 
 ## [0.219.0] — 2026-11-24
 

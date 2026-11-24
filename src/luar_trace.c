@@ -2020,6 +2020,7 @@ static int ir_latest_writer_is (const LuaR_TraceIR *t, int slot,
 static int ir_slot_const_int (const LuaR_TraceIR *t, int slot,
                              TValue *known, int64_t *out) {
   int i;
+  (void)known;
   for (i = t->nins - 1; i >= 0; i--) {
     if (t->ins[i].a != slot || !ir_writes_slot(t->ins[i].kind))
       continue;
@@ -2027,11 +2028,8 @@ static int ir_slot_const_int (const LuaR_TraceIR *t, int slot,
       *out = t->ins[i].ival;
       return 1;
     }
-    if (t->ins[i].kind == LUAR_IR_ULOAD && known != NULL &&
-        known[slot].tt_ != 0 && ttisinteger(&known[slot])) {
-      *out = ivalue(&known[slot]);
-      return 1;
-    }
+    /* A ULOAD is a live upvalue, not a compile-time constant: folding its
+    ** record-time value would freeze later integer changes. */
     return 0;
   }
   return 0;
@@ -3554,12 +3552,13 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         ** interpreter instead of inventing a different key. */
         if (!ttisinteger(&base[c]))
           return 0;
-        if (!seen[c]) {
-          in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
-          in.b = (uint8_t)ir_tag(&base[c]); in.pc = pc;
-          if (!luar_trace_ir_emit(t, &in)) return 0;
-          seen[c] = 1;
-        }
+        /* Always guard the key at the TGET point: seen[c] may record a
+        ** guard emitted for an earlier boolean/string producer, while the
+        ** integer helper below would use the key payload as a raw index. */
+        in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
+        in.b = LUAR_IR_TAG_INT; in.pc = pc;
+        if (!luar_trace_ir_emit(t, &in)) return 0;
+        seen[c] = 1;
         in.kind = LUAR_IR_TGET; in.a = (uint8_t)a; in.b = (uint8_t)b;
         in.c = (uint8_t)c; in.pc = pc;
         r = luar_trace_ir_emit(t, &in);
