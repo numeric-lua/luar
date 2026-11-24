@@ -1557,7 +1557,7 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   LuaR_PairRead ra, rb;
   Instruction mul, mm1, add, mm2;
   ptrdiff_t i = start;
-  int res, acc, mb, mc, ab, ac;
+  int res, acc, mb, mc, ab, ac, div = 0;
   if (!match_pair_read(p, &i, backedge, for_a, &ra))
     return 0;
   if (!match_pair_read(p, &i, backedge, for_a, &rb))
@@ -1569,13 +1569,21 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (i >= backedge)
     return 0;
   mul = p->code[i];
-  if (GET_OPCODE(mul) != OP_MUL)
+  if (GET_OPCODE(mul) == OP_DIV) {
+    div = 1;
+  }
+  else if (GET_OPCODE(mul) != OP_MUL)
     return 0;
   res = GETARG_A(mul);
   mb = GETARG_B(mul);
   mc = GETARG_C(mul);
-  if (!((mb == ra.val && mc == rb.val) ||
-        (mb == rb.val && mc == ra.val)))
+  if (div) {
+    /* a[i] / b[i]: the left-to-right order is semantic. */
+    if (mb != ra.val || mc != rb.val)
+      return 0;
+  }
+  else if (!((mb == ra.val && mc == rb.val) ||
+             (mb == rb.val && mc == ra.val)))
     return 0;
   if (is_control_reg(res, for_a) || res == for_a + 2)
     return 0;
@@ -1617,7 +1625,8 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     if ((acd != 0) != (bcd != 0))
       return 0;
     return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, res,
-                                  (acd != 0) ? 19 : 14);
+                                  (acd != 0) ? (div ? 37 : 19)
+                                             : (div ? 36 : 14));
   }
 }
 
@@ -4551,7 +4560,8 @@ static Table *pair_source_table (TValue *base, int reg, int upval) {
 
 /* kind 12: s = s + a[i] + b[i]
 ** kind 13: s = s + a[i] - b[i]
-** kind 14: s = s + a[i] * b[i]  (a and b may be the same table) */
+** kind 14: s = s + a[i] * b[i]  (a and b may be the same table)
+** kind 36: s = s + a[i] / b[i]  (division does not commute) */
 static void pair_store_slot (TValue *base, int reg, LuaR_PairNum v,
                              int acc_reg) {
   if (reg < 0 || reg == acc_reg)
@@ -4605,8 +4615,9 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
     LuaR_PairNum bv = pair_from_array(hb, key);
     last_a = av;
     last_b = bv;
-    if (kind == 14) {
-      LuaR_PairNum prod = pair_mul(av, bv);
+    if (kind == 14 || kind == 36) {
+      LuaR_PairNum prod = (kind == 36) ? pair_div(av, bv)
+                                       : pair_mul(av, bv);
       last_temp = prod;
       acc = pair_add(acc, prod);
     }
@@ -5862,7 +5873,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           break;
         case 12:
         case 13:
-        case 14: {
+        case 14:
+        case 36: {
           int aenc = p->luar_tint_table[i];
           int benc = p->luar_tint_keys[i];
           int areg = (aenc >= 0) ? aenc : -1;
@@ -5938,7 +5950,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         }
         case 17:
         case 18:
-        case 19: {
+        case 19:
+        case 37: {
           int aenc = p->luar_tint_table[i];
           int benc = p->luar_tint_keys[i];
           TValue *av = pair_source_value((TValue *)base,
@@ -5957,7 +5970,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[p->luar_tint_upval[i]],
                     &((TValue *)base)[p->luar_tint_arg4[i]],
                     &((TValue *)base)[p->luar_tint_res[i]],
-                    kind - 17);
+                    (kind == 37) ? 3 : kind - 17);
           break;
         }
         case 25: {
