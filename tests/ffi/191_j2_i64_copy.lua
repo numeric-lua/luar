@@ -66,6 +66,68 @@ copy_up_dst(A, N)
 H.check(jit.stats().tint_hits > before, "upvalue destination did not run")
 for i = 0, N - 1 do H.eq(U[i], A[i], "upvalue destination " .. i) end
 
+-- int64 -> uint64 destination preserves the raw two's-complement bits.
+do
+  local U = ffi.new("uint64_t[?]", N)
+  jit.flush()
+  jit.opt.start("ir=0", "hotloop=1", "tint=1")
+  jit.on()
+  local before = jit.stats().tint_hits
+  local function to_u (d, s, n) for i = 0, n - 1 do d[i] = s[i] end end
+  to_u(U, A, N)
+  H.check(jit.stats().tint_hits > before, "uint64 destination did not run")
+  for i = 0, N - 1 do H.eq(U[i], ffi.cast("uint64_t", A[i]), "uint64 dest " .. i) end
+end
+
+-- Self-copy is a no-op and stays on the raw helper.
+do
+  local S = ffi.new("int64_t[?]", N)
+  for i = 0, N - 1 do S[i] = A[i] end
+  jit.flush()
+  jit.opt.start("ir=0", "hotloop=1", "tint=1")
+  jit.on()
+  local before = jit.stats().tint_hits
+  local function self (d, n) for i = 0, n - 1 do d[i] = d[i] end end
+  self(S, N)
+  H.check(jit.stats().tint_hits > before, "self-copy did not run")
+  for i = 0, N - 1 do H.eq(S[i], A[i], "self-copy " .. i) end
+end
+
+-- Out-of-bounds runs fall back and raise from the interpreter.
+do
+  local function over (d, s, n) for i = 0, n do d[i] = s[i] end end
+  jit.flush()
+  jit.opt.start("ir=0", "hotloop=1", "tint=1")
+  jit.on()
+  local before = jit.stats().tint_hits
+  local ok = pcall(function ()
+    local d = ffi.new("int64_t[?]", N)
+    over(d, A, N)
+  end)
+  H.check(not ok, "out-of-bounds i64 copy must raise")
+  H.eq(jit.stats().tint_hits, before, "out-of-bounds copy must not use the helper")
+end
+
+-- The visible element temporary is a cdata int64, not pointer bits.
+local function copy_temp (d, s, n)
+  local x
+  for i = 0, n - 1 do
+    x = s[i]
+    d[i] = x
+  end
+  return x
+end
+local D2 = ffi.new("int64_t[?]", N)
+jit.flush()
+jit.opt.start("ir=0", "hotloop=1", "tint=1")
+jit.on()
+before = jit.stats().tint_hits
+local x = copy_temp(D2, A, N)
+H.check(jit.stats().tint_hits > before, "visible temp copy did not run")
+H.eq(type(x), "cdata", "visible temp cdata")
+H.eq(x, A[N - 1], "visible temp value")
+for i = 0, N - 1 do H.eq(D2[i], A[i], "visible temp destination " .. i) end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/191_j2_i64_copy ok")

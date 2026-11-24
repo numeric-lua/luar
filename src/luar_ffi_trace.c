@@ -907,11 +907,6 @@ int luar_ffi_trace_copy_array_i64 (TValue *dstv, TValue *srcv, TValue *it,
   if (!ffi_store_range(&vd, count, step, idx, &last) ||
       !ffi_store_range(&vs, count, step, idx, &last))
     return 0;
-  cd = ffi_push_owned(L, ffi_getstate(L), vs.elem, 8);
-  top = s2v(L->top.p - 1);
-  base = (TValue *)(L->ci->func.p + 1);
-  base[tmp_reg] = *top;
-  L->top.p--;
   {
     char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
     const char *ps = vs.base + (ptrdiff_t)idx * (ptrdiff_t)vs.esz;
@@ -922,7 +917,12 @@ int luar_ffi_trace_copy_array_i64 (TValue *dstv, TValue *srcv, TValue *it,
       ps += (ptrdiff_t)step * (ptrdiff_t)vs.esz;
     }
   }
-  memcpy(cd->v.p, &lastv, 8);
+  cd = ffi_push_scalar(L, ffi_getstate(L), vs.elem);
+  memcpy(&cd->v, &lastv, 8);
+  top = s2v(L->top.p - 1);
+  base = (TValue *)(L->ci->func.p + 1);
+  base[tmp_reg] = *top;
+  L->top.p--;
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
