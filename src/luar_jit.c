@@ -1117,6 +1117,20 @@ static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* LUAR: `s = s + a[i] * k` / `s = s + a[i] / k` over a bounded cdata
+** array.  Kinds 30 and 31 distinguish multiply from divide; the source,
+** scalar, element and product slots use the same encoding as the raw-table
+** scaled reduction. */
+static int install_cdata_scaled (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                                 int for_a, const LuaR_PairRead *r,
+                                 int scalar_enc, int elem_reg,
+                                 int prod_reg, int acc, int div) {
+  return install_cdata_tint(p, J, backedge, div ? 31 : 30,
+                            encode_pair_source(r), scalar_enc, elem_reg,
+                            acc, prod_reg, 0, for_a);
+}
+
+
 /* LUAR: `s = s + a[i] * k` or `s = s + a[i] / k` where `k` is a numeric
 ** constant, a register scalar or a closure upvalue scalar.  The scalar
 ** encoding is positive for a register, -1-index for an upvalue and
@@ -1491,11 +1505,12 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return 0;
   if (r.treg == acc || r.treg == scalar_reg)
     return 0;
-  /* The quotient temp is the multiply/divide destination.  For a register
-  ** table source it must not overwrite the table register: the interpreter
-  ** would then index the quotient on the next iteration, while the
-  ** intrinsic would keep using the table and produce a different result. */
-  if (r.upval < 0 && r.treg == prod_reg)
+  /* The element/product temp must not overwrite the source register: the
+  ** interpreter would then index the quotient or element on the next
+  ** iteration, while the intrinsic would keep using the original table or
+  ** array and produce a different result.  The element read itself must
+  ** not reuse the source register either. */
+  if (r.upval < 0 && (r.treg == r.val || r.treg == prod_reg))
     return 0;
   if (scalar_enc >= 0 && scalar_enc < LUAR_TINT_SCALAR_CONST) {
     /* A register scalar must not be overwritten by the element read or
@@ -1505,8 +1520,18 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     if (!ttisinteger(&b[scalar_reg]) && !ttisfloat(&b[scalar_reg]))
       return 0;
   }
-  if (r.upval < 0 && !ttistable(&b[r.table]))
-    return 0;
+  {
+    TValue *src = pair_source_value(b, r.table, r.upval);
+    int ckind;
+    if (src == NULL)
+      return 0;
+    ckind = pair_cdata_source(b, &r);
+    if (ckind != 0)
+      return install_cdata_scaled(p, J, backedge, for_a, &r, scalar_enc,
+                                  r.val, prod_reg, acc, div);
+    if (!ttistable(src))
+      return 0;
+  }
   if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
     return 0;
   return install_scaled_sum(p, J, backedge, for_a, &r, scalar_enc,
@@ -5857,6 +5882,26 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                        p->luar_tint_arg4[i],
                                        p->luar_tint_acc[i],
                                        kind == 28);
+          break;
+        }
+        case 30:
+        case 31: {
+          int enc = p->luar_tint_table[i];
+          TValue *av = pair_source_value((TValue *)base,
+                                         (enc >= 0) ? enc : -1,
+                                         (enc >= 0) ? -1 : (-1 - enc));
+          TValue *sc = tint_scalar(p, (TValue *)base,
+                                   p->luar_tint_keys[i]);
+          r = (av == NULL || sc == NULL) ? 0
+              : luar_ffi_trace_scaled_array(
+                    av, sc,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[p->luar_tint_acc[i]],
+                    &((TValue *)base)[p->luar_tint_upval[i]],
+                    &((TValue *)base)[p->luar_tint_res[i]],
+                    kind == 31);
           break;
         }
         case 16: {

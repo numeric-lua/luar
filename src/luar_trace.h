@@ -397,6 +397,12 @@ int luar_ffi_trace_array_store_kind (TValue *tv);
 int luar_ffi_trace_sum_array (TValue *arr, TValue *idx, TValue *count,
                               TValue *step, TValue *acc, TValue *res,
                               int sub);
+/* J2 scaled cdata reduction: `s = s + a[i] * k` / `s = s + a[i] / k`.
+** op is 0 for multiply and 1 for divide; the element and product slots
+** keep their last bytecode values. */
+int luar_ffi_trace_scaled_array (TValue *arr, TValue *scalar, TValue *idx,
+                                 TValue *count, TValue *step, TValue *acc,
+                                 TValue *elem, TValue *res, int op);
 int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *idx,
                                TValue *count, TValue *step, TValue *acc,
                                TValue *ra, TValue *rb, TValue *res,

@@ -513,6 +513,77 @@ static FfiNum ffi_num_from_slot (TValue *tv) {
   return ffi_num_int(ivalue(tv));
 }
 
+
+/* J2: `s = s + a[i] * k` or `s = s + a[i] / k` over one bounded cdata
+** array.  op is 0 for multiply and 1 for divide.  Lua's `/` always yields
+** a float (including for two integers), while `*` wraps when both operands
+** are integers.  The element and product slots keep the last bytecode
+** values; the helper never allocates or raises. */
+int luar_ffi_trace_scaled_array (TValue *av, TValue *scalarv, TValue *it,
+                                 TValue *ct, TValue *st, TValue *at,
+                                 TValue *ra, TValue *rt, int op) {
+  FfiView v;
+  FfiNum acc, fac, last_elem, last_prod;
+  lua_Integer count, step, idx, last, delta, k;
+  const char *p;
+  if (av == NULL || scalarv == NULL || it == NULL || ct == NULL ||
+      st == NULL || at == NULL || ra == NULL || rt == NULL ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      (!ttisinteger(at) && !ttisfloat(at)))
+    return 0;
+  if (!ffi_view_init(av, &v))
+    return 0;
+  if (ttisinteger(scalarv))
+    fac = ffi_num_int(ivalue(scalarv));
+  else if (ttisfloat(scalarv))
+    fac = ffi_num_flt(fltvalue(scalarv));
+  else
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  last = idx + delta;
+  if (idx < 0 || last < 0 ||
+      (uint64_t)idx >= (uint64_t)v.len ||
+      (uint64_t)last >= (uint64_t)v.len)
+    return 0;
+  acc = ffi_num_from_slot(at);
+  last_elem = ffi_num_int(0);
+  last_prod = ffi_num_int(0);
+  p = v.base + (ptrdiff_t)idx * (ptrdiff_t)v.esz;
+  for (k = 0; k <= count; k++) {
+    FfiNum elem = ffi_view_load(&v, p);
+    last_elem = elem;
+    if (op == 1)
+      last_prod = ffi_num_flt(ffi_num_double(elem) / ffi_num_double(fac));
+    else
+      last_prod = ffi_num_mul(elem, fac);
+    acc = ffi_num_add(acc, last_prod);
+    p += (ptrdiff_t)step * (ptrdiff_t)v.esz;
+  }
+  ffi_num_store(at, acc);
+  if (ra != rt)
+    ffi_num_store(ra, last_elem);
+  ffi_num_store(rt, last_prod);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
 /* J2: `s = s + a[i] + b[i]`, `s = s + a[i] - b[i]` and
 ** `s = s + a[i] * b[i]` over two bounded cdata arrays.  Both the element
 ** temporaries and the intermediate/final accumulator registers are left
