@@ -66,6 +66,17 @@ fill_up_value(N)
 H.check(jit.stats().tint_hits > before, "upvalue numeric fill did not run")
 for i = 1, N do H.eq(U[i], 7, "upvalue numeric " .. i) end
 
+-- Identity fill through an upvalue destination.
+local V = {}
+local function fill_up_index (n) for i = 1, n do V[i] = i end end
+jit.flush()
+jit.opt.start("ir=0", "hotloop=1", "tint=1")
+jit.on()
+before = jit.stats().tint_hits
+fill_up_index(N)
+H.check(jit.stats().tint_hits > before, "upvalue identity fill did not run")
+for i = 1, N do H.eq(V[i], i, "upvalue identity " .. i) end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("jit/220_table_generic_keys ok")
