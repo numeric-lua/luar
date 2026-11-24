@@ -1602,6 +1602,122 @@ static int match_table_nil_store (Proto *p, LuaR_JIT *J,
 }
 
 
+/* LUAR: `dst[i] = a[i] OP b[i]` over two raw table arrays.  The source
+** tables may be register locals or closure upvalues; the destination may
+** be one of them. */
+static int match_table_pair_store (Proto *p, LuaR_JIT *J,
+                                   ptrdiff_t start, ptrdiff_t backedge,
+                                   int for_a, TValue *b) {
+  LuaR_PairRead ra, rb;
+  Instruction op, mm, set;
+  ptrdiff_t i = start;
+  int opc, op_a, op_b, op_c, dst, kind;
+  if (!match_pair_read(p, &i, backedge, for_a, &ra))
+    return 0;
+  if (!match_pair_read(p, &i, backedge, for_a, &rb))
+    return 0;
+  if (ra.val == rb.val || rb.treg == ra.val)
+    return 0;
+  if (i >= backedge)
+    return 0;
+  op = p->code[i++];
+  opc = GET_OPCODE(op);
+  op_a = GETARG_A(op);
+  op_b = GETARG_B(op);
+  op_c = GETARG_C(op);
+  if (opc == OP_ADD) kind = 0;
+  else if (opc == OP_SUB) kind = 1;
+  else if (opc == OP_MUL) kind = 2;
+  else if (opc == OP_DIV) kind = 3;
+  else if (opc == OP_IDIV) kind = 5;
+  else if (opc == OP_MOD) kind = 6;
+  else return 0;
+  if (op_b != ra.val || op_c != rb.val)
+    return 0;
+  if (is_control_reg(op_a, for_a) || is_control_reg(ra.val, for_a) ||
+      is_control_reg(rb.val, for_a))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  mm = p->code[i++];
+  if (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+      GET_OPCODE(mm) != OP_MMBINK)
+    return 0;
+  if (i >= backedge)
+    return 0;
+  set = p->code[i++];
+  if (GET_OPCODE(set) != OP_SETTABLE ||
+      GETARG_B(set) != for_a + 2 || GETARG_C(set) != op_a)
+    return 0;
+  dst = GETARG_A(set);
+  if (dst == ra.val || dst == rb.val || dst == op_a ||
+      is_control_reg(dst, for_a))
+    return 0;
+  if ((ra.upval < 0 && op_a == ra.treg) ||
+      (rb.upval < 0 && op_a == rb.treg))
+    return 0;
+  if (ra.upval < 0 && (ra.treg == ra.val || ra.treg == rb.val))
+    return 0;
+  if (rb.upval < 0 && (rb.treg == rb.val || rb.treg == ra.val))
+    return 0;
+  if (ra.upval < 0 && !ttistable(&b[ra.table]))
+    return 0;
+  if (rb.upval < 0 && !ttistable(&b[rb.table]))
+    return 0;
+  if (!ttistable(&b[dst]) || i != backedge)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 54, dst,
+                            encode_pair_source(&ra),
+                            encode_pair_source(&rb), kind,
+                            (ra.val & 0xff) | ((rb.val & 0xff) << 8),
+                            op_a, for_a);
+}
+
+
+/* LUAR: `dst[i] = -src[i]` and `dst[i] = ~src[i]` over raw table
+** arrays.  Bitwise not requires integer elements; float elements stay on
+** the interpreter so an exact-integral conversion is not guessed. */
+static int match_table_unary_store (Proto *p, LuaR_JIT *J,
+                                    ptrdiff_t start, ptrdiff_t backedge,
+                                    int for_a, TValue *b) {
+  LuaR_PairRead r;
+  Instruction op, set;
+  ptrdiff_t i = start;
+  int opcode, op_a, op_b, dst;
+  if (!match_pair_read(p, &i, backedge, for_a, &r))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  op = p->code[i++];
+  opcode = GET_OPCODE(op);
+  if (opcode != OP_UNM && opcode != OP_BNOT)
+    return 0;
+  op_a = GETARG_A(op);
+  op_b = GETARG_B(op);
+  if (op_b != r.val || is_control_reg(op_a, for_a))
+    return 0;
+  if (i >= backedge)
+    return 0;
+  set = p->code[i++];
+  if (GET_OPCODE(set) != OP_SETTABLE ||
+      GETARG_B(set) != for_a + 2 || GETARG_C(set) != op_a)
+    return 0;
+  dst = GETARG_A(set);
+  if (dst == r.val || dst == op_a || is_control_reg(dst, for_a) ||
+      is_control_reg(r.val, for_a))
+    return 0;
+  if (r.upval < 0 && (r.treg == r.val || r.treg == op_a))
+    return 0;
+  if (r.upval < 0 && !ttistable(&b[r.table]))
+    return 0;
+  if (!ttistable(&b[dst]) || i != backedge)
+    return 0;
+  return install_table_scaled_store(p, J, backedge, for_a, dst,
+                                    encode_pair_source(&r), -1, 0,
+                                    r.val, op_a, opcode == OP_UNM ? 7 : 8);
+}
+
+
 /* LUAR: `dst[i] = src[i] +|-|*|/ k` over raw table arrays.  The source
 ** and destination may be the same table.  The scalar is a numeric
 ** constant, register local or closure upvalue. */
@@ -2447,6 +2563,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_table_nil_store(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_table_unary_store(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_table_pair_store(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_fill(p, J, start, backedge, for_a, b))
@@ -4717,6 +4839,18 @@ static LuaR_PairNum pair_mod (LuaR_PairNum a, LuaR_PairNum b) {
 }
 
 
+static LuaR_PairNum pair_neg (LuaR_PairNum a) {
+  if (a.isflt)
+    return pair_flt(-a.d);
+  return pair_int(l_castU2S(0u - l_castS2U(a.i)));
+}
+
+
+static LuaR_PairNum pair_bnot (LuaR_PairNum a) {
+  return pair_int(~a.i);
+}
+
+
 static LuaR_PairNum pair_from_slot (const TValue *v, int *ok) {
   if (ttisinteger(v))
     return pair_int(ivalue(v));
@@ -4975,6 +5109,91 @@ static int table_nil_store_intrinsic (TValue *base, int for_a, int dst_reg) {
 }
 
 
+/* kind 54: dst[i] = a[i] OP b[i] over two raw table arrays. */
+static int table_pair_store_intrinsic (lua_State *L, TValue *base,
+                                       int for_a, int dst_reg,
+                                       int aenc, int benc, int op,
+                                       int elem1_reg, int elem2_reg,
+                                       int res_reg) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *tt = &base[dst_reg];
+  Table *ta, *tb, *dst;
+  LuaR_PairNum last_a = pair_int(0), last_b = pair_int(0), last_res = pair_int(0);
+  lua_Integer count, step, idx, lastkey, maxkey, ckey, k;
+  int areg = (aenc >= 0) ? aenc : -1;
+  int aup = (aenc >= 0) ? -1 : (-1 - aenc);
+  int breg = (benc >= 0) ? benc : -1;
+  int bup = (benc >= 0) ? -1 : (-1 - benc);
+  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!for_run_last(idx, count, step, &lastkey))
+    return 0;
+  ta = pair_source_table(base, areg, aup);
+  tb = pair_source_table(base, breg, bup);
+  if (!array_run_bounds(ta, idx, lastkey) ||
+      !array_run_numeric(ta, idx, count, step) ||
+      !array_run_bounds(tb, idx, lastkey) ||
+      !array_run_numeric(tb, idx, count, step))
+    return 0;
+  if ((op == 5 || op == 6)) {
+    /* Integer/integer zero divisor raises in the interpreter.  A float
+    ** operand takes the non-raising path. */
+    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+      lu_byte xa = *getArrTag(ta, (unsigned)ckey);
+      lu_byte xb = *getArrTag(tb, (unsigned)ckey);
+      if (xa == LUA_VNUMINT && xb == LUA_VNUMINT &&
+          getArrVal(tb, (unsigned)ckey)->i == 0)
+        return 0;
+    }
+  }
+  dst = hvalue(tt);
+  maxkey = (idx > lastkey) ? idx : lastkey;
+  if (dst->metatable != NULL || maxkey > (1 << 22))
+    return 0;
+  if (dst->asize < (unsigned)maxkey)
+    luaH_resizearray(L, dst, (unsigned)maxkey);
+  for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+    unsigned key = (unsigned)ckey;
+    LuaR_PairNum x = pair_from_array(ta, key);
+    LuaR_PairNum y = pair_from_array(tb, key);
+    TValue v;
+    last_a = x;
+    last_b = y;
+    if (op == 0)
+      last_res = pair_add(x, y);
+    else if (op == 1)
+      last_res = pair_sub(x, y);
+    else if (op == 2)
+      last_res = pair_mul(x, y);
+    else if (op == 3)
+      last_res = pair_div(x, y);
+    else if (op == 5)
+      last_res = pair_idiv(x, y);
+    else
+      last_res = pair_mod(x, y);
+    if (last_res.isflt) {
+      setfltvalue(&v, last_res.d);
+    }
+    else {
+      setivalue(&v, last_res.i);
+    }
+    obj2arr(dst, key, &v);
+  }
+  pair_store_slot(base, elem1_reg, last_a, -1);
+  pair_store_slot(base, elem2_reg, last_b, -1);
+  pair_store_slot(base, res_reg, last_res, -1);
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 /* kind 42: dst[i] = src[i] +|-|*|/ k over raw table arrays.  The run is
 ** checked against the source array before any store; the destination may
 ** be the same table and is grown only when the source run is known to be
@@ -5009,8 +5228,8 @@ static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
   if (!array_run_bounds(src, idx, lastkey) ||
       !array_run_numeric(src, idx, count, step))
     return 0;
-  if (op == 4) {
-    fac = pair_int(0);   /* unused copy marker */
+  if (op == 4 || op >= 7) {
+    fac = pair_int(0);   /* unused copy/unary marker */
   }
   else {
     if (scalar_enc == LUAR_TINT_SCALAR_IMM) {
@@ -5033,6 +5252,12 @@ static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
         if (*getArrTag(src, (unsigned)ckey) != LUA_VNUMFLT)
           return 0;
       }
+    }
+  }
+  if (op == 8) {
+    for (ckey = idx - 1, k = 0; k <= count; k++, ckey += step) {
+      if (*getArrTag(src, (unsigned)ckey) != LUA_VNUMINT)
+        return 0;   /* float bitwise conversion stays interpreted */
     }
   }
   dst = hvalue(tt);
@@ -5059,6 +5284,10 @@ static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
       last_res = pair_idiv(elem, fac);
     else if (op == 6)
       last_res = pair_mod(elem, fac);
+    else if (op == 7)
+      last_res = pair_neg(elem);
+    else if (op == 8)
+      last_res = pair_bnot(elem);
     else
       last_res = elem;   /* copy */
 
@@ -6266,6 +6495,15 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         case 51:
           r = table_nil_store_intrinsic((TValue *)base, expected_base,
                                         p->luar_tint_table[i]);
+          break;
+        case 54:
+          r = table_pair_store_intrinsic(
+                  L, (TValue *)base, expected_base,
+                  p->luar_tint_table[i], p->luar_tint_keys[i],
+                  p->luar_tint_upval[i], p->luar_tint_acc[i],
+                  p->luar_tint_res[i] & 0xff,
+                  (p->luar_tint_res[i] >> 8) & 0xff,
+                  p->luar_tint_arg4[i]);
           break;
         case 29:
           r = table_affine_fill_intrinsic(L, (TValue *)base, expected_base,
