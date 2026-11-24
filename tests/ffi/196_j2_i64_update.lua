@@ -79,6 +79,32 @@ do
   end
 end
 
+-- Upvalue array destination with a cdata scalar.
+do
+  local U
+  local V = ffi.new("int64_t", 3)
+  local function add_u (a, n) for i = 0, n - 1 do U[i] = U[i] + a end end
+  local function sub_u (a, n) for i = 0, n - 1 do U[i] = U[i] - a end end
+  local function mul_u (a, n) for i = 0, n - 1 do U[i] = U[i] * a end end
+  local function band_u (a, n) for i = 0, n - 1 do U[i] = U[i] & a end end
+  local function shl_u (a, n) for i = 0, n - 1 do U[i] = U[i] << a end end
+  for name, f in pairs{ add = add_u, sub = sub_u, mul = mul_u,
+                        band = band_u, shl = shl_u } do
+    U = init()
+    jit.off()
+    f(V, N)
+    local want = U
+    U = init()
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    f(V, N)
+    H.check(jit.stats().tint_hits > before, name .. " cdata upvalue array did not run")
+    for i = 0, N - 1 do H.eq(U[i], want[i], name .. " cdata upvalue array " .. i) end
+  end
+end
+
 -- Upvalue cdata scalar.
 do
   local V = ffi.new("int64_t", 3)

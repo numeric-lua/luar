@@ -1323,6 +1323,73 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `U[i] = U[i] OP V` with an upvalue array and cdata scalar. */
+static int match_cdata_upval_update_scalar (Proto *p, LuaR_JIT *J,
+                                            ptrdiff_t start,
+                                            ptrdiff_t backedge, int for_a,
+                                            TValue *b) {
+  ptrdiff_t n = backedge - start + 1, pos = start + 3;
+  Instruction up1, up2, g, op, mm, s;
+  int dreg, sreg, tmp, scalar_reg, scalar_enc = 0, opc, code;
+  if (n != 7 && n != 8)
+    return 0;
+  up1 = p->code[start];
+  up2 = p->code[start + 1];
+  g = p->code[start + 2];
+  if (GET_OPCODE(up1) != OP_GETUPVAL || GET_OPCODE(up2) != OP_GETUPVAL ||
+      GETARG_B(up1) != GETARG_B(up2) ||
+      GET_OPCODE(g) != OP_GETTABLE)
+    return 0;
+  dreg = GETARG_A(up1);
+  sreg = GETARG_A(up2);
+  tmp = GETARG_A(g);
+  if (GETARG_B(g) != sreg || GETARG_C(g) != for_a + 2 ||
+      is_control_reg(dreg, for_a) || is_control_reg(sreg, for_a) ||
+      is_control_reg(tmp, for_a))
+    return 0;
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    scalar_reg = GETARG_A(up);
+    scalar_enc = -1 - GETARG_B(up);
+    if (is_control_reg(scalar_reg, for_a))
+      return 0;
+  }
+  if (pos + 3 != backedge)
+    return 0;
+  op = p->code[pos++];
+  mm = p->code[pos++];
+  s = p->code[pos++];
+  if (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+      GET_OPCODE(mm) != OP_MMBINK)
+    return 0;
+  if (GET_OPCODE(s) != OP_SETTABLE || GETARG_A(s) != dreg ||
+      GETARG_B(s) != for_a + 2 || GETARG_C(s) != tmp || GETARG_k(s) ||
+      GETARG_A(op) != tmp || GETARG_B(op) != tmp)
+    return 0;
+  if (scalar_enc == 0) {
+    scalar_reg = GETARG_C(op);
+    if (is_control_reg(scalar_reg, for_a) || scalar_reg == dreg ||
+        scalar_reg == sreg || scalar_reg == tmp)
+      return 0;
+    scalar_enc = scalar_reg;
+  }
+  else if (GETARG_C(op) != scalar_reg)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADD) code = 0;
+  else if (opc == OP_SUB) code = 1;
+  else if (opc == OP_MUL) code = 2;
+  else if (opc == OP_BAND) code = 6;
+  else if (opc == OP_BOR) code = 7;
+  else if (opc == OP_BXOR) code = 8;
+  else if (opc == OP_SHL) code = 9;
+  else if (opc == OP_SHR) code = 10;
+  else return 0;
+  return install_cdata_tint(p, J, backedge, 75, dreg, scalar_enc, tmp,
+                            code, 0, 0, for_a);
+}
+
+
 /* LUAR: `U[i] = U[i] OP k` with an upvalue array and constant scalar. */
 static int match_cdata_upval_update_const (Proto *p, LuaR_JIT *J,
                                            ptrdiff_t start,
@@ -3491,6 +3558,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_update_scalar(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_update_const(p, J, start, backedge, for_a, b))
@@ -7737,6 +7807,21 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     vv);
+          break;
+        }
+        case 75: {
+          int arr = p->luar_tint_table[i];
+          int enc = p->luar_tint_keys[i];
+          TValue *sv = (enc >= 0) ? &((TValue *)base)[enc]
+                       : pair_source_value((TValue *)base, -1, -1 - enc);
+          r = (sv == NULL) ? 0
+              : luar_ffi_trace_update_array_i64(
+                    &((TValue *)base)[arr],
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    sv, &((TValue *)base)[p->luar_tint_upval[i]],
+                    p->luar_tint_upval[i], p->luar_tint_acc[i], L);
           break;
         }
         case 74: {
