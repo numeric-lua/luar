@@ -858,10 +858,14 @@ static int64_t parse_primary (Parser *P) {
     lex_next(P);
     expect_punct(P, '(', "(");
     if (P->tok.kind == TK_STRING) {
-      size_t len = string_literal_bytes(P->tok.start, P->tok.len);
+      size_t len = 0;
       if (is_align)
         parser_error(P, "_Alignof of a string literal");
-      lex_next(P);
+      /* Adjacent string literals concatenate in C. */
+      while (P->tok.kind == TK_STRING) {
+        len += string_literal_bytes(P->tok.start, P->tok.len);
+        lex_next(P);
+      }
       expect_punct(P, ')', ")");
       return (int64_t)(len + 1);   /* include the trailing NUL */
     }
