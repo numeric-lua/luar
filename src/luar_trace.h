@@ -385,6 +385,9 @@ int luar_trace_record_loop (Proto *p, int start, int backedge, TValue *base,
                             lua_State *L, LuaR_TraceIR *t);
 int luar_trace_ir_selftest (void);
 
+int luar_ffi_trace_i64_scalar (TValue *tv);
+int luar_ffi_trace_fill_array_i64 (TValue *dst, TValue *idx, TValue *count,
+                                   TValue *step, TValue *val);
 int luar_ffi_trace_i64_array (TValue *tv);
 int luar_ffi_trace_i64_unsigned (TValue *tv);
 int64_t luar_ffi_trace_copy_i64 (TValue *dst, TValue *src, TValue *key);

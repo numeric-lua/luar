@@ -1213,6 +1213,52 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
 }
 
 
+int luar_ffi_trace_i64_scalar (TValue *tv) {
+  Udata *u; CData *cd;
+  if (tv == NULL || !ttisfulluserdata(tv)) return 0;
+  u = (Udata *)tv->value_.gc; cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  return cd->ct != NULL && cd->ct->kind == CT_INT && cd->ct->size == 8;
+}
+
+int luar_ffi_trace_fill_array_i64 (TValue *dstv, TValue *it, TValue *ct,
+                                  TValue *st, TValue *val) {
+  FfiView vd;
+  Udata *u;
+  CData *cd;
+  uint64_t bits;
+  lua_Integer count, step, idx, last, k;
+  if (dstv == NULL || it == NULL || ct == NULL || st == NULL || val == NULL ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      !luar_ffi_trace_i64_scalar(val))
+    return 0;
+  if (!ffi_view_init_dst(dstv, &vd) || vd.isflt || vd.esz != 8)
+    return 0;
+  u = (Udata *)val->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(&bits, cd->v.p, 8);
+  else
+    memcpy(&bits, &cd->v, 8);
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&vd, count, step, idx, &last))
+    return 0;
+  {
+    char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
+    for (k = 0; k <= count; k++) {
+      memcpy(pd, &bits, 8);
+      pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
+    }
+  }
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
 int luar_ffi_trace_i64_array (TValue *tv) {
   Udata *u; CData *cd; CType *ct, *elem;
   if (tv == NULL || !ttisfulluserdata(tv)) return 0;
