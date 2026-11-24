@@ -1297,7 +1297,25 @@ int luar_ffi_trace_update_array_i64 (TValue *arrv, TValue *it, TValue *ct,
     for (k = 0; k <= count; k++) {
       memcpy(&val, pa, 8);
       last = val;
-      if (op == 1)
+      if (op == 3 || op == 4) {
+        if (v.is_unsigned) {
+          uint64_t ub = sb;
+          if (ub == 0)
+            val = UINT64_C(0x8000000000000000);
+          else
+            val = (op == 3) ? val / ub : val % ub;
+        }
+        else {
+          int64_t sa = (int64_t)val, ss = (int64_t)sb;
+          if (ss == 0)
+            val = UINT64_C(0x8000000000000000);
+          else if (ss == -1)
+            val = (op == 3) ? (uint64_t)(0 - (uint64_t)sa) : 0;
+          else
+            val = (op == 3) ? (uint64_t)(sa / ss) : (uint64_t)(sa % ss);
+        }
+      }
+      else if (op == 1)
         val -= sb;
       else if (op == 2)
         val *= sb;

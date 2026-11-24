@@ -817,6 +817,8 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     else if (opc == OP_BXOR) code = 8;
     else if (opc == OP_SHL) code = 9;
     else if (opc == OP_SHR) code = 10;
+    else if (opc == OP_IDIV) code = 3;
+    else if (opc == OP_MOD) code = 4;
     else return 0;
     return install_cdata_tint(p, J, backedge, 71, arr, scalar, tmp,
                               code, 0, 0, for_a);
