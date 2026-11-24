@@ -4,6 +4,25 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.229.0] — 2026-11-24
+
+### Fixed
+
+- J2 raw 64-bit cdata copies now keep the visible element temporary as a
+  scalar cdata with the value inline; the previous owned-payload object
+  exposed pointer bits instead of the last element.
+- The temporary slot is re-resolved from the current frame base after the
+  cdata allocation, so a stack reallocation cannot leave a stale pointer.
+- Edge coverage for int64→uint64 destinations, self-copy and
+  out-of-bounds fallback.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  Extended coverage:
+`tests/ffi/191_j2_i64_copy.lua`.
+
 ## [0.228.0] — 2026-11-24
 
 ### Added
