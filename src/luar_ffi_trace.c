@@ -400,6 +400,31 @@ static FfiNum ffi_num_mod (FfiNum a, FfiNum b) {
   return ffi_num_int(ffi_mod_int(a.i, b.i));
 }
 
+static FfiNum ffi_num_band (FfiNum a, FfiNum b) {
+  return ffi_num_int(a.i & b.i);
+}
+
+static FfiNum ffi_num_bor (FfiNum a, FfiNum b) {
+  return ffi_num_int(a.i | b.i);
+}
+
+static FfiNum ffi_num_bxor (FfiNum a, FfiNum b) {
+  return ffi_num_int(a.i ^ b.i);
+}
+
+static FfiNum ffi_num_shift (FfiNum a, FfiNum b) {
+  int64_t n = b.i;
+  if (n < 0) {
+    if (n <= -64)
+      return ffi_num_int(0);
+    return ffi_num_int(l_castU2S(l_castS2U(a.i) >> (unsigned)(-n)));
+  }
+  if (n >= 64)
+    return ffi_num_int(0);
+  return ffi_num_int(l_castU2S(l_castS2U(a.i) << (unsigned)n));
+}
+
+
 static void ffi_num_store (TValue *dst, FfiNum n) {
   if (n.isflt) {
     setfltvalue(dst, n.d);
@@ -982,7 +1007,7 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
 
 
 /* J2: `a[i] = b[i] + c[i]` and the subtract/multiply/divide/floor-divide/
-** modulo forms over three bounded arrays.  op is 0..5.  tmpa is the first
+** modulo/bitwise forms over three bounded arrays.  op is 0..10.  tmpa is the first
 ** GETTABLE/result temporary and tmpb the second source temporary; the
 ** recognizer only accepts shapes whose arithmetic destination is tmpa. */
 int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
@@ -994,7 +1019,7 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
   if (dstv == NULL || av == NULL || bv == NULL || it == NULL ||
       ct == NULL || st == NULL || tmpa == NULL || tmpb == NULL ||
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
-      op < 0 || op > 5)
+      op < 0 || op > 10)
     return 0;
   if (!ffi_view_init_dst(dstv, &vd) || !ffi_view_init(av, &va) ||
       !ffi_view_init(bv, &vb))
@@ -1012,6 +1037,8 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
   if ((op == 4 || op == 5) && !va.isflt && !vb.isflt &&
       ffi_view_has_zero(&vb, count, step, idx))
     return 0;
+  if (op >= 6 && (va.isflt || vb.isflt))
+    return 0;   /* bitwise operands must be integers */
   lasta = lastb = lastres = ffi_num_int(0);
   {
     char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
@@ -1031,8 +1058,22 @@ int luar_ffi_trace_pair_store (TValue *dstv, TValue *av, TValue *bv,
                               ffi_num_double(lastb));
       else if (op == 4)
         lastres = ffi_num_idiv(lasta, lastb);
-      else
+      else if (op == 5)
         lastres = ffi_num_mod(lasta, lastb);
+      else if (op == 6)
+        lastres = ffi_num_band(lasta, lastb);
+      else if (op == 7)
+        lastres = ffi_num_bor(lasta, lastb);
+      else if (op == 8)
+        lastres = ffi_num_bxor(lasta, lastb);
+      else if (op == 9)
+        lastres = ffi_num_shift(lasta, lastb);
+      else {
+        if (lastb.i == INT64_MIN)
+          lastres = ffi_num_int(0);
+        else
+          lastres = ffi_num_shift(lasta, ffi_num_int(-lastb.i));
+      }
       ffi_view_store(&vd, pd, lastres);
       pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
       pa += (ptrdiff_t)step * (ptrdiff_t)va.esz;
