@@ -812,6 +812,40 @@ static DNode *parse_declarator (Parser *P) {
 /* Constant expressions (array sizes, enum values, initializers)      */
 /* ------------------------------------------------------------------ */
 
+/* Byte length of a C string literal's payload (without the trailing NUL).
+** The lexer keeps the raw bytes, so decode the escapes that affect size;
+** the value is used by sizeof("...") in constant expressions. */
+static size_t string_literal_bytes (const char *s, size_t n) {
+  size_t i = 0, count = 0;
+  while (i < n) {
+    if (s[i] == '\\' && i + 1 < n) {
+      char c = s[++i];
+      if (c == 'x') {
+        i++;
+        while (i < n && isxdigit((unsigned char)s[i]))
+          i++;
+      }
+      else if (c >= '0' && c <= '7') {
+        int digits = 1;
+        i++;
+        while (digits < 3 && i < n && s[i] >= '0' && s[i] <= '7') {
+          i++;
+          digits++;
+        }
+      }
+      else
+        i++;
+      count++;
+    }
+    else {
+      count++;
+      i++;
+    }
+  }
+  return count;
+}
+
+
 static int64_t parse_primary (Parser *P) {
   if (tok_is_ident(P, "sizeof") || tok_is_ident(P, "_Alignof") ||
       tok_is_ident(P, "__alignof__") || tok_is_ident(P, "alignof")) {
@@ -823,6 +857,14 @@ static int64_t parse_primary (Parser *P) {
     size_t sz;
     lex_next(P);
     expect_punct(P, '(', "(");
+    if (P->tok.kind == TK_STRING) {
+      size_t len = string_literal_bytes(P->tok.start, P->tok.len);
+      if (is_align)
+        parser_error(P, "_Alignof of a string literal");
+      lex_next(P);
+      expect_punct(P, ')', ")");
+      return (int64_t)(len + 1);   /* include the trailing NUL */
+    }
     ds = parse_declspec(P);
     node = parse_declarator(P);
     ct = apply_node(P, node, ds.base, &name);
@@ -842,22 +884,52 @@ static int64_t parse_primary (Parser *P) {
     char *name = NULL;
     char fname[256];
     size_t off = 0;
-    CField *f;
+    CField *f = NULL;
+    CType *cur;
     lex_next(P);
     expect_punct(P, '(', "(");
     ds = parse_declspec(P);
     node = parse_declarator(P);
     ct = apply_node(P, node, ds.base, &name);
     expect_punct(P, ',', ",");
-    if (P->tok.kind != TK_IDENT)
-      parser_error(P, "expected a field name in offsetof");
-    if (!tok_to_buf(P, fname, sizeof(fname)))
-      parser_error(P, "field name too long in offsetof");
-    lex_next(P);
+    cur = ct;
+    for (;;) {
+      size_t member_off = 0;
+      CType *field_type = NULL;
+      if (P->tok.kind != TK_IDENT)
+        parser_error(P, "expected a field name in offsetof");
+      if (!tok_to_buf(P, fname, sizeof(fname)))
+        parser_error(P, "field name too long in offsetof");
+      lex_next(P);
+      f = ffi_type_find_field(cur, fname, &member_off, &field_type);
+      if (f == NULL)
+        parser_error(P, "offsetof: no field named '%s'", fname);
+      off += member_off;
+      cur = field_type;
+      for (;;) {
+        if (accept_punct(P, '[')) {
+          int64_t index;
+          size_t esz;
+          if (cur->kind != CT_ARRAY || cur->vla)
+            parser_error(P, "offsetof: '[]' needs an array member");
+          index = parse_const_expr(P);
+          expect_punct(P, ']', "]");
+          if (index < 0)
+            parser_error(P, "offsetof: negative array index");
+          esz = ffi_type_size(cur->child);
+          if (esz == FFI_SIZE_UNKNOWN)
+            parser_error(P, "offsetof: incomplete array element");
+          off += (size_t)index * esz;
+          cur = cur->child;
+        }
+        else if (accept_punct(P, '.'))
+          break;
+        else
+          goto offsetof_done;
+      }
+    }
+offsetof_done:
     expect_punct(P, ')', ")");
-    f = ffi_type_find_field(ct, fname, &off, NULL);
-    if (f == NULL)
-      parser_error(P, "offsetof: no field named '%s'", fname);
     if (f->bitwidth != 0)
       parser_error(P, "offsetof of a bitfield is not supported");
     return (int64_t)off;
