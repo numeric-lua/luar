@@ -649,6 +649,7 @@ int64_t luar_trace_tgetkf (TValue *tv, TString *key, TValue *out) {
   if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
     return 0;
   t = (Table *)tv->value_.gc;
+  setnilvalue(&v);
   luaH_getstr(t, key, &v);
   if (!ttisfloat(&v))
     return 0;
@@ -825,6 +826,7 @@ int64_t luar_trace_tgetkt (TValue *tv, TString *key, TValue *out) {
   if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
     return 0;
   t = (Table *)tv->value_.gc;
+  setnilvalue(&v);
   luaH_getstr(t, key, &v);
   if (!ttistable(&v))
     return 0;
@@ -838,6 +840,7 @@ int64_t luar_trace_tgetkb (TValue *tv, TString *key, TValue *out) {
   if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
     return 0;
   t = (Table *)tv->value_.gc;
+  setnilvalue(&v);
   luaH_getstr(t, key, &v);
   if (!ttisboolean(&v))
     return 0;
@@ -852,6 +855,7 @@ int64_t luar_trace_tgetks (TValue *tv, TString *key, TValue *out) {
   if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
     return 0;
   t = (Table *)tv->value_.gc;
+  setnilvalue(&v);
   luaH_getstr(t, key, &v);
   if (!ttisstring(&v))
     return 0;
@@ -1389,6 +1393,7 @@ int64_t luar_trace_tgeti (TValue *tv, lua_Integer key, TValue *out) {
     setivalue(out, getArrVal(t, (unsigned)(key - 1))->i);
     return 1;
   }
+  setnilvalue(&v);
   (void)luaH_getint(t, key, &v);
   if (!ttisinteger(&v))
     return 0;
@@ -1420,6 +1425,7 @@ int64_t luar_trace_tgetk (TValue *tv, TString *key, TValue *out) {
   if (tv == NULL || !ttistable(tv) || key == NULL || out == NULL)
     return 0;
   t = (Table *)tv->value_.gc;
+  setnilvalue(&v);
   luaH_getstr(t, key, &v);
   if (!ttisinteger(&v))
     return 0;
