@@ -3549,6 +3549,11 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           if (!luar_trace_ir_emit(t, &in)) return 0;
           seen[b] = 1;
         }
+        /* TGET's helper takes an integer key.  A float/string/bool key
+        ** would be passed as its raw payload; keep those on the
+        ** interpreter instead of inventing a different key. */
+        if (!ttisinteger(&base[c]))
+          return 0;
         if (!seen[c]) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)c;
           in.b = (uint8_t)ir_tag(&base[c]); in.pc = pc;

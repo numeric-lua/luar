@@ -25,6 +25,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   previous lookup's element when the same trace reads a missing key.
 - J4 string-key reads and the float/table/bool/string field helpers do the
   same before `luaH_getstr`, fixing the corresponding stale-value miss.
+- J4 rejects dynamic `GETTABLE` reads whose key is not an integer.  The
+  side helper was reinterpreting a float/string/bool key as its raw payload
+  integer, so `t[1.5]` could read an unrelated integer entry.
 
 ### Tests
 
@@ -34,8 +37,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 `tests/ffi/180_j2_cdata_bitwise_pair.lua`,
 `tests/ffi/181_j2_cdata_bitwise_scalar.lua`,
 `tests/ffi/182_j2_cdata_unary_store.lua`,
-`tests/jit/209_j4_tgeti_miss.lua` and
-`tests/jit/210_j4_tgetk_miss.lua`.
+`tests/jit/209_j4_tgeti_miss.lua`,
+`tests/jit/210_j4_tgetk_miss.lua` and
+`tests/jit/211_j4_tget_key_type.lua`.
 
 ## [0.219.0] — 2026-11-24
 
