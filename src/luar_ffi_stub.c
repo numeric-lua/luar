@@ -285,6 +285,15 @@ int luar_ffi_trace_store_array (TValue *a, TValue *i, TValue *c,
                                 TValue *s, TValue *v, int mode) {
   (void)a; (void)i; (void)c; (void)s; (void)v; (void)mode; return 0;
 }
+int luar_ffi_trace_array_kind64 (TValue *tv) {
+  (void)tv; return 0;
+}
+int luar_ffi_trace_copy_array_i64 (TValue *d, TValue *src, TValue *i,
+                                   TValue *c, TValue *s, TValue *tmp,
+                                   int tr, lua_State *L) {
+  (void)d; (void)src; (void)i; (void)c; (void)s; (void)tmp;
+  (void)tr; (void)L; return 0;
+}
 int luar_ffi_trace_copy_array (TValue *d, TValue *src, TValue *i,
                                TValue *c, TValue *s, TValue *tmp) {
   (void)d; (void)src; (void)i; (void)c; (void)s; (void)tmp; return 0;

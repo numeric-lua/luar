@@ -98,6 +98,22 @@ int luar_ffi_trace_array_kind (TValue *tv) {
 }
 
 
+int luar_ffi_trace_array_kind64 (TValue *tv) {
+  Udata *u;
+  CData *cd;
+  CType *elem;
+  if (tv == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL || cd->ct->kind != CT_ARRAY || cd->ct->child == NULL)
+    return 0;
+  elem = cd->ct->child;
+  return (elem->kind == CT_INT && elem->size == 8) ? 1 : 0;
+}
+
+
 /* Store-side element kind.  Unlike array_kind this admits 8-byte integer
 ** elements, because a bounded fill writes conversions of Lua numbers and
 ** never loads an element into a Lua slot.  Copy/update/pair helpers keep
@@ -861,6 +877,52 @@ int luar_ffi_trace_copy_array (TValue *dstv, TValue *srcv, TValue *it,
     }
   }
   ffi_num_store(tmp, lastval);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
+/* J2: raw 64-bit cdata copy.  The visible element temp is a cdata int64/
+** uint64 object; create it once, then copy 8-byte values directly. */
+int luar_ffi_trace_copy_array_i64 (TValue *dstv, TValue *srcv, TValue *it,
+                                   TValue *ct, TValue *st, TValue *tmp,
+                                   int tmp_reg, lua_State *L) {
+  FfiView vd, vs;
+  lua_Integer count, step, idx, last, k;
+  uint64_t lastv = 0;
+  CData *cd;
+  TValue *top, *base;
+  if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
+      st == NULL || tmp == NULL || L == NULL ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      tmp_reg < 0 || tmp_reg >= 256)
+    return 0;
+  if (!ffi_view_init_dst(dstv, &vd) || !ffi_view_init_dst(srcv, &vs) ||
+      vd.isflt || vs.isflt || vd.esz != 8 || vs.esz != 8)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&vd, count, step, idx, &last) ||
+      !ffi_store_range(&vs, count, step, idx, &last))
+    return 0;
+  cd = ffi_push_owned(L, ffi_getstate(L), vs.elem, 8);
+  top = s2v(L->top.p - 1);
+  base = (TValue *)(L->ci->func.p + 1);
+  base[tmp_reg] = *top;
+  L->top.p--;
+  {
+    char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
+    const char *ps = vs.base + (ptrdiff_t)idx * (ptrdiff_t)vs.esz;
+    for (k = 0; k <= count; k++) {
+      memcpy(&lastv, ps, 8);
+      memcpy(pd, ps, 8);
+      pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
+      ps += (ptrdiff_t)step * (ptrdiff_t)vs.esz;
+    }
+  }
+  memcpy(cd->v.p, &lastv, 8);
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;

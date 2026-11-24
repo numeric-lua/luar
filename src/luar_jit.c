@@ -725,11 +725,32 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
       return 0;
     {
       TValue *sv2 = pair_source_value((TValue *)b, -1, -1 - src_enc);
+      if (sv2 != NULL && luar_ffi_trace_array_kind64(sv2) != 0)
+        return install_cdata_tint(p, J, backedge, 65, dst, src_enc, tmp,
+                                  0, 0, 0, for_a);
       if (sv2 == NULL || luar_ffi_trace_array_kind(sv2) == 0)
         return 0;
     }
     return install_cdata_tint(p, J, backedge, 21, dst, src_enc, 0, tmp,
                               key, 0, for_a);
+  }
+  /* a[i] = b[i] for 8-byte integer arrays: raw 8-byte copy with a cdata
+  ** element temporary. */
+  if (n == 3 && GET_OPCODE(i0) == OP_GETTABLE &&
+      GET_OPCODE(p->code[start + 1]) == OP_SETTABLE) {
+    Instruction g = i0, s = p->code[start + 1];
+    int tmp = GETARG_A(g), src = GETARG_B(g);
+    int dst = GETARG_A(s), sk = GETARG_B(s), sv = GETARG_C(s);
+    if (GETARG_C(g) != key || sk != key || sv != tmp ||
+        GETARG_k(s) || tmp == key || tmp == for_a || tmp == for_a + 1 ||
+        tmp == for_a + 2 || src == for_a || src == for_a + 1 ||
+        src == for_a + 2 || dst == for_a || dst == for_a + 1 ||
+        dst == for_a + 2 || dst == tmp || src == tmp ||
+        luar_ffi_trace_array_store_kind(&b[dst]) == 0)
+      return 0;
+    if (luar_ffi_trace_array_kind64(&b[src]) != 0)
+      return install_cdata_tint(p, J, backedge, 64, dst, src, tmp,
+                                0, 0, 0, for_a);
   }
   /* a[i] = b[i]: GETTABLE tmp, src, key; SETTABLE dst, key, tmp. */
   if (n == 3 && GET_OPCODE(i0) == OP_GETTABLE &&
@@ -7456,6 +7477,34 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   (p->luar_tint_upval[i] >> 8) & 0xff,
                   p->luar_tint_acc[i]);
           break;
+        case 65: {
+          int dstreg = p->luar_tint_table[i];
+          int srcenc = p->luar_tint_keys[i];
+          int tmpreg = p->luar_tint_upval[i];
+          TValue *sv = pair_source_value((TValue *)base,
+                                         (srcenc >= 0) ? srcenc : -1,
+                                         (srcenc >= 0) ? -1 : (-1 - srcenc));
+          r = (sv == NULL) ? 0
+              : luar_ffi_trace_copy_array_i64(
+                    &((TValue *)base)[dstreg], sv,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[tmpreg], tmpreg, L);
+          break;
+        }
+        case 64: {
+          int dstreg = p->luar_tint_table[i];
+          int srcreg = p->luar_tint_keys[i];
+          int tmpreg = p->luar_tint_upval[i];
+          r = luar_ffi_trace_copy_array_i64(
+                  &((TValue *)base)[dstreg], &((TValue *)base)[srcreg],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[tmpreg], tmpreg, L);
+          break;
+        }
         case 63: {
           TValue *sc = tint_scalar(p, (TValue *)base,
                                     p->luar_tint_upval[i]);

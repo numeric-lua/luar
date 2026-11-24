@@ -393,6 +393,7 @@ int64_t luar_ffi_trace_copy_i64 (TValue *dst, TValue *src, TValue *key);
 ** count, step and the accumulator/element destinations are all live stack
 ** slots.  Returns 0 when the shape or bounds do not match. */
 int luar_ffi_trace_array_kind (TValue *tv);
+int luar_ffi_trace_array_kind64 (TValue *tv);
 int luar_ffi_trace_array_store_kind (TValue *tv);
 int luar_ffi_trace_sum_array (TValue *arr, TValue *idx, TValue *count,
                               TValue *step, TValue *acc, TValue *res,
@@ -414,6 +415,9 @@ int luar_ffi_trace_store_array (TValue *arr, TValue *idx, TValue *count,
                                 TValue *step, TValue *val, int mode);
 int luar_ffi_trace_copy_array (TValue *dst, TValue *src, TValue *idx,
                                TValue *count, TValue *step, TValue *tmp);
+int luar_ffi_trace_copy_array_i64 (TValue *dst, TValue *src, TValue *idx,
+                                   TValue *count, TValue *step, TValue *tmp,
+                                   int tmp_reg, lua_State *L);
 int luar_ffi_trace_update_array (TValue *arr, TValue *idx, TValue *count,
                                  TValue *step, TValue *scalar, TValue *tmp,
                                  int op);
