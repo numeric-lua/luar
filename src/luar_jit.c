@@ -1117,16 +1117,18 @@ static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
-/* LUAR: `s = s + a[i] * k` where `k` is a numeric constant, a register
-** scalar or a closure upvalue scalar.  The scalar encoding is positive for
-** a register, -1-index for an upvalue and 0x40000000|k for a Proto
-** constant. */
+/* LUAR: `s = s + a[i] * k` or `s = s + a[i] / k` where `k` is a numeric
+** constant, a register scalar or a closure upvalue scalar.  The scalar
+** encoding is positive for a register, -1-index for an upvalue and
+** 0x40000000|k for a Proto constant.  Kind 15 is multiply, kind 28 is
+** divide; only the left operand of `/` is ever the element because
+** division does not commute. */
 #define LUAR_TINT_SCALAR_CONST 0x40000000
 
 static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
                                int for_a, const LuaR_PairRead *r,
                                int scalar_enc, int elem_reg, int prod_reg,
-                               int acc) {
+                               int acc, int div) {
   int slot = -1, k;
   if (prod_reg == acc)
     return 0;
@@ -1139,7 +1141,7 @@ static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
   if (slot < 0)
     slot = 1;
   p->luar_code[slot] = NULL;
-  p->luar_tint[slot] = 15;
+  p->luar_tint[slot] = div ? 28 : 15;
   p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = encode_pair_source(r);
@@ -1403,6 +1405,7 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   int mul_a, mul_b, mul_c, scalar_enc = -1, scalar_reg = -1;
   int scalar_pre = -1;
   int acc, prod_reg;
+  int div = 0;
   if (!match_pair_read(p, &i, backedge, for_a, &r))
     return 0;
   if (i >= backedge)
@@ -1420,7 +1423,11 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (i >= backedge)
     return 0;
   mul = p->code[i++];
-  if (GET_OPCODE(mul) == OP_MULK) {
+  if (GET_OPCODE(mul) == OP_DIVK)
+    div = 1;
+  else if (GET_OPCODE(mul) == OP_DIV)
+    div = 1;
+  if (GET_OPCODE(mul) == OP_MULK || GET_OPCODE(mul) == OP_DIVK) {
     int kidx = GETARG_C(mul);
     TValue *k;
     if (GETARG_B(mul) != r.val || kidx >= p->sizek ||
@@ -1434,14 +1441,14 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     scalar_enc = LUAR_TINT_SCALAR_CONST | kidx;
     mul_a = GETARG_A(mul);
   }
-  else if (GET_OPCODE(mul) == OP_MUL) {
+  else if (GET_OPCODE(mul) == OP_MUL || GET_OPCODE(mul) == OP_DIV) {
     mul_a = GETARG_A(mul);
     mul_b = GETARG_B(mul);
     mul_c = GETARG_C(mul);
     if (mul_b == r.val)
       scalar_reg = mul_c;
-    else if (mul_c == r.val)
-      scalar_reg = mul_b;
+    else if (mul_c == r.val && GET_OPCODE(mul) == OP_MUL)
+      scalar_reg = mul_b;   /* only multiplication commutes */
     else
       return 0;
     if (scalar_pre >= 0) {
@@ -1484,6 +1491,12 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return 0;
   if (r.treg == acc || r.treg == scalar_reg)
     return 0;
+  /* The quotient temp is the multiply/divide destination.  For a register
+  ** table source it must not overwrite the table register: the interpreter
+  ** would then index the quotient on the next iteration, while the
+  ** intrinsic would keep using the table and produce a different result. */
+  if (r.upval < 0 && r.treg == prod_reg)
+    return 0;
   if (scalar_enc >= 0 && scalar_enc < LUAR_TINT_SCALAR_CONST) {
     /* A register scalar must not be overwritten by the element read or
     ** the multiply; otherwise later iterations see a different value. */
@@ -1497,7 +1510,7 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
     return 0;
   return install_scaled_sum(p, J, backedge, for_a, &r, scalar_enc,
-                            r.val, prod_reg, acc);
+                            r.val, prod_reg, acc, div);
 }
 
 
@@ -4471,6 +4484,13 @@ static LuaR_PairNum pair_mul (LuaR_PairNum a, LuaR_PairNum b) {
 }
 
 
+/* Lua's '/' always produces a float, even for two integers.  Division by
+** zero follows IEEE (inf/NaN), never a Lua error. */
+static LuaR_PairNum pair_div (LuaR_PairNum a, LuaR_PairNum b) {
+  return pair_flt(pair_number(a) / pair_number(b));
+}
+
+
 static LuaR_PairNum pair_from_slot (const TValue *v, int *ok) {
   if (ttisinteger(v))
     return pair_int(ivalue(v));
@@ -4612,7 +4632,8 @@ static TValue *tint_scalar (Proto *p, TValue *base, int enc) {
 ** the element and product registers keep their last bytecode values. */
 static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
                                    Table *h, const TValue *scalar,
-                                   int elem_reg, int prod_reg, int acc_reg) {
+                                   int elem_reg, int prod_reg, int acc_reg,
+                                   int div) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
@@ -4644,7 +4665,7 @@ static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
     unsigned key = (unsigned)ckey;
     LuaR_PairNum elem = pair_from_array(h, key);
     last_elem = elem;
-    last_prod = pair_mul(elem, fac);
+    last_prod = div ? pair_div(elem, fac) : pair_mul(elem, fac);
     acc = pair_add(acc, last_prod);
   }
   if (acc.isflt)
@@ -5821,7 +5842,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                    p->luar_tint_arg4[i], kind);
           break;
         }
-        case 15: {
+        case 15:
+        case 28: {
           TValue *sc = tint_scalar(p, (TValue *)base,
                                    p->luar_tint_keys[i]);
           Table *h = pair_source_table((TValue *)base,
@@ -5833,7 +5855,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
               : scaled_array_intrinsic(L, (TValue *)base, expected_base, h,
                                        sc, p->luar_tint_upval[i],
                                        p->luar_tint_arg4[i],
-                                       p->luar_tint_acc[i]);
+                                       p->luar_tint_acc[i],
+                                       kind == 28);
           break;
         }
         case 16: {
