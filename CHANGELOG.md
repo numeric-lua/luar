@@ -4,6 +4,23 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.226.0] — 2026-11-24
+
+### Added
+
+- J2 recognises table affine/index fills directly: `t[i] = i`, `i + k`,
+  `i - k` and `i * k`.  The direct matcher runs even when the general
+  decoder has not selected a fill, including a closure-upvalue destination
+  (`U[i] = i` / `i +/- k` / `i * k`).
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/jit/221_table_affine_fill.lua` and the upvalue identity case in
+`tests/jit/220_table_generic_keys.lua`.
+
 ## [0.225.0] — 2026-11-24
 
 ### Fixed
