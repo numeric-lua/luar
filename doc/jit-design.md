@@ -86,8 +86,8 @@ is provably observationally equivalent to that interpreter.
   then apply the FFI element-store conversion; pointers (which have no
   bounded length), out-of-bounds runs and 8-byte integer element reads stay
   on the interpreter because those reads produce cdata, not Lua numbers,
-  except raw 64-bit element copies, which keep a cdata element temporary
-  and copy 8 bytes directly.
+  except raw 64-bit element copies/fills, which keep a cdata element
+  temporary and copy 8 bytes directly.
   J4 constant-key table stores check `__newindex` for an absent field, and
   `ADDI`/`FADDI` guard the operand subtype before choosing the integer or
   float result.
