@@ -261,6 +261,13 @@ int luar_ffi_trace_sum_array (TValue *a, TValue *i, TValue *c, TValue *s,
   (void)a; (void)i; (void)c; (void)s; (void)acc; (void)r; (void)sub;
   return 0;
 }
+int luar_ffi_trace_unary_store (TValue *d, TValue *s, TValue *i,
+                               TValue *c, TValue *st, TValue *elem,
+                               TValue *res, int op) {
+  (void)d; (void)s; (void)i; (void)c; (void)st; (void)elem; (void)res;
+  (void)op;
+  return 0;
+}
 int luar_ffi_trace_scaled_array (TValue *a, TValue *k, TValue *i,
                                  TValue *c, TValue *s, TValue *acc,
                                  TValue *el, TValue *r, int op, int sub) {

@@ -962,7 +962,7 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
   if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
       st == NULL || scalar == NULL || tmp == NULL ||
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
-      op < 0 || op > 5)
+      op < 0 || op > 10)
     return 0;
   if (!ffi_num_from_tv(scalar, &n) ||
       !ffi_view_init_dst(dstv, &vd) || !ffi_view_init(srcv, &vs))
@@ -976,6 +976,8 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
   /* Integer // and % by zero raise; decline before the first store. */
   if ((op == 4 || op == 5) && !vs.isflt && !n.isflt && n.i == 0)
     return 0;
+  if (op >= 6 && (vs.isflt || n.isflt))
+    return 0;   /* bitwise operands must be integers */
   lastres = ffi_num_int(0);
   {
     char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
@@ -992,14 +994,75 @@ int luar_ffi_trace_scalar_store (TValue *dstv, TValue *srcv, TValue *it,
         lastres = ffi_num_flt(ffi_num_double(x) / ffi_num_double(n));
       else if (op == 4)
         lastres = ffi_num_idiv(x, n);
-      else
+      else if (op == 5)
         lastres = ffi_num_mod(x, n);
+      else if (op == 6)
+        lastres = ffi_num_band(x, n);
+      else if (op == 7)
+        lastres = ffi_num_bor(x, n);
+      else if (op == 8)
+        lastres = ffi_num_bxor(x, n);
+      else if (op == 9)
+        lastres = ffi_num_shift(x, n);
+      else {
+        if (n.i == INT64_MIN)
+          lastres = ffi_num_int(0);
+        else
+          lastres = ffi_num_shift(x, ffi_num_int(-n.i));
+      }
       ffi_view_store(&vd, pd, lastres);
       pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
       ps += (ptrdiff_t)step * (ptrdiff_t)vs.esz;
     }
   }
   ffi_num_store(tmp, lastres);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
+}
+
+
+/* J2: `a[i] = -b[i]` and `a[i] = ~b[i]` over bounded cdata arrays. */
+int luar_ffi_trace_unary_store (TValue *dstv, TValue *srcv, TValue *it,
+                                TValue *ct, TValue *st, TValue *elem,
+                                TValue *res, int op) {
+  FfiView vd, vs;
+  FfiNum lastres, lastelem;
+  lua_Integer count, step, idx, last, k;
+  if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
+      st == NULL || elem == NULL || res == NULL || !ttisinteger(ct) ||
+      !ttisinteger(st) || !ttisinteger(it) || (op != 0 && op != 1))
+    return 0;
+  if (!ffi_view_init_dst(dstv, &vd) || !ffi_view_init(srcv, &vs))
+    return 0;
+  if (op == 1 && vs.isflt)
+    return 0;   /* bitwise not requires integer elements */
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&vd, count, step, idx, &last) ||
+      !ffi_store_range(&vs, count, step, idx, &last))
+    return 0;
+  lastres = ffi_num_int(0);
+  lastelem = ffi_num_int(0);
+  {
+    char *pd = (char *)vd.base + (ptrdiff_t)idx * (ptrdiff_t)vd.esz;
+    const char *ps = vs.base + (ptrdiff_t)idx * (ptrdiff_t)vs.esz;
+    for (k = 0; k <= count; k++) {
+      FfiNum x = ffi_view_load(&vs, ps);
+      lastelem = x;
+      if (op == 0)
+        lastres = x.isflt ? ffi_num_flt(-x.d)
+                          : ffi_num_int(l_castU2S(0u - l_castS2U(x.i)));
+      else
+        lastres = ffi_num_int(~x.i);
+      ffi_view_store(&vd, pd, lastres);
+      pd += (ptrdiff_t)step * (ptrdiff_t)vd.esz;
+      ps += (ptrdiff_t)step * (ptrdiff_t)vs.esz;
+    }
+  }
+  ffi_num_store(elem, lastelem);
+  ffi_num_store(res, lastres);
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
