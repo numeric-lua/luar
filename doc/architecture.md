@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.218.0. This document describes the system as built and the design
+Status: 0.219.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -109,10 +109,12 @@ make correct against an unmodified VM.
   `a[i] = b[i] +|-|*|/|//|% v`, and two-source stores
   `a[i] = b[i] +|-|*|/|//|% c[i]`, all with the FFI store conversions and the
   interpreter's FORLOOP key sequence.  Raw table element stores and
-  copies (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`) use a
-  separate helper with the same scalar forms, grow the destination to the
+  copies (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`,
+  unary `-`/`~`, and two-source `dst[i] = a[i] OP b[i]`) use a separate
+  helper with the same scalar/operand forms, grow the destination to the
   run's maximum key, and clear array ranges with `dst[i] = nil` when the
-  run stays inside the existing array part.
+  run stays inside the existing array part.  Bitwise forms require integer
+  elements and shift counts follow Lua's reverse-on-negative rule.
   Cdata arrays held in closure
   upvalues reduce, accept pure fills and update in place; 8-byte integer
   destinations accept copy/scalar/pair stores, and integer element arrays
@@ -240,7 +242,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.218.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.219.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

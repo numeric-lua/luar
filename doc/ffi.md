@@ -79,7 +79,10 @@ from the cdata object.  `ffi.alignof` and `ffi.offsetof` accept the same
 kind of first argument (the latter only for struct/union types).
 `ffi.offsetof` returns the byte offset and, for a bitfield, the storage-unit
 offset, the bit position within that unit and the width in bits (LuaJIT's
-three-result form).  A bitfield that fills its base type and starts on a
+three-result form).  It accepts the same dotted/indexed member designators
+as the cdef constant expression, for example `ffi.offsetof(T, "i.b")` and
+`ffi.offsetof(T, "a[1].x")`; direct field names keep their existing
+behaviour.  A bitfield that fills its base type and starts on a
 storage boundary is reported like an ordinary member (a single offset).  For
 a byte-packed bitfield of at most one byte the offset is the containing byte
 and the bit position is relative to that byte; wider packed bitfields use

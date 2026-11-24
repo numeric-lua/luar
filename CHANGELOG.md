@@ -4,6 +4,43 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.219.0] — 2026-11-24
+
+### Added
+
+- J2 runs raw-table unary element stores `dst[i] = -src[i]` and
+  `dst[i] = ~src[i]`; bitwise not requires integer elements.
+- J2 runs two-source raw-table stores `dst[i] = a[i] OP b[i]` for
+  add/subtract/multiply/divide/floor-divide/modulo, including in-place
+  destinations and separate element/result registers.
+- J2 runs raw-table bitwise stores: `dst[i] = src[i] &|~|<<|>> k` and
+  `dst[i] = a[i] OP b[i]`, with constant, register, immediate and upvalue
+  scalars.  Negative shift counts reverse; 64 or more yields zero; float
+  operands stay interpreted.
+- The runtime `ffi.offsetof` accepts dotted and indexed member designators
+  (`i.b`, `a[1].x`) with the same bitfield result form as direct fields.
+
+### Fixed
+
+- J4 no longer passes a string/float/bool `SETTABLE` key to its
+  integer-key TSET helper; such keys fall back instead of inserting a
+  bogus integer key when a metatable is present.
+- J4 constant integer `SETFIELD` values keep all 64 bits; the TSETKK IR
+  path no longer rounds values above 2^53 through a double.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/179_runtime_offsetof_path.lua`,
+`tests/jit/203_table_unary_store.lua`,
+`tests/jit/204_table_pair_store.lua`,
+`tests/jit/205_table_bitwise_store.lua`,
+`tests/jit/206_table_pair_bitwise.lua`,
+`tests/jit/207_j4_string_key.lua` and
+`tests/jit/208_j4_tsetkk_i64.lua`.
+
 ## [0.218.0] — 2026-11-24
 
 ### Added
