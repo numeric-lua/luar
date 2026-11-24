@@ -4,6 +4,32 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.222.0] — 2026-11-24
+
+### Added
+
+- FFI accepts fixed zero-length arrays (`T[0]`) as zero-sized types and
+  struct members; `ffi.sizeof`/`ffi.new` report 0 and indexing is
+  bounds-checked.
+- FFI accepts a C99 flexible array member `T[]` as the final struct member,
+  modeled as a zero-length array so the struct size excludes the payload;
+  standalone `T[]` remains an incomplete variable-length type.
+- J2 nil-range clears handle sparse tables: array slots are cleared
+  directly and hash entries outside the array part are removed through
+  `luaH_setint`, preserving unrelated keys.
+- J2 table copies and nil clears support a closure-upvalue destination
+  (`U[i] = src[i]`, `U[i] = nil`), re-resolved from the closure each entry.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/186_zero_length_arrays.lua`,
+`tests/ffi/187_flexible_array_members.lua`,
+`tests/jit/213_table_nil_sparse.lua` and
+`tests/jit/214_table_upval_store.lua`.
+
 ## [0.221.0] — 2026-11-24
 
 ### Added

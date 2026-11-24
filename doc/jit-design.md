@@ -51,8 +51,10 @@ is provably observationally equivalent to that interpreter.
   (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`, unary `-`/`~`
   and two-source `dst[i] = a[i] OP b[i]`, including bitwise/shift forms)
   use their own helper, validate the source run before any write, and
-  grow the destination to the run's maximum key; `dst[i] = nil` clears an
-  existing array range in one pass.  These reductions follow the FORLOOP key sequence for any
+  grow the destination to the run's maximum key; `dst[i] = nil` clears
+  array slots directly and removes hash entries through `luaH_setint`.
+  The destination may be a closure-upvalue table (`U[i] = src[i]` or
+  `U[i] = nil`), re-resolved from the closure each entry.  These reductions follow the FORLOOP key sequence for any
   nonzero integer step, including descending loops; the first/last keys
   are overflow- and bounds-checked before the run.
   Bounded cdata arrays additionally support writes in the default tier:
