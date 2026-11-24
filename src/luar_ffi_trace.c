@@ -590,8 +590,9 @@ int luar_ffi_trace_scaled_array (TValue *av, TValue *scalarv, TValue *it,
 ** bounded cdata arrays.  Both the element temporaries and the
 ** intermediate/final accumulator registers are left with the values the
 ** interpreter would hold after the run.  kind is 0 (add), 1 (subtract),
-** 2 (multiply add), 3 (divide add), 4 (multiply subtract) or 5 (divide
-** subtract). */
+** 2 (multiply add), 3 (divide add), 4 (multiply subtract), 5 (divide
+** subtract), 6/7 (floor-divide/modulo add) or 8/9 (their subtract
+** spellings). */
 int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *it,
                                TValue *ct, TValue *st, TValue *at,
                                TValue *ra, TValue *rb, TValue *rt,
@@ -646,10 +647,20 @@ int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *it,
       last_b = y;
       if (kind >= 2) {
         int div = (kind == 3 || kind == 5);
-        int sub = (kind == 4 || kind == 5);
-        FfiNum prod = div
-                        ? ffi_num_flt(ffi_num_double(x) / ffi_num_double(y))
-                        : ffi_num_mul(x, y);
+        int idiv = (kind == 6 || kind == 8);
+        int mod = (kind == 7 || kind == 9);
+        int sub = (kind == 4 || kind == 5 || kind == 8 || kind == 9);
+        FfiNum prod;
+        if ((idiv || mod) && !x.isflt && !y.isflt && y.i == 0)
+          return 0;   /* integer zero divisor: the interpreter raises */
+        if (idiv)
+          prod = ffi_num_idiv(x, y);
+        else if (mod)
+          prod = ffi_num_mod(x, y);
+        else if (div)
+          prod = ffi_num_flt(ffi_num_double(x) / ffi_num_double(y));
+        else
+          prod = ffi_num_mul(x, y);
         last_temp = prod;
         acc = sub ? ffi_num_sub(acc, prod) : ffi_num_add(acc, prod);
       }
