@@ -1937,13 +1937,14 @@ static int match_table_any_fill (Proto *p, LuaR_JIT *J,
                                  int for_a, TValue *b) {
   ptrdiff_t pos = start;
   int key = for_a + 2, dst = -1, val_enc = -1, val_reg = -1, arg4 = 0;
-  int have_val = 0;
+  int have_val = 0, dest_up = 0;
   Instruction set;
   if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
     Instruction up = p->code[pos++];
     dst = GETARG_A(up);
     if (is_control_reg(dst, for_a) || !ttistable(&b[dst]))
       return 0;
+    dest_up = 1;
   }
   if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
     Instruction up = p->code[pos++];
@@ -1996,8 +1997,10 @@ static int match_table_any_fill (Proto *p, LuaR_JIT *J,
     TValue *vv = (val_enc == -1) ? &p->k[arg4]
                  : (val_enc >= 0) ? &b[val_enc]
                  : pair_source_value(b, -1, -3 - val_enc);
-    if (vv == NULL || ttisnumber(vv))
+    if (vv == NULL || (ttisnumber(vv) && !dest_up))
       return 0;   /* numeric fills use the affine path */
+    if (val_reg == key)
+      return 0;   /* t[i] = i varies with the loop index */
   }
   return install_cdata_tint(p, J, backedge, 61, dst, val_enc, val_reg,
                             0, 0, arg4, for_a);
@@ -4926,6 +4929,32 @@ static int for_run_last (lua_Integer idx, lua_Integer count,
 }
 
 
+/* Same FORLOOP endpoint arithmetic, but without the positive-key
+** restriction.  Generic table copies/fills can address hash keys at any
+** integer index. */
+static int for_run_last_any (lua_Integer idx, lua_Integer count,
+                             lua_Integer step, lua_Integer *last) {
+  lua_Integer delta;
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER ||
+        count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  *last = idx + delta;
+  return 1;
+}
+
+
 /* All keys of a run are between idx and last; a monotonic integer step
 ** cannot leave the array part if both endpoints are inside it. */
 static int array_run_bounds (Table *h, lua_Integer idx, lua_Integer last) {
@@ -5579,16 +5608,15 @@ static int table_copy_to_intrinsic (lua_State *L, TValue *base, int for_a,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (!for_run_last(idx, count, step, &lastkey))
+  if (!for_run_last_any(idx, count, step, &lastkey) ||
+      count > (1 << 22))
     return 0;
   fast = array_run_bounds(src, idx, lastkey) &&
          array_run_numeric(src, idx, count, step);
-  if (!fast && (idx < 1 || lastkey < 1))
-    return 0;
   maxkey = (idx > lastkey) ? idx : lastkey;
   if (dst->metatable != NULL || maxkey > (1 << 22))
     return 0;
-  if (dst->asize < (unsigned)maxkey)
+  if (maxkey > 0 && dst->asize < (unsigned)maxkey)
     luaH_resizearray(L, dst, (unsigned)maxkey);
   last = pair_int(0);
   if (fast) {
@@ -5638,12 +5666,13 @@ static int table_fill_any_intrinsic (lua_State *L, TValue *base, int for_a,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (!for_run_last(idx, count, step, &lastkey) || idx < 1 || lastkey < 1)
+  if (!for_run_last_any(idx, count, step, &lastkey) ||
+      count > (1 << 22))
     return 0;
   maxkey = (idx > lastkey) ? idx : lastkey;
   if (dst->metatable != NULL || maxkey > (1 << 22))
     return 0;
-  if (dst->asize < (unsigned)maxkey)
+  if (maxkey > 0 && dst->asize < (unsigned)maxkey)
     luaH_resizearray(L, dst, (unsigned)maxkey);
   for (k = 0, ckey = idx; k <= count; k++, ckey += step)
     luaH_setint(L, dst, ckey, val);
@@ -5668,7 +5697,8 @@ static int table_nil_clear (lua_State *L, TValue *base, int for_a,
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
-  if (!for_run_last(idx, count, step, &last) || idx < 1 || last < 1)
+  if (!for_run_last_any(idx, count, step, &last) ||
+      count > (1 << 22))
     return 0;
   if (h == NULL || h->metatable != NULL ||
       (idx > last ? idx : last) > (1 << 22))
@@ -5682,7 +5712,7 @@ static int table_nil_clear (lua_State *L, TValue *base, int for_a,
     else {
       TValue nilv;
       setnilvalue(&nilv);
-      luaH_setint(L, h, (lua_Integer)ckey, &nilv);
+      luaH_setint(L, h, (lua_Integer)ckey + 1, &nilv);
     }
   }
   setivalue(ct, 0);
