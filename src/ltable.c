@@ -847,6 +847,11 @@ void luaH_clear (Table *t) {
     Node *n = gnode(t, 0);
     Node *limit = gnode(t, sizenode(t));
     for (; n < limit; n++) {
+      /* LUAR: reset the collision link too.  A cleared node is free, and
+      ** a later insert at this position must not inherit the old chain:
+      ** stale 'next' offsets can make a new key unreachable or loop forever
+      ** when a collision walks the chain.  Deletion does the same. */
+      gnext(n) = 0;
       setempty(gval(n));
       setnilkey(n);
     }
