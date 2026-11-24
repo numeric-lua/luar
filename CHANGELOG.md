@@ -4,6 +4,25 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.222.1] — 2026-11-24
+
+### Fixed
+
+- J4 re-checks the integer FORLOOP control triplet at IR entry.  A
+  float-controlled loop reaching the same pc/base no longer reuses an
+  integer trace, which could return a wrong trip count or hang on the
+  float payloads.
+- A J4 `SLOAD` invalidates the destination's recorded type.  A following
+  `ADD`/K-op now guards the live value and honors `__add`/`__mul` instead
+  of doing raw integer arithmetic on a table's address bits.
+- The same invalidation restores the cdata identity `CGUARD` before field
+  reads/writes, so a later struct type with the same USERDATA tag cannot
+  reuse an earlier field offset and corrupt an adjacent member.
+
+New tests: `tests/jit/215_j4_forloop_float_reuse.lua`,
+`tests/jit/216_j4_sload_stale_tag.lua` and
+`tests/ffi/188_j4_cdata_cguard_sload.lua`.
+
 ## [0.222.0] — 2026-11-24
 
 ### Added
