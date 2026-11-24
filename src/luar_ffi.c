@@ -2652,15 +2652,55 @@ static int ffi_offsetof (lua_State *L) {
   FFIState *S = ffi_getstate(L);
   CType *ct = ffi_checkctype(L, 1, "offsetof");
   const char *name = luaL_checkstring(L, 2);
+  const char *p = name;
   size_t off = 0;
-  CType *ft = NULL;
-  CField *field;
+  CType *cur = ct;
+  CField *field = NULL;
   if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
     luaL_error(L, "ffi: offsetof requires a struct or union type");
-  field = ffi_type_find_field(ct, name, &off, &ft);
-  if (field == NULL)
-    luaL_error(L, "ffi: '%s' has no member named '%s'",
-               ffi_type_repr(S, ct), name);
+  for (;;) {
+    char fname[256];
+    size_t n = 0, member_off = 0;
+    CType *field_type = NULL;
+    while (*p != '\0' && *p != '.' && *p != '[') {
+      if (n + 1 >= sizeof(fname))
+        luaL_error(L, "ffi: offsetof field name is too long");
+      fname[n++] = *p++;
+    }
+    fname[n] = '\0';
+    if (n == 0)
+      luaL_error(L, "ffi: expected a field name in offsetof");
+    field = ffi_type_find_field(cur, fname, &member_off, &field_type);
+    if (field == NULL)
+      luaL_error(L, "ffi: '%s' has no member named '%s'",
+                 ffi_type_repr(S, cur), fname);
+    off += member_off;
+    cur = field_type;
+    while (*p == '[') {
+      char *end = NULL;
+      unsigned long index;
+      size_t esz;
+      if (cur == NULL || cur->kind != CT_ARRAY || cur->vla)
+        luaL_error(L, "ffi: offsetof '[]' needs an array member");
+      p++;
+      index = strtoul(p, &end, 10);
+      if (end == p || *end != ']')
+        luaL_error(L, "ffi: malformed array index in offsetof");
+      esz = ffi_type_size(cur->child);
+      if (esz == FFI_SIZE_UNKNOWN)
+        luaL_error(L, "ffi: offsetof of an incomplete array element");
+      off += (size_t)index * esz;
+      cur = cur->child;
+      p = end + 1;
+    }
+    if (*p == '.') {
+      p++;
+      continue;
+    }
+    if (*p != '\0')
+      luaL_error(L, "ffi: malformed member name in offsetof");
+    break;
+  }
   if (field->bitwidth != 0) {
     size_t usize = ffi_type_size(field->type);
     size_t basebits = (usize != 0 && usize != FFI_SIZE_UNKNOWN)
