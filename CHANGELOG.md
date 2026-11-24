@@ -31,6 +31,12 @@ the runtime, while the Lua language surface follows upstream Lua.
   unchanged, so `tests/jit/24`, `151` and `159` failed.  The fill now has
   its own kind, and an unknown intrinsic kind fails closed instead of
   falling through to the keyed sum.
+- The three-table sum leaves the intermediate result and the second
+  element register at their last bytecode values, and the keyed fill
+  leaves the key temporary at the last key, instead of keeping the
+  pre-loop value.  The direct keyed/upvalue matchers also reject a
+  destination that is the visible loop-control register, which the
+  interpreter would overwrite before `FORLOOP`.
 
 ### Tests
 
@@ -40,8 +46,9 @@ coverage: `tests/jit/188_scaled_div.lua`,
 `tests/jit/189_tint_kind_collision.lua`,
 `tests/jit/190_scaled_sub.lua`, `tests/jit/191_pair_div.lua`,
 `tests/ffi/171_j2_cdata_scaled.lua`,
-`tests/ffi/172_j2_cdata_scaled_sub.lua` and
-`tests/ffi/173_j2_cdata_pair_div.lua`.
+`tests/ffi/172_j2_cdata_scaled_sub.lua`,
+`tests/ffi/173_j2_cdata_pair_div.lua` and
+`tests/jit/192_tint_writeback.lua`.
 
 ## [0.215.0] — 2026-11-23
 

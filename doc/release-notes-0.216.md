@@ -31,6 +31,13 @@ the raw-table affine fill.
   dedicated kind and unknown kinds now fail closed.
 - `luar.version_num` now encodes 0.216.0; the minor component had lagged
   behind the release string.
+- The three-table sum now writes back its intermediate result and second
+  element register, and the keyed fill writes back its key temporary.
+  These locals could previously keep their pre-loop values while the
+  accumulator and table contents were correct.
+- The direct keyed and upvalue matchers reject a destination that is the
+  visible loop-control register; the interpreter overwrites that register
+  before `FORLOOP`, so the loop sequence would differ.
 - Untested or unsafe shapes stay on the interpreter: pointer sources
   (which have no bounded length), out-of-bounds runs, non-numeric elements
   and scalars, and a destination that would overwrite the source table or
@@ -55,6 +62,7 @@ New tests:
 - `tests/ffi/171_j2_cdata_scaled.lua`
 - `tests/ffi/172_j2_cdata_scaled_sub.lua`
 - `tests/ffi/173_j2_cdata_pair_div.lua`
+- `tests/jit/192_tint_writeback.lua`
 
 ## Known limitations
 

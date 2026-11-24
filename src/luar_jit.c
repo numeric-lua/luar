@@ -378,7 +378,8 @@ static int install_method_intrinsic (Proto *p, LuaR_JIT *J,
 
 
 static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
-                              int for_a, int table, int keys, int upval) {
+                              int for_a, int table, int keys, int upval,
+                              int key_temp) {
   int slot = -1, k;
   for (k = 0; k < 2; k++) {
     if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
@@ -396,6 +397,7 @@ static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
   p->luar_tint_keys[slot] = keys;
   p->luar_tint_upval[slot] = upval;
   p->luar_tint_acc[slot] = 0;
+  p->luar_tint_arg4[slot] = key_temp;
   p->luar_tint_base[slot] = for_a;
   p->luar_tint_epoch[slot] = J->epoch;
   J->compiled++;
@@ -1110,6 +1112,9 @@ static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
   p->luar_tint_upval[slot] = encode_pair_source(r3);
   p->luar_tint_acc[slot] = acc;
   p->luar_tint_res[slot] = res;
+  /* The intermediate (sumreg) is r1->val and the second element is
+  ** r2->val; both are bytecode-visible after the loop. */
+  p->luar_tint_arg4[slot] = (r1->val & 0xff) | ((r2->val & 0xff) << 8);
   p->luar_tint_base[slot] = for_a;
   p->luar_tint_epoch[slot] = J->epoch;
   J->compiled++;
@@ -2082,11 +2087,14 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         GET_OPCODE(p->code[start + 1]) == OP_SETTABLE &&
         backedge == start + 2) {
       Instruction i1 = p->code[start + 1];
+      int kt = GETARG_A(i0);
       if (GETARG_C(i0) == for_a + 2 &&
-          GETARG_B(i1) == GETARG_A(i0) &&
-          GETARG_C(i1) == for_a + 2)
+          GETARG_B(i1) == kt &&
+          GETARG_C(i1) == for_a + 2 &&
+          kt != GETARG_A(i1) && kt != GETARG_B(i0) &&
+          !is_control_reg(kt, for_a))
         return install_keyed_fill(p, J, backedge, for_a,
-                                  GETARG_A(i1), GETARG_B(i0), -1);
+                                  GETARG_A(i1), GETARG_B(i0), -1, kt);
     }
     if (!for_float && J->enable_tint && n >= 4 && GET_OPCODE(i0) == OP_GETUPVAL &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
@@ -2094,12 +2102,15 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         backedge == start + 3) {
       Instruction i1 = p->code[start + 1];
       Instruction i2 = p->code[start + 2];
+      int kt = GETARG_A(i1);
       if (GETARG_A(i0) == GETARG_B(i1) &&
           GETARG_C(i1) == for_a + 2 &&
-          GETARG_B(i2) == GETARG_A(i1) &&
-          GETARG_C(i2) == for_a + 2)
+          GETARG_B(i2) == kt &&
+          GETARG_C(i2) == for_a + 2 &&
+          kt != GETARG_A(i2) &&
+          !is_control_reg(kt, for_a))
         return install_keyed_fill(p, J, backedge, for_a,
-                                  GETARG_A(i2), 0, GETARG_B(i0));
+                                  GETARG_A(i2), 0, GETARG_B(i0), kt);
     }
     if (!for_float && J->enable_tint && n >= 5 && GET_OPCODE(i0) == OP_GETTABLE &&
         GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
@@ -2108,14 +2119,20 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         backedge == start + 4) {
       Instruction i1 = p->code[start + 1];
       Instruction i2 = p->code[start + 2];
-      if (GETARG_C(i0) == for_a + 2 &&
-          GETARG_C(i1) == GETARG_A(i0) &&
-          GETARG_A(i1) == GETARG_A(i0) &&
-          GETARG_A(i2) == GETARG_B(i2) &&
-          GETARG_C(i2) == GETARG_A(i1))
-        return install_keyed_sum(p, J, backedge, for_a,
-                                 GETARG_B(i1), GETARG_B(i0), -1,
-                                 GETARG_A(i2), GETARG_A(i1));
+      {
+        int kv = GETARG_A(i0);
+        if (GETARG_C(i0) == for_a + 2 &&
+            GETARG_C(i1) == kv &&
+            GETARG_A(i1) == kv &&
+            GETARG_A(i2) == GETARG_B(i2) &&
+            GETARG_C(i2) == kv &&
+            kv != GETARG_B(i0) && kv != GETARG_B(i1) &&
+            kv != GETARG_A(i2) &&
+            !is_control_reg(kv, for_a))
+          return install_keyed_sum(p, J, backedge, for_a,
+                                   GETARG_B(i1), GETARG_B(i0), -1,
+                                   GETARG_A(i2), kv);
+      }
     }
     if (!for_float && J->enable_tint && n >= 5 &&
         GET_OPCODE(i0) == OP_GETUPVAL &&
@@ -2159,7 +2176,8 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           GETARG_C(i2) == rreg &&
           areg == GETARG_B(i2) &&
           treg != areg && rreg != areg &&
-          treg != for_a && treg != for_a + 1 && treg != for_a + 2)
+          !is_control_reg(rreg, for_a) &&
+          !is_control_reg(treg, for_a))
         return install_upval_sum(p, J, backedge, for_a,
                                  GETARG_B(i0), areg, rreg);
     }
@@ -2172,15 +2190,20 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       Instruction i1 = p->code[start + 1];
       Instruction i2 = p->code[start + 2];
       Instruction i3 = p->code[start + 3];
-      if (GETARG_A(i0) == GETARG_B(i1) &&
-          GETARG_C(i1) == for_a + 2 &&
-          GETARG_C(i2) == GETARG_A(i1) &&
-          GETARG_A(i2) == GETARG_A(i1) &&
-          GETARG_A(i3) == GETARG_B(i3) &&
-          GETARG_C(i3) == GETARG_A(i2))
-        return install_keyed_sum(p, J, backedge, for_a,
-                                 GETARG_B(i2), 0, GETARG_B(i0),
-                                 GETARG_A(i3), GETARG_A(i2));
+      {
+        int kv = GETARG_A(i1);
+        if (GETARG_A(i0) == GETARG_B(i1) &&
+            GETARG_C(i1) == for_a + 2 &&
+            GETARG_C(i2) == kv &&
+            GETARG_A(i2) == kv &&
+            GETARG_A(i3) == GETARG_B(i3) &&
+            GETARG_C(i3) == kv &&
+            kv != GETARG_B(i2) && kv != GETARG_A(i3) &&
+            !is_control_reg(kv, for_a))
+          return install_keyed_sum(p, J, backedge, for_a,
+                                   GETARG_B(i2), 0, GETARG_B(i0),
+                                   GETARG_A(i3), kv);
+      }
     }
     if (!for_float && J->enable_tint && n >= 4 &&
         GET_OPCODE(i0) == OP_GETTABLE &&
@@ -4249,13 +4272,15 @@ static int table_sum_intrinsic (lua_State *L, TValue *base,
 
 
 static int keyed_fill_intrinsic (lua_State *L, TValue *base,
-                                int for_a, int table_reg, Table *keys) {
+                                int for_a, int table_reg, Table *keys,
+                                int key_temp) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
   TValue *tt = &base[table_reg];
   lua_Integer count, step, idx, last, k;
   Table *t;
+  TValue last_key;
   if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
       !ttisinteger(it))
     return 0;
@@ -4272,13 +4297,17 @@ static int keyed_fill_intrinsic (lua_State *L, TValue *base,
     return 0;
   if (t->asize == 0)
     luaH_resize(L, t, 0, (unsigned)(count + 1));
+  setnilvalue(&last_key);
   for (k = 0; k <= count; k++) {
     TValue key, val;
     if (luaH_getint(keys, idx + k, &key) == LUA_VNIL)
       return 0;
+    last_key = key;
     setivalue(&val, idx + k);
     luaH_set(L, t, &key, &val);
   }
+  if (key_temp >= 0 && key_temp < 256)
+    base[key_temp] = last_key;
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
@@ -4375,105 +4404,6 @@ static int keyed_sum_intrinsic (lua_State *L, TValue *base,
 }
 
 
-static Table *pair_source_table (TValue *base, int reg, int upval);
-
-
-static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
-                               int s1, int s2, int s3, int acc_reg,
-                               int res_reg) {
-  TValue *ct = &base[for_a];
-  TValue *st = &base[for_a + 1];
-  TValue *it = &base[for_a + 2];
-  TValue *at = &base[acc_reg];
-  Table *h[3];
-  int enc[3];
-  lua_Integer count, step, idx, last, ckey, k;
-  int j;
-  (void)L;
-  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
-    return 0;
-  count = ivalue(ct);
-  step = ivalue(st);
-  idx = ivalue(it);
-  if (!for_run_last(idx, count, step, &last))
-    return 0;
-  enc[0] = s1;
-  enc[1] = s2;
-  enc[2] = s3;
-  for (j = 0; j < 3; j++) {
-    int reg = (enc[j] >= 0) ? enc[j] : -1;
-    int up = (enc[j] >= 0) ? -1 : (-1 - enc[j]);
-    h[j] = pair_source_table(base, reg, up);
-    if (!array_run_bounds(h[j], idx, last) ||
-        !array_run_numeric(h[j], idx, count, step))
-      return 0;
-  }
-  if (ttisinteger(at)) {
-    lua_Unsigned sum = l_castS2U(ivalue(at));
-    lua_Number fsum = 0;
-    int promoted = 0;
-    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
-      unsigned key = (unsigned)ckey;
-      for (j = 0; j < 3; j++) {
-        lu_byte tag = *getArrTag(h[j], key);
-        if (tag == LUA_VNUMINT) {
-          if (promoted)
-            fsum += cast_num(getArrVal(h[j], key)->i);
-          else
-            sum += l_castS2U(getArrVal(h[j], key)->i);
-        }
-        else if (tag == LUA_VNUMFLT) {
-          if (!promoted) {
-            fsum = cast_num(l_castU2S(sum));
-            promoted = 1;
-          }
-          fsum += getArrVal(h[j], key)->n;
-        }
-        else
-          return 0;
-      }
-    }
-    if (promoted) {
-      setfltvalue(at, fsum);
-    }
-    else {
-      chgivalue(at, l_castU2S(sum));
-    }
-  }
-  else if (ttisfloat(at)) {
-    lua_Number sum = fltvalue(at);
-    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
-      unsigned key = (unsigned)ckey;
-      for (j = 0; j < 3; j++) {
-        lu_byte tag = *getArrTag(h[j], key);
-        if (tag == LUA_VNUMINT)
-          sum += cast_num(getArrVal(h[j], key)->i);
-        else if (tag == LUA_VNUMFLT)
-          sum += getArrVal(h[j], key)->n;
-        else
-          return 0;
-      }
-    }
-    setfltvalue(at, sum);
-  }
-  else
-    return 0;
-  if (res_reg != acc_reg && res_reg >= 0) {
-    unsigned rkey = (unsigned)(last - 1);
-    lu_byte rtag = *getArrTag(h[2], rkey);
-    if (rtag == LUA_VNUMINT) {
-      setivalue(&base[res_reg], getArrVal(h[2], rkey)->i);
-    }
-    else {
-      setfltvalue(&base[res_reg], getArrVal(h[2], rkey)->n);
-    }
-  }
-  setivalue(ct, 0);
-  setivalue(it, last);
-  return 1;
-}
-
-
 /* A number in the two flavours Lua arithmetic distinguishes.  The pair
 ** intrinsics use this to reproduce the interpreter's int-wrap / float-
 ** promotion rules exactly, including a promotion in the middle of a run. */
@@ -4549,6 +4479,74 @@ static LuaR_PairNum pair_from_array (Table *h, unsigned key) {
   if (*getArrTag(h, key) == LUA_VNUMFLT)
     return pair_flt(getArrVal(h, key)->n);
   return pair_int(getArrVal(h, key)->i);
+}
+
+
+static Table *pair_source_table (TValue *base, int reg, int upval);
+
+
+static void pair_store_slot (TValue *base, int reg, LuaR_PairNum v,
+                             int acc_reg);
+
+
+static int table_sum3_intrinsic (lua_State *L, TValue *base, int for_a,
+                               int s1, int s2, int s3, int acc_reg,
+                               int res_reg, int mid_reg, int elem2_reg) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *at = &base[acc_reg];
+  Table *h[3];
+  int enc[3];
+  LuaR_PairNum acc, last_mid, last_b, last_c;
+  lua_Integer count, step, idx, last, ckey, k;
+  int j, ok = 1;
+  (void)L;
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!for_run_last(idx, count, step, &last))
+    return 0;
+  enc[0] = s1;
+  enc[1] = s2;
+  enc[2] = s3;
+  for (j = 0; j < 3; j++) {
+    int reg = (enc[j] >= 0) ? enc[j] : -1;
+    int up = (enc[j] >= 0) ? -1 : (-1 - enc[j]);
+    h[j] = pair_source_table(base, reg, up);
+    if (!array_run_bounds(h[j], idx, last) ||
+        !array_run_numeric(h[j], idx, count, step))
+      return 0;
+  }
+  acc = pair_from_slot(at, &ok);
+  if (!ok)
+    return 0;
+  last_mid = acc;
+  last_b = pair_int(0);
+  last_c = pair_int(0);
+  for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+    unsigned key = (unsigned)ckey;
+    LuaR_PairNum a = pair_from_array(h[0], key);
+    LuaR_PairNum b = pair_from_array(h[1], key);
+    LuaR_PairNum c = pair_from_array(h[2], key);
+    last_b = b;
+    last_c = c;
+    /* Bytecode: mid = acc + a; mid = mid + b; acc = mid + c. */
+    last_mid = pair_add(pair_add(acc, a), b);
+    acc = pair_add(last_mid, c);
+  }
+  /* Preserve the visible temporaries.  Write in bytecode order so aliases
+  ** end with the last value the interpreter would store: the second
+  ** element, then the intermediate, then the third element. */
+  pair_store_slot(base, elem2_reg, last_b, acc_reg);
+  pair_store_slot(base, mid_reg, last_mid, acc_reg);
+  pair_store_slot(base, res_reg, last_c, acc_reg);
+  pair_store_slot(base, acc_reg, acc, -1);
+  setivalue(ct, 0);
+  setivalue(it, last);
+  return 1;
 }
 
 
@@ -5837,7 +5835,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           Table *keys = tint_keys_table(p, (TValue *)base, i);
           r = (keys == NULL) ? 0
               : keyed_fill_intrinsic(L, (TValue *)base, expected_base,
-                                     p->luar_tint_table[i], keys);
+                                     p->luar_tint_table[i], keys,
+                                     p->luar_tint_arg4[i]);
           break;
         }
         case 4: {
@@ -5869,7 +5868,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                    p->luar_tint_keys[i],
                                    p->luar_tint_upval[i],
                                    p->luar_tint_acc[i],
-                                   p->luar_tint_res[i]);
+                                   p->luar_tint_res[i],
+                                   p->luar_tint_arg4[i] & 0xff,
+                                   (p->luar_tint_arg4[i] >> 8) & 0xff);
           break;
         case 12:
         case 13:
