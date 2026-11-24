@@ -4,6 +4,22 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.237.0] — 2026-11-24
+
+### Added
+
+- J2 in-place 8-byte cdata updates accept small integer immediate/K
+  constants: `a[i] = a[i] +|-|*|&|||~|<<|>> k`.  K scalars are restricted
+  to int32; shift counts use the cdata mask-to-six-bits rule.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  Extended coverage:
+`tests/ffi/196_j2_i64_update.lua`; the J4 shift baseline now disables
+tint, and the older cdata-store test expects the new helper.
+
 ## [0.236.0] — 2026-11-24
 
 ### Added
