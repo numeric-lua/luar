@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.217.0. This document describes the system as built and the design
+Status: 0.218.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -99,7 +99,7 @@ make correct against an unmodified VM.
   `s = s - a[i]` over 1/2/4-byte integers, 32-bit enums or 4/8-byte floats)
   is validated and run by a C helper in the same tier; so are two-source
   cdata reductions (`s = s + a[i] + b[i]`, the subtract form,
-  dot-product/sum-of-squares and `a[i] / b[i]`).  Weighted reductions
+  dot-product/sum-of-squares, `a[i] / b[i]` and `a[i] //|% b[i]`).  Weighted reductions
   (`s = s +|- a[i] * k`, `s = s +|- a[i] / k`) run over raw tables and
   bounded cdata arrays with constant, register or upvalue scalars.
   Bounded cdata writes use
@@ -108,9 +108,11 @@ make correct against an unmodified VM.
   `a[i] = b[i]`, in-place `a[i] = a[i] +|-|*|/|//|% v`, scaled source stores
   `a[i] = b[i] +|-|*|/|//|% v`, and two-source stores
   `a[i] = b[i] +|-|*|/|//|% c[i]`, all with the FFI store conversions and the
-  interpreter's FORLOOP key sequence.  Raw table element stores
-  `dst[i] = src[i] +|-|*|/ k` use a separate helper with the same scalar
-  forms and grow the destination to the run's maximum key.
+  interpreter's FORLOOP key sequence.  Raw table element stores and
+  copies (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`) use a
+  separate helper with the same scalar forms, grow the destination to the
+  run's maximum key, and clear array ranges with `dst[i] = nil` when the
+  run stays inside the existing array part.
   Cdata arrays held in closure
   upvalues reduce, accept pure fills and update in place; 8-byte integer
   destinations accept copy/scalar/pair stores, and integer element arrays
@@ -238,7 +240,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.217.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.218.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

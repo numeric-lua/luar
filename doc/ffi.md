@@ -129,7 +129,8 @@ by C APIs.  It supports:
 * array sizes and enum values built from decimal, hexadecimal, octal and
   binary integer literals (with `u`/`l` suffixes), single-character C
   constants (plain or escaped, sign-extended through plain `char`), other
-  enum constants, `sizeof(type)` and `sizeof("literal")`,
+  enum constants, `sizeof(type)` and `sizeof("literal")` (adjacent string
+  literals concatenate),
   `_Alignof`/`__alignof__`, `offsetof`/`__builtin_offsetof` with dotted
   and indexed member designators (for example `offsetof(S, i.b)` or
   `offsetof(S, a[1].x)`), parentheses, unary `+ - ~ !`, the binary

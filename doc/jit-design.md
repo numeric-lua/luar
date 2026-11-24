@@ -45,11 +45,13 @@ is provably observationally equivalent to that interpreter.
   each of which may be a register table or a closure upvalue, a scaled
   `s = s + a[i] * k` intrinsic whose scalar is a numeric constant, register
   or closure upvalue, the divide and subtract spellings of that shape, and
-  a two-array `a[i] / b[i]` reduction.  The same weighted and two-array
-  division reductions run over bounded cdata arrays.  Raw table element
-  stores `dst[i] = src[i] +|-|*|/ k` use their own helper, validate the
-  source run before any write, and grow the destination to the run's
-  maximum key.  These reductions follow the FORLOOP key sequence for any
+  a two-array `a[i] / b[i]` reduction and its floor-division/modulo
+  variants.  The same weighted and two-array reductions run over bounded
+  cdata arrays.  Raw table element stores and copies
+  (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`) use their own
+  helper, validate the source run before any write, and grow the
+  destination to the run's maximum key; `dst[i] = nil` clears an existing
+  array range in one pass.  These reductions follow the FORLOOP key sequence for any
   nonzero integer step, including descending loops; the first/last keys
   are overflow- and bounds-checked before the run.
   Bounded cdata arrays additionally support writes in the default tier:

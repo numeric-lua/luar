@@ -69,16 +69,16 @@ jobs:
           test -x stage/usr/local/bin/luar
           test -f stage/usr/local/lib/libluar.a
           test -f stage/usr/local/lib/pkgconfig/luar.pc
-          test -f stage/usr/local/lib/libluar.so.0.217.0
+          test -f stage/usr/local/lib/libluar.so.0.218.0
           test -L stage/usr/local/lib/libluar.so.0
           test -L stage/usr/local/lib/libluar.so
           LD_LIBRARY_PATH="$PWD/stage/usr/local/lib" \
-            stage/usr/local/bin/luar -v | grep -q "Luar 0.217.0"
+            stage/usr/local/bin/luar -v | grep -q "Luar 0.218.0"
 
           export PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig"
           export PKG_CONFIG_SYSROOT_DIR="$PWD/stage"
-          test "$(pkg-config --modversion luar)" = "0.217.0"
-          pkg-config --exists 'luar >= 0.217.0'
+          test "$(pkg-config --modversion luar)" = "0.218.0"
+          pkg-config --exists 'luar >= 0.218.0'
           cc -O2 "$PWD/tests/embed/embed.c" \
             $(pkg-config --cflags --libs luar) -o stage/embed-shared
           LD_LIBRARY_PATH="$PWD/stage/usr/local/lib" \
@@ -90,7 +90,7 @@ jobs:
           make WITH_FFI=1 PREFIX=/usr/local DESTDIR="$PWD/stage" uninstall
           test ! -e stage/usr/local/bin/luar
           test ! -e stage/usr/local/lib/libluar.a
-          test ! -e stage/usr/local/lib/libluar.so.0.217.0
+          test ! -e stage/usr/local/lib/libluar.so.0.218.0
           test ! -e stage/usr/local/lib/pkgconfig/luar.pc
           test ! -e stage/usr/local/include/luar/luar.h
           test ! -e stage/usr/local/share/man/man1/luar.1
@@ -224,7 +224,7 @@ jobs:
       - name: Shared dylib and staged install
         run: |
           set -eu
-          test -f src/libluar.0.217.0.dylib
+          test -f src/libluar.0.218.0.dylib
           cc -O2 -Isrc tests/embed/embed.c -Lsrc -lluar -lm \
              -Wl,-rpath,"$PWD/src" -o embed-shared
           ./embed-shared | grep -q "embed ok"
@@ -233,10 +233,10 @@ jobs:
              -Wl,-rpath,"$PWD/src" -o tests/tmp/luartestmod.dylib
           ./src/luar -e "package.cpath='$PWD/tests/tmp/?.dylib'; assert(require('luartestmod').answer() == 42)"
           make PREFIX="$PWD/stage/usr/local" install
-          test -f stage/usr/local/lib/libluar.0.217.0.dylib
+          test -f stage/usr/local/lib/libluar.0.218.0.dylib
           test -L stage/usr/local/lib/libluar.dylib
           PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
-            pkg-config --exists 'luar >= 0.217.0'
+            pkg-config --exists 'luar >= 0.218.0'
           cc -O2 tests/embed/embed.c \
              $(PKG_CONFIG_PATH="$PWD/stage/usr/local/lib/pkgconfig" \
                pkg-config --cflags --libs luar) -lm \

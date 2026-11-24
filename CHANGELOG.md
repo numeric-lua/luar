@@ -4,6 +4,40 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.218.0] — 2026-11-24
+
+### Added
+
+- J2 copies raw table array elements with `dst[i] = src[i]`, including
+  in-place copies, destination growth and upvalue sources.
+- J2 runs raw-table floor-division and modulo stores
+  `dst[i] = src[i] // k` / `% k` with constant, register and upvalue
+  scalars.  An integer zero divisor declines before any store so the
+  interpreter raises the exact error; a float source follows the
+  non-raising float path.
+- J2 runs two-array floor-division and modulo reductions
+  `s = s +|- a[i] // b[i]` / `% b[i]` over raw tables and bounded cdata
+  arrays, with Lua's floor rules, integer wrap and float promotion.
+- J2 clears an existing raw-table array range with `t[i] = nil` in one
+  pass.  Partial, descending and strided ranges are supported; hash keys
+  and entries outside the run are untouched, and metatables or runs past
+  the array part fall back.
+- `ffi.cdef` joins adjacent string literals in `sizeof`, so
+  `sizeof("a" "bc")` is valid in static assertions, enums and array
+  bounds.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/177_sizeof_adjacent.lua`,
+`tests/ffi/178_j2_cdata_pair_idiv.lua`,
+`tests/jit/199_table_copy_store.lua`,
+`tests/jit/200_table_idiv_store.lua`,
+`tests/jit/201_pair_idiv.lua` and
+`tests/jit/202_table_nil_store.lua`.
+
 ## [0.217.0] — 2026-11-24
 
 ### Added
