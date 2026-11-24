@@ -403,6 +403,44 @@ static int install_keyed_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 }
 
 
+/* LUAR: `t[i] = i + k`, `t[i] = i * k` and `t[i] = k` over a raw table
+** array.  The scalar is a small integer constant held in
+** luar_tint_upval; mode 1 adds it to the index, mode 2 multiplies, and
+** mode 3 stores it directly.  Larger or floating scalars stay on the
+** interpreter. */
+#define LUAR_TINT_FILL_ADD 1
+#define LUAR_TINT_FILL_MUL 2
+#define LUAR_TINT_FILL_CONST 3
+
+static int install_affine_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
+                                int for_a, int table, int mode,
+                                int scalar) {
+  int slot = -1, k;
+  for (k = 0; k < 2; k++) {
+    if (p->luar_code[k] == NULL && p->luar_tint[k] == 0) {
+      slot = k;
+      break;
+    }
+  }
+  if (slot < 0)
+    slot = 1;
+  p->luar_code[slot] = NULL;
+  p->luar_tint[slot] = 4;
+  p->luar_tint_suspend[slot] = 0;
+  p->luar_tint_pc[slot] = (int)backedge;
+  p->luar_tint_table[slot] = table;
+  p->luar_tint_keys[slot] = mode;
+  p->luar_tint_upval[slot] = scalar;
+  p->luar_tint_acc[slot] = 0;
+  p->luar_tint_res[slot] = 0;
+  p->luar_tint_arg4[slot] = 0;
+  p->luar_tint_base[slot] = for_a;
+  p->luar_tint_epoch[slot] = J->epoch;
+  J->compiled++;
+  return 1;
+}
+
+
 /* Install a bounded cdata store helper in one of the two intrinsic slots.
 ** Kinds 20-23 are the store intrinsics; the existing kinds keep their
 ** historical encodings. */
@@ -3387,6 +3425,36 @@ decode_done:
     d.fast_fill = 1;
     d.ff_table = ops[0].a;
   }
+  /* Affine fill: t[i] = i + k, t[i] = i * k, t[i] = k.  The decoder has
+  ** already rejected non-numeric values and control-register writes; the
+  ** scalar is kept small so it can live in the existing tint field. */
+  if (!for_float && !is_while && J->enable_tint && d.nops >= 1) {
+    LuaR_Op *st = &ops[d.nops - 1];
+    if (st->kind == LUAR_OP_SETTABLE && st->b == for_a + 2 &&
+        st->a != for_a && st->a != for_a + 1 && st->a != for_a + 2) {
+      if (d.nops == 1 && st->isconst && st->ta == LUAR_T_INT &&
+          st->imm >= (int64_t)INT32_MIN && st->imm <= (int64_t)INT32_MAX)
+        return install_affine_fill(p, J, backedge, for_a, st->a,
+                                   LUAR_TINT_FILL_CONST, (int)st->imm);
+      if (d.nops == 3 && !st->isconst && st->c == ops[0].a &&
+          ops[0].b == for_a + 2 &&
+          ops[1].kind == LUAR_OP_MMBIN &&
+          ops[0].ta == LUAR_T_INT &&
+          ops[0].imm >= (int64_t)INT32_MIN &&
+          ops[0].imm <= (int64_t)INT32_MAX) {
+        int mode;
+        if (ops[0].kind == LUAR_OP_ADDI || ops[0].kind == LUAR_OP_ADDK)
+          mode = LUAR_TINT_FILL_ADD;
+        else if (ops[0].kind == LUAR_OP_MULK)
+          mode = LUAR_TINT_FILL_MUL;
+        else
+          mode = 0;
+        if (mode != 0)
+          return install_affine_fill(p, J, backedge, for_a, st->a,
+                                     mode, (int)ops[0].imm);
+      }
+    }
+  }
   if (!for_float && (d.fast_fill || d.fast_tsum) && J->enable_tint) {
     int slot = -1, k;
     int tint = d.fast_fill ? 1 : 2;
@@ -3906,6 +3974,57 @@ static int table_fill_intrinsic (lua_State *L, TValue *base,
   }
   setivalue(ct, 0);
   setivalue(it, idx + count);
+  return 1;
+}
+
+
+/* Mode 1: key + scalar, mode 2: key * scalar, mode 3: scalar.  The loop
+** must still be an ascending unit-step run; anything else stays on the
+** interpreter.  Integer arithmetic wraps exactly like the VM's. */
+static int table_affine_fill_intrinsic (lua_State *L, TValue *base,
+                                        int for_a, int table_reg,
+                                        int mode, int scalar) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
+  TValue *tt = &base[table_reg];
+  lua_Integer count, step, idx, last, k;
+  int64_t sv = (int64_t)scalar;
+  Table *h;
+  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
+      !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step != 1 || idx <= 0 || count > (1 << 22))
+    return 0;
+  if (idx > LUA_MAXINTEGER - count)
+    return 0;
+  last = idx + count;
+  if (last > (1 << 22))
+    return 0;
+  h = hvalue(tt);
+  if (h->metatable != NULL)
+    return 0;
+  if (h->asize < (unsigned)last)
+    luaH_resizearray(L, h, (unsigned)last);   /* keep existing hash keys */
+  for (k = 0; k <= count; k++) {
+    lua_Integer key = idx + k;
+    TValue v;
+    if (mode == LUAR_TINT_FILL_CONST) {
+      setivalue(&v, sv);
+    }
+    else if (mode == LUAR_TINT_FILL_MUL) {
+      setivalue(&v, l_castU2S(l_castS2U(key) * l_castS2U(sv)));
+    }
+    else {
+      setivalue(&v, l_castU2S(l_castS2U(key) + l_castS2U(sv)));
+    }
+    obj2arr(h, (unsigned)(key - 1), &v);
+  }
+  setivalue(ct, 0);
+  setivalue(it, last);
   return 1;
 }
 
@@ -5652,6 +5771,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                      p->luar_tint_table[i], keys);
           break;
         }
+        case 4:
+          r = table_affine_fill_intrinsic(L, (TValue *)base, expected_base,
+                                          p->luar_tint_table[i],
+                                          p->luar_tint_keys[i],
+                                          p->luar_tint_upval[i]);
+          break;
         case 10: {
           Table *h = tint_upval_table(p, (TValue *)base, i);
           r = (h == NULL) ? 0
