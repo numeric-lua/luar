@@ -860,6 +860,29 @@ int64_t luar_trace_tgetks (TValue *tv, TString *key, TValue *out) {
 }
 
 
+/* Constant-key stores must honor __newindex for an absent field.  An
+** existing raw field bypasses the metamethod exactly like the interpreter;
+** an absent one exits so the interpreter can run it. */
+static int tset_string_allowed (Table *t, TString *key) {
+  TValue old;
+  lu_byte tag = luaH_getstr(t, key, &old);
+  if ((tagisempty(tag) || ttisnil(&old)) &&
+      t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
+  return 1;
+}
+
+
+static int tset_int_allowed (Table *t, lua_Integer key) {
+  TValue old;
+  lu_byte tag = luaH_getint(t, key, &old);
+  if ((tagisempty(tag) || ttisnil(&old)) &&
+      t->metatable != NULL && !checknoTM(t->metatable, TM_NEWINDEX))
+    return 0;
+  return 1;
+}
+
+
 TValue *luar_trace_tsetkk (TValue *tv, TString *key, lua_Integer val,
                            lua_State *L) {
   Table *t;
@@ -867,6 +890,8 @@ TValue *luar_trace_tsetkk (TValue *tv, TString *key, lua_Integer val,
   if (tv == NULL || !ttistable(tv) || key == NULL || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   setivalue(&v, val);
   luaH_set(L, t, &k, &v);
@@ -885,6 +910,8 @@ TValue *luar_trace_tsetkks (TValue *tv, TString *key, uint64_t bits,
   if (vs == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   setsvalue(L, &v, vs);
   luaH_set(L, t, &k, &v);
@@ -901,6 +928,8 @@ TValue *luar_trace_tsetkkf (TValue *tv, TString *key, uint64_t bits,
     return NULL;
   memcpy(&d, &bits, sizeof(d));
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   setfltvalue(&v, d);
   luaH_set(L, t, &k, &v);
@@ -1173,6 +1202,8 @@ TValue *luar_trace_tsetkdb (TValue *tv, TString *key, TValue *val,
       !ttisboolean(val) || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -1186,6 +1217,8 @@ TValue *luar_trace_tsetkb (TValue *tv, TString *key, int b, lua_State *L) {
   if (tv == NULL || !ttistable(tv) || key == NULL || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   settt_(&v, b != 0 ? LUA_VTRUE : LUA_VFALSE);
   luaH_set(L, t, &k, &v);
@@ -1201,6 +1234,8 @@ TValue *luar_trace_tsetkt (TValue *tv, TString *key, TValue *val,
       !ttistable(val) || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -1216,6 +1251,8 @@ TValue *luar_trace_tsetks (TValue *tv, TString *key, TValue *val,
       !ttisstring(val) || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -1231,6 +1268,8 @@ TValue *luar_trace_tsetkf (TValue *tv, TString *key, TValue *val,
       !ttisfloat(val) || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -1246,6 +1285,8 @@ TValue *luar_trace_tsetib (TValue *tv, lua_Integer key, TValue *val,
       key < 1 || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_int_allowed(t, key))
+    return NULL;
   v = *val;
   luaH_setint(L, t, key, &v);
   return (TValue *)(L->ci->func.p + 1);
@@ -1260,6 +1301,8 @@ TValue *luar_trace_tsetit (TValue *tv, lua_Integer key, TValue *val,
       key < 1 || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_int_allowed(t, key))
+    return NULL;
   v = *val;
   luaH_setint(L, t, key, &v);
   return (TValue *)(L->ci->func.p + 1);
@@ -1274,6 +1317,8 @@ TValue *luar_trace_tsetif (TValue *tv, lua_Integer key, TValue *val,
       key < 1 || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_int_allowed(t, key))
+    return NULL;
   v = *val;
   luaH_setint(L, t, key, &v);
   return (TValue *)(L->ci->func.p + 1);
@@ -1288,6 +1333,8 @@ TValue *luar_trace_tsetis (TValue *tv, lua_Integer key, TValue *val,
       key < 1 || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_int_allowed(t, key))
+    return NULL;
   v = *val;
   luaH_setint(L, t, key, &v);
   return (TValue *)(L->ci->func.p + 1);
@@ -1358,6 +1405,8 @@ TValue *luar_trace_tsetk (TValue *tv, TString *key, TValue *val,
       !ttisinteger(val) || L == NULL)
     return NULL;
   t = (Table *)tv->value_.gc;
+  if (!tset_string_allowed(t, key))
+    return NULL;
   setsvalue(L, &k, key);
   v = *val;
   luaH_set(L, t, &k, &v);
@@ -2297,6 +2346,13 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         TValue *sv = (ir_latest_writer_is(t, b, LUAR_IR_ULOAD) &&
                       known_cval[b].tt_ != 0) ?
                      &known_cval[b] : &base[b];
+        /* ADDI/FADDI have different result types, so the operand flavour
+        ** must be guarded just like OP_ADD.  Recording with one flavour and
+        ** entering with the other used to reinterpret the payload. */
+        in.kind = LUAR_IR_GUARD; in.a = (uint8_t)b;
+        in.b = (uint8_t)(ttisfloat(sv) ? LUAR_IR_TAG_FLOAT : LUAR_IR_TAG_INT);
+        in.pc = pc;
+        if (!luar_trace_ir_emit(t, &in)) return 0;
         if (ttisfloat(sv)) {
           in.kind = LUAR_IR_FADDI; in.a = (uint8_t)a;
           in.b = (uint8_t)b; in.nval = (double)GETARG_sC(ins);
