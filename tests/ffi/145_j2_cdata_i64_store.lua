@@ -137,6 +137,6 @@ do
   local before = jit.stats().tint_hits
   for i = 0, N - 1 do b[i] = b[i] + 1 end
   local hits = jit.stats().tint_hits - before
-  H.eq(hits, 0, "int64 in-place update should stay interpreted")
+  H.check(hits > 0, "int64 in-place update should use the i64 helper")
   H.eq(bytes(b, "int64_t"), want, "int64 update bytes")
 end

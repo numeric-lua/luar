@@ -55,7 +55,7 @@ local function run (what, op, opts)
   H.eq(st.ir_entry_failures, 0, what .. ": entry guard failed")
 
   jit.flush()
-  jit.opt.start("ir=0")
+  jit.opt.start("ir=0", "tint=0")
   jit.on()
   op(want)
 
