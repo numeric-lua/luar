@@ -1259,6 +1259,59 @@ int luar_ffi_trace_fill_array_i64 (TValue *dstv, TValue *it, TValue *ct,
 }
 
 
+int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
+                                  TValue *ct, TValue *st, TValue *tmp,
+                                  int tmp_reg, int sub, lua_State *L) {
+  FfiView va;
+  Udata *u;
+  CData *acd, *tcd;
+  uint64_t acc, bits, last = 0;
+  TValue *top, *base;
+  lua_Integer count, step, idx, lastkey, k;
+  if (accv == NULL || arrv == NULL || it == NULL || ct == NULL ||
+      st == NULL || tmp == NULL || L == NULL ||
+      !luar_ffi_trace_i64_scalar(accv) ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      tmp_reg < 0 || tmp_reg >= 256)
+    return 0;
+  if (!ffi_view_init_dst(arrv, &va) || va.isflt || va.esz != 8)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&va, count, step, idx, &lastkey))
+    return 0;
+  u = (Udata *)accv->value_.gc;
+  acd = (CData *)getudatamem(u);
+  if ((acd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(&acc, acd->v.p, 8);
+  else
+    memcpy(&acc, &acd->v, 8);
+  {
+    const char *ps = va.base + (ptrdiff_t)idx * (ptrdiff_t)va.esz;
+    for (k = 0; k <= count; k++) {
+      memcpy(&bits, ps, 8);
+      last = bits;
+      acc = sub ? acc - bits : acc + bits;
+      ps += (ptrdiff_t)step * (ptrdiff_t)va.esz;
+    }
+  }
+  if ((acd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(acd->v.p, &acc, 8);
+  else
+    memcpy(&acd->v, &acc, 8);
+  tcd = ffi_push_scalar(L, ffi_getstate(L), va.elem);
+  memcpy(&tcd->v, &last, 8);
+  top = s2v(L->top.p - 1);
+  base = (TValue *)(L->ci->func.p + 1);
+  base[tmp_reg] = *top;
+  L->top.p--;
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 int luar_ffi_trace_i64_array (TValue *tv) {
   Udata *u; CData *cd; CType *ct, *elem;
   if (tv == NULL || !ttisfulluserdata(tv)) return 0;

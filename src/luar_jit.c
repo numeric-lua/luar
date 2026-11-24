@@ -3138,9 +3138,13 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           !is_control_reg(tmp, for_a) &&
           !is_control_reg(acc, for_a) &&
           !is_control_reg(arr, for_a) &&
-          av != NULL && luar_ffi_trace_array_kind(av) != 0)
-        return install_cdata_tint(p, J, backedge, 16, -1 - GETARG_B(i0),
-                                  0, 0, acc, tmp,
+          av != NULL &&
+          (luar_ffi_trace_array_kind(av) != 0 ||
+           (luar_ffi_trace_array_kind64(av) != 0 &&
+            luar_ffi_trace_i64_scalar(&b[acc]))))
+        return install_cdata_tint(p, J, backedge,
+                                  luar_ffi_trace_array_kind64(av) != 0 ? 69 : 16,
+                                  -1 - GETARG_B(i0), 0, 0, acc, tmp,
                                   GET_OPCODE(i2) == OP_SUB, for_a);
     }
     if (!for_float && J->enable_tint && n >= 5 &&
@@ -3205,9 +3209,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
           !is_control_reg(tmp, for_a) &&
           !is_control_reg(acc, for_a) &&
           !is_control_reg(arr, for_a) &&
-          luar_ffi_trace_array_kind(&b[arr]) != 0)
-        return install_cdata_tint(p, J, backedge, 16, arr, 0, 0,
-                                  acc, tmp,
+          (luar_ffi_trace_array_kind(&b[arr]) != 0 ||
+           (luar_ffi_trace_array_kind64(&b[arr]) != 0 &&
+            luar_ffi_trace_i64_scalar(&b[acc]))))
+        return install_cdata_tint(p, J, backedge,
+                                  luar_ffi_trace_array_kind64(&b[arr]) != 0 ? 68 : 16,
+                                  arr, 0, 0, acc, tmp,
                                   GET_OPCODE(i1) == OP_SUB, for_a);
     }
     if (!for_float && J->enable_tint &&
@@ -7511,6 +7518,29 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     vv);
           break;
         }
+        case 69: {
+          int enc = p->luar_tint_table[i];
+          TValue *av = pair_source_value((TValue *)base, -1, -1 - enc);
+          r = (av == NULL) ? 0
+              : luar_ffi_trace_sum_array_i64(
+                    &((TValue *)base)[p->luar_tint_acc[i]], av,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[p->luar_tint_res[i]],
+                    p->luar_tint_res[i], p->luar_tint_arg4[i], L);
+          break;
+        }
+        case 68:
+          r = luar_ffi_trace_sum_array_i64(
+                  &((TValue *)base)[p->luar_tint_acc[i]],
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_res[i]],
+                  p->luar_tint_res[i], p->luar_tint_arg4[i], L);
+          break;
         case 66:
           r = luar_ffi_trace_fill_array_i64(
                   &((TValue *)base)[p->luar_tint_table[i]],
