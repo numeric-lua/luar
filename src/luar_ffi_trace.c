@@ -1259,6 +1259,11 @@ int luar_ffi_trace_fill_array_i64 (TValue *dstv, TValue *it, TValue *ct,
 }
 
 
+static int cd_is_unsigned (CData *cd) {
+  return cd != NULL && cd->ct != NULL && cd->ct->is_unsigned != 0;
+}
+
+
 int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
                                   TValue *ct, TValue *st, TValue *tmp,
                                   int tmp_reg, int op, lua_State *L) {
@@ -1289,6 +1294,16 @@ int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
     memcpy(&acc, &acd->v, 8);
   {
     const char *ps = va.base + (ptrdiff_t)idx * (ptrdiff_t)va.esz;
+    if (op == 8 || op == 9) {
+      const char *zs = ps;
+      for (k = 0; k <= count; k++) {
+        uint64_t z;
+        memcpy(&z, zs, 8);
+        if (z == 0)
+          return 0;   /* let the interpreter raise //0 or %0 */
+        zs += (ptrdiff_t)step * (ptrdiff_t)va.esz;
+      }
+    }
     for (k = 0; k <= count; k++) {
       memcpy(&bits, ps, 8);
       last = bits;
@@ -1306,6 +1321,22 @@ int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
         acc <<= (unsigned)(bits & 63);
       else if (op == 7)
         acc = (uint64_t)acc >> (unsigned)(bits & 63);
+      else if (op == 8 || op == 9) {
+        int uns = cd_is_unsigned(acd);
+        if (uns) {
+          uint64_t ua = acc, ub = bits;
+          acc = (op == 8) ? ua / ub : ua % ub;
+        }
+        else {
+          int64_t sa = (int64_t)acc, sb = (int64_t)bits;
+          if (sb == -1) {
+            acc = (op == 8) ? (uint64_t)(0 - (uint64_t)sa) : 0;
+          }
+          else {
+            acc = (op == 8) ? (uint64_t)(sa / sb) : (uint64_t)(sa % sb);
+          }
+        }
+      }
       else
         acc += bits;
       ps += (ptrdiff_t)step * (ptrdiff_t)va.esz;

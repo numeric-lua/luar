@@ -3125,7 +3125,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
          GET_OPCODE(p->code[start + 2]) == OP_BOR ||
          GET_OPCODE(p->code[start + 2]) == OP_BXOR ||
          GET_OPCODE(p->code[start + 2]) == OP_SHL ||
-         GET_OPCODE(p->code[start + 2]) == OP_SHR) &&
+         GET_OPCODE(p->code[start + 2]) == OP_SHR ||
+         GET_OPCODE(p->code[start + 2]) == OP_IDIV ||
+         GET_OPCODE(p->code[start + 2]) == OP_MOD) &&
         GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
         backedge == start + 4) {
       /* LUAR: `s = s +/- a[i]` where `a` is a bounded cdata array captured
@@ -3157,7 +3159,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                                   (GET_OPCODE(i2) == OP_BOR) ? 4 :
                                   (GET_OPCODE(i2) == OP_BXOR) ? 5 :
                                   (GET_OPCODE(i2) == OP_SHL) ? 6 :
-                                  (GET_OPCODE(i2) == OP_SHR) ? 7 : 0, for_a);
+                                  (GET_OPCODE(i2) == OP_SHR) ? 7 :
+                                  (GET_OPCODE(i2) == OP_IDIV) ? 8 :
+                                  (GET_OPCODE(i2) == OP_MOD) ? 9 : 0, for_a);
     }
     if (!for_float && J->enable_tint && n >= 5 &&
         GET_OPCODE(i0) == OP_GETUPVAL &&
@@ -3211,7 +3215,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
          GET_OPCODE(p->code[start + 1]) == OP_BOR ||
          GET_OPCODE(p->code[start + 1]) == OP_BXOR ||
          GET_OPCODE(p->code[start + 1]) == OP_SHL ||
-         GET_OPCODE(p->code[start + 1]) == OP_SHR) &&
+         GET_OPCODE(p->code[start + 1]) == OP_SHR ||
+         GET_OPCODE(p->code[start + 1]) == OP_IDIV ||
+         GET_OPCODE(p->code[start + 1]) == OP_MOD) &&
         GET_OPCODE(p->code[start + 2]) == OP_MMBIN &&
         backedge == start + 3) {
       /* LUAR: `s = s +/- a[i]` over a bounded FFI cdata array.  The generic
@@ -3239,7 +3245,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
                                   (GET_OPCODE(i1) == OP_BOR) ? 4 :
                                   (GET_OPCODE(i1) == OP_BXOR) ? 5 :
                                   (GET_OPCODE(i1) == OP_SHL) ? 6 :
-                                  (GET_OPCODE(i1) == OP_SHR) ? 7 : 0, for_a);
+                                  (GET_OPCODE(i1) == OP_SHR) ? 7 :
+                                  (GET_OPCODE(i1) == OP_IDIV) ? 8 :
+                                  (GET_OPCODE(i1) == OP_MOD) ? 9 : 0, for_a);
     }
     if (!for_float && J->enable_tint &&
         match_three_table_sum(p, J, start, backedge, for_a, b))
