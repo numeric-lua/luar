@@ -927,10 +927,12 @@ static void if_replace_defined (lua_State *L, FFIState *S, const char *p,
       if (j - i == 7 && memcmp(p + i, "defined", 7) == 0) {
         const char *name;
         size_t nn;
+        int paren = 0;
         k = j;
         while (k < n && isspace((unsigned char)p[k]))
           k++;
         if (k < n && p[k] == '(') {
+          paren = 1;
           k++;
           while (k < n && isspace((unsigned char)p[k]))
             k++;
@@ -944,8 +946,15 @@ static void if_replace_defined (lua_State *L, FFIState *S, const char *p,
         nn = (size_t)(p + k - name);
         while (k < n && isspace((unsigned char)p[k]))
           k++;
-        if (k < n && p[k] == ')')
+        /* LUAR: only consume a closing parenthesis for the parenthesised
+        ** form.  An unparenthesised "defined FOO" is commonly followed by
+        ** the ')' of an enclosing expression, and consuming that ')' here
+        ** unbalanced the whole #if. */
+        if (paren) {
+          if (k >= n || p[k] != ')')
+            luaL_error(L, "ffi.cdef: expected ')' after defined(%s)", name);
           k++;
+        }
         buf_char(L, out, macro_find(S, name, nn) != NULL ? '1' : '0');
         i = k;
         continue;
