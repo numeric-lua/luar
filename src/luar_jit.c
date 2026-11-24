@@ -6295,6 +6295,38 @@ static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
 }
 
 
+/* Whether a recorded dynamic GETTABLE yields a float in the current
+** stack.  Floatification uses the same test; this helper lets the caller
+** decide whether an otherwise integer-looking trace still needs it. */
+static int ir_tget_is_float (Proto *p, TValue *base,
+                             const LuaR_IRIns *op) {
+  Instruction ex;
+  int tb, tk;
+  double fv;
+  if (op->pc < 0 || op->pc >= p->sizecode)
+    return 0;
+  ex = p->code[op->pc];
+  if (GET_OPCODE(ex) != OP_GETTABLE)
+    return 0;
+  tb = GETARG_B(ex);
+  tk = GETARG_C(ex);
+  if (!ttisinteger(&base[tk]))
+    return 0;
+  return luar_trace_tgetf_generic(&base[tb], ivalue(&base[tk]), &fv);
+}
+
+
+static int ir_has_float_get (Proto *p, TValue *base,
+                             const LuaR_TraceIR *ir) {
+  int i;
+  for (i = 0; i < ir->nins; i++)
+    if (ir->ins[i].kind == LUAR_IR_TGET &&
+        ir_tget_is_float(p, base, &ir->ins[i]))
+      return 1;
+  return 0;
+}
+
+
 static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
   int i, fslot = -1, sawtable = 0, sawfloat = 0;
   for (i = 0; i < ir->nins; i++) {
@@ -6388,20 +6420,16 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawtable = 1;
       continue;
     }
-    if (op->kind == LUAR_IR_TGET && !sawtable) {
-      Instruction ex;
-      int tb, tk;
-      double fv;
-      if (op->pc < 0 || op->pc >= p->sizecode)
-        return 0;
-      ex = p->code[op->pc];
-      if (GET_OPCODE(ex) != OP_GETTABLE)
-        return 0;
-      tb = GETARG_B(ex);
-      tk = GETARG_C(ex);
-      if (!ttisinteger(&base[tk]))
-        return 0;
-      if (luar_trace_tgetf_generic(&base[tb], ivalue(&base[tk]), &fv)) {
+    /* Integer cdata reads may coexist with float ones in the same trace
+    ** (s += a[i] over int[] while x += d[i] over double[]); they just do
+    ** not take part in the float chain. */
+    if (op->kind == LUAR_IR_CGETI || op->kind == LUAR_IR_CPGETI ||
+        (op->kind == LUAR_IR_CGETFIELD && op->c != 2)) {
+      sawtable = 1;
+      continue;
+    }
+    if (op->kind == LUAR_IR_TGET) {
+      if (ir_tget_is_float(p, base, op)) {
         op->kind = LUAR_IR_TGETF;
         fslot = op->a;
         sawfloat = 1;
@@ -6509,6 +6537,13 @@ static int ir_floatify (Proto *p, TValue *base, LuaR_TraceIR *ir) {
       sawfloat = 1;
       continue;
     }
+    /* Integer arithmetic that is not part of the float chain stays as an
+    ** integer op; a mixed trace may legitimately contain both chains. */
+    if (op->kind == LUAR_IR_ADD || op->kind == LUAR_IR_SUB ||
+        op->kind == LUAR_IR_MUL || op->kind == LUAR_IR_DIV) {
+      sawtable = 1;
+      continue;
+    }
     if (op->kind == LUAR_IR_FORLOOP || op->kind == LUAR_IR_RET ||
         op->kind == LUAR_IR_EXIT || op->kind == LUAR_IR_CGUARD)
       continue;
@@ -6529,6 +6564,8 @@ static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir) {
     return 1;
   if (!ir_integer_only(ir))
     return 0;
+  if (ir_has_float_get(p, base, ir))
+    return 0;   /* dynamic read would be truncated by integer emission */
   return 1;
 }
 
@@ -6703,7 +6740,13 @@ int luari_jit_hotloop (lua_State *L, Proto *p, const Instruction *backedge,
       int newcode = 0;
       {
         int intok = ir_integer_only(&ir);
-        int fltok = (!intok && ir_floatify(p, (TValue *)base, &ir));
+        int dynfloat = intok && ir_has_float_get(p, (TValue *)base, &ir);
+        int fltok = (!intok || dynfloat) ?
+                    ir_floatify(p, (TValue *)base, &ir) : 0;
+        /* A trace that looked integer-only but reads a float through a
+        ** dynamic GETTABLE must not be emitted as integer code. */
+        if (dynfloat && !fltok)
+          intok = 0;
         /* jit.flush() bumped the epoch and unmapped the old trace, but a
         ** Proto still holds its pointer.  Do not treat that stale pointer
         ** as an installed trace: clear it so this recording can install a
