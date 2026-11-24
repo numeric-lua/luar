@@ -6816,6 +6816,20 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
       p->luar_ir_call_pc = -1;
     }
     else if (p->luar_ir_pc == pc && p->luar_ir_base == expected_base) {
+      int cb = p->luar_ir_base;
+      /* J4 roots only integer-controlled FORLOOPs.  A float-controlled
+      ** loop can reach the same pc with the same base, so re-check the
+      ** control triplet at entry instead of trusting the record-time
+      ** values. */
+      if (cb >= 0) {
+        TValue *bv = (TValue *)base;
+        if (cb + 2 >= p->maxstacksize ||
+            !ttisinteger(&bv[cb]) || !ttisinteger(&bv[cb + 1]) ||
+            !ttisinteger(&bv[cb + 2])) {
+          J->ir_entry_failures++;
+          return 0;
+        }
+      }
       int irr = luari_run_j4(p, p->luar_ir_code, base, L);
       base = (void *)(L->ci->func.p + 1);  /* stack may have moved */
       J->ir_last_entry_result = irr;
@@ -7601,7 +7615,9 @@ static int ir_float_consistent (const LuaR_TraceIR *ir, TValue *base) {
         type[in->a] = 2;
         break;
       case LUAR_IR_SLOAD:
-        type[in->a] = (in->b < ns) ? type[in->b] : 0;
+        /* The runtime value is copied from a slot, not a compile-time
+        ** constant; a later guard establishes the type. */
+        type[in->a] = 0;
         break;
       case LUAR_IR_ULOAD:
         type[in->a] = 0;
@@ -7830,7 +7846,7 @@ static int ir_slot_type_at (const LuaR_TraceIR *ir, TValue *base,
         typ[a] = (in->c == 2) ? 2 : 1;
         break;
       case LUAR_IR_SLOAD:
-        typ[a] = (in->b < LUAR_IR_MAX_SLOTS) ? typ[in->b] : 0;
+        typ[a] = 0;
         break;
       case LUAR_IR_ULOAD:
         typ[a] = 0;

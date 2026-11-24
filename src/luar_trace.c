@@ -2261,14 +2261,14 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           fn_src[a] = b;
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
-          seen[a] = 1;
+          seen[a] = 0;
           r = luar_trace_ir_emit(t, &in);
           break;
         }
         if (partial && b < ns && ir_tag(&base[b]) == LUAR_IR_TAG_OTHER) {
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
-          seen[a] = 1;
+          seen[a] = 0;
           r = luar_trace_ir_emit(t, &in);
           break;
         }
@@ -2285,7 +2285,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
           in.pc = pc;
           fn_src[a] = b;
-          seen[a] = 1;
+          seen[a] = 0;
           r = luar_trace_ir_emit(t, &in);
           break;
         }
@@ -2297,6 +2297,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
         }
         in.kind = LUAR_IR_SLOAD; in.a = (uint8_t)a; in.b = (uint8_t)b;
         in.pc = pc;
+        seen[a] = 0;
         r = luar_trace_ir_emit(t, &in);
         break;
       case OP_LOADI:
