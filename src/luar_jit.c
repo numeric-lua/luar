@@ -1631,6 +1631,11 @@ static int match_table_pair_store (Proto *p, LuaR_JIT *J,
   else if (opc == OP_DIV) kind = 3;
   else if (opc == OP_IDIV) kind = 5;
   else if (opc == OP_MOD) kind = 6;
+  else if (opc == OP_BAND) kind = 7;
+  else if (opc == OP_BOR) kind = 8;
+  else if (opc == OP_BXOR) kind = 9;
+  else if (opc == OP_SHL) kind = 10;
+  else if (opc == OP_SHR) kind = 11;
   else return 0;
   if (op_b != ra.val || op_c != rb.val)
     return 0;
@@ -1768,16 +1773,17 @@ static int match_table_scaled_store (Proto *p, LuaR_JIT *J,
   op_a = GETARG_A(op);
   op_b = GETARG_B(op);
   op_c = GETARG_C(op);
-  if (opcode == OP_ADDI) {
+  if (opcode == OP_ADDI || opcode == OP_SHLI || opcode == OP_SHRI) {
     if (op_b != r.val || scalar_enc != -1)
       return 0;
     scalar_enc = LUAR_TINT_SCALAR_IMM;
     scalar_imm = (int)GETARG_sC(op);
-    kind = 0;
+    kind = (opcode == OP_ADDI) ? 0 : (opcode == OP_SHLI) ? 12 : 13;
   }
   else if (opcode == OP_ADDK || opcode == OP_SUBK ||
       opcode == OP_MULK || opcode == OP_DIVK ||
-      opcode == OP_IDIVK || opcode == OP_MODK) {
+      opcode == OP_IDIVK || opcode == OP_MODK ||
+      opcode == OP_BANDK || opcode == OP_BORK || opcode == OP_BXORK) {
     int kidx = op_c;
     if (op_b != r.val || scalar_enc != -1 || kidx >= p->sizek)
       return 0;
@@ -1788,12 +1794,17 @@ static int match_table_scaled_store (Proto *p, LuaR_JIT *J,
     scalar_enc = LUAR_TINT_SCALAR_CONST | kidx;
     kind = (opcode == OP_ADDK) ? 0 : (opcode == OP_SUBK) ? 1
          : (opcode == OP_MULK) ? 2 : (opcode == OP_DIVK) ? 3
-         : (opcode == OP_IDIVK) ? 5 : 6;
+         : (opcode == OP_IDIVK) ? 5 : (opcode == OP_MODK) ? 6
+         : (opcode == OP_BANDK) ? 9 : (opcode == OP_BORK) ? 10 : 11;
   }
   else if (opcode == OP_ADD || opcode == OP_SUB ||
            opcode == OP_MUL || opcode == OP_DIV ||
-           opcode == OP_IDIV || opcode == OP_MOD) {
-    int commutative = (opcode == OP_ADD || opcode == OP_MUL);
+           opcode == OP_IDIV || opcode == OP_MOD ||
+           opcode == OP_BAND || opcode == OP_BOR || opcode == OP_BXOR ||
+           opcode == OP_SHL || opcode == OP_SHR) {
+    int commutative = (opcode == OP_ADD || opcode == OP_MUL ||
+                       opcode == OP_BAND || opcode == OP_BOR ||
+                       opcode == OP_BXOR);
     if (op_b == r.val)
       scalar_reg = op_c;
     else if (commutative && op_c == r.val)
@@ -1812,7 +1823,9 @@ static int match_table_scaled_store (Proto *p, LuaR_JIT *J,
     }
     kind = (opcode == OP_ADD) ? 0 : (opcode == OP_SUB) ? 1
          : (opcode == OP_MUL) ? 2 : (opcode == OP_DIV) ? 3
-         : (opcode == OP_IDIV) ? 5 : 6;
+         : (opcode == OP_IDIV) ? 5 : (opcode == OP_MOD) ? 6
+         : (opcode == OP_BAND) ? 9 : (opcode == OP_BOR) ? 10
+         : (opcode == OP_BXOR) ? 11 : (opcode == OP_SHL) ? 12 : 13;
   }
   else
     return 0;
@@ -4851,6 +4864,31 @@ static LuaR_PairNum pair_bnot (LuaR_PairNum a) {
 }
 
 
+static LuaR_PairNum pair_band (LuaR_PairNum a, LuaR_PairNum b) {
+  return pair_int(a.i & b.i);
+}
+
+static LuaR_PairNum pair_bor (LuaR_PairNum a, LuaR_PairNum b) {
+  return pair_int(a.i | b.i);
+}
+
+static LuaR_PairNum pair_bxor (LuaR_PairNum a, LuaR_PairNum b) {
+  return pair_int(a.i ^ b.i);
+}
+
+static LuaR_PairNum pair_shift (LuaR_PairNum a, LuaR_PairNum b) {
+  int64_t n = b.i;
+  if (n < 0) {
+    if (n <= -64)
+      return pair_int(0);
+    return pair_int(l_castU2S(l_castS2U(a.i) >> (unsigned)(-n)));
+  }
+  if (n >= 64)
+    return pair_int(0);
+  return pair_int(l_castU2S(l_castS2U(a.i) << (unsigned)n));
+}
+
+
 static LuaR_PairNum pair_from_slot (const TValue *v, int *ok) {
   if (ttisinteger(v))
     return pair_int(ivalue(v));
@@ -5152,6 +5190,13 @@ static int table_pair_store_intrinsic (lua_State *L, TValue *base,
         return 0;
     }
   }
+  if (op >= 7) {
+    for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+      if (*getArrTag(ta, (unsigned)ckey) != LUA_VNUMINT ||
+          *getArrTag(tb, (unsigned)ckey) != LUA_VNUMINT)
+        return 0;   /* bitwise operands must be integers */
+    }
+  }
   dst = hvalue(tt);
   maxkey = (idx > lastkey) ? idx : lastkey;
   if (dst->metatable != NULL || maxkey > (1 << 22))
@@ -5175,8 +5220,18 @@ static int table_pair_store_intrinsic (lua_State *L, TValue *base,
       last_res = pair_div(x, y);
     else if (op == 5)
       last_res = pair_idiv(x, y);
-    else
+    else if (op == 6)
       last_res = pair_mod(x, y);
+    else if (op == 7)
+      last_res = pair_band(x, y);
+    else if (op == 8)
+      last_res = pair_bor(x, y);
+    else if (op == 9)
+      last_res = pair_bxor(x, y);
+    else if (op == 10)
+      last_res = pair_shift(x, y);
+    else
+      last_res = pair_shift(x, pair_neg(y));
     if (last_res.isflt) {
       setfltvalue(&v, last_res.d);
     }
@@ -5228,7 +5283,7 @@ static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
   if (!array_run_bounds(src, idx, lastkey) ||
       !array_run_numeric(src, idx, count, step))
     return 0;
-  if (op == 4 || op >= 7) {
+  if (op == 4 || op == 7 || op == 8) {
     fac = pair_int(0);   /* unused copy/unary marker */
   }
   else {
@@ -5254,11 +5309,13 @@ static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
       }
     }
   }
-  if (op == 8) {
+  if (op == 8 || op >= 9) {
     for (ckey = idx - 1, k = 0; k <= count; k++, ckey += step) {
       if (*getArrTag(src, (unsigned)ckey) != LUA_VNUMINT)
         return 0;   /* float bitwise conversion stays interpreted */
     }
+    if (op >= 9 && fac.isflt)
+      return 0;   /* scalar must be an integer */
   }
   dst = hvalue(tt);
   maxkey = (idx > lastkey) ? idx : lastkey;
@@ -5288,6 +5345,16 @@ static int table_scaled_store_intrinsic (lua_State *L, Proto *p,
       last_res = pair_neg(elem);
     else if (op == 8)
       last_res = pair_bnot(elem);
+    else if (op == 9)
+      last_res = pair_band(elem, fac);
+    else if (op == 10)
+      last_res = pair_bor(elem, fac);
+    else if (op == 11)
+      last_res = pair_bxor(elem, fac);
+    else if (op == 12)
+      last_res = pair_shift(elem, fac);
+    else if (op == 13)
+      last_res = pair_shift(elem, pair_neg(fac));
     else
       last_res = elem;   /* copy */
 
