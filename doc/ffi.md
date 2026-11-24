@@ -129,11 +129,13 @@ by C APIs.  It supports:
 * array sizes and enum values built from decimal, hexadecimal, octal and
   binary integer literals (with `u`/`l` suffixes), single-character C
   constants (plain or escaped, sign-extended through plain `char`), other
-  enum constants, `sizeof(type)`, `_Alignof`/`__alignof__`,
-  `offsetof`/`__builtin_offsetof`, parentheses, unary `+ - ~ !`, the
-  binary arithmetic/shift/bitwise operators, comparisons, `&&`/`||`, and
-  the conditional operator `?:` (with C precedence; only the selected
-  branch is evaluated, so `1 ? 2 : 1/0` is valid).
+  enum constants, `sizeof(type)` and `sizeof("literal")`,
+  `_Alignof`/`__alignof__`, `offsetof`/`__builtin_offsetof` with dotted
+  and indexed member designators (for example `offsetof(S, i.b)` or
+  `offsetof(S, a[1].x)`), parentheses, unary `+ - ~ !`, the binary
+  arithmetic/shift/bitwise operators, comparisons, `&&`/`||`, and the
+  conditional operator `?:` (with C precedence; only the selected branch
+  is evaluated, so `1 ? 2 : 1/0` is valid).
 
 `ffi.cdef` may be called with several strings.  Declarations must be
 complete: function definitions are not accepted, and only the documented

@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.216.0. This document describes the system as built and the design
+Status: 0.217.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -108,7 +108,10 @@ make correct against an unmodified VM.
   `a[i] = b[i]`, in-place `a[i] = a[i] +|-|*|/|//|% v`, scaled source stores
   `a[i] = b[i] +|-|*|/|//|% v`, and two-source stores
   `a[i] = b[i] +|-|*|/|//|% c[i]`, all with the FFI store conversions and the
-  interpreter's FORLOOP key sequence.  Cdata arrays held in closure
+  interpreter's FORLOOP key sequence.  Raw table element stores
+  `dst[i] = src[i] +|-|*|/ k` use a separate helper with the same scalar
+  forms and grow the destination to the run's maximum key.
+  Cdata arrays held in closure
   upvalues reduce, accept pure fills and update in place; 8-byte integer
   destinations accept copy/scalar/pair stores, and integer element arrays
   (including enums) update in place with the bitwise family and unary
@@ -143,9 +146,11 @@ make correct against an unmodified VM.
   are converted by the same runtime helpers as the interpreter and never
   rewrite a source slot (which may be a visible local or a loop-control
   register); a float K constant carries an explicit tag, so `0.0` is not
-  mistaken for an integer zero, and `/` is always float.  64-bit cdata
-  struct/union fields are deliberately not traced because a field read
-  yields cdata int64 rather than a Lua integer.
+  mistaken for an integer zero, and `/` is always float.  Constant-key
+  table stores check `__newindex` for an absent field, and `ADDI`/`FADDI`
+  emit an operand-subtype guard.  64-bit cdata struct/union fields are
+  deliberately not traced because a field read yields cdata int64 rather
+  than a Lua integer.
 * **T3** removes helper-call overhead for FFI-heavy code, the main use case
   of the numeric-Lua ecosystem.
 
@@ -233,7 +238,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.216.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.217.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

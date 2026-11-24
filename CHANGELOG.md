@@ -4,6 +4,49 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.217.0] — 2026-11-24
+
+### Added
+
+- `ffi.cdef` constant expressions accept dotted and indexed `offsetof`
+  member designators, including nested struct/union paths and array
+  elements (`offsetof(S, i.b)`, `offsetof(S, a[1].x)`).  Unknown paths and
+  a final bitfield remain clear errors.
+- `ffi.cdef` evaluates `sizeof("literal")`.  Escapes are decoded before
+  the trailing NUL is counted, so static assertions, enum values and array
+  sizes can use string-literal sizes.
+- J2 runs subtract dot-product and subtract two-array division reductions
+  (`s = s - a[i] * b[i]`, `s = s - a[i] / b[i]`) over raw tables and
+  bounded cdata arrays.  `product - s` is a different expression and is
+  rejected.
+- J2 runs raw-table element stores `dst[i] = src[i] +|-|*|/ k` with
+  constant, register and closure-upvalue scalars, including `ADDI`
+  immediates, in-place stores, destination growth and descending or
+  strided runs.
+
+### Fixed
+
+- J4 constant-string-key field stores now honor `__newindex` for an absent
+  field instead of calling `luaH_set` raw.  Existing raw fields still
+  bypass the handler, as in the interpreter.
+- J4's `ADDI`/`FADDI` choice now emits an operand-subtype guard.  The old
+  trace returned a float for an integer add or reinterpreted a double
+  payload as an integer when the same Proto was entered with the other
+  flavour.
+- The raw-table scaled store grows the destination to the run's maximum
+  key, so descending runs do not write past a freshly grown array.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and `tools/upstream-check.sh`
+are green.  New coverage: `tests/ffi/174_nested_offsetof.lua`,
+`tests/ffi/175_sizeof_string.lua`,
+`tests/ffi/176_j2_cdata_pair_sub.lua`, `tests/jit/193_pair_sub.lua`,
+`tests/jit/194_table_scaled_store.lua`,
+`tests/jit/195_j4_setfield_newindex.lua` and
+`tests/jit/196_j4_addi_guard.lua`.
+
 ## [0.216.0] — 2026-11-24
 
 ### Added

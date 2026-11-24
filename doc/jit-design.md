@@ -46,10 +46,12 @@ is provably observationally equivalent to that interpreter.
   `s = s + a[i] * k` intrinsic whose scalar is a numeric constant, register
   or closure upvalue, the divide and subtract spellings of that shape, and
   a two-array `a[i] / b[i]` reduction.  The same weighted and two-array
-  division reductions run over bounded cdata arrays.  These reductions
-  follow the FORLOOP key sequence for any nonzero integer step, including
-  descending loops; the first/last keys are overflow- and bounds-checked
-  before the run.
+  division reductions run over bounded cdata arrays.  Raw table element
+  stores `dst[i] = src[i] +|-|*|/ k` use their own helper, validate the
+  source run before any write, and grow the destination to the run's
+  maximum key.  These reductions follow the FORLOOP key sequence for any
+  nonzero integer step, including descending loops; the first/last keys
+  are overflow- and bounds-checked before the run.
   Bounded cdata arrays additionally support writes in the default tier:
   `a[i] = v|i|constant` (including 8-byte integer elements and store-only
   `_Bool`/enum destinations), `a[i] = b[i]`, `a[i] = a[i] OP v`,
@@ -70,6 +72,9 @@ is provably observationally equivalent to that interpreter.
   then apply the FFI element-store conversion; pointers (which have no
   bounded length), out-of-bounds runs and 8-byte integer element reads stay
   on the interpreter because those reads produce cdata, not Lua numbers.
+  J4 constant-key table stores check `__newindex` for an absent field, and
+  `ADDI`/`FADDI` guard the operand subtype before choosing the integer or
+  float result.
   A loop whose carried registers change type between iterations is rejected
   (the emitter guards tags only at entry), including straight-line bodies
   that used to be checked only when they contained a branch.  A `Proto` keeps the first compiled
