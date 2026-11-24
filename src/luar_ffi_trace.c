@@ -521,7 +521,7 @@ static FfiNum ffi_num_from_slot (TValue *tv) {
 ** values; the helper never allocates or raises. */
 int luar_ffi_trace_scaled_array (TValue *av, TValue *scalarv, TValue *it,
                                  TValue *ct, TValue *st, TValue *at,
-                                 TValue *ra, TValue *rt, int op) {
+                                 TValue *ra, TValue *rt, int op, int sub) {
   FfiView v;
   FfiNum acc, fac, last_elem, last_prod;
   lua_Integer count, step, idx, last, delta, k;
@@ -572,7 +572,7 @@ int luar_ffi_trace_scaled_array (TValue *av, TValue *scalarv, TValue *it,
       last_prod = ffi_num_flt(ffi_num_double(elem) / ffi_num_double(fac));
     else
       last_prod = ffi_num_mul(elem, fac);
-    acc = ffi_num_add(acc, last_prod);
+    acc = sub ? ffi_num_sub(acc, last_prod) : ffi_num_add(acc, last_prod);
     p += (ptrdiff_t)step * (ptrdiff_t)v.esz;
   }
   ffi_num_store(at, acc);

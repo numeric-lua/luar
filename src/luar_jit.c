@@ -1124,8 +1124,9 @@ static int install_three_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 static int install_cdata_scaled (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
                                  int for_a, const LuaR_PairRead *r,
                                  int scalar_enc, int elem_reg,
-                                 int prod_reg, int acc, int div) {
-  return install_cdata_tint(p, J, backedge, div ? 31 : 30,
+                                 int prod_reg, int acc, int div, int sub) {
+  int kind = (sub ? 34 : 30) + (div ? 1 : 0);
+  return install_cdata_tint(p, J, backedge, kind,
                             encode_pair_source(r), scalar_enc, elem_reg,
                             acc, prod_reg, 0, for_a);
 }
@@ -1142,7 +1143,7 @@ static int install_cdata_scaled (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
 static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
                                int for_a, const LuaR_PairRead *r,
                                int scalar_enc, int elem_reg, int prod_reg,
-                               int acc, int div) {
+                               int acc, int div, int sub) {
   int slot = -1, k;
   if (prod_reg == acc)
     return 0;
@@ -1155,7 +1156,8 @@ static int install_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
   if (slot < 0)
     slot = 1;
   p->luar_code[slot] = NULL;
-  p->luar_tint[slot] = div ? 28 : 15;
+  /* 15/28: multiply/divide, add; 32/33: multiply/divide, subtract. */
+  p->luar_tint[slot] = sub ? (div ? 33 : 32) : (div ? 28 : 15);
   p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = encode_pair_source(r);
@@ -1419,7 +1421,7 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   int mul_a, mul_b, mul_c, scalar_enc = -1, scalar_reg = -1;
   int scalar_pre = -1;
   int acc, prod_reg;
-  int div = 0;
+  int div = 0, sub = 0;
   if (!match_pair_read(p, &i, backedge, for_a, &r))
     return 0;
   if (i >= backedge)
@@ -1486,11 +1488,19 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (i >= backedge)
     return 0;
   add = p->code[i++];
-  if (GET_OPCODE(add) != OP_ADD)
-    return 0;
   acc = GETARG_A(add);
-  if (!((GETARG_B(add) == acc && GETARG_C(add) == mul_a) ||
-        (GETARG_B(add) == mul_a && GETARG_C(add) == acc)))
+  if (GET_OPCODE(add) == OP_SUB) {
+    /* `s - product`; `product - s` is a different reduction. */
+    if (GETARG_B(add) != acc || GETARG_C(add) != mul_a)
+      return 0;
+    sub = 1;
+  }
+  else if (GET_OPCODE(add) == OP_ADD) {
+    if (!((GETARG_B(add) == acc && GETARG_C(add) == mul_a) ||
+          (GETARG_B(add) == mul_a && GETARG_C(add) == acc)))
+      return 0;
+  }
+  else
     return 0;
   if (i >= backedge || GET_OPCODE(p->code[i]) != OP_MMBIN)
     return 0;
@@ -1528,14 +1538,14 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     ckind = pair_cdata_source(b, &r);
     if (ckind != 0)
       return install_cdata_scaled(p, J, backedge, for_a, &r, scalar_enc,
-                                  r.val, prod_reg, acc, div);
+                                  r.val, prod_reg, acc, div, sub);
     if (!ttistable(src))
       return 0;
   }
   if (!ttisinteger(&b[acc]) && !ttisfloat(&b[acc]))
     return 0;
   return install_scaled_sum(p, J, backedge, for_a, &r, scalar_enc,
-                            r.val, prod_reg, acc, div);
+                            r.val, prod_reg, acc, div, sub);
 }
 
 
@@ -4658,7 +4668,7 @@ static TValue *tint_scalar (Proto *p, TValue *base, int enc) {
 static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
                                    Table *h, const TValue *scalar,
                                    int elem_reg, int prod_reg, int acc_reg,
-                                   int div) {
+                                   int div, int sub) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
@@ -4691,7 +4701,7 @@ static int scaled_array_intrinsic (lua_State *L, TValue *base, int for_a,
     LuaR_PairNum elem = pair_from_array(h, key);
     last_elem = elem;
     last_prod = div ? pair_div(elem, fac) : pair_mul(elem, fac);
-    acc = pair_add(acc, last_prod);
+    acc = sub ? pair_sub(acc, last_prod) : pair_add(acc, last_prod);
   }
   if (acc.isflt)
     { setfltvalue(at, acc.d); }
@@ -5868,7 +5878,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           break;
         }
         case 15:
-        case 28: {
+        case 28:
+        case 32:
+        case 33: {
           TValue *sc = tint_scalar(p, (TValue *)base,
                                    p->luar_tint_keys[i]);
           Table *h = pair_source_table((TValue *)base,
@@ -5881,11 +5893,14 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                        sc, p->luar_tint_upval[i],
                                        p->luar_tint_arg4[i],
                                        p->luar_tint_acc[i],
-                                       kind == 28);
+                                       kind == 28 || kind == 33,
+                                       kind == 32 || kind == 33);
           break;
         }
         case 30:
-        case 31: {
+        case 31:
+        case 34:
+        case 35: {
           int enc = p->luar_tint_table[i];
           TValue *av = pair_source_value((TValue *)base,
                                          (enc >= 0) ? enc : -1,
@@ -5901,7 +5916,8 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[p->luar_tint_acc[i]],
                     &((TValue *)base)[p->luar_tint_upval[i]],
                     &((TValue *)base)[p->luar_tint_res[i]],
-                    kind == 31);
+                    kind == 31 || kind == 35,
+                    kind == 34 || kind == 35);
           break;
         }
         case 16: {

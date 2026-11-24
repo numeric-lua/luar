@@ -402,7 +402,7 @@ int luar_ffi_trace_sum_array (TValue *arr, TValue *idx, TValue *count,
 ** keep their last bytecode values. */
 int luar_ffi_trace_scaled_array (TValue *arr, TValue *scalar, TValue *idx,
                                  TValue *count, TValue *step, TValue *acc,
-                                 TValue *elem, TValue *res, int op);
+                                 TValue *elem, TValue *res, int op, int sub);
 int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *idx,
                                TValue *count, TValue *step, TValue *acc,
                                TValue *ra, TValue *rb, TValue *res,
