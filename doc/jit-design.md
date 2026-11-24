@@ -91,7 +91,8 @@ is provably observationally equivalent to that interpreter.
   reductions (add/subtract/multiply/bitwise/shift/divide/modulo) into a
   cdata accumulator, and in-place updates with a cdata scalar, upvalue
   cdata scalar or small integer constant (add/subtract/multiply/bitwise/
-  shift/divide/modulo, including IDIVK/MODK constants).
+  shift/divide/modulo, including IDIVK/MODK constants), and the same
+  updates through an upvalue-array destination.
   J4 constant-key table stores check `__newindex` for an absent field, and
   `ADDI`/`FADDI` guard the operand subtype before choosing the integer or
   float result.
