@@ -1323,6 +1323,72 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `U[i] = U[i] OP k` with an upvalue array and constant scalar. */
+static int match_cdata_upval_update_const (Proto *p, LuaR_JIT *J,
+                                           ptrdiff_t start,
+                                           ptrdiff_t backedge, int for_a,
+                                           TValue *b) {
+  Instruction up1, up2, g, op, s;
+  int dreg, sreg, tmp, opc, code = -1;
+  int64_t scalar = 0;
+  if (start + 6 != backedge)
+    return 0;
+  up1 = p->code[start];
+  up2 = p->code[start + 1];
+  g = p->code[start + 2];
+  op = p->code[start + 3];
+  s = p->code[start + 5];
+  dreg = GETARG_A(up1);
+  sreg = GETARG_A(up2);
+  tmp = GETARG_A(g);
+  if (GET_OPCODE(up1) != OP_GETUPVAL || GET_OPCODE(up2) != OP_GETUPVAL ||
+      GETARG_B(up1) != GETARG_B(up2) ||
+      GET_OPCODE(g) != OP_GETTABLE ||
+      (GET_OPCODE(p->code[start + 4]) != OP_MMBINI &&
+       GET_OPCODE(p->code[start + 4]) != OP_MMBINK &&
+       GET_OPCODE(p->code[start + 4]) != OP_MMBIN) ||
+      GET_OPCODE(s) != OP_SETTABLE ||
+      GETARG_B(g) != sreg || GETARG_C(g) != for_a + 2 ||
+      GETARG_A(op) != tmp || GETARG_B(op) != tmp ||
+      GETARG_A(s) != dreg || GETARG_B(s) != for_a + 2 ||
+      GETARG_C(s) != tmp || GETARG_k(s) ||
+      is_control_reg(dreg, for_a) || is_control_reg(sreg, for_a) ||
+      is_control_reg(tmp, for_a) ||
+      luar_ffi_trace_array_kind64(&b[dreg]) == 0)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADDI) {
+    code = 0; scalar = GETARG_sC(op);
+  }
+  else if (opc == OP_SHLI) {
+    code = 9; scalar = GETARG_sC(op);
+  }
+  else if (opc == OP_SHRI) {
+    int64_t n = GETARG_sC(op);
+    code = (n < 0) ? 9 : 10;
+    scalar = (n < 0) ? -n : n;
+  }
+  else if (opc == OP_ADDK || opc == OP_SUBK || opc == OP_MULK ||
+           opc == OP_BANDK || opc == OP_BORK || opc == OP_BXORK ||
+           opc == OP_IDIVK || opc == OP_MODK) {
+    int idx = GETARG_C(op);
+    if (idx < 0 || idx >= p->sizek || !ttisinteger(&p->k[idx]))
+      return 0;
+    scalar = ivalue(&p->k[idx]);
+    code = (opc == OP_ADDK) ? 0 : (opc == OP_SUBK) ? 1 :
+           (opc == OP_MULK) ? 2 : (opc == OP_IDIVK) ? 3 :
+           (opc == OP_MODK) ? 4 : (opc == OP_BANDK) ? 6 :
+           (opc == OP_BORK) ? 7 : 8;
+  }
+  else
+    return 0;
+  if (scalar < INT32_MIN || scalar > INT32_MAX)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 73, dreg, 0, tmp,
+                            code, 0, (int)scalar, for_a);
+}
+
+
 /* LUAR: cdata stores whose destination array is a closure upvalue.  The
 ** compiler emits GETUPVAL dest followed by the normal body and SETTABLE
 ** dest; the first iteration refreshes the destination slot. */
@@ -3425,6 +3491,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_update_const(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_body(p, J, start, backedge, for_a, b))
