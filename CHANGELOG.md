@@ -4,6 +4,22 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.241.0] — 2026-11-24
+
+### Added
+
+- J2 in-place 8-byte cdata updates through an upvalue-array destination
+  accept a cdata scalar register/upvalue:
+  `U[i] = U[i] +|-|*|&|||~|<<|>> V`.  Runtime helpers validate the scalar
+  and array types without dereferencing record-time registers.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  Extended coverage:
+`tests/ffi/196_j2_i64_update.lua`.
+
 ## [0.240.0] — 2026-11-24
 
 ### Added
