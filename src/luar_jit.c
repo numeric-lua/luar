@@ -425,7 +425,9 @@ static int install_affine_fill (Proto *p, LuaR_JIT *J, ptrdiff_t backedge,
   if (slot < 0)
     slot = 1;
   p->luar_code[slot] = NULL;
-  p->luar_tint[slot] = 4;
+  /* Kind 29; kind 4 is the keyed sum (see install_keyed_sum).  Sharing
+  ** that number made every keyed sum run this fill helper. */
+  p->luar_tint[slot] = 29;
   p->luar_tint_suspend[slot] = 0;
   p->luar_tint_pc[slot] = (int)backedge;
   p->luar_tint_table[slot] = table;
@@ -5771,7 +5773,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                      p->luar_tint_table[i], keys);
           break;
         }
-        case 4:
+        case 4: {
+          Table *keys = tint_keys_table(p, (TValue *)base, i);
+          r = (keys == NULL) ? 0
+              : keyed_sum_intrinsic(L, (TValue *)base, expected_base,
+                                    p->luar_tint_table[i], keys,
+                                    p->luar_tint_acc[i],
+                                    p->luar_tint_res[i]);
+          break;
+        }
+        case 29:
           r = table_affine_fill_intrinsic(L, (TValue *)base, expected_base,
                                           p->luar_tint_table[i],
                                           p->luar_tint_keys[i],
@@ -6061,15 +6072,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                      p->luar_tint_keys[i]);
           break;
         }
-        default: {
-          Table *keys = tint_keys_table(p, (TValue *)base, i);
-          r = (keys == NULL) ? 0
-              : keyed_sum_intrinsic(L, (TValue *)base, expected_base,
-                                    p->luar_tint_table[i], keys,
-                                    p->luar_tint_acc[i],
-                                    p->luar_tint_res[i]);
+        default:
+          /* An unknown kind is a bug, not a keyed sum.  Falling through to
+          ** a helper is how the keyed-sum/affine-fill kind collision went
+          ** unnoticed; fail closed instead. */
+          r = 0;
           break;
-        }
       }
       if (r == 0) {
         J->exits++;
