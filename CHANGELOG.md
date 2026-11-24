@@ -4,6 +4,25 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.227.0] — 2026-11-24
+
+### Added
+
+- Affine/index table fills support any nonzero integer step, including
+  strided and descending loops, for register and closure-upvalue
+  destinations.
+- Affine fills accept register and upvalue scalars for add/subtract/
+  multiply, not only small Proto constants.
+- A float scalar promotes the filled values to floats (`i + 2.5`,
+  `i * 2.5`, `i - 2.5`) while preserving the interpreter's arithmetic.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  Extended coverage:
+`tests/jit/221_table_affine_fill.lua`.
+
 ## [0.226.0] — 2026-11-24
 
 ### Added

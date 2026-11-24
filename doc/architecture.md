@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.226.0. This document describes the system as built and the design
+Status: 0.227.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -117,8 +117,9 @@ make correct against an unmodified VM.
   helper with the same scalar/operand forms, grow the destination to the
   run's maximum key, copy/fill arbitrary values through
   `luaH_getint`/`luaH_setint` (including negative/hash keys), run
-  affine/index fills (`t[i] = i`, `i +/- k`, `i * k`), and clear array
-  ranges with `dst[i] = nil`,
+  affine/index fills (`t[i] = i`, `i +/- k`, `i * k`), including strided,
+  runtime-scalar and float-scalar forms, and clear array ranges with
+  `dst[i] = nil`,
   removing
   sparse hash entries through `luaH_setint`.  The destination may come from
   a closure upvalue, for table and cdata arrays (`U[i] = src[i]`,
@@ -252,7 +253,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.226.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.227.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

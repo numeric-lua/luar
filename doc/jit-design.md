@@ -54,7 +54,8 @@ is provably observationally equivalent to that interpreter.
   copy/fill arbitrary strings, tables, booleans and nil holes through
   `luaH_getint`/`luaH_setint` when the values are not numbers, including
   negative/hash keys.  Affine fills cover `t[i] = i`, `i +/- k` and
-  `i * k`, including a closure-upvalue destination, and
+  `i * k` for any nonzero integer step, integer or float register/upvalue
+  scalars, and a closure-upvalue destination, and
   grow the destination to the run's maximum key; `dst[i] = nil` clears
   array slots directly and removes hash entries through `luaH_setint`.
   The destination may be a closure-upvalue table (`U[i] = src[i]`,
