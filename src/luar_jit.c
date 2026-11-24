@@ -1562,7 +1562,7 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   LuaR_PairRead ra, rb;
   Instruction mul, mm1, add, mm2;
   ptrdiff_t i = start;
-  int res, acc, mb, mc, ab, ac, div = 0;
+  int res, acc, mb, mc, ab, ac, div = 0, sub = 0;
   if (!match_pair_read(p, &i, backedge, for_a, &ra))
     return 0;
   if (!match_pair_read(p, &i, backedge, for_a, &rb))
@@ -1602,12 +1602,20 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
   if (i >= backedge)
     return 0;
   add = p->code[i];
-  if (GET_OPCODE(add) != OP_ADD)
-    return 0;
   acc = GETARG_A(add);
   ab = GETARG_B(add);
   ac = GETARG_C(add);
-  if (!((ab == acc && ac == res) || (ab == res && ac == acc)))
+  if (GET_OPCODE(add) == OP_SUB) {
+    /* acc - product; product - acc is a different reduction. */
+    if (ab != acc || ac != res)
+      return 0;
+    sub = 1;
+  }
+  else if (GET_OPCODE(add) == OP_ADD) {
+    if (!((ab == acc && ac == res) || (ab == res && ac == acc)))
+      return 0;
+  }
+  else
     return 0;
   if (is_control_reg(acc, for_a) || acc == for_a + 2 || acc == res ||
       acc == ra.val || acc == rb.val ||
@@ -1630,8 +1638,8 @@ static int match_dot_product (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     if ((acd != 0) != (bcd != 0))
       return 0;
     return install_pair_intrinsic(p, J, backedge, for_a, &ra, &rb, acc, res,
-                                  (acd != 0) ? (div ? 37 : 19)
-                                             : (div ? 36 : 14));
+                                  (acd != 0) ? (sub ? (div ? 41 : 39) : (div ? 37 : 19))
+                                             : (sub ? (div ? 40 : 38) : (div ? 36 : 14)));
   }
 }
 
@@ -4559,7 +4567,9 @@ static Table *pair_source_table (TValue *base, int reg, int upval) {
 /* kind 12: s = s + a[i] + b[i]
 ** kind 13: s = s + a[i] - b[i]
 ** kind 14: s = s + a[i] * b[i]  (a and b may be the same table)
-** kind 36: s = s + a[i] / b[i]  (division does not commute) */
+** kind 36: s = s + a[i] / b[i]  (division does not commute)
+** kind 38: s = s - a[i] * b[i]
+** kind 40: s = s - a[i] / b[i] */
 static void pair_store_slot (TValue *base, int reg, LuaR_PairNum v,
                              int acc_reg) {
   if (reg < 0 || reg == acc_reg)
@@ -4613,11 +4623,12 @@ static int pair_array_intrinsic (lua_State *L, TValue *base, int for_a,
     LuaR_PairNum bv = pair_from_array(hb, key);
     last_a = av;
     last_b = bv;
-    if (kind == 14 || kind == 36) {
-      LuaR_PairNum prod = (kind == 36) ? pair_div(av, bv)
-                                       : pair_mul(av, bv);
+    if (kind == 14 || kind == 36 || kind == 38 || kind == 40) {
+      int div = (kind == 36 || kind == 40);
+      int sub = (kind == 38 || kind == 40);
+      LuaR_PairNum prod = div ? pair_div(av, bv) : pair_mul(av, bv);
       last_temp = prod;
-      acc = pair_add(acc, prod);
+      acc = sub ? pair_sub(acc, prod) : pair_add(acc, prod);
     }
     else {
       LuaR_PairNum t = pair_add(acc, av);
@@ -5875,7 +5886,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         case 12:
         case 13:
         case 14:
-        case 36: {
+        case 36:
+        case 38:
+        case 40: {
           int aenc = p->luar_tint_table[i];
           int benc = p->luar_tint_keys[i];
           int areg = (aenc >= 0) ? aenc : -1;
@@ -5952,7 +5965,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
         case 17:
         case 18:
         case 19:
-        case 37: {
+        case 37:
+        case 39:
+        case 41: {
           int aenc = p->luar_tint_table[i];
           int benc = p->luar_tint_keys[i];
           TValue *av = pair_source_value((TValue *)base,
@@ -5971,7 +5986,10 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[p->luar_tint_upval[i]],
                     &((TValue *)base)[p->luar_tint_arg4[i]],
                     &((TValue *)base)[p->luar_tint_res[i]],
-                    (kind == 37) ? 3 : kind - 17);
+                    (kind == 19) ? 2 :
+                    (kind == 37) ? 3 :
+                    (kind == 39) ? 4 :
+                    (kind == 41) ? 5 : kind - 17);
           break;
         }
         case 25: {

@@ -585,11 +585,13 @@ int luar_ffi_trace_scaled_array (TValue *av, TValue *scalarv, TValue *it,
 }
 
 /* J2: `s = s + a[i] + b[i]`, `s = s + a[i] - b[i]`,
-** `s = s + a[i] * b[i]` and `s = s + a[i] / b[i]` over two bounded cdata
-** arrays.  Both the element temporaries and the intermediate/final
-** accumulator registers are left with the values the interpreter would
-** hold after the run.  kind is 0 (add), 1 (subtract), 2 (multiply/dot
-** product) or 3 (divide). */
+** `s = s + a[i] * b[i]`, `s = s + a[i] / b[i]` and the two subtract
+** spellings `s = s - a[i] * b[i]` / `s = s - a[i] / b[i]` over two
+** bounded cdata arrays.  Both the element temporaries and the
+** intermediate/final accumulator registers are left with the values the
+** interpreter would hold after the run.  kind is 0 (add), 1 (subtract),
+** 2 (multiply add), 3 (divide add), 4 (multiply subtract) or 5 (divide
+** subtract). */
 int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *it,
                                TValue *ct, TValue *st, TValue *at,
                                TValue *ra, TValue *rb, TValue *rt,
@@ -642,12 +644,14 @@ int luar_ffi_trace_pair_array (TValue *av, TValue *bv, TValue *it,
       y = ffi_view_load(&vb, pb);
       last_a = x;
       last_b = y;
-      if (kind == 2 || kind == 3) {
-        FfiNum prod = (kind == 3)
+      if (kind >= 2) {
+        int div = (kind == 3 || kind == 5);
+        int sub = (kind == 4 || kind == 5);
+        FfiNum prod = div
                         ? ffi_num_flt(ffi_num_double(x) / ffi_num_double(y))
                         : ffi_num_mul(x, y);
         last_temp = prod;
-        acc = ffi_num_add(acc, prod);
+        acc = sub ? ffi_num_sub(acc, prod) : ffi_num_add(acc, prod);
       }
       else {
         FfiNum t = ffi_num_add(acc, x);
