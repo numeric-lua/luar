@@ -1765,6 +1765,85 @@ static int match_scaled_sum (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `U[i] = nil` where the destination table comes from a closure
+** upvalue.  The compiler emits GETUPVAL dest; SETTABLE dest,key,nil. */
+static int match_table_upval_nil (Proto *p, LuaR_JIT *J,
+                                  ptrdiff_t start, ptrdiff_t backedge,
+                                  int for_a, TValue *b) {
+  ptrdiff_t pos = start;
+  Instruction u, s;
+  int key = for_a + 2, dreg;
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETUPVAL)
+    return 0;
+  u = p->code[pos++];
+  dreg = GETARG_A(u);
+  if (is_control_reg(dreg, for_a) || !ttistable(&b[dreg]))
+    return 0;
+  if (pos >= backedge)
+    return 0;
+  s = p->code[pos++];
+  if (GET_OPCODE(s) != OP_SETTABLE || GETARG_A(s) != dreg ||
+      GETARG_B(s) != key || !TESTARG_k(s) ||
+      GETARG_C(s) >= p->sizek || !ttisnil(&p->k[GETARG_C(s)]) ||
+      pos != backedge)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 58, dreg, 0, 0, 0, 0, 0,
+                            for_a);
+}
+
+
+/* LUAR: `U[i] = src[i]` where the destination table comes from a closure
+** upvalue.  The compiler emits GETUPVAL dest; GETTABLE src; SETTABLE
+** dest.  The destination slot is re-read from the closure on every entry. */
+static int match_table_upval_copy (Proto *p, LuaR_JIT *J,
+                                   ptrdiff_t start, ptrdiff_t backedge,
+                                   int for_a, TValue *b) {
+  ptrdiff_t pos = start;
+  Instruction u, g, s;
+  int key = for_a + 2, dreg, tmp, src, src_up_enc = 0, src_up_reg = -1;
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETUPVAL)
+    return 0;
+  u = p->code[pos++];
+  dreg = GETARG_A(u);
+  if (is_control_reg(dreg, for_a) || !ttistable(&b[dreg]))
+    return 0;
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    src_up_reg = GETARG_A(up);
+    if (is_control_reg(src_up_reg, for_a))
+      return 0;
+    src_up_enc = -1 - GETARG_B(up);
+  }
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETTABLE)
+    return 0;
+  g = p->code[pos++];
+  tmp = GETARG_A(g);
+  src = GETARG_B(g);
+  if (src_up_enc != 0 && src != src_up_reg)
+    return 0;
+  if (GETARG_C(g) != key || tmp == key || tmp == dreg ||
+      (src_up_enc == 0 && tmp == src) ||
+      is_control_reg(tmp, for_a) || is_control_reg(src, for_a))
+    return 0;
+  {
+    int src_enc = (src_up_enc != 0) ? src_up_enc : src;
+    TValue *sv = pair_source_value(b, (src_enc >= 0) ? src_enc : -1,
+                                   (src_enc >= 0) ? -1 : (-1 - src_enc));
+    if (sv == NULL || !ttistable(sv))
+      return 0;
+    if (pos >= backedge)
+      return 0;
+    s = p->code[pos++];
+    if (GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) ||
+        GETARG_A(s) != dreg || GETARG_B(s) != key ||
+        GETARG_C(s) != tmp || pos != backedge)
+      return 0;
+    return install_cdata_tint(p, J, backedge, 57, dreg, src_enc, tmp,
+                              0, 0, 0, for_a);
+  }
+}
+
+
 /* LUAR: `dst[i] = nil` over a raw table array.  The run must stay inside
 ** the existing array part and the table must have no metatable, so the
 ** interpreter would perform plain nonexistent-key writes. */
@@ -2765,6 +2844,12 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_table_nil_store(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_table_upval_nil(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_table_upval_copy(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_table_unary_store(p, J, start, backedge, for_a, b))
@@ -5306,36 +5391,96 @@ static TValue *tint_scalar (Proto *p, TValue *base, int enc) {
 }
 
 
-/* kind 51: dst[i] = nil over a raw table array.  Clearing array slots is
-** a plain tag/value write; the run is bounded to the existing array part
-** and a metatable declines so __newindex never matters. */
-static int table_nil_store_intrinsic (TValue *base, int for_a, int dst_reg) {
+/* Copy a numeric source array into a destination table (a closure
+** upvalue for kind 57).  The source and destination may be the same. */
+static int table_copy_to_intrinsic (lua_State *L, TValue *base, int for_a,
+                                    Table *dst, TValue *srcv, int tmp_reg) {
   TValue *ct = &base[for_a];
   TValue *st = &base[for_a + 1];
   TValue *it = &base[for_a + 2];
-  TValue *tt = &base[dst_reg];
-  Table *h;
+  Table *src;
+  LuaR_PairNum last;
+  lua_Integer count, step, idx, lastkey, maxkey, ckey, k;
+  if (dst == NULL || srcv == NULL || !ttistable(srcv))
+    return 0;
+  src = hvalue(srcv);
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!for_run_last(idx, count, step, &lastkey) ||
+      !array_run_bounds(src, idx, lastkey) ||
+      !array_run_numeric(src, idx, count, step))
+    return 0;
+  maxkey = (idx > lastkey) ? idx : lastkey;
+  if (dst->metatable != NULL || maxkey > (1 << 22))
+    return 0;
+  if (dst->asize < (unsigned)maxkey)
+    luaH_resizearray(L, dst, (unsigned)maxkey);
+  last = pair_int(0);
+  for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
+    LuaR_PairNum v = pair_from_array(src, (unsigned)ckey);
+    TValue tv;
+    last = v;
+    if (v.isflt) {
+      setfltvalue(&tv, v.d);
+    }
+    else {
+      setivalue(&tv, v.i);
+    }
+    obj2arr(dst, (unsigned)ckey, &tv);
+  }
+  pair_store_slot(base, tmp_reg, last, -1);
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
+/* Clear a run of keys in an existing table.  Array slots are cleared
+** directly; sparse keys use luaH_setint (which removes hash entries). */
+static int table_nil_clear (lua_State *L, TValue *base, int for_a,
+                            Table *h) {
+  TValue *ct = &base[for_a];
+  TValue *st = &base[for_a + 1];
+  TValue *it = &base[for_a + 2];
   lua_Integer count, step, idx, last, ckey, k;
-  if (!ttistable(tt) || !ttisinteger(ct) || !ttisinteger(st) ||
-      !ttisinteger(it))
+  if (!ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
   idx = ivalue(it);
   if (!for_run_last(idx, count, step, &last) || idx < 1 || last < 1)
     return 0;
-  h = hvalue(tt);
-  if (h->metatable != NULL || (lua_Unsigned)idx > h->asize ||
-      (lua_Unsigned)last > h->asize)
+  if (h == NULL || h->metatable != NULL ||
+      (idx > last ? idx : last) > (1 << 22))
     return 0;
   for (k = 0, ckey = idx - 1; k <= count; k++, ckey += step) {
     unsigned key = (unsigned)ckey;
-    *getArrTag(h, key) = LUA_VEMPTY;
-    memset(getArrVal(h, key), 0, sizeof(Value));
+    if ((lua_Unsigned)ckey < h->asize) {
+      *getArrTag(h, key) = LUA_VEMPTY;
+      memset(getArrVal(h, key), 0, sizeof(Value));
+    }
+    else {
+      TValue nilv;
+      setnilvalue(&nilv);
+      luaH_setint(L, h, (lua_Integer)ckey, &nilv);
+    }
   }
   setivalue(ct, 0);
   setivalue(it, last);
   return 1;
+}
+
+
+/* kind 51: dst[i] = nil over a raw table array. */
+static int table_nil_store_intrinsic (lua_State *L, TValue *base, int for_a,
+                                      int dst_reg) {
+  TValue *tt = &base[dst_reg];
+  if (!ttistable(tt))
+    return 0;
+  return table_nil_clear(L, base, for_a, hvalue(tt));
 }
 
 
@@ -6751,8 +6896,32 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   (p->luar_tint_upval[i] >> 8) & 0xff,
                   p->luar_tint_acc[i]);
           break;
+        case 58:
+          if (!ttistable(&((TValue *)base)[p->luar_tint_table[i]])) {
+            r = 0;
+            break;
+          }
+          r = table_nil_clear(L, (TValue *)base, expected_base,
+                              hvalue(&((TValue *)base)[p->luar_tint_table[i]]));
+          break;
+        case 57: {
+          int denc = p->luar_tint_table[i];
+          int senc = p->luar_tint_keys[i];
+          TValue *srcv = pair_source_value((TValue *)base,
+                                           (senc >= 0) ? senc : -1,
+                                           (senc >= 0) ? -1 : (-1 - senc));
+          if (srcv == NULL || !ttistable(&((TValue *)base)[denc])) {
+            r = 0;
+            break;
+          }
+          r = table_copy_to_intrinsic(
+                  L, (TValue *)base, expected_base,
+                  hvalue(&((TValue *)base)[denc]), srcv,
+                  p->luar_tint_upval[i]);
+          break;
+        }
         case 51:
-          r = table_nil_store_intrinsic((TValue *)base, expected_base,
+          r = table_nil_store_intrinsic(L, (TValue *)base, expected_base,
                                         p->luar_tint_table[i]);
           break;
         case 54:

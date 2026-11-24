@@ -89,16 +89,18 @@ H.eq(t[1], nil, "strided 1")
 H.eq(t[2], 2, "strided 2 kept")
 H.eq(t[200], 200, "strided 200 kept")
 
--- A run past the array part stays interpreted but is still correct.
+-- A run past the array part clears the array slots and removes any hash
+-- entries through the sparse path.
 t = filled(100)
 jit.flush()
 jit.opt.start("ir=0", "hotloop=1", "tint=1")
 jit.on()
 before = jit.stats().tint_hits
 clear_all(t, 200)
-H.eq(jit.stats().tint_hits, before, "out-of-array clear must not use the intrinsic")
-H.eq(count(t), 1, "out-of-array clear result")
-H.eq(t[100], nil, "out-of-array last array key")
+H.check(jit.stats().tint_hits > before, "sparse clear did not use the intrinsic")
+H.eq(count(t), 1, "sparse clear result")
+H.eq(t[100], nil, "sparse clear last array key")
+H.eq(t[150], nil, "sparse clear absent key")
 
 -- An absent key with __newindex invokes the handler; the intrinsic declines.
 local hits = 0
