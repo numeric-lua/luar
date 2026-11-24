@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.222.1. This document describes the system as built and the design
+Status: 0.223.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -117,8 +117,9 @@ make correct against an unmodified VM.
   helper with the same scalar/operand forms, grow the destination to the
   run's maximum key, and clear array ranges with `dst[i] = nil`, removing
   sparse hash entries through `luaH_setint`.  The destination may come from
-  a closure upvalue (`U[i] = src[i]` / `U[i] = nil`), re-resolved each
-  entry.  Bitwise forms require integer
+  a closure upvalue, for table and cdata arrays (`U[i] = src[i]`,
+  `U[i] = src[i] OP k`, `U[i] = a[i] OP b[i]`, `U[i] = -src[i]`,
+  `U[i] = nil`), re-resolved each entry.  Bitwise forms require integer
   elements and shift counts follow Lua's reverse-on-negative rule.
   Cdata arrays held in closure
   upvalues reduce, accept pure fills and update in place; 8-byte integer
@@ -247,7 +248,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.222.1` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.223.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.

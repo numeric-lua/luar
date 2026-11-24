@@ -4,6 +4,35 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.223.0] — 2026-11-24
+
+### Added
+
+- J2 table arithmetic stores support a closure-upvalue destination:
+  `U[i] = src[i] OP k`, `U[i] = a[i] OP b[i]` and
+  `U[i] = -src[i]`/`~src[i]`.  The destination slot is refreshed by the
+  first interpreted iteration and re-checked on every entry.
+- J2 bounded-cdata stores support a closure-upvalue destination for
+  copies (`U[i] = src[i]`), scalar/bitwise stores, two-source stores and
+  unary `-`/`~` forms.  Rebinding the upvalue or a non-cdata destination
+  falls back cleanly.
+
+### Fixed
+
+- J4 `CPSETI`/`CPSETF`/`CPSETI64` pointer-field element writes dispatch to
+  the matching `cset_ptr_*` helper.  They previously fell through the
+  `CCALL0D` case and called `ccall0_double`, so the fused write always
+  failed and exited to the interpreter.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/jit/217_table_upval_arith_store.lua`,
+`tests/ffi/189_cdata_upval_dest_store.lua` and
+`tests/ffi/190_j4_ptr_field_store.lua`.
+
 ## [0.222.1] — 2026-11-24
 
 ### Fixed

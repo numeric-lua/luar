@@ -53,8 +53,10 @@ is provably observationally equivalent to that interpreter.
   use their own helper, validate the source run before any write, and
   grow the destination to the run's maximum key; `dst[i] = nil` clears
   array slots directly and removes hash entries through `luaH_setint`.
-  The destination may be a closure-upvalue table (`U[i] = src[i]` or
-  `U[i] = nil`), re-resolved from the closure each entry.  These reductions follow the FORLOOP key sequence for any
+  The destination may be a closure-upvalue table (`U[i] = src[i]`,
+  `U[i] = src[i] OP k`, `U[i] = a[i] OP b[i]`, `U[i] = -src[i]` or
+  `U[i] = nil`), re-resolved from the closure each entry.  The same
+  destination-prefix rule applies to bounded cdata arrays.  These reductions follow the FORLOOP key sequence for any
   nonzero integer step, including descending loops; the first/last keys
   are overflow- and bounds-checked before the run.
   Bounded cdata arrays additionally support writes in the default tier:
