@@ -1160,6 +1160,41 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: cdata stores whose destination array is a closure upvalue.  The
+** compiler emits GETUPVAL dest followed by the normal body and SETTABLE
+** dest; the first iteration refreshes the destination slot. */
+static int match_cdata_upval_body (Proto *p, LuaR_JIT *J,
+                                   ptrdiff_t start, ptrdiff_t backedge,
+                                   int for_a, TValue *b) {
+  ptrdiff_t body = start + 1;
+  Instruction up;
+  int dreg, j;
+  if (start >= backedge || GET_OPCODE(p->code[start]) != OP_GETUPVAL)
+    return 0;
+  up = p->code[start];
+  dreg = GETARG_A(up);
+  if (is_control_reg(dreg, for_a))
+    return 0;
+  for (j = 0; j < (int)(backedge - body); j++) {
+    Instruction s = p->code[start + 1 + j];
+    if (GET_OPCODE(s) == OP_SETTABLE && GETARG_A(s) == dreg &&
+        GETARG_B(s) == for_a + 2)
+      break;
+  }
+  if (j >= (int)(backedge - body))
+    return 0;
+  if (match_cdata_unary_store(p, J, body, backedge, for_a, b))
+    return 1;
+  if (match_cdata_pair_store(p, J, body, backedge, for_a, b))
+    return 1;
+  if (match_cdata_store(p, J, body, backedge, for_a, b))
+    return 1;
+  if (match_cdata_scalar_store(p, J, body, backedge, for_a, b))
+    return 1;
+  return 0;
+}
+
+
 /* Match `s = s + obj.field[i]` where `obj` is a table in a register and
 ** `field` is a constant string key naming a raw table field.  The helper
 ** re-reads the field on every entry, so replacing it or changing the array
@@ -1841,6 +1876,56 @@ static int match_table_upval_copy (Proto *p, LuaR_JIT *J,
     return install_cdata_tint(p, J, backedge, 57, dreg, src_enc, tmp,
                               0, 0, 0, for_a);
   }
+}
+
+
+static int match_table_nil_store (Proto *p, LuaR_JIT *J,
+                                  ptrdiff_t start, ptrdiff_t backedge,
+                                  int for_a, TValue *b);
+static int match_table_unary_store (Proto *p, LuaR_JIT *J,
+                                    ptrdiff_t start, ptrdiff_t backedge,
+                                    int for_a, TValue *b);
+static int match_table_pair_store (Proto *p, LuaR_JIT *J,
+                                   ptrdiff_t start, ptrdiff_t backedge,
+                                   int for_a, TValue *b);
+static int match_table_scaled_store (Proto *p, LuaR_JIT *J,
+                                     ptrdiff_t start, ptrdiff_t backedge,
+                                     int for_a, TValue *b);
+
+/* LUAR: table stores whose destination is a closure-upvalue table.  The
+** compiler emits GETUPVAL dest followed by the normal body and SETTABLE
+** dest.  The prefix is outside the intrinsic range, so the first body
+** iteration refreshes the destination slot; the helper re-checks the slot
+** on every entry. */
+static int match_table_upval_body (Proto *p, LuaR_JIT *J,
+                                   ptrdiff_t start, ptrdiff_t backedge,
+                                   int for_a, TValue *b) {
+  ptrdiff_t body = start + 1;
+  Instruction up;
+  int dreg, j;
+  if (start >= backedge || GET_OPCODE(p->code[start]) != OP_GETUPVAL)
+    return 0;
+  up = p->code[start];
+  dreg = GETARG_A(up);
+  if (is_control_reg(dreg, for_a) || !ttistable(&b[dreg]))
+    return 0;
+  for (j = 0; j < (int)(backedge - body); j++) {
+    Instruction s = p->code[start + 1 + j];
+    if (GET_OPCODE(s) == OP_SETTABLE && GETARG_A(s) == dreg &&
+        GETARG_B(s) == for_a + 2)
+      break;
+  }
+  if (j >= (int)(backedge - body))
+    return 0;
+  if (match_table_nil_store(p, J, body, backedge, for_a, b))
+    return 1;
+  if (match_table_unary_store(p, J, body, backedge, for_a, b))
+    return 1;
+  if (match_table_pair_store(p, J, body, backedge, for_a, b))
+    return 1;
+  if (match_table_scaled_store(p, J, body, backedge, for_a, b))
+    return 1;
+  return 0;
 }
 
 
@@ -2852,6 +2937,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
         match_table_upval_copy(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
+        match_table_upval_body(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
         match_table_unary_store(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
@@ -2865,6 +2953,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_body(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_unary_store(p, J, start, backedge, for_a, b))
