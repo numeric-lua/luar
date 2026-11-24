@@ -853,13 +853,15 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
       scalar = (n < 0) ? -n : n;
     }
     else if (opc == OP_ADDK || opc == OP_SUBK || opc == OP_MULK ||
-             opc == OP_BANDK || opc == OP_BORK || opc == OP_BXORK) {
+             opc == OP_BANDK || opc == OP_BORK || opc == OP_BXORK ||
+             opc == OP_IDIVK || opc == OP_MODK) {
       int idx = GETARG_C(op);
       if (idx < 0 || idx >= p->sizek || !ttisinteger(&p->k[idx]))
         return 0;
       scalar = ivalue(&p->k[idx]);
       code = (opc == OP_ADDK) ? 0 : (opc == OP_SUBK) ? 1 :
-             (opc == OP_MULK) ? 2 : (opc == OP_BANDK) ? 6 :
+             (opc == OP_MULK) ? 2 : (opc == OP_IDIVK) ? 3 :
+             (opc == OP_MODK) ? 4 : (opc == OP_BANDK) ? 6 :
              (opc == OP_BORK) ? 7 : 8;
     }
     else

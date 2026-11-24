@@ -62,8 +62,11 @@ do
   local function mulc (a, n) for i = 0, n - 1 do a[i] = a[i] * 3 end return a end
   local function bandc (a, n) for i = 0, n - 1 do a[i] = a[i] & 3 end return a end
   local function shlc (a, n) for i = 0, n - 1 do a[i] = a[i] << 2 end return a end
+  local function idivc (a, n) for i = 0, n - 1 do a[i] = a[i] // 3 end return a end
+  local function modc (a, n) for i = 0, n - 1 do a[i] = a[i] % 3 end return a end
   for name, f in pairs{ add = addc, sub = subc, mul = mulc,
-                        band = bandc, shl = shlc } do
+                        band = bandc, shl = shlc, idiv = idivc,
+                        mod = modc } do
     jit.off()
     local want = f(init2(), N)
     jit.flush()
@@ -74,6 +77,24 @@ do
     f(a, N)
     H.check(jit.stats().tint_hits > before, name .. " constant did not run")
     for i = 0, N - 1 do H.eq(a[i], want[i], name .. " constant " .. i) end
+  end
+end
+
+-- Constant zero divisor uses the cdata INT64_MIN result.
+do
+  local function idivz (a, n) for i = 0, n - 1 do a[i] = a[i] // 0 end return a end
+  local function modz (a, n) for i = 0, n - 1 do a[i] = a[i] % 0 end return a end
+  for name, f in pairs{ idiv = idivz, mod = modz } do
+    jit.off()
+    local want = f(init(), N)
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local a = init()
+    local before = jit.stats().tint_hits
+    f(a, N)
+    H.check(jit.stats().tint_hits > before, name .. " zero did not run")
+    for i = 0, N - 1 do H.eq(a[i], want[i], name .. " zero " .. i) end
   end
 end
 
@@ -108,6 +129,19 @@ do
   idiv(U, V3, N)
   H.check(jit.stats().tint_hits > before, "uint64 divide did not run")
   for i = 0, N - 1 do H.eq(U[i], want[i], "uint64 divide " .. i) end
+
+  for i = 0, N - 1 do U[i] = i + 1 end
+  jit.off()
+  local wantm = ffi.new("uint64_t[?]", N)
+  for i = 0, N - 1 do wantm[i] = U[i] % 3 end
+  jit.flush()
+  jit.opt.start("ir=0", "hotloop=1", "tint=1")
+  jit.on()
+  before = jit.stats().tint_hits
+  local function umod (a, _, n) for i = 0, n - 1 do a[i] = a[i] % 3 end return a end
+  umod(U, nil, N)
+  H.check(jit.stats().tint_hits > before, "uint64 modulo did not run")
+  for i = 0, N - 1 do H.eq(U[i], wantm[i], "uint64 modulo " .. i) end
 end
 
 jit.flush()
