@@ -1296,6 +1296,16 @@ int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
         acc *= bits;
       else if (op == 1)
         acc -= bits;
+      else if (op == 3)
+        acc &= bits;
+      else if (op == 4)
+        acc |= bits;
+      else if (op == 5)
+        acc ^= bits;
+      else if (op == 6)
+        acc <<= (unsigned)(bits & 63);
+      else if (op == 7)
+        acc = (uint64_t)acc >> (unsigned)(bits & 63);
       else
         acc += bits;
       ps += (ptrdiff_t)step * (ptrdiff_t)va.esz;
