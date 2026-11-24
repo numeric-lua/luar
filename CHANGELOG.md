@@ -4,6 +4,26 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.224.0] — 2026-11-24
+
+### Added
+
+- J2 table element copies handle arbitrary values: strings, tables,
+  booleans and nil holes, for register and closure-upvalue destinations
+  and sources.  Numeric copies keep the fast pair path; non-numeric or
+  sparse runs use `luaH_getint`/`luaH_setint`.
+- J2 table fills accept non-numeric constant, register and upvalue values
+  (`t[i] = "x"`, `t[i] = true`, `t[i] = obj`, `t[i] = U`), including
+  closure-upvalue destinations.  Numeric fills keep the affine helper.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/jit/218_table_value_copy.lua` and
+`tests/jit/219_table_value_fill.lua`.
+
 ## [0.223.0] — 2026-11-24
 
 ### Added
