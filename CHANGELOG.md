@@ -33,6 +33,14 @@ the runtime, while the Lua language surface follows upstream Lua.
   trace returned a float for an integer add or reinterpreted a double
   payload as an integer when the same Proto was entered with the other
   flavour.
+- J4 rejects a constant `RK(C)` value in `OP_SETTABLE` instead of using
+  the constant-table index as a stack slot.  A hot `t[i] = nil` therefore
+  deletes the key instead of writing an unrelated local.
+- J4's integer analyzer tracks table/string/boolean field reads and
+  rejects table, string, userdata and boolean operands in raw integer
+  arithmetic.  Table-valued fields and `__add`/`__sub` metatables on
+  strings or userdata now call the metamethod instead of treating the
+  value as an integer.
 - The raw-table scaled store grows the destination to the run's maximum
   key, so descending runs do not write past a freshly grown array.
 
@@ -44,8 +52,10 @@ are green.  New coverage: `tests/ffi/174_nested_offsetof.lua`,
 `tests/ffi/175_sizeof_string.lua`,
 `tests/ffi/176_j2_cdata_pair_sub.lua`, `tests/jit/193_pair_sub.lua`,
 `tests/jit/194_table_scaled_store.lua`,
-`tests/jit/195_j4_setfield_newindex.lua` and
-`tests/jit/196_j4_addi_guard.lua`.
+`tests/jit/195_j4_setfield_newindex.lua`,
+`tests/jit/196_j4_addi_guard.lua`,
+`tests/jit/197_j4_const_store.lua` and
+`tests/jit/198_j4_arith_meta.lua`.
 
 ## [0.216.0] — 2026-11-24
 

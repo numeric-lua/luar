@@ -27,6 +27,11 @@ raw-table scaled-store J2 intrinsics, and fixes two J4 miscompiles.
 - J4's `ADDI`/`FADDI` selection is guarded by the operand subtype.  The
   same trace can no longer return a float for an integer `+ 1` or treat a
   double payload as an integer when re-entered with the other flavour.
+- J4 rejects constant `RK(C)` values in `OP_SETTABLE`; a hot `t[i] = nil`
+  deletes the key instead of treating the constant-table index as a slot.
+- J4's integer analyzer tracks table/string/boolean field reads and
+  rejects table, string, userdata and boolean arithmetic operands, so
+  `__add`/`__sub` handlers are called instead of a raw integer add.
 - The raw-table scaled store grows the destination array to the maximum
   key in the run, fixing a descending-step out-of-bounds write.
 - Metatables on store destinations, non-numeric source elements and
@@ -53,6 +58,8 @@ New tests:
 - `tests/jit/194_table_scaled_store.lua`
 - `tests/jit/195_j4_setfield_newindex.lua`
 - `tests/jit/196_j4_addi_guard.lua`
+- `tests/jit/197_j4_const_store.lua`
+- `tests/jit/198_j4_arith_meta.lua`
 
 ## Known limitations
 

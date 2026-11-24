@@ -7174,6 +7174,15 @@ static int ir_side_allows (Proto *p, TValue *base, LuaR_TraceIR *ir) {
 }
 
 
+/* A known string/userdata/table/boolean slot cannot be used by the raw
+** integer arithmetic emitters: the interpreter would call a metamethod or
+** raise.  Unknown (-1) slots are left to the recorder's guards. */
+static int ir_bad_arith_tag (int tag) {
+  return tag == LUAR_IR_TAG_TABLE || tag == LUAR_IR_TAG_OTHER ||
+         tag == LUAR_IR_TAG_STRING || tag == LUAR_IR_TAG_USERDATA;
+}
+
+
 static int ir_integer_only (const LuaR_TraceIR *ir) {
   int i, tag[LUAR_IR_MAX_SLOTS];
   for (i = 0; i < ir->nins; i++)
@@ -7221,6 +7230,12 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
     }
     else if (in->kind == LUAR_IR_TGETK || in->kind == LUAR_IR_TGETI)
       tag[in->a] = LUAR_IR_TAG_INT;
+    else if (in->kind == LUAR_IR_TGETKT)
+      tag[in->a] = LUAR_IR_TAG_TABLE;
+    else if (in->kind == LUAR_IR_TGETKS)
+      tag[in->a] = LUAR_IR_TAG_STRING;
+    else if (in->kind == LUAR_IR_TGETKB)
+      tag[in->a] = LUAR_IR_TAG_OTHER;   /* boolean has no arithmetic */
     else if (in->kind == LUAR_IR_TGET)
       tag[in->a] = -1;   /* dynamic value; following guards decide */
   }
@@ -7228,16 +7243,12 @@ static int ir_integer_only (const LuaR_TraceIR *ir) {
     const LuaR_IRIns *in = &ir->ins[i];
     if (in->kind == LUAR_IR_ADD || in->kind == LUAR_IR_SUB ||
         in->kind == LUAR_IR_MUL || in->kind == LUAR_IR_DIV) {
-      if (tag[in->b] == LUAR_IR_TAG_TABLE ||
-          tag[in->b] == LUAR_IR_TAG_OTHER ||
-          tag[in->c] == LUAR_IR_TAG_TABLE ||
-          tag[in->c] == LUAR_IR_TAG_OTHER)
+      if (ir_bad_arith_tag(tag[in->b]) || ir_bad_arith_tag(tag[in->c]))
         return 0;
     }
     if ((in->kind == LUAR_IR_ADDI ||
          (in->kind >= LUAR_IR_ADDK && in->kind <= LUAR_IR_IDIVK)) &&
-        (tag[in->b] == LUAR_IR_TAG_TABLE ||
-         tag[in->b] == LUAR_IR_TAG_OTHER))
+        ir_bad_arith_tag(tag[in->b]))
       return 0;
     if (in->kind >= LUAR_IR_ADDK && in->kind <= LUAR_IR_IDIVK &&
         in->kfloat)

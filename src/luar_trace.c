@@ -3946,7 +3946,7 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           r = luar_trace_ir_emit(t, &in);
           break;
         }
-        if (ttistable(&base[a]) &&
+        if (!TESTARG_k(ins) && ttistable(&base[a]) &&
             ((Table *)base[a].value_.gc)->metatable == NULL &&
             b < ns && c < ns &&
             (ttisfloat(&base[c]) || ttistable(&base[c]) ||
@@ -3989,6 +3989,12 @@ static int record_loop (Proto *p, int start, int backedge, TValue *base,
           r = luar_trace_ir_emit(t, &in);
           break;
         }
+        /* RK(C) is a constant value, not a stack slot.  This path has no
+        ** constant-value store op (nil would delete the key), so leave the
+        ** instruction to the interpreter instead of treating the constant
+        ** index as a register. */
+        if (TESTARG_k(ins))
+          return 0;
         if (!seen[a]) {
           in.kind = LUAR_IR_GUARD; in.a = (uint8_t)a;
           in.b = (uint8_t)ir_tag(&base[a]); in.pc = pc;
