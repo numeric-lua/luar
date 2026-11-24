@@ -54,6 +54,29 @@ run("mod", mod, V)
 run("zero idiv", idiv, ffi.new("int64_t", 0))
 run("zero mod", mod, ffi.new("int64_t", 0))
 
+-- Small integer constants (immediate/K forms).
+do
+  local function init2 () local a = ffi.new("int64_t[?]", N); for i = 0, N - 1 do a[i] = i + 1 end return a end
+  local function addc (a, n) for i = 0, n - 1 do a[i] = a[i] + 3 end return a end
+  local function subc (a, n) for i = 0, n - 1 do a[i] = a[i] - 3 end return a end
+  local function mulc (a, n) for i = 0, n - 1 do a[i] = a[i] * 3 end return a end
+  local function bandc (a, n) for i = 0, n - 1 do a[i] = a[i] & 3 end return a end
+  local function shlc (a, n) for i = 0, n - 1 do a[i] = a[i] << 2 end return a end
+  for name, f in pairs{ add = addc, sub = subc, mul = mulc,
+                        band = bandc, shl = shlc } do
+    jit.off()
+    local want = f(init2(), N)
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local a = init2()
+    local before = jit.stats().tint_hits
+    f(a, N)
+    H.check(jit.stats().tint_hits > before, name .. " constant did not run")
+    for i = 0, N - 1 do H.eq(a[i], want[i], name .. " constant " .. i) end
+  end
+end
+
 -- uint64 destination with a cdata scalar.
 do
   local U = ffi.new("uint64_t[?]", N)

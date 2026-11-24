@@ -823,6 +823,52 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return install_cdata_tint(p, J, backedge, 71, arr, scalar, tmp,
                               code, 0, 0, for_a);
   }
+  /* a[i] = a[i] OP small integer for 8-byte integer arrays. */
+  if (n == 5 && GET_OPCODE(i0) == OP_GETTABLE &&
+      (GET_OPCODE(p->code[start + 2]) == OP_MMBIN ||
+       GET_OPCODE(p->code[start + 2]) == OP_MMBINI ||
+       GET_OPCODE(p->code[start + 2]) == OP_MMBINK) &&
+      GET_OPCODE(p->code[start + 3]) == OP_SETTABLE &&
+      backedge == start + 4) {
+    Instruction g = i0, op = p->code[start + 1], s = p->code[start + 3];
+    int tmp = GETARG_A(g), arr = GETARG_B(g);
+    int dst = GETARG_A(s), opc = GET_OPCODE(op), code = -1;
+    int64_t scalar = 0;
+    if (GETARG_C(g) != key || GETARG_A(op) != tmp ||
+        GETARG_B(op) != tmp || dst != arr || GETARG_B(s) != key ||
+        GETARG_C(s) != tmp || GETARG_k(s) ||
+        tmp == key || arr == for_a || arr == for_a + 1 ||
+        arr == for_a + 2 || tmp == for_a || tmp == for_a + 1 ||
+        tmp == for_a + 2 || luar_ffi_trace_array_kind64(&b[arr]) == 0)
+      return 0;
+    if (opc == OP_ADDI) {
+      code = 0; scalar = GETARG_sC(op);
+    }
+    else if (opc == OP_SHLI) {
+      code = 9; scalar = GETARG_sC(op);
+    }
+    else if (opc == OP_SHRI) {
+      int64_t n = GETARG_sC(op);
+      code = (n < 0) ? 9 : 10;
+      scalar = (n < 0) ? -n : n;
+    }
+    else if (opc == OP_ADDK || opc == OP_SUBK || opc == OP_MULK ||
+             opc == OP_BANDK || opc == OP_BORK || opc == OP_BXORK) {
+      int idx = GETARG_C(op);
+      if (idx < 0 || idx >= p->sizek || !ttisinteger(&p->k[idx]))
+        return 0;
+      scalar = ivalue(&p->k[idx]);
+      code = (opc == OP_ADDK) ? 0 : (opc == OP_SUBK) ? 1 :
+             (opc == OP_MULK) ? 2 : (opc == OP_BANDK) ? 6 :
+             (opc == OP_BORK) ? 7 : 8;
+    }
+    else
+      return 0;
+    if (scalar < INT32_MIN || scalar > INT32_MAX)
+      return 0;
+    return install_cdata_tint(p, J, backedge, 73, arr, 0, tmp,
+                              code, 0, (int)scalar, for_a);
+  }
   /* a[i] = a[i] OP scalar: GETTABLE tmp, arr, key; <op>; SETTABLE. */
   if (n >= 4 && GET_OPCODE(i0) == OP_GETTABLE) {
     Instruction g = i0;
@@ -7583,6 +7629,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     vv);
           break;
         }
+        case 73:
+          r = luar_ffi_trace_update_array_i64_bits(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  (uint64_t)(int64_t)p->luar_tint_arg4[i],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_acc[i], L);
+          break;
         case 71:
           r = luar_ffi_trace_update_array_i64(
                   &((TValue *)base)[p->luar_tint_table[i]],
