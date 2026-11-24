@@ -88,8 +88,8 @@ is provably observationally equivalent to that interpreter.
   on the interpreter because those reads produce cdata, not Lua numbers,
   except raw 64-bit element copies/fills, which keep a cdata element
   temporary and copy 8 bytes directly, and raw 8-byte add/subtract
-  reductions (add/subtract/multiply/bitwise/shift) into a cdata
-  accumulator.
+  reductions (add/subtract/multiply/bitwise/shift/divide/modulo) into a
+  cdata accumulator.
   J4 constant-key table stores check `__newindex` for an absent field, and
   `ADDI`/`FADDI` guard the operand subtype before choosing the integer or
   float result.

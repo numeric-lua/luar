@@ -4,6 +4,22 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.234.0] — 2026-11-24
+
+### Added
+
+- J2 reduces bounded 8-byte integer cdata arrays with signed/unsigned
+  `//` and `%` into a cdata accumulator.  Signed division truncates toward
+  zero, `INT64_MIN / -1` wraps, and a zero divisor is pre-scanned so the
+  run falls back before changing the accumulator.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/195_j2_i64_divmod_sum.lua`.
+
 ## [0.233.0] — 2026-11-24
 
 ### Added

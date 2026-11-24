@@ -1,6 +1,6 @@
 # Luar architecture
 
-Status: 0.233.0. This document describes the system as built and the design
+Status: 0.234.0. This document describes the system as built and the design
 constraints for everything that comes next. It is normative for contributors:
 if code and this document disagree, one of them is a bug.
 
@@ -111,7 +111,8 @@ make correct against an unmodified VM.
   stores `a[i] = b[i] +|-|*|/|//|%|&|^|<<|>> c[i]`, all with the FFI store
   conversions and the interpreter's FORLOOP key sequence.  Raw 64-bit
   element copies, fills and cdata-accumulator add/subtract/multiply/
-  bitwise/shift reductions are also supported, with a cdata temporary.  A source array,
+  bitwise/shift/divide/modulo reductions are also supported, with a cdata
+  temporary.  A source array,
   two-source pair, unary/copy source or scalar may be a closure upvalue;
   it is re-resolved on every entry.  Raw table element stores and
   copies (`dst[i] = src[i]`, `dst[i] = src[i] +|-|*|/|//|% k`,
@@ -255,7 +256,7 @@ plain 5.5 modules work unmodified. C modules are ABI-compatible because the
 core is the official core; no shim layer is involved.
 
 `libluar.a` is the default artifact. `make shared` additionally builds
-`libluar.so.0.233.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
+`libluar.so.0.234.0` with SONAME `libluar.so.0` and the `libluar.so.0` /
 `libluar.so` symlinks. The shared objects are compiled separately as
 `.pic.o` files, so the static build's objects and archive are untouched and
 both configurations can coexist in `src/`.
