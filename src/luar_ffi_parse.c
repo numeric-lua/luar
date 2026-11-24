@@ -41,6 +41,7 @@ enum TokenKind {
   TK_INT,
   TK_CHAR,
   TK_FLOAT,
+  TK_STRING,
   TK_PUNCT
 };
 
@@ -182,6 +183,27 @@ static void lex_next (Parser *P) {
     P->tok.start = s;
     P->tok.len = (size_t)(q - s);
     P->p = q;
+    return;
+  }
+  if (*s == '"') {
+    /* String literal, currently used only for the optional message of a
+    ** static assertion.  The token keeps the raw bytes between the quotes;
+    ** escapes are not decoded because the text is diagnostic only. */
+    const char *q = s + 1;
+    while (q < P->end && *q != '"') {
+      if (*q == '\n')
+        lex_error(P, "unterminated string literal");
+      if (*q == '\\' && q + 1 < P->end)
+        q += 2;
+      else
+        q++;
+    }
+    if (q >= P->end)
+      lex_error(P, "unterminated string literal");
+    P->tok.kind = TK_STRING;
+    P->tok.start = s + 1;
+    P->tok.len = (size_t)(q - (s + 1));
+    P->p = q + 1;
     return;
   }
   if (*s == '\'') {
@@ -431,6 +453,50 @@ static int tok_to_buf (Parser *P, char *buf, size_t n) {
 }
 
 
+/* Copy the raw text of a string token for a diagnostic. */
+static void string_to_buf (Parser *P, char *buf, size_t n) {
+  size_t len = P->tok.len;
+  if (len >= n)
+    len = n - 1;
+  memcpy(buf, P->tok.start, len);
+  buf[len] = '\0';
+}
+
+
+static int tok_is_static_assert (Parser *P) {
+  return tok_is_ident(P, "_Static_assert") ||
+         tok_is_ident(P, "static_assert");
+}
+
+
+static int64_t parse_const_expr (Parser *P);
+
+
+/* C11 static assertion.  It has no run-time or layout effect: the constant
+** expression is evaluated at parse time and the declaration is discarded. */
+static void parse_static_assert (Parser *P) {
+  char msg[200];
+  int64_t value;
+  msg[0] = '\0';
+  lex_next(P);			/* consume _Static_assert / static_assert */
+  expect_punct(P, '(', "(");
+  value = parse_const_expr(P);
+  if (accept_punct(P, ',')) {
+    if (P->tok.kind != TK_STRING)
+      parser_error(P, "expected a string literal in static assertion");
+    string_to_buf(P, msg, sizeof(msg));
+    lex_next(P);
+  }
+  expect_punct(P, ')', ")");
+  expect_punct(P, ';', ";");
+  if (value == 0) {
+    if (msg[0] != '\0')
+      parser_error(P, "static assertion failed: %s", msg);
+    parser_error(P, "static assertion failed");
+  }
+}
+
+
 static char *token_dup (Parser *P) {
   char *s;
   if (P->tok.kind != TK_IDENT)
@@ -494,7 +560,7 @@ static int is_unsupported_keyword (Parser *P) {
          tok_is_ident(P, "__declspec") || tok_is_ident(P, "_Atomic") ||
          tok_is_ident(P, "_Complex") || tok_is_ident(P, "__complex__") ||
          tok_is_ident(P, "__int128") || tok_is_ident(P, "__asm__") ||
-         tok_is_ident(P, "asm") || tok_is_ident(P, "_Static_assert");
+         tok_is_ident(P, "asm");
 }
 
 
@@ -1254,6 +1320,10 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
       DeclSpec ds;
       if (P->tok.kind == TK_EOF)
         parser_error(P, "unterminated %s body", kind);
+      if (tok_is_static_assert(P)) {
+        parse_static_assert(P);
+        continue;
+      }
       ds = parse_declspec(P);
       if (accept_punct(P, ';')) {
         if (ds.base->kind == CT_STRUCT || ds.base->kind == CT_UNION) {
@@ -1388,6 +1458,10 @@ static CType *parse_enum (Parser *P) {
 
 static void parse_external (Parser *P) {
   DeclSpec ds;
+  if (tok_is_static_assert(P)) {
+    parse_static_assert(P);
+    return;
+  }
   if (tok_is_ident(P, "__luar_pack")) {
     int64_t v;
     lex_next(P);

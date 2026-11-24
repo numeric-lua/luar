@@ -121,6 +121,11 @@ by C APIs.  It supports:
   such as `__const`, and storage specifiers (`typedef`, `extern`, `static`,
   `register`, `auto`, `inline`); qualifiers are accepted and ignored;
 * `/* ... */` and `//` comments and semicolon-separated declarations;
+* C11 static assertions, `_Static_assert(expr [, "message"]);` and the
+  `static_assert` spelling, at file scope and inside struct/union bodies.
+  The expression is evaluated at `ffi.cdef` time with the normal constant
+  rules; a false assertion raises with its message, and the declaration is
+  otherwise erased;
 * array sizes and enum values built from decimal, hexadecimal, octal and
   binary integer literals (with `u`/`l` suffixes), single-character C
   constants (plain or escaped, sign-extended through plain `char`), other
@@ -168,8 +173,8 @@ preprocessor subset is available.
   `#pragma pack(n/push/pop)` drives layout.
 * `__attribute__((packed))`/`aligned(n)` before the struct tag or after
   the body (alone or combined) are supported; other attributes,
-  `__declspec`, `_Atomic`, `_Complex`, `__int128`, inline asm and
-  `_Static_assert` are rejected.
+  `__declspec`, `_Atomic`, `_Complex`, `__int128` and inline asm are
+  rejected.
 * `long double` is rejected.  Only 4-byte `float` and 8-byte `double` are
   supported.
 * `__attribute__((packed))`/`aligned(n)` and `#pragma pack(n)` (including
