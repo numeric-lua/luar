@@ -4,6 +4,45 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.216.0] — 2026-11-24
+
+### Added
+
+- J2 runs weighted reductions over raw Lua tables and bounded cdata arrays
+  in both the add and subtract spelling: `s = s +|- a[i] * k` and
+  `s = s +|- a[i] / k`.  The scalar may be a numeric constant, a register
+  local or a closure upvalue, and is re-resolved on every entry.  Division
+  always produces a float, including for two integers and for a zero
+  divisor (IEEE inf/NaN, never a Lua error); multiplication keeps Lua's
+  integer wrap and float promotion.  The element and product/quotient
+  temporaries keep their last bytecode values.
+- J2 runs two-array division `s = s + a[i] / b[i]` over raw tables and
+  bounded cdata arrays, joining the existing add/subtract/multiply
+  reductions.  Division is left-to-right, so only the first read over the
+  second is accepted.
+- `luar.version_num` now encodes 0.216.0.  The minor component had lagged
+  behind the release string.
+
+### Fixed
+
+- The affine raw-table fill intrinsic reused kind 4, the keyed-sum
+  encoding.  A hot keyed sum therefore dispatched to the fill helper: it
+  ran only the array-shaped prefix of the loop and left the accumulator
+  unchanged, so `tests/jit/24`, `151` and `159` failed.  The fill now has
+  its own kind, and an unknown intrinsic kind fails closed instead of
+  falling through to the keyed sum.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan` and `tools/upstream-check.sh` are green.  New
+coverage: `tests/jit/188_scaled_div.lua`,
+`tests/jit/189_tint_kind_collision.lua`,
+`tests/jit/190_scaled_sub.lua`, `tests/jit/191_pair_div.lua`,
+`tests/ffi/171_j2_cdata_scaled.lua`,
+`tests/ffi/172_j2_cdata_scaled_sub.lua` and
+`tests/ffi/173_j2_cdata_pair_div.lua`.
+
 ## [0.215.0] — 2026-11-23
 
 ### Fixed

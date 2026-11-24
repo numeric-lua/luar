@@ -42,11 +42,14 @@ is provably observationally equivalent to that interpreter.
   with register-cached sum/subtraction/product/square fast paths (integer
   or float); other backward inner loops still fall back.  The raw-array
   tier also has a `s = s + a[i] + b[i] + c[i]` intrinsic over three arrays,
-  each of which may be a register table or a closure upvalue, and a scaled
+  each of which may be a register table or a closure upvalue, a scaled
   `s = s + a[i] * k` intrinsic whose scalar is a numeric constant, register
-  or closure upvalue.  These raw-array reductions follow the FORLOOP key
-  sequence for any nonzero integer step, including descending loops; the
-  first/last keys are overflow- and bounds-checked before the run.
+  or closure upvalue, the divide and subtract spellings of that shape, and
+  a two-array `a[i] / b[i]` reduction.  The same weighted and two-array
+  division reductions run over bounded cdata arrays.  These reductions
+  follow the FORLOOP key sequence for any nonzero integer step, including
+  descending loops; the first/last keys are overflow- and bounds-checked
+  before the run.
   Bounded cdata arrays additionally support writes in the default tier:
   `a[i] = v|i|constant` (including 8-byte integer elements and store-only
   `_Bool`/enum destinations), `a[i] = b[i]`, `a[i] = a[i] OP v`,
