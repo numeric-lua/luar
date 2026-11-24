@@ -790,6 +790,37 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return install_cdata_tint(p, J, backedge, 21, dst, src, 0, tmp, key,
                               0, for_a);
   }
+  /* a[i] = a[i] OP cdata-scalar for 8-byte integer arrays. */
+  if (n == 5 && GET_OPCODE(i0) == OP_GETTABLE &&
+      GET_OPCODE(p->code[start + 2]) == OP_MMBIN &&
+      GET_OPCODE(p->code[start + 3]) == OP_SETTABLE &&
+      backedge == start + 4) {
+    Instruction g = i0, op = p->code[start + 1], s = p->code[start + 3];
+    int tmp = GETARG_A(g), arr = GETARG_B(g);
+    int scalar = GETARG_C(op), dst = GETARG_A(s), opc = GET_OPCODE(op);
+    int code;
+    if (GETARG_C(g) != key || GETARG_A(op) != tmp ||
+        GETARG_B(op) != tmp || dst != arr || GETARG_B(s) != key ||
+        GETARG_C(s) != tmp || GETARG_k(s) ||
+        tmp == key || arr == for_a || arr == for_a + 1 ||
+        arr == for_a + 2 || tmp == for_a || tmp == for_a + 1 ||
+        tmp == for_a + 2 || scalar == key || scalar == arr ||
+        scalar == tmp || is_control_reg(scalar, for_a) ||
+        luar_ffi_trace_array_kind64(&b[arr]) == 0 ||
+        !luar_ffi_trace_i64_scalar(&b[scalar]))
+      return 0;
+    if (opc == OP_ADD) code = 0;
+    else if (opc == OP_SUB) code = 1;
+    else if (opc == OP_MUL) code = 2;
+    else if (opc == OP_BAND) code = 6;
+    else if (opc == OP_BOR) code = 7;
+    else if (opc == OP_BXOR) code = 8;
+    else if (opc == OP_SHL) code = 9;
+    else if (opc == OP_SHR) code = 10;
+    else return 0;
+    return install_cdata_tint(p, J, backedge, 71, arr, scalar, tmp,
+                              code, 0, 0, for_a);
+  }
   /* a[i] = a[i] OP scalar: GETTABLE tmp, arr, key; <op>; SETTABLE. */
   if (n >= 4 && GET_OPCODE(i0) == OP_GETTABLE) {
     Instruction g = i0;
@@ -7550,6 +7581,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     vv);
           break;
         }
+        case 71:
+          r = luar_ffi_trace_update_array_i64(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_acc[i], L);
+          break;
         case 69: {
           int enc = p->luar_tint_table[i];
           TValue *av = pair_source_value((TValue *)base, -1, -1 - enc);

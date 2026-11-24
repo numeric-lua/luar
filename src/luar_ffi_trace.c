@@ -1264,6 +1264,71 @@ static int cd_is_unsigned (CData *cd) {
 }
 
 
+int luar_ffi_trace_update_array_i64 (TValue *arrv, TValue *it, TValue *ct,
+                                    TValue *st, TValue *scalar, TValue *tmp,
+                                    int tmp_reg, int op, lua_State *L) {
+  FfiView v;
+  Udata *u;
+  CData *cd, *tcd;
+  uint64_t sb, last = 0, val;
+  TValue *top, *base;
+  lua_Integer count, step, idx, lastkey, k;
+  if (arrv == NULL || it == NULL || ct == NULL || st == NULL ||
+      scalar == NULL || tmp == NULL || L == NULL ||
+      !luar_ffi_trace_i64_scalar(scalar) ||
+      !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
+      tmp_reg < 0 || tmp_reg >= 256)
+    return 0;
+  if (!ffi_view_init_dst(arrv, &v) || v.isflt || v.esz != 8)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (!ffi_store_range(&v, count, step, idx, &lastkey))
+    return 0;
+  u = (Udata *)scalar->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(&sb, cd->v.p, 8);
+  else
+    memcpy(&sb, &cd->v, 8);
+  {
+    char *pa = (char *)v.base + (ptrdiff_t)idx * (ptrdiff_t)v.esz;
+    for (k = 0; k <= count; k++) {
+      memcpy(&val, pa, 8);
+      last = val;
+      if (op == 1)
+        val -= sb;
+      else if (op == 2)
+        val *= sb;
+      else if (op == 6)
+        val &= sb;
+      else if (op == 7)
+        val |= sb;
+      else if (op == 8)
+        val ^= sb;
+      else if (op == 9)
+        val <<= (unsigned)(sb & 63);
+      else if (op == 10)
+        val = (uint64_t)val >> (unsigned)(sb & 63);
+      else
+        val += sb;
+      memcpy(pa, &val, 8);
+      pa += (ptrdiff_t)step * (ptrdiff_t)v.esz;
+    }
+  }
+  tcd = ffi_push_scalar(L, ffi_getstate(L), v.elem);
+  memcpy(&tcd->v, &last, 8);
+  top = s2v(L->top.p - 1);
+  base = (TValue *)(L->ci->func.p + 1);
+  base[tmp_reg] = *top;
+  L->top.p--;
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 int luar_ffi_trace_sum_array_i64 (TValue *accv, TValue *arrv, TValue *it,
                                   TValue *ct, TValue *st, TValue *tmp,
                                   int tmp_reg, int op, lua_State *L) {
