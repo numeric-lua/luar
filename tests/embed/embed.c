@@ -22,7 +22,7 @@ int main (void) {
   lua_State *L = luaL_newstate();
   if (L == NULL) return fail("luaL_newstate");
 
-  if (strcmp(luar_version(), "0.227.0") != 0) return fail("luar_version");
+  if (strcmp(luar_version(), "0.228.0") != 0) return fail("luar_version");
   if (strcmp(luar_lua_version(), "Lua 5.5.1") != 0) return fail("luar_lua_version");
 
   luaL_openlibs(L);
@@ -30,7 +30,7 @@ int main (void) {
   if (lua_getglobal(L, "luar") != LUA_TTABLE)
     return fail("luar table missing after luaL_openlibs");
   lua_getfield(L, -1, "version");
-  if (strcmp(lua_tostring(L, -1), "0.227.0") != 0) return fail("luar.version");
+  if (strcmp(lua_tostring(L, -1), "0.228.0") != 0) return fail("luar.version");
   lua_pop(L, 2);   /* version, luar */
 
   lua_getglobal(L, "jit");

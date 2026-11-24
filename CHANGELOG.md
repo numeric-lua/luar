@@ -4,6 +4,23 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.228.0] — 2026-11-24
+
+### Added
+
+- J2 raw 64-bit cdata element copies: `dst[i] = src[i]` for
+  `int64_t`/`uint64_t` arrays copies 8 bytes directly and exposes a cdata
+  element temporary.  Register/upvalue sources and destinations, mixed
+  signedness and strided/descending runs are supported.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/191_j2_i64_copy.lua`; `tests/ffi/137_j2_cdata_i64_fill.lua`
+now expects the raw copy helper.
+
 ## [0.227.0] — 2026-11-24
 
 ### Added
