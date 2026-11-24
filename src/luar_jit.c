@@ -706,6 +706,30 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return install_cdata_tint(p, J, backedge, 20, arr, kc, 0, 0, key,
                               0, for_a);
   }
+  /* a[i] = U[i] with an upvalue source. */
+  if (n == 4 && GET_OPCODE(i0) == OP_GETUPVAL &&
+      GET_OPCODE(p->code[start + 1]) == OP_GETTABLE &&
+      GET_OPCODE(p->code[start + 2]) == OP_SETTABLE) {
+    Instruction up = i0, g = p->code[start + 1], s = p->code[start + 2];
+    int tmp = GETARG_A(g), src = GETARG_A(up);
+    int dst = GETARG_A(s), sk = GETARG_B(s), sv = GETARG_C(s);
+    int src_enc = -1 - GETARG_B(up);
+    if (GETARG_B(g) != src || GETARG_C(g) != key ||
+        sk != key || sv != tmp || GETARG_k(s) ||
+        tmp == key || tmp == for_a || tmp == for_a + 1 ||
+        tmp == for_a + 2 || src == for_a || src == for_a + 1 ||
+        src == for_a + 2 || dst == for_a || dst == for_a + 1 ||
+        dst == for_a + 2 || dst == tmp ||
+        luar_ffi_trace_array_store_kind(&b[dst]) == 0)
+      return 0;
+    {
+      TValue *sv2 = pair_source_value((TValue *)b, -1, -1 - src_enc);
+      if (sv2 == NULL || luar_ffi_trace_array_kind(sv2) == 0)
+        return 0;
+    }
+    return install_cdata_tint(p, J, backedge, 21, dst, src_enc, 0, tmp,
+                              key, 0, for_a);
+  }
   /* a[i] = b[i]: GETTABLE tmp, src, key; SETTABLE dst, key, tmp. */
   if (n == 3 && GET_OPCODE(i0) == OP_GETTABLE &&
       GET_OPCODE(p->code[start + 1]) == OP_SETTABLE) {
@@ -840,22 +864,52 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 static int match_cdata_scalar_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
                                      ptrdiff_t backedge, int for_a,
                                      TValue *b) {
-  ptrdiff_t n = backedge - start + 1;
-  Instruction g, opins, s;
+  ptrdiff_t pos = start;
+  Instruction g, opins, mm, s;
   int key = for_a + 2;
   int tmp, src, dst, op, scalar = -1, scalar_const = -1;
+  int up_enc = 0, up_reg = -1, src_up_enc = 0, src_up_reg = -1, src_enc = -1;
   OpCode opc;
-  if (n != 5 || GET_OPCODE(p->code[start]) != OP_GETTABLE)
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    src_up_reg = GETARG_A(up);
+    if (is_control_reg(src_up_reg, for_a))
+      return 0;
+    src_up_enc = -1 - GETARG_B(up);
+  }
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETTABLE)
     return 0;
-  g = p->code[start];
-  opins = p->code[start + 1];
-  s = p->code[start + 3];
+  g = p->code[pos++];
   tmp = GETARG_A(g);
   src = GETARG_B(g);
-  if (GETARG_C(g) != key || tmp == key || tmp == src || src == key ||
-      is_control_reg(tmp, for_a) || is_control_reg(src, for_a) ||
-      luar_ffi_trace_array_kind(&b[src]) == 0)
+  if (src_up_enc != 0) {
+    if (src != src_up_reg)
+      return 0;
+    src_enc = src_up_enc;
+  }
+  else
+    src_enc = src;
+  if (GETARG_C(g) != key || tmp == key || src == key ||
+      (src_up_enc == 0 && tmp == src) ||
+      is_control_reg(tmp, for_a) || is_control_reg(src, for_a))
     return 0;
+  {
+    TValue *sv = pair_source_value(b, (src_enc >= 0) ? src_enc : -1,
+                                   (src_enc >= 0) ? -1 : (-1 - src_enc));
+    if (sv == NULL || luar_ffi_trace_array_kind(sv) == 0)
+      return 0;
+  }
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    up_reg = GETARG_A(up);
+    if (is_control_reg(up_reg, for_a) || up_reg == tmp ||
+        up_reg == src || up_reg == key)
+      return 0;
+    up_enc = -3 - GETARG_B(up);
+  }
+  if (pos >= backedge)
+    return 0;
+  opins = p->code[pos++];
   opc = GET_OPCODE(opins);
   switch (opc) {
     case OP_ADD: case OP_ADDI: case OP_ADDK: op = 0; break;
@@ -884,46 +938,65 @@ static int match_cdata_scalar_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     else if (cop == tmp && (opc == OP_ADD || opc == OP_MUL ||
                             opc == OP_BAND || opc == OP_BOR ||
                             opc == OP_BXOR))
-      other = bop;   /* compiler swapped a commutative form */
+      other = bop;
     else
       return 0;
     if (other == key || other == for_a || other == for_a + 1 ||
-        other == for_a + 2 || other == src || other == tmp ||
-        (!ttisinteger(&b[other]) && !ttisfloat(&b[other])))
+        other == for_a + 2 || other == src || other == tmp)
       return 0;
-    scalar = other;
-  }
-  else if (opc == OP_ADDI || opc == OP_SHLI || opc == OP_SHRI) {
-    if (GETARG_B(opins) != tmp)
-      return 0;
-    scalar = -2;
-    scalar_const = (int)GETARG_sC(opins);
+    if (up_enc != 0) {
+      if (other != up_reg)
+        return 0;
+      scalar = up_enc;
+    }
+    else {
+      if (!ttisinteger(&b[other]) && !ttisfloat(&b[other]))
+        return 0;
+      scalar = other;
+    }
   }
   else {
-    int idx = GETARG_C(opins);
-    TValue *k;
-    if (GETARG_B(opins) != tmp || idx < 0 || idx >= p->sizek)
+    if (up_enc != 0)
       return 0;
-    k = &p->k[idx];
-    if (!ttisinteger(k) && !ttisfloat(k))
-      return 0;
-    scalar = -1;
-    scalar_const = idx;
+    if (opc == OP_ADDI || opc == OP_SHLI || opc == OP_SHRI) {
+      if (GETARG_B(opins) != tmp)
+        return 0;
+      scalar = -2;
+      scalar_const = (int)GETARG_sC(opins);
+    }
+    else {
+      int idx = GETARG_C(opins);
+      TValue *k;
+      if (GETARG_B(opins) != tmp || idx < 0 || idx >= p->sizek)
+        return 0;
+      k = &p->k[idx];
+      if (!ttisinteger(k) && !ttisfloat(k))
+        return 0;
+      scalar = -1;
+      scalar_const = idx;
+    }
   }
-  if (GET_OPCODE(p->code[start + 2]) != OP_MMBIN &&
-      GET_OPCODE(p->code[start + 2]) != OP_MMBINI &&
-      GET_OPCODE(p->code[start + 2]) != OP_MMBINK)
+  if (pos >= backedge)
     return 0;
+  mm = p->code[pos++];
+  if (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+      GET_OPCODE(mm) != OP_MMBINK)
+    return 0;
+  if (pos >= backedge)
+    return 0;
+  s = p->code[pos++];
   if (GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) || GETARG_B(s) != key ||
       GETARG_C(s) != tmp)
     return 0;
   dst = GETARG_A(s);
   if (dst == tmp || dst == for_a || dst == for_a + 1 ||
-      dst == for_a + 2 ||
+      dst == for_a + 2 || (up_enc != 0 && dst == up_reg) ||
       luar_ffi_trace_array_store_kind(&b[dst]) == 0)
     return 0;
-  return install_cdata_tint(p, J, backedge, 24, dst, src, scalar, op, tmp,
-                            scalar_const, for_a);
+  if (pos != backedge)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 24, dst, src_enc, scalar, op,
+                            tmp, scalar_const, for_a);
 }
 
 
@@ -931,39 +1004,61 @@ static int match_cdata_scalar_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 static int match_cdata_unary_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
                                     ptrdiff_t backedge, int for_a,
                                     TValue *b) {
-  ptrdiff_t n = backedge - start + 1;
+  ptrdiff_t pos = start;
   Instruction g, opins, s;
-  int key = for_a + 2, tmp, src, dst, op, res;
-  if (n != 4 || GET_OPCODE(p->code[start]) != OP_GETTABLE)
+  int key = for_a + 2, tmp, src, dst, op, res, src_up_enc = 0, src_up_reg = -1;
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    src_up_reg = GETARG_A(up);
+    if (is_control_reg(src_up_reg, for_a))
+      return 0;
+    src_up_enc = -1 - GETARG_B(up);
+  }
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETTABLE)
     return 0;
-  g = p->code[start];
-  opins = p->code[start + 1];
-  s = p->code[start + 2];
+  g = p->code[pos++];
   tmp = GETARG_A(g);
   src = GETARG_B(g);
-  if (GETARG_C(g) != key || tmp == key || tmp == src || src == key ||
-      is_control_reg(tmp, for_a) || is_control_reg(src, for_a) ||
-      luar_ffi_trace_array_kind(&b[src]) == 0)
+  if (src_up_enc != 0 && src != src_up_reg)
     return 0;
-  if (GET_OPCODE(opins) == OP_UNM)
-    op = 0;
-  else if (GET_OPCODE(opins) == OP_BNOT)
-    op = 1;
-  else
+  if (GETARG_C(g) != key || tmp == key ||
+      (src_up_enc == 0 && tmp == src) ||
+      is_control_reg(tmp, for_a) || is_control_reg(src, for_a))
     return 0;
-  res = GETARG_A(opins);
-  if (GETARG_B(opins) != tmp || is_control_reg(res, for_a))
-    return 0;
-  if (GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) || GETARG_B(s) != key ||
-      GETARG_C(s) != res)
-    return 0;
-  dst = GETARG_A(s);
-  if (dst == tmp || dst == res || dst == for_a || dst == for_a + 1 ||
-      dst == for_a + 2 ||
-      luar_ffi_trace_array_store_kind(&b[dst]) == 0)
-    return 0;
-  return install_cdata_tint(p, J, backedge, 56, dst, src, tmp, op, res,
-                            0, for_a);
+  {
+    int src_enc = (src_up_enc != 0) ? src_up_enc : src;
+    TValue *sv = pair_source_value(b, (src_enc >= 0) ? src_enc : -1,
+                                   (src_enc >= 0) ? -1 : (-1 - src_enc));
+    if (sv == NULL || luar_ffi_trace_array_kind(sv) == 0)
+      return 0;
+    if (pos >= backedge)
+      return 0;
+    opins = p->code[pos++];
+    if (GET_OPCODE(opins) == OP_UNM)
+      op = 0;
+    else if (GET_OPCODE(opins) == OP_BNOT)
+      op = 1;
+    else
+      return 0;
+    res = GETARG_A(opins);
+    if (GETARG_B(opins) != tmp || is_control_reg(res, for_a))
+      return 0;
+    if (pos >= backedge)
+      return 0;
+    s = p->code[pos++];
+    if (GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) ||
+        GETARG_B(s) != key || GETARG_C(s) != res)
+      return 0;
+    dst = GETARG_A(s);
+    if (dst == tmp || dst == res || dst == for_a || dst == for_a + 1 ||
+        dst == for_a + 2 ||
+        luar_ffi_trace_array_store_kind(&b[dst]) == 0)
+      return 0;
+    if (pos != backedge)
+      return 0;
+    return install_cdata_tint(p, J, backedge, 56, dst, src_enc, tmp, op,
+                              res, 0, for_a);
+  }
 }
 
 
@@ -972,25 +1067,55 @@ static int match_cdata_unary_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 ** the common compiler shape. */
 static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
                                    ptrdiff_t backedge, int for_a, TValue *b) {
-  ptrdiff_t n = backedge - start + 1;
-  Instruction g1, g2, opins, s;
+  ptrdiff_t pos = start;
+  Instruction g1, g2, opins, mm, s;
   int key = for_a + 2, op;
-  if (n != 6 || GET_OPCODE(p->code[start]) != OP_GETTABLE ||
-      GET_OPCODE(p->code[start + 1]) != OP_GETTABLE)
+  int ta, tb, av, bv, aenc, benc, aup = 0, bup = 0;
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    aup = -1 - GETARG_B(up);
+    av = GETARG_A(up);
+  }
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETTABLE)
     return 0;
-  g1 = p->code[start];
-  g2 = p->code[start + 1];
-  opins = p->code[start + 2];
-  s = p->code[start + 4];
-  if (GETARG_C(g1) != key || GETARG_C(g2) != key)
+  g1 = p->code[pos++];
+  ta = GETARG_A(g1);
+  if (aup != 0) {
+    if (GETARG_B(g1) != av)
+      return 0;
+    aenc = aup;
+  }
+  else {
+    av = GETARG_B(g1);
+    aenc = av;
+  }
+  if (GETARG_C(g1) != key)
     return 0;
-  if (GET_OPCODE(p->code[start + 3]) != OP_MMBIN ||
-      GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) ||
-      GETARG_B(s) != key)
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    bup = -1 - GETARG_B(up);
+    bv = GETARG_A(up);
+  }
+  if (pos >= backedge || GET_OPCODE(p->code[pos]) != OP_GETTABLE)
     return 0;
-  if (GETARG_A(opins) != GETARG_A(g1) ||
-      GETARG_B(opins) != GETARG_A(g1) ||
-      GETARG_C(opins) != GETARG_A(g2))
+  g2 = p->code[pos++];
+  tb = GETARG_A(g2);
+  if (bup != 0) {
+    if (GETARG_B(g2) != bv)
+      return 0;
+    benc = bup;
+  }
+  else {
+    bv = GETARG_B(g2);
+    benc = bv;
+  }
+  if (GETARG_C(g2) != key)
+    return 0;
+  if (pos >= backedge)
+    return 0;
+  opins = p->code[pos++];
+  if (GETARG_A(opins) != ta || GETARG_B(opins) != ta ||
+      GETARG_C(opins) != tb)
     return 0;
   switch (GET_OPCODE(opins)) {
     case OP_ADD: op = 0; break;
@@ -1006,21 +1131,31 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     case OP_SHR: op = 10; break;
     default: return 0;
   }
+  if (pos >= backedge)
+    return 0;
+  mm = p->code[pos++];
+  if (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+      GET_OPCODE(mm) != OP_MMBINK)
+    return 0;
+  if (pos >= backedge)
+    return 0;
+  s = p->code[pos++];
+  if (GET_OPCODE(s) != OP_SETTABLE || GETARG_k(s) ||
+      GETARG_B(s) != key || GETARG_C(s) != ta)
+    return 0;
   {
-    int dst = GETARG_A(s), av = GETARG_B(g1), bv = GETARG_B(g2);
-    int ta = GETARG_A(g1), tb = GETARG_A(g2);
-    if (GETARG_C(s) != ta || dst == for_a || dst == for_a + 1 ||
-        dst == for_a + 2 || av == for_a || av == for_a + 1 ||
-        av == for_a + 2 || bv == for_a || bv == for_a + 1 ||
-        bv == for_a + 2 || ta == key || tb == key || ta == tb ||
-        ta == av || ta == bv || ta == dst ||
-        tb == av || tb == bv || tb == dst ||
-        luar_ffi_trace_array_store_kind(&b[dst]) == 0 ||
-        luar_ffi_trace_array_kind(&b[av]) == 0 ||
-        luar_ffi_trace_array_kind(&b[bv]) == 0)
+    int dst = GETARG_A(s);
+    if (dst == for_a || dst == for_a + 1 || dst == for_a + 2 ||
+        dst == ta || ta == key || tb == key || ta == tb ||
+        (!aup && (ta == av)) || (!bup && (tb == bv)) ||
+        (!aup && (ta == bv)) || (!bup && (tb == av)) ||
+        aenc == (int)key || benc == (int)key ||
+        luar_ffi_trace_array_store_kind(&b[dst]) == 0)
       return 0;
-    return install_cdata_tint(p, J, backedge, 23, dst, av, bv, ta, tb, op,
-                              for_a);
+    if (pos != backedge)
+      return 0;
+    return install_cdata_tint(p, J, backedge, 23, dst, aenc, benc, ta, tb,
+                              op, for_a);
   }
 }
 
@@ -6629,10 +6764,18 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   (p->luar_tint_res[i] >> 8) & 0xff,
                   p->luar_tint_arg4[i]);
           break;
-        case 56:
+        case 56: {
+          int senc = p->luar_tint_keys[i];
+          TValue *srcv = pair_source_value((TValue *)base,
+                                           (senc >= 0) ? senc : -1,
+                                           (senc >= 0) ? -1 : (-1 - senc));
+          if (srcv == NULL) {
+            r = 0;
+            break;
+          }
           r = luar_ffi_trace_unary_store(
                   &((TValue *)base)[p->luar_tint_table[i]],
-                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  srcv,
                   &((TValue *)base)[expected_base + 2],
                   &((TValue *)base)[expected_base],
                   &((TValue *)base)[expected_base + 1],
@@ -6640,6 +6783,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   &((TValue *)base)[p->luar_tint_res[i]],
                   p->luar_tint_acc[i]);
           break;
+        }
         case 29:
           r = table_affine_fill_intrinsic(L, (TValue *)base, expected_base,
                                           p->luar_tint_table[i],
@@ -6849,15 +6993,21 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   &((TValue *)base)[expected_base + 1], val, mode);
           break;
         }
-        case 21:
-          r = luar_ffi_trace_copy_array(
-                  &((TValue *)base)[p->luar_tint_table[i]],
-                  &((TValue *)base)[p->luar_tint_keys[i]],
-                  &((TValue *)base)[expected_base + 2],
-                  &((TValue *)base)[expected_base],
-                  &((TValue *)base)[expected_base + 1],
-                  &((TValue *)base)[p->luar_tint_acc[i]]);
+        case 21: {
+          int senc = p->luar_tint_keys[i];
+          TValue *srcv = pair_source_value((TValue *)base,
+                                           (senc >= 0) ? senc : -1,
+                                           (senc >= 0) ? -1 : (-1 - senc));
+          r = (srcv == NULL) ? 0
+              : luar_ffi_trace_copy_array(
+                    &((TValue *)base)[p->luar_tint_table[i]],
+                    srcv,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[p->luar_tint_acc[i]]);
           break;
+        }
         case 22: {
           TValue scalar;
           int enc = p->luar_tint_keys[i];
@@ -6898,31 +7048,64 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           }
           break;
         }
-        case 23:
-          r = luar_ffi_trace_pair_store(
-                  &((TValue *)base)[p->luar_tint_table[i]],
-                  &((TValue *)base)[p->luar_tint_keys[i]],
-                  &((TValue *)base)[p->luar_tint_upval[i]],
-                  &((TValue *)base)[expected_base + 2],
-                  &((TValue *)base)[expected_base],
-                  &((TValue *)base)[expected_base + 1],
-                  &((TValue *)base)[p->luar_tint_acc[i]],
-                  &((TValue *)base)[p->luar_tint_res[i]],
-                  p->luar_tint_arg4[i]);
+        case 23: {
+          int aenc = p->luar_tint_keys[i];
+          int benc = p->luar_tint_upval[i];
+          TValue *av = pair_source_value((TValue *)base,
+                                         (aenc >= 0) ? aenc : -1,
+                                         (aenc >= 0) ? -1 : (-1 - aenc));
+          TValue *bv = pair_source_value((TValue *)base,
+                                         (benc >= 0) ? benc : -1,
+                                         (benc >= 0) ? -1 : (-1 - benc));
+          r = (av == NULL || bv == NULL) ? 0
+              : luar_ffi_trace_pair_store(
+                    &((TValue *)base)[p->luar_tint_table[i]],
+                    av, bv,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    &((TValue *)base)[p->luar_tint_acc[i]],
+                    &((TValue *)base)[p->luar_tint_res[i]],
+                    p->luar_tint_arg4[i]);
           break;
+        }
         case 24: {
           TValue scalar;
+          TValue *srcv;
+          int senc = p->luar_tint_keys[i];
           int enc = p->luar_tint_upval[i];
+          srcv = pair_source_value((TValue *)base,
+                                   (senc >= 0) ? senc : -1,
+                                   (senc >= 0) ? -1 : (-1 - senc));
+          if (srcv == NULL) {
+            r = 0;
+            break;
+          }
           if (enc == -2) {
             setivalue(&scalar, (lua_Integer)p->luar_tint_arg4[i]);
           }
           else if (enc == -1)
             scalar = p->k[p->luar_tint_arg4[i]];
+          else if (enc <= -3) {
+            int up = -3 - enc;
+            TValue *fv = &((TValue *)base)[-1];
+            LClosure *cl;
+            if (!ttisLclosure(fv)) {
+              r = 0;
+              break;
+            }
+            cl = clLvalue(fv);
+            if (up < 0 || up >= cl->p->sizeupvalues) {
+              r = 0;
+              break;
+            }
+            scalar = cl->upvals[up]->v.p[0];
+          }
           else
             scalar = ((TValue *)base)[enc];
           r = luar_ffi_trace_scalar_store(
                   &((TValue *)base)[p->luar_tint_table[i]],
-                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  srcv,
                   &((TValue *)base)[expected_base + 2],
                   &((TValue *)base)[expected_base],
                   &((TValue *)base)[expected_base + 1],
