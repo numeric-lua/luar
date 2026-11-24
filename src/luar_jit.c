@@ -823,6 +823,45 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     return install_cdata_tint(p, J, backedge, 71, arr, scalar, tmp,
                               code, 0, 0, for_a);
   }
+  /* a[i] = a[i] OP upvalue cdata scalar for 8-byte integer arrays. */
+  if (n == 6 && GET_OPCODE(i0) == OP_GETTABLE &&
+      GET_OPCODE(p->code[start + 1]) == OP_GETUPVAL &&
+      (GET_OPCODE(p->code[start + 2]) == OP_ADD ||
+       GET_OPCODE(p->code[start + 2]) == OP_SUB ||
+       GET_OPCODE(p->code[start + 2]) == OP_MUL ||
+       GET_OPCODE(p->code[start + 2]) == OP_BAND ||
+       GET_OPCODE(p->code[start + 2]) == OP_BOR ||
+       GET_OPCODE(p->code[start + 2]) == OP_BXOR ||
+       GET_OPCODE(p->code[start + 2]) == OP_SHL ||
+       GET_OPCODE(p->code[start + 2]) == OP_SHR) &&
+      GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
+      GET_OPCODE(p->code[start + 4]) == OP_SETTABLE &&
+      backedge == start + 5) {
+    Instruction g = i0, up = p->code[start + 1];
+    Instruction op = p->code[start + 2], s = p->code[start + 4];
+    int tmp = GETARG_A(g), arr = GETARG_B(g), sreg = GETARG_A(up);
+    int dst = GETARG_A(s), opc = GET_OPCODE(op), code;
+    TValue *sv = pair_source_value((TValue *)b, -1, GETARG_B(up));
+    if (GETARG_C(g) != key || GETARG_A(op) != tmp ||
+        GETARG_B(op) != tmp || GETARG_C(op) != sreg ||
+        GETARG_B(s) != key || GETARG_C(s) != tmp || GETARG_k(s) ||
+        dst != arr || tmp == key || arr == for_a || arr == for_a + 1 ||
+        arr == for_a + 2 || tmp == for_a || tmp == for_a + 1 ||
+        tmp == for_a + 2 || is_control_reg(sreg, for_a) ||
+        luar_ffi_trace_array_kind64(&b[arr]) == 0 ||
+        sv == NULL || !luar_ffi_trace_i64_scalar(sv))
+      return 0;
+    if (opc == OP_ADD) code = 0;
+    else if (opc == OP_SUB) code = 1;
+    else if (opc == OP_MUL) code = 2;
+    else if (opc == OP_BAND) code = 6;
+    else if (opc == OP_BOR) code = 7;
+    else if (opc == OP_BXOR) code = 8;
+    else if (opc == OP_SHL) code = 9;
+    else code = 10;
+    return install_cdata_tint(p, J, backedge, 74, arr, -1 - GETARG_B(up),
+                              tmp, code, 0, 0, for_a);
+  }
   /* a[i] = a[i] OP small integer for 8-byte integer arrays. */
   if (n == 5 && GET_OPCODE(i0) == OP_GETTABLE &&
       (GET_OPCODE(p->code[start + 2]) == OP_MMBIN ||
@@ -7629,6 +7668,20 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     vv);
+          break;
+        }
+        case 74: {
+          int arr = p->luar_tint_table[i];
+          int enc = p->luar_tint_keys[i];
+          TValue *sv = pair_source_value((TValue *)base, -1, -1 - enc);
+          r = (sv == NULL) ? 0
+              : luar_ffi_trace_update_array_i64(
+                    &((TValue *)base)[arr],
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1],
+                    sv, &((TValue *)base)[p->luar_tint_upval[i]],
+                    p->luar_tint_upval[i], p->luar_tint_acc[i], L);
           break;
         }
         case 73:

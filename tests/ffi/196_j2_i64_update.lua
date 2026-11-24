@@ -54,6 +54,29 @@ run("mod", mod, V)
 run("zero idiv", idiv, ffi.new("int64_t", 0))
 run("zero mod", mod, ffi.new("int64_t", 0))
 
+-- Upvalue cdata scalar.
+do
+  local V = ffi.new("int64_t", 3)
+  local function add_u (a, n) for i = 0, n - 1 do a[i] = a[i] + V end return a end
+  local function sub_u (a, n) for i = 0, n - 1 do a[i] = a[i] - V end return a end
+  local function mul_u (a, n) for i = 0, n - 1 do a[i] = a[i] * V end return a end
+  local function band_u (a, n) for i = 0, n - 1 do a[i] = a[i] & V end return a end
+  local function shl_u (a, n) for i = 0, n - 1 do a[i] = a[i] << V end return a end
+  for name, f in pairs{ add = add_u, sub = sub_u, mul = mul_u,
+                        band = band_u, shl = shl_u } do
+    jit.off()
+    local want = f(init(), N)
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local a = init()
+    local before = jit.stats().tint_hits
+    f(a, N)
+    H.check(jit.stats().tint_hits > before, name .. " upvalue did not run")
+    for i = 0, N - 1 do H.eq(a[i], want[i], name .. " upvalue " .. i) end
+  end
+end
+
 -- Small integer constants (immediate/K forms).
 do
   local function init2 () local a = ffi.new("int64_t[?]", N); for i = 0, N - 1 do a[i] = i + 1 end return a end
