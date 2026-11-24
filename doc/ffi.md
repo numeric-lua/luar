@@ -206,8 +206,11 @@ preprocessor subset is available.
   hidden sret pointer and packed values stay in stack slots.  Other packed aggregate call shapes are rejected rather than
   mislaid.  Layout always
   follows the natural C ABI of the target.
-* Zero-length arrays are rejected; use `[?]`/`[]` for a variable-length
-  type and pass the length to `ffi.new`/`ffi.sizeof`.
+* Fixed zero-length arrays (`T[0]`) are accepted as zero-sized arrays and
+  struct members; `ffi.sizeof`/`ffi.new` report 0 and indexing is
+  bounds-checked (LuaJIT's unchecked access at index 0 is not reproduced).
+  Use `[?]`/`[]` for a variable-length type and pass the length to
+  `ffi.new`/`ffi.sizeof`.
 * A bare declaration of a named struct/union inside another struct only
   declares the tag; it does not create an anonymous member.  Tagless
   `struct { ... };` members do create anonymous members.

@@ -605,6 +605,7 @@ typedef enum { SF_ARRAY, SF_FUNC } SuffixKind;
 typedef struct Suffix {
   SuffixKind kind;
   int vla;
+  int flex;
   int64_t alen;
   int vararg;
   int nargs;
@@ -697,6 +698,7 @@ static Suffix *parse_array_suffix (Parser *P) {
   expect_punct(P, '[', "[");
   if (accept_punct(P, ']')) {
     s->vla = 1;
+    s->flex = 1;
     return s;
   }
   if (accept_punct(P, '?')) {
@@ -709,8 +711,8 @@ static Suffix *parse_array_suffix (Parser *P) {
   }
   {
     int64_t v = parse_const_expr(P);
-    if (v <= 0)
-      parser_error(P, "array size must be positive");
+    if (v < 0)
+      parser_error(P, "array size must be non-negative");
     s->alen = v;
   }
   expect_punct(P, ']', "]");
@@ -1117,7 +1119,7 @@ static CType *apply_suffix (Parser *P, Suffix *s, CType *base) {
     if (base->kind == CT_FUNC)
       parser_error(P, "array of functions is not a valid C type");
     return ffi_type_arr(P->L, P->S, base, (size_t)s->alen,
-                          s->vla != 0);
+                          s->vla != 0, s->flex != 0);
   }
   else {
     if (base->kind == CT_FUNC)

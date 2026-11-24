@@ -251,7 +251,7 @@ CType *ffi_type_ptr (lua_State *L, FFIState *S, CType *child) {
 
 
 CType *ffi_type_arr (lua_State *L, FFIState *S, CType *child,
-                       size_t len, int vla) {
+                       size_t len, int vla, int flex) {
   CType *ct;
   size_t esz;
   if (child->kind == CT_VOID)
@@ -267,10 +267,11 @@ CType *ffi_type_arr (lua_State *L, FFIState *S, CType *child,
   ct->child = child;
   ct->align = child->align;
   ct->vla = (uint8_t)(vla != 0);
+  ct->flex = (uint8_t)(flex != 0);
   ct->length = vla ? 0 : len;
   if (vla) {
     ct->size = FFI_SIZE_UNKNOWN;
-    ct->id = ffi_asprintf(S, "a?<%s>", child->id);
+    ct->id = ffi_asprintf(S, flex ? "a[]<%s>" : "a?<%s>", child->id);
   }
   else {
     if (len != 0 && esz > FFI_SIZE_UNKNOWN / len)
@@ -398,6 +399,11 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
   uint16_t i;
   for (i = 0; i < ct->nfields; i++) {
     CField *f = &ct->fields[i];
+    /* A C99 flexible array member is only valid as the last field.  Model
+    ** it as a zero-length array so the struct size excludes the payload. */
+    if (i + 1 == ct->nfields && f->type->kind == CT_ARRAY &&
+        f->type->flex)
+      f->type = ffi_type_arr(S->L, S, f->type->child, 0, 0, 0);
     size_t fsz = ffi_type_size(f->type);
     f->packed = (ct->pack == 1);
     size_t fal = ffi_type_align(f->type);
@@ -654,7 +660,7 @@ static void repr_type (ReprBuf *b, CType *ct) {
         CType *ar = ct->child;
         rb_put(b, ffi_type_repr(NULL, ar->child));
         rb_put(b, " (*)[");
-        if (ar->vla) rb_put(b, "?");
+        if (ar->vla) rb_put(b, ar->flex ? "" : "?");
         else rb_putf(b, "%lu", (unsigned long)ar->length);
         rb_put(b, "]");
       }
@@ -666,7 +672,7 @@ static void repr_type (ReprBuf *b, CType *ct) {
     case CT_ARRAY:
       rb_put(b, ffi_type_repr(NULL, ct->child));
       rb_put(b, "[");
-      if (ct->vla) rb_put(b, "?");
+      if (ct->vla) rb_put(b, ct->flex ? "" : "?");
       else rb_putf(b, "%lu", (unsigned long)ct->length);
       rb_put(b, "]");
       break;

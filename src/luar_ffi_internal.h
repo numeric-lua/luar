@@ -106,6 +106,7 @@ struct CType {
   CTypeKind kind;
   uint8_t is_unsigned;
   uint8_t vla;		/* array with variable/unknown length */
+  uint8_t flex;		/* empty-bracket flexible array */
   uint8_t incomplete;	/* forward-declared struct/union */
   uint8_t vararg;	/* function with '...' */
   uint8_t pack;		/* 0 natural, 1 packed, 2/4/8 #pragma pack */
@@ -223,7 +224,7 @@ void ffi_push_ctype (lua_State *L, FFIState *S, CType *ct);
 void ffi_type_init_builtins (lua_State *L, FFIState *S);
 CType *ffi_type_ptr (lua_State *L, FFIState *S, CType *child);
 CType *ffi_type_arr (lua_State *L, FFIState *S, CType *child,
-                       size_t len, int vla);
+                       size_t len, int vla, int flex);
 CType *ffi_type_func (lua_State *L, FFIState *S, CType *ret,
                           CType **args, int nargs, int vararg);
 CType *ffi_type_new_struct (lua_State *L, FFIState *S, int is_union,
