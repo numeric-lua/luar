@@ -77,6 +77,7 @@ typedef struct Parser {
   int line;
   int mode;			/* 0 = cdef declarations, 1 = type expression */
   int depth;			/* recursion guard for nested declarations */
+  int const_dead;		/* parsing an unchosen ?:/&&/|| branch */
   Token tok;
 } Parser;
 
@@ -845,12 +846,16 @@ static int const_prec (Parser *P) {
   if (P->tok.kind != TK_PUNCT)
     return 0;
   switch (P->tok.punct) {
-    case '|': return 1;
-    case '^': return 2;
-    case '&': return 3;
-    case PT_SHL: case PT_SHR: return 4;
-    case '+': case '-': return 5;
-    case '*': case '/': case '%': return 6;
+    case PT_OROR: return 1;
+    case PT_ANDAND: return 2;
+    case '|': return 3;
+    case '^': return 4;
+    case '&': return 5;
+    case PT_EQ: case PT_NE: return 6;
+    case '<': case '>': case PT_LE: case PT_GE: return 7;
+    case PT_SHL: case PT_SHR: return 8;
+    case '+': case '-': return 9;
+    case '*': case '/': case '%': return 10;
     default: return 0;
   }
 }
@@ -862,36 +867,82 @@ static int64_t parse_binary (Parser *P, int minprec) {
     int prec = const_prec(P);
     int op;
     int64_t rhs;
+    /* C's conditional operator: below ||, right-associative, and only the
+    ** selected branch is evaluated.  A dead branch still has to parse. */
+    if (minprec <= 1 && tok_is_punct(P, '?')) {
+      int saved = P->const_dead;
+      int64_t chosen, other;
+      lex_next(P);
+      P->const_dead = saved || (lhs == 0);
+      chosen = parse_binary(P, 1);
+      expect_punct(P, ':', ":");
+      P->const_dead = saved || (lhs != 0);
+      other = parse_binary(P, 1);
+      P->const_dead = saved;
+      lhs = (lhs != 0) ? chosen : other;
+      continue;
+    }
     if (prec == 0 || prec < minprec)
       break;
     op = P->tok.punct;
     lex_next(P);
-    rhs = parse_binary(P, prec + 1);
+    {
+      int saved = P->const_dead;
+      if ((op == PT_ANDAND && lhs == 0) ||
+          (op == PT_OROR && lhs != 0))
+        P->const_dead = 1;
+      rhs = parse_binary(P, prec + 1);
+      P->const_dead = saved;
+    }
     switch (op) {
+      case PT_OROR: lhs = (lhs != 0 || rhs != 0); break;
+      case PT_ANDAND: lhs = (lhs != 0 && rhs != 0); break;
       case '|': lhs = lhs | rhs; break;
       case '^': lhs = lhs ^ rhs; break;
       case '&': lhs = lhs & rhs; break;
+      case PT_EQ: lhs = (lhs == rhs); break;
+      case PT_NE: lhs = (lhs != rhs); break;
+      case '<': lhs = (lhs < rhs); break;
+      case '>': lhs = (lhs > rhs); break;
+      case PT_LE: lhs = (lhs <= rhs); break;
+      case PT_GE: lhs = (lhs >= rhs); break;
       case PT_SHL:
-        if (rhs < 0 || rhs >= 64)
-          parser_error(P, "shift count out of range");
+        if (rhs < 0 || rhs >= 64) {
+          if (!P->const_dead)
+            parser_error(P, "shift count out of range");
+          lhs = 0;
+          break;
+        }
         lhs = (int64_t)((uint64_t)lhs << (unsigned)rhs);
         break;
       case PT_SHR:
-        if (rhs < 0 || rhs >= 64)
-          parser_error(P, "shift count out of range");
+        if (rhs < 0 || rhs >= 64) {
+          if (!P->const_dead)
+            parser_error(P, "shift count out of range");
+          lhs = 0;
+          break;
+        }
         lhs = lhs >> (unsigned)rhs;
         break;
       case '+': lhs = (int64_t)((uint64_t)lhs + (uint64_t)rhs); break;
       case '-': lhs = (int64_t)((uint64_t)lhs - (uint64_t)rhs); break;
       case '*': lhs = (int64_t)((uint64_t)lhs * (uint64_t)rhs); break;
       case '/':
-        if (rhs == 0)
-          parser_error(P, "division by zero in constant expression");
+        if (rhs == 0) {
+          if (!P->const_dead)
+            parser_error(P, "division by zero in constant expression");
+          lhs = 0;
+          break;
+        }
         lhs = (lhs == INT64_MIN && rhs == -1) ? INT64_MIN : lhs / rhs;
         break;
       case '%':
-        if (rhs == 0)
-          parser_error(P, "division by zero in constant expression");
+        if (rhs == 0) {
+          if (!P->const_dead)
+            parser_error(P, "division by zero in constant expression");
+          lhs = 0;
+          break;
+        }
         lhs = (lhs == INT64_MIN && rhs == -1) ? 0 : lhs % rhs;
         break;
       default: break;
