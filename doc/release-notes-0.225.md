@@ -35,7 +35,7 @@ New test:
 
 - Generic paths use per-element `luaH_getint`/`luaH_setint` calls and are
   slower than the numeric fast paths.
-- Zero still cannot be used as a generic run endpoint; the loop helper
-  rejects a zero step but accepts negative indexes.
+- A zero step is still rejected; zero keys are supported like other hash
+  keys on the generic path.
 - Verification is Linux x86-64 only; no macOS/arm64 or CI run in this
   cycle.
