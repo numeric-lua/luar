@@ -125,8 +125,10 @@ by C APIs.  It supports:
   binary integer literals (with `u`/`l` suffixes), single-character C
   constants (plain or escaped, sign-extended through plain `char`), other
   enum constants, `sizeof(type)`, `_Alignof`/`__alignof__`,
-  `offsetof`/`__builtin_offsetof`, parentheses, unary `+ - ~ !`, and
-  binary `+ - * / % << >> & | ^`.
+  `offsetof`/`__builtin_offsetof`, parentheses, unary `+ - ~ !`, the
+  binary arithmetic/shift/bitwise operators, comparisons, `&&`/`||`, and
+  the conditional operator `?:` (with C precedence; only the selected
+  branch is evaluated, so `1 ? 2 : 1/0` is valid).
 
 `ffi.cdef` may be called with several strings.  Declarations must be
 complete: function definitions are not accepted, and only the documented
@@ -137,17 +139,23 @@ preprocessor subset is available.
 * A small C preprocessor is implemented: object- and function-like
   `#define`/`#undef`, `#ifdef`/`#ifndef`/`#if`/`#elif`/`#else`/`#endif`,
   with object macros expanded outside strings/comments.  Function-like
-  macros support named and variadic (`...`/`__VA_ARGS__`) parameters on a
-  single line.  Quoted `#include "path"` resolves relative to the including
+  macros support named and variadic (`...`/`__VA_ARGS__`) parameters on
+  one logical line; backslash-newline continuations are spliced before
+  directives, comments and declarations are parsed.  Quoted
+  `#include "path"` resolves relative to the including
   file first (falling back to the working directory), with depth/size
   limits; token pasting (`##`) and parameter stringification (`#`) are
   supported, and `#error` text is macro-expanded; angle includes use the
   same local resolution.  `#if`/`#elif` take integer constant expressions
   with `defined` (with or without parentheses), `! ~ + -`, `* / %`, `+ -`,
-  shifts, comparisons, `& ^ |`, `&&` and `||`, including
-  decimal/hexadecimal/octal/binary literals and character constants; an
-  undefined identifier is zero, and division by zero, malformed literals
-  and unbalanced parentheses are clear errors.  Integer operands follow
+  shifts, comparisons, `& ^ |`, `&&` and `||`, and the conditional
+  operator `?:`, including decimal/hexadecimal/octal/binary literals and
+  character constants; an undefined identifier is zero, and division by
+  zero, malformed literals and unbalanced parentheses are clear errors.
+  `&&`/`||`/`?:` short-circuit, so an unchosen operand such as
+  `1 ? 2 : 1/0` does not raise.  A bare `defined FOO` followed by the
+  closing parenthesis of an enclosing expression is parsed as written.
+  Integer operands follow
   C's `intmax_t`/`uintmax_t` rules: a hex/octal/binary literal above
   `INTmax_t` is unsigned, a mixed signed/unsigned expression compares,
   divides and shifts as unsigned, and an unsigned right shift is logical.

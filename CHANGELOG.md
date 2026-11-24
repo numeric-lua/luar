@@ -4,6 +4,55 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.214.0] — 2026-11-23
+
+### Added
+
+- `ffi.cdef` evaluates C's conditional operator `?:` in `#if`/`#elif`
+  expressions.  It has C's precedence (below `||`), is right-associative,
+  and only the selected branch is evaluated, so `#if 1 ? 1 : 1/0` is valid
+  while a division by zero in the live branch remains an error.  `&&` and
+  `||` now short-circuit in the same way.
+- Array sizes and enum values accept the full C constant-expression
+  operator set: comparisons, `&&`/`||` and `?:`, with the same lazy
+  evaluation rule.  `enum { E = 1 ? 2 : 1/0 }` and
+  `char a[(1 < 2) ? 4 : 5]` now parse.  Precedence follows C, and live
+  division-by-zero and shift-count errors are unchanged.
+
+### Fixed
+
+- `ffi.cdef`'s `#if` parser no longer consumes the closing parenthesis of an
+  enclosing expression after a bare `defined FOO`.  The common
+  `#if (defined A || defined B)` form was rejected as unbalanced; the
+  parenthesised `defined(A)` form still consumes its own `)` and now reports
+  a clear error when it is missing.
+- Backslash-newline continuations are spliced before directives, comments
+  and declarations are parsed.  Multi-line `#define` bodies, multi-line
+  `#if` expressions and `//` comments continued with a trailing backslash
+  now behave as in C instead of leaving a backslash in the logical line.
+
+### Performance
+
+- J4 (`jit.opt.start("ir=1")`) compiles a loop that carries an integer
+  reduction beside a double reduction, for example `s = s + a[i]` over an
+  `int[]` while `x = x + d[i]` over a `double[]`, or the same shape over
+  table arrays.  Such traces used to be classified as integer-only or
+  rejected at the first integer cdata read, leaving the loop on the
+  interpreter.  `j4/ffi_cdata_read` (1M elements, two accumulators) moved
+  from 79.2 ms to 14.6 ms on the development host.  Pure-integer and
+  pure-float traces keep their previous IR; a dynamic `GETTABLE` whose
+  payload is a float is no longer eligible for integer-only emission.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test` and
+`make WITH_FFI=1 test-asan` are green.  New coverage:
+`tests/ffi/165_preproc_defined_group.lua`,
+`tests/ffi/166_preproc_line_continuation.lua`,
+`tests/ffi/167_preproc_ternary.lua`,
+`tests/ffi/168_const_expr_operators.lua` and
+`tests/jit/183_j4_mixed_reduction.lua`.
+
 ## [0.213.0] — 2026-11-23
 
 ### Fixed

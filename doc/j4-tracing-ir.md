@@ -32,6 +32,11 @@ mid-loop side-trace milestone.
   emitted.  This prevents an independent `t = t * 1` or `u = s * -1` chain
   from reinterpreting a double payload as an integer; such loops fall back
   to the interpreter (or a supported J2 path).
+- Mixed-width reductions: one trace may carry an integer accumulator (over
+  an integer table or cdata array) beside a double accumulator (over a
+  float table or cdata array).  Integer reads that do not feed the float
+  chain are kept as integer ops, and the entry analysis checks a dynamic
+  `GETTABLE` for a float payload before allowing integer-only emission.
 - IR-to-x86-64 emission: **implemented for integer and table root traces**
   (constants, moves, guards, arithmetic, K-ops, `TGET`/`TSET`, `FORLOOP`,
   exit/ret), counted by `jit.stats().ir_compiled/ir_code_bytes`.
