@@ -4,6 +4,29 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## [0.221.0] — 2026-11-24
+
+### Added
+
+- J2 cdata scalar stores accept a closure-upvalue scalar
+  (`a[i] = b[i] OP upvalue`), re-resolved on every entry, so rebinding it
+  or changing an integer value is observed.
+- J2 cdata stores accept a closure-upvalue source array for scalar,
+  two-source, unary and copy forms (`a[i] = U[i]`, `a[i] = U[i] + V[i]`,
+  `a[i] = -U[i]`, `a[i] = U[i] OP k`).  Mixed register/upvalue sources are
+  supported.
+- Scalar and copy stores distinguish register, immediate, constant and
+  upvalue encodings; a GETTABLE destination may alias the upvalue-load
+  temporary because it is reloaded next iteration.
+
+### Tests
+
+`make test`, `make WITH_FFI=1 test`, `make JIT=0 test`,
+`make WITH_FFI=1 test-asan`, `make test-shared` and
+`tools/upstream-check.sh` are green.  New coverage:
+`tests/ffi/184_j2_cdata_upval_scalar.lua` and
+`tests/ffi/185_j2_cdata_upval_source.lua`.
+
 ## [0.220.0] — 2026-11-24
 
 ### Added
