@@ -88,8 +88,11 @@ do
   local function mul_u (a, n) for i = 0, n - 1 do U[i] = U[i] * a end end
   local function band_u (a, n) for i = 0, n - 1 do U[i] = U[i] & a end end
   local function shl_u (a, n) for i = 0, n - 1 do U[i] = U[i] << a end end
+  local function idiv_u (a, n) for i = 0, n - 1 do U[i] = U[i] // a end end
+  local function mod_u (a, n) for i = 0, n - 1 do U[i] = U[i] % a end end
   for name, f in pairs{ add = add_u, sub = sub_u, mul = mul_u,
-                        band = band_u, shl = shl_u } do
+                        band = band_u, shl = shl_u, idiv = idiv_u,
+                        mod = mod_u } do
     U = init()
     jit.off()
     f(V, N)
@@ -102,6 +105,52 @@ do
     f(V, N)
     H.check(jit.stats().tint_hits > before, name .. " cdata upvalue array did not run")
     for i = 0, N - 1 do H.eq(U[i], want[i], name .. " cdata upvalue array " .. i) end
+  end
+end
+
+-- uint64 upvalue array with cdata scalar divide/modulo.
+do
+  local UU = ffi.new("uint64_t[?]", N)
+  for i = 0, N - 1 do UU[i] = i + 1 end
+  local V3 = ffi.new("uint64_t", 3)
+  local function uidiv (a, n) for i = 0, n - 1 do UU[i] = UU[i] // a end end
+  local function umod (a, n) for i = 0, n - 1 do UU[i] = UU[i] % a end end
+  for name, f in pairs{ idiv = uidiv, mod = umod } do
+    for i = 0, N - 1 do UU[i] = i + 1 end
+    jit.off()
+    f(V3, N)
+    local want = ffi.new("uint64_t[?]", N)
+    for i = 0, N - 1 do want[i] = UU[i] end
+    for i = 0, N - 1 do UU[i] = i + 1 end
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    f(V3, N)
+    H.check(jit.stats().tint_hits > before, name .. " uint64 upvalue array did not run")
+    for i = 0, N - 1 do H.eq(UU[i], want[i], name .. " uint64 upvalue array " .. i) end
+  end
+end
+
+-- Upvalue array + zero cdata scalar.
+do
+  local U
+  local Z = ffi.new("int64_t", 0)
+  local function idivz (n) for i = 0, n - 1 do U[i] = U[i] // Z end end
+  local function modz (n) for i = 0, n - 1 do U[i] = U[i] % Z end end
+  for name, f in pairs{ idiv = idivz, mod = modz } do
+    U = init()
+    jit.off()
+    f(N)
+    local want = U
+    U = init()
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    f(N)
+    H.check(jit.stats().tint_hits > before, name .. " zero upvalue array did not run")
+    for i = 0, N - 1 do H.eq(U[i], want[i], name .. " zero upvalue array " .. i) end
   end
 end
 

@@ -4,6 +4,20 @@ All notable changes to Luar are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow semver for
 the runtime, while the Lua language surface follows upstream Lua.
 
+## Unreleased
+
+### Added
+
+- J2 in-place 8-byte cdata updates through an upvalue-array destination
+  accept a cdata scalar register/upvalue for `//` and `%`.  Signed
+  division truncates toward zero; zero scalars use the cdata `INT64_MIN`
+  bit pattern.
+
+### Tests
+
+`tests/ffi/196_j2_i64_update.lua` extended with signed/unsigned
+upvalue-array divide/modulo and zero-scalar cases.
+
 ## [0.241.0] — 2026-11-24
 
 ### Added

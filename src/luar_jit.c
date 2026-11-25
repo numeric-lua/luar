@@ -1384,6 +1384,8 @@ static int match_cdata_upval_update_scalar (Proto *p, LuaR_JIT *J,
   else if (opc == OP_BXOR) code = 8;
   else if (opc == OP_SHL) code = 9;
   else if (opc == OP_SHR) code = 10;
+  else if (opc == OP_IDIV) code = 3;
+  else if (opc == OP_MOD) code = 4;
   else return 0;
   return install_cdata_tint(p, J, backedge, 75, dreg, scalar_enc, tmp,
                             code, 0, 0, for_a);
