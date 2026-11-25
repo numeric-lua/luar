@@ -85,6 +85,7 @@ struct CField {
   uint8_t bitoffset;	/* bit position inside the first byte */
   uint8_t zero_width;	/* unnamed zero-width padding bitfield */
   uint8_t packed;	/* byte-granular bitfield storage */
+  uint8_t align;	/* __attribute__((aligned(n))) / packed field */
 };
 
 /* Cached libffi call interface for a fixed, scalar-only function

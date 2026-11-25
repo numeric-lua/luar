@@ -1359,6 +1359,40 @@ static void parse_struct_attrs (Parser *P, CType *ct) {
 }
 
 
+/* Field-level __attribute__((aligned(n)/packed)). */
+static void parse_field_attrs (Parser *P, uint8_t *align) {
+  while (tok_is_ident(P, "__attribute__")) {
+    lex_next(P);
+    expect_punct(P, '(', "(");
+    expect_punct(P, '(', "(");
+    for (;;) {
+      if (tok_is_ident(P, "packed")) {
+        lex_next(P);
+        *align = 1;
+      }
+      else if (tok_is_ident(P, "aligned")) {
+        int64_t v;
+        lex_next(P);
+        expect_punct(P, '(', "(");
+        v = parse_const_expr(P);
+        expect_punct(P, ')', ")");
+        if (v < 1 || v > 32 || (v & (v - 1)) != 0)
+          parser_error(P, "bad aligned() value");
+        if (*align != 1 || *align == 0)
+          *align = (uint8_t)v;
+      }
+      else
+        parser_error(P, "only packed/aligned field attributes are supported");
+      if (accept_punct(P, ','))
+        continue;
+      break;
+    }
+    expect_punct(P, ')', ")");
+    expect_punct(P, ')', ")");
+  }
+}
+
+
 static CType *parse_struct_or_union (Parser *P, int is_union) {
   const char *kind = is_union ? "union" : "struct";
   char tag[256];
@@ -1421,11 +1455,14 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
         DNode *node = parse_declarator(P);
         char *name = NULL;
         CType *ft = apply_node(P, node, ds.base, &name);
+        uint8_t falign = 0;
+        parse_field_attrs(P, &falign);
         if (name == NULL && !tok_is_punct(P, ':'))
           parser_error(P, "expected a field name");
         if (accept_punct(P, ':')) {
           int64_t width = parse_const_expr(P);
           size_t bits;
+          parse_field_attrs(P, &falign);
           if (ft->kind != CT_INT && ft->kind != CT_ENUM &&
               ft->kind != CT_BOOL)
             parser_error(P, "bitfield '%s' must have an integer type",
@@ -1446,6 +1483,8 @@ static CType *parse_struct_or_union (Parser *P, int is_union) {
           reject_unsupported(P);
           ffi_type_add_field(P->S, ct, name, ft);
         }
+        if (falign != 0)
+          ct->fields[ct->nfields - 1].align = falign;
         if (accept_punct(P, ','))
           continue;
         expect_punct(P, ';', ";");

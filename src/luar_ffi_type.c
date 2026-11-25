@@ -406,7 +406,7 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       f->type = ffi_type_arr(S->L, S, f->type->child, 0, 0, 0);
     size_t fsz = ffi_type_size(f->type);
     f->packed = (ct->pack == 1);
-    size_t fal = ffi_type_align(f->type);
+    size_t fal = (f->align != 0) ? f->align : ffi_type_align(f->type);
     if (fsz == FFI_SIZE_UNKNOWN || f->type->incomplete ||
         f->type->kind == CT_VOID || f->type->kind == CT_FUNC)
       luaL_error(S->L, "ffi: field '%s' has incomplete or invalid type",
