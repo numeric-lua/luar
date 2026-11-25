@@ -88,6 +88,10 @@ int luar_ffi_trace_f64_value (TValue *tv, double *out) {
 int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out) {
   (void)tv; (void)out; return 0;
 }
+int luar_ffi_trace_field_int (TValue *cdv, const char *name, size_t *off,
+                             size_t *size) {
+  (void)cdv; (void)name; (void)off; (void)size; return 0;
+}
 int luar_ffi_trace_field_i64 (TValue *cdv, const char *name, size_t *off,
                              size_t *size) {
   (void)cdv; (void)name; (void)off; (void)size; return 0;

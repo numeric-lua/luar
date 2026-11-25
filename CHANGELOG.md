@@ -30,6 +30,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   (`U.f = dst.f`, `dst.f = U.f`, `U.f = V.f`).
 - J2 fills 8-byte struct fields with integer constants (`s.f = k`),
   including register/upvalue structs, uint64 fields and negative values.
+- Narrow integer fields also fill from constants: int32_t, int16_t and
+  int8_t fields, with sibling fields preserved.
 - Field fills also accept a cdata scalar register/upvalue (`s.f = V`),
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:

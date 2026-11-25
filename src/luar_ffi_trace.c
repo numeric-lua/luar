@@ -1526,14 +1526,16 @@ int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
   if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
       cd->ct == NULL ||
       (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
-      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size ||
-      8 > cd->ct->size - off)
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size)
     return 0;
   for (i = 0; i < cd->ct->nfields; i++)
     if (cd->ct->fields[i].offset == off &&
         cd->ct->fields[i].type != NULL &&
         cd->ct->fields[i].type->kind == CT_INT &&
-        cd->ct->fields[i].type->size == 8)
+        (cd->ct->fields[i].type->size == 1 ||
+         cd->ct->fields[i].type->size == 2 ||
+         cd->ct->fields[i].type->size == 4 ||
+         cd->ct->fields[i].type->size == 8))
       ft = cd->ct->fields[i].type;
   if (ft == NULL)
     return 0;
@@ -1557,7 +1559,23 @@ int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
   lastkey = idx + delta;
   p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
                                                              : (void *)&cd->v);
-  memcpy(p + off, &bits, 8);
+  if (ft->size == 8)
+    memcpy(p + off, &bits, 8);
+  else {
+    uint64_t tmpbits = bits;
+    if (ft->size == 4) {
+      uint32_t v = (uint32_t)tmpbits;
+      memcpy(p + off, &v, 4);
+    }
+    else if (ft->size == 2) {
+      uint16_t v = (uint16_t)tmpbits;
+      memcpy(p + off, &v, 2);
+    }
+    else {
+      uint8_t v = (uint8_t)tmpbits;
+      memcpy(p + off, &v, 1);
+    }
+  }
   setivalue(ct, 0);
   setivalue(it, lastkey);
   return 1;
@@ -2501,6 +2519,38 @@ int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out) {
   else
     memcpy(out, &cd->v, 8);
   return 1;
+}
+
+
+int luar_ffi_trace_field_int (TValue *cdv, const char *name,
+                             size_t *off, size_t *size) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  uint16_t i;
+  if (cdv == NULL || name == NULL || off == NULL || size == NULL ||
+      !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
+    return 0;
+  for (i = 0; i < ct->nfields; i++) {
+    CField *f = &ct->fields[i];
+    if (f->name != NULL && strcmp(f->name, name) == 0 &&
+        f->bitwidth == 0 && f->type != NULL &&
+        f->type->kind == CT_INT &&
+        (f->type->size == 1 || f->type->size == 2 ||
+         f->type->size == 4 || f->type->size == 8)) {
+      *off = f->offset;
+      *size = f->type->size;
+      return 1;
+    }
+  }
+  return 0;
 }
 
 

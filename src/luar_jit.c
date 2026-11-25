@@ -1708,8 +1708,8 @@ static int match_cdata_field_fill_const (Proto *p, LuaR_JIT *J,
   else
     return 0;
   if (luar_ffi_trace_kind(cv) != 3 ||
-      !luar_ffi_trace_field_i64(cv, getstr(tsvalue(&p->k[kidxstr])),
-                                &off, &fsize) || fsize != 8 ||
+      !luar_ffi_trace_field_int(cv, getstr(tsvalue(&p->k[kidxstr])),
+                                &off, &fsize) || fsize == 0 ||
       off > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 84, enc, -2, 0,
