@@ -1400,6 +1400,88 @@ static int match_cdata_field_update_scalar (Proto *p, LuaR_JIT *J,
 }
 
 
+/* LUAR: `U.f = U.f OP V` with a cdata scalar through GETTABUP/SETTABUP. */
+static int match_cdata_upval_field_tabup_scalar (Proto *p, LuaR_JIT *J,
+                                                 ptrdiff_t start,
+                                                 ptrdiff_t backedge,
+                                                 int for_a, TValue *b) {
+  ptrdiff_t pos = start + 1;
+  Instruction g, op, set;
+  int tmp, upidx, kidx, opc, code = -1, scalar_enc = 0, scalar_reg = -1;
+  size_t off = 0, fsize = 0;
+  TValue *fv, *uv;
+  LClosure *cl;
+  if (start + 4 != backedge && start + 5 != backedge)
+    return 0;
+  g = p->code[start];
+  if (GET_OPCODE(g) != OP_GETTABUP)
+    return 0;
+  tmp = GETARG_A(g);
+  upidx = GETARG_B(g);
+  kidx = GETARG_C(g);
+  if (kidx < 0 || kidx >= p->sizek || !ttisstring(&p->k[kidx]) ||
+      is_control_reg(tmp, for_a))
+    return 0;
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    Instruction up = p->code[pos++];
+    scalar_reg = GETARG_A(up);
+    scalar_enc = -1 - GETARG_B(up);
+    if (is_control_reg(scalar_reg, for_a))
+      return 0;
+  }
+  if (pos + 3 != backedge)
+    return 0;
+  op = p->code[pos++];
+  {
+    Instruction mm = p->code[pos++];
+    if (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+        GET_OPCODE(mm) != OP_MMBINK)
+      return 0;
+  }
+  set = p->code[pos++];
+  if (GET_OPCODE(set) != OP_SETTABUP || GETARG_A(set) != upidx ||
+      GETARG_B(set) != kidx || GETARG_C(set) != tmp || GETARG_k(set) ||
+      GETARG_A(op) != tmp || GETARG_B(op) != tmp)
+    return 0;
+  if (scalar_enc == 0) {
+    scalar_reg = GETARG_C(op);
+    if (is_control_reg(scalar_reg, for_a) || scalar_reg == tmp)
+      return 0;
+    scalar_enc = scalar_reg;
+  }
+  else if (GETARG_C(op) != scalar_reg)
+    return 0;
+  fv = &b[-1];
+  if (!ttisLclosure(fv))
+    return 0;
+  cl = clLvalue(fv);
+  if (upidx < 0 || upidx >= cl->p->sizeupvalues ||
+      cl->upvals[upidx] == NULL || cl->upvals[upidx]->v.p == NULL)
+    return 0;
+  uv = cl->upvals[upidx]->v.p;
+  if (luar_ffi_trace_kind(uv) != 3 ||
+      !luar_ffi_trace_field_i64(uv, getstr(tsvalue(&p->k[kidx])),
+                                &off, &fsize) || fsize != 8)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADD) code = 0;
+  else if (opc == OP_SUB) code = 1;
+  else if (opc == OP_MUL) code = 2;
+  else if (opc == OP_IDIV) code = 3;
+  else if (opc == OP_MOD) code = 4;
+  else if (opc == OP_BAND) code = 6;
+  else if (opc == OP_BOR) code = 7;
+  else if (opc == OP_BXOR) code = 8;
+  else if (opc == OP_SHL) code = 9;
+  else if (opc == OP_SHR) code = 10;
+  else return 0;
+  if (off > INT32_MAX)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 79, upidx, code, tmp,
+                            (int)off, scalar_enc, 0, for_a);
+}
+
+
 /* LUAR: `U.f = U.f OP k` compiled as GETTABUP/SETTABUP. */
 static int match_cdata_upval_field_tabup_const (Proto *p, LuaR_JIT *J,
                                                 ptrdiff_t start,
@@ -3844,6 +3926,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_field_tabup_scalar(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_field_tabup_const(p, J, start, backedge, for_a, b))
@@ -8105,6 +8190,39 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     vv);
+          break;
+        }
+        case 79: {
+          TValue *fv = &((TValue *)base)[-1];
+          LClosure *cl;
+          int up = p->luar_tint_table[i];
+          int enc = p->luar_tint_res[i];
+          TValue *uv, *sv;
+          uint64_t bits;
+          if (!ttisLclosure(fv)) {
+            r = 0;
+            break;
+          }
+          cl = clLvalue(fv);
+          if (up < 0 || up >= cl->p->sizeupvalues ||
+              cl->upvals[up] == NULL) {
+            r = 0;
+            break;
+          }
+          uv = cl->upvals[up]->v.p;
+          sv = (enc >= 0) ? &((TValue *)base)[enc]
+               : pair_source_value((TValue *)base, -1, -1 - enc);
+          if (sv == NULL || !luar_ffi_trace_i64_value(sv, &bits)) {
+            r = 0;
+            break;
+          }
+          r = luar_ffi_trace_update_field_i64(
+                  uv, (size_t)p->luar_tint_acc[i], bits,
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_keys[i], L);
           break;
         }
         case 78: {

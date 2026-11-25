@@ -17,6 +17,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `s.f = s.f +|-|*|&|||~|<<|>> V`.
 - Struct fields held in a closure-upvalue cdata object update in place:
   `U.f = U.f +|-|*|&|||~|<<|>> k`, compiled through GETTABUP/SETTABUP.
+- Those upvalue-field updates also accept a cdata scalar register/upvalue
+  (`U.f = U.f OP V`).
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
