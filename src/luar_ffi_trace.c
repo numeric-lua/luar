@@ -1422,6 +1422,107 @@ int luar_ffi_trace_update_array_i64 (TValue *arrv, TValue *it, TValue *ct,
 }
 
 
+int luar_ffi_trace_sum_field_i64 (TValue *accv, TValue *cdv, size_t off,
+                                 TValue *it, TValue *ct, TValue *st,
+                                 TValue *tmp, int tmp_reg, int op,
+                                 lua_State *L) {
+  Udata *u;
+  CData *cd, *acd, *tcd;
+  CType *ft = NULL;
+  char *p;
+  uint64_t acc, fld, last;
+  lua_Integer count, step, idx, lastkey, k, delta;
+  int i;
+  TValue *top, *base;
+  if (accv == NULL || cdv == NULL || it == NULL || ct == NULL ||
+      st == NULL || tmp == NULL || L == NULL || tmp_reg < 0 ||
+      tmp_reg >= 256 || !ttisfulluserdata(accv) ||
+      !ttisfulluserdata(cdv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)accv->value_.gc;
+  acd = (CData *)getudatamem(u);
+  if (acd->magic != LUAR_FFI_MAGIC || (acd->flags & CDATA_CTYPE) != 0 ||
+      acd->ct == NULL || acd->ct->kind != CT_INT || acd->ct->size != 8)
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL ||
+      (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size ||
+      8 > cd->ct->size - off)
+    return 0;
+  for (i = 0; i < cd->ct->nfields; i++) {
+    CField *f = &cd->ct->fields[i];
+    if (f->offset == off && f->type != NULL && f->type->kind == CT_INT &&
+        f->type->size == 8) {
+      ft = f->type;
+      break;
+    }
+  }
+  if (ft == NULL)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  if ((acd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(&acc, acd->v.p, 8);
+  else
+    memcpy(&acc, &acd->v, 8);
+  p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
+                                                             : (void *)&cd->v);
+  memcpy(&fld, p + off, 8);
+  last = fld;
+  for (k = 0; k <= count; k++) {
+    if (op == 1)
+      acc -= fld;
+    else if (op == 2)
+      acc *= fld;
+    else if (op == 6)
+      acc &= fld;
+    else if (op == 7)
+      acc |= fld;
+    else if (op == 8)
+      acc ^= fld;
+    else if (op == 9)
+      acc <<= (unsigned)(fld & 63);
+    else if (op == 10)
+      acc = (uint64_t)acc >> (unsigned)(fld & 63);
+    else
+      acc += fld;
+  }
+  if ((acd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(acd->v.p, &acc, 8);
+  else
+    memcpy(&acd->v, &acc, 8);
+  tcd = ffi_push_scalar(L, ffi_getstate(L), ft);
+  memcpy(&tcd->v, &last, 8);
+  top = s2v(L->top.p - 1);
+  base = (TValue *)(L->ci->func.p + 1);
+  base[tmp_reg] = *top;
+  L->top.p--;
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
                                      TValue *it, TValue *ct, TValue *st,
                                      TValue *tmp, int tmp_reg, int op,

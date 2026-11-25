@@ -391,6 +391,10 @@ int luar_trace_ir_selftest (void);
 int luar_ffi_trace_i64_scalar (TValue *tv);
 int luar_ffi_trace_fill_array_i64 (TValue *dst, TValue *idx, TValue *count,
                                    TValue *step, TValue *val);
+int luar_ffi_trace_sum_field_i64 (TValue *acc, TValue *cdv, size_t off,
+                                 TValue *idx, TValue *count, TValue *step,
+                                 TValue *tmp, int tmp_reg, int op,
+                                 lua_State *L);
 int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t scalar,
                                      TValue *idx, TValue *count,
                                      TValue *step, TValue *tmp, int tmp_reg,
