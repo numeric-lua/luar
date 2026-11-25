@@ -34,6 +34,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:
   `a[i] = a[i] +|-|*|/|% k`, returning the last element as a cdata temp.
+- J2 fills bounded double arrays from a cdata double scalar register or
+  upvalue (`a[i] = V`), including NaN and infinity values.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override

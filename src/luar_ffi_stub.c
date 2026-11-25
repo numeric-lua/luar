@@ -82,6 +82,9 @@ int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
   (void)cdv; (void)off; (void)sz; (void)val; return 0;
 }
 
+int luar_ffi_trace_f64_value (TValue *tv, double *out) {
+  (void)tv; (void)out; return 0;
+}
 int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out) {
   (void)tv; (void)out; return 0;
 }
@@ -285,6 +288,10 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t v,
                                      lua_State *L) {
   (void)cdv; (void)off; (void)v; (void)i; (void)c; (void)st; (void)t;
   (void)tr; (void)op; (void)L; return 0;
+}
+int luar_ffi_trace_fill_array_f64 (TValue *a, TValue *i, TValue *c,
+                                  TValue *st, double v, lua_State *L) {
+  (void)a; (void)i; (void)c; (void)st; (void)v; (void)L; return 0;
 }
 int luar_ffi_trace_update_array_f64 (TValue *a, TValue *i, TValue *c,
                                      TValue *st, double s, TValue *t,
