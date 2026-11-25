@@ -2248,9 +2248,9 @@ static int match_cdata_field_update_const (Proto *p, LuaR_JIT *J,
       GETARG_A(op) != tmp || GETARG_B(op) != tmp ||
       is_control_reg(tmp, for_a) || is_control_reg(sreg, for_a) ||
       luar_ffi_trace_kind(&b[sreg]) != 3 ||
-      !luar_ffi_trace_field_i64(&b[sreg], getstr(tsvalue(&p->k[kidx])),
+      !luar_ffi_trace_field_int(&b[sreg], getstr(tsvalue(&p->k[kidx])),
                                 &off, &fsize) ||
-      fsize != 8)
+      fsize == 0)
     return 0;
   opc = GET_OPCODE(op);
   if (opc == OP_ADDI) {
@@ -2278,7 +2278,8 @@ static int match_cdata_field_update_const (Proto *p, LuaR_JIT *J,
   }
   else
     return 0;
-  if (scalar < INT32_MIN || scalar > INT32_MAX || off > INT32_MAX)
+  if (scalar < INT32_MIN || scalar > INT32_MAX || off > INT32_MAX ||
+      (fsize < 8 && (code == 3 || code == 4)))
     return 0;
   return install_cdata_tint(p, J, backedge, 76, sreg, code, tmp,
                             (int)off, 0, (int)scalar, for_a);

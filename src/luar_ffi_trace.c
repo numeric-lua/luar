@@ -1804,18 +1804,18 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
   if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
       cd->ct == NULL ||
       (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
-      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size ||
-      8 > cd->ct->size - off)
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size)
     return 0;
   for (i = 0; i < cd->ct->nfields; i++) {
     CField *f = &cd->ct->fields[i];
     if (f->offset == off && f->type != NULL && f->type->kind == CT_INT &&
-        f->type->size == 8) {
+        (f->type->size == 1 || f->type->size == 2 ||
+         f->type->size == 4 || f->type->size == 8)) {
       ft = f->type;
       break;
     }
   }
-  if (ft == NULL)
+  if (ft == NULL || ft->size > cd->ct->size - off)
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -1837,10 +1837,17 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
   lastkey = idx + delta;
   p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
                                                              : (void *)&cd->v);
-  memcpy(&val, p + off, 8);
-  last = val;
-  for (k = 0; k <= count; k++) {
+  {
+    size_t sz = ft->size;
+    uint64_t mask = (sz == 8) ? UINT64_MAX : ((UINT64_C(1) << (sz * 8)) - 1);
+    unsigned shiftmask = (unsigned)(sz * 8 - 1);
+    memcpy(&val, p + off, sz);
+    val &= mask;
+    last = val;
+    for (k = 0; k <= count; k++) {
     if (op == 3 || op == 4) {
+      if (sz != 8)
+        return 0;
       if (ft->is_unsigned) {
         uint64_t ub = sb;
         if (ub == 0)
@@ -1869,16 +1876,19 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
     else if (op == 8)
       val ^= sb;
     else if (op == 9)
-      val <<= (unsigned)(sb & 63);
+      val <<= (unsigned)(sb & shiftmask);
     else if (op == 10)
-      val = (uint64_t)val >> (unsigned)(sb & 63);
+      val = (uint64_t)val >> (unsigned)(sb & shiftmask);
     else
       val += sb;
+    val &= mask;
   }
-  memcpy(p + off, &val, 8);
+  memcpy(p + off, &val, sz);
   last = val;
   tcd = ffi_push_scalar(L, ffi_getstate(L), ft);
-  memcpy(&tcd->v, &last, 8);
+  memset(&tcd->v, 0, sizeof(tcd->v));
+  memcpy(&tcd->v, &last, sz);
+  }
   top = s2v(L->top.p - 1);
   base = (TValue *)(L->ci->func.p + 1);
   base[tmp_reg] = *top;
