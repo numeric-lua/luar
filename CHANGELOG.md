@@ -8,6 +8,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ### Added
 
+- J2 updates 8-byte integer struct fields in place with small integer
+  constants: `s.f = s.f +|-|*|&|||~|<<|>> k`.  The sibling fields are
+  preserved and the visible element temporary is a cdata scalar.
+
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
   for offsets, struct size and alignment.  `aligned` takes precedence over

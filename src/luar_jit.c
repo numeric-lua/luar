@@ -1327,6 +1327,71 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `s.f = s.f OP k` for an 8-byte integer struct field. */
+static int match_cdata_field_update_const (Proto *p, LuaR_JIT *J,
+                                           ptrdiff_t start,
+                                           ptrdiff_t backedge, int for_a,
+                                           TValue *b) {
+  Instruction g, op, set;
+  int tmp, sreg, kidx, opc, code = -1;
+  int64_t scalar = 0;
+  size_t off = 0, fsize = 0;
+  if (start + 4 != backedge)
+    return 0;
+  g = p->code[start];
+  op = p->code[start + 1];
+  set = p->code[start + 3];
+  if (GET_OPCODE(g) != OP_GETFIELD || GET_OPCODE(set) != OP_SETFIELD ||
+      (GET_OPCODE(p->code[start + 2]) != OP_MMBINI &&
+       GET_OPCODE(p->code[start + 2]) != OP_MMBINK &&
+       GET_OPCODE(p->code[start + 2]) != OP_MMBIN))
+    return 0;
+  tmp = GETARG_A(g);
+  sreg = GETARG_B(g);
+  kidx = GETARG_C(g);
+  if (kidx < 0 || kidx >= p->sizek || !ttisstring(&p->k[kidx]) ||
+      GETARG_A(set) != sreg || GETARG_B(set) != kidx ||
+      GETARG_C(set) != tmp || GETARG_k(set) ||
+      GETARG_A(op) != tmp || GETARG_B(op) != tmp ||
+      is_control_reg(tmp, for_a) || is_control_reg(sreg, for_a) ||
+      luar_ffi_trace_kind(&b[sreg]) != 3 ||
+      !luar_ffi_trace_field_i64(&b[sreg], getstr(tsvalue(&p->k[kidx])),
+                                &off, &fsize) ||
+      fsize != 8)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADDI) {
+    code = 0; scalar = GETARG_sC(op);
+  }
+  else if (opc == OP_SHLI) {
+    code = 9; scalar = GETARG_sC(op);
+  }
+  else if (opc == OP_SHRI) {
+    int64_t n = GETARG_sC(op);
+    code = (n < 0) ? 9 : 10;
+    scalar = (n < 0) ? -n : n;
+  }
+  else if (opc == OP_ADDK || opc == OP_SUBK || opc == OP_MULK ||
+           opc == OP_BANDK || opc == OP_BORK || opc == OP_BXORK ||
+           opc == OP_IDIVK || opc == OP_MODK) {
+    int idx = GETARG_C(op);
+    if (idx < 0 || idx >= p->sizek || !ttisinteger(&p->k[idx]))
+      return 0;
+    scalar = ivalue(&p->k[idx]);
+    code = (opc == OP_ADDK) ? 0 : (opc == OP_SUBK) ? 1 :
+           (opc == OP_MULK) ? 2 : (opc == OP_IDIVK) ? 3 :
+           (opc == OP_MODK) ? 4 : (opc == OP_BANDK) ? 6 :
+           (opc == OP_BORK) ? 7 : 8;
+  }
+  else
+    return 0;
+  if (scalar < INT32_MIN || scalar > INT32_MAX || off > INT32_MAX)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 76, sreg, code, tmp,
+                            (int)off, 0, (int)scalar, for_a);
+}
+
+
 /* LUAR: `U[i] = U[i] OP V` with an upvalue array and cdata scalar. */
 static int match_cdata_upval_update_scalar (Proto *p, LuaR_JIT *J,
                                             ptrdiff_t start,
@@ -1334,6 +1399,7 @@ static int match_cdata_upval_update_scalar (Proto *p, LuaR_JIT *J,
                                             TValue *b) {
   ptrdiff_t n = backedge - start + 1, pos = start + 3;
   Instruction up1, up2, g, op, mm, s;
+  (void)b;
   int dreg, sreg, tmp, scalar_reg, scalar_enc = 0, opc, code;
   if (n != 7 && n != 8)
     return 0;
@@ -3564,6 +3630,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_field_update_const(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_update_scalar(p, J, start, backedge, for_a, b))
@@ -7815,6 +7884,17 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     vv);
           break;
         }
+        case 76:
+          r = luar_ffi_trace_update_field_i64(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  (size_t)p->luar_tint_acc[i],
+                  (uint64_t)(int64_t)p->luar_tint_arg4[i],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_keys[i], L);
+          break;
         case 75: {
           int arr = p->luar_tint_table[i];
           int enc = p->luar_tint_keys[i];

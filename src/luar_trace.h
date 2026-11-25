@@ -208,6 +208,8 @@ int64_t luar_ffi_trace_cset_int (TValue *cdv, TValue *kt, TValue *val);
 int64_t luar_ffi_trace_cset_double (TValue *cdv, TValue *kt, TValue *val);
 int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
                           size_t *off, size_t *size);
+int luar_ffi_trace_field_i64 (TValue *cdv, const char *name,
+                             size_t *off, size_t *size);
 int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,
                            int *kind, size_t *off, size_t *size);
 int luar_ffi_trace_field3 (TValue *cdv, const char *n1, const char *n2,
@@ -388,6 +390,10 @@ int luar_trace_ir_selftest (void);
 int luar_ffi_trace_i64_scalar (TValue *tv);
 int luar_ffi_trace_fill_array_i64 (TValue *dst, TValue *idx, TValue *count,
                                    TValue *step, TValue *val);
+int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t scalar,
+                                     TValue *idx, TValue *count,
+                                     TValue *step, TValue *tmp, int tmp_reg,
+                                     int op, lua_State *L);
 int luar_ffi_trace_update_array_i64_bits (TValue *arr, TValue *idx,
                                          TValue *count, TValue *step,
                                          uint64_t scalar, TValue *tmp,
