@@ -77,6 +77,33 @@ do
   check_range("inf", a, 1/0)
 end
 
+-- Numeric constant fills.
+do
+  local function run (name, val, f)
+    local a = init()
+    jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+    local before = jit.stats().tint_hits
+    f(a, N)
+    H.check(jit.stats().tint_hits > before, name .. " constant fill did not run")
+    check_range(name, a, val)
+  end
+  run("const float", 2.5, function (a, n)
+    for i = 0, n - 1 do a[i] = 2.5 end
+  end)
+  run("const negative", -3.25, function (a, n)
+    for i = 0, n - 1 do a[i] = -3.25 end
+  end)
+  run("const integer", 7.0, function (a, n)
+    for i = 0, n - 1 do a[i] = 7 end
+  end)
+  run("const zero", 0.0, function (a, n)
+    for i = 0, n - 1 do a[i] = 0 end
+  end)
+  run("const large", 1e300, function (a, n)
+    for i = 0, n - 1 do a[i] = 1e300 end
+  end)
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/205_j2_f64_array_fill ok")
