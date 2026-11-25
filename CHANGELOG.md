@@ -49,6 +49,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   (`U[i] = 2.5`), including negative, integer, zero and float32 values.
 - J2 copies float/double arrays into an upvalue destination (`U[i] = s[i]`),
   including float/double conversion, strided and self-copy forms.
+- Float/double arrays also copy from an upvalue source (`d[i] = U[i]`),
+  including both-upvalue copies and float/double conversion.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
