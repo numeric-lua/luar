@@ -1352,6 +1352,38 @@ static int match_cdata_array_fill_f64_const (Proto *p, LuaR_JIT *J,
 }
 
 
+/* LUAR: `U[i] = src[i]` for float/double arrays in an upvalue. */
+static int match_cdata_upval_array_copy_f64 (Proto *p, LuaR_JIT *J,
+                                             ptrdiff_t start,
+                                             ptrdiff_t backedge,
+                                             int for_a, TValue *b) {
+  Instruction u, g, s;
+  int dst, src, tmp, key;
+  if (start + 3 != backedge)
+    return 0;
+  u = p->code[start];
+  g = p->code[start + 1];
+  s = p->code[start + 2];
+  key = for_a + 2;
+  if (GET_OPCODE(u) != OP_GETUPVAL || GET_OPCODE(g) != OP_GETTABLE ||
+      GET_OPCODE(s) != OP_SETTABLE)
+    return 0;
+  dst = GETARG_A(u);
+  tmp = GETARG_A(g);
+  src = GETARG_B(g);
+  if (GETARG_A(s) != dst || GETARG_B(s) != key ||
+      GETARG_C(s) != tmp || GETARG_k(s) ||
+      GETARG_C(g) != key ||
+      luar_ffi_trace_array_kind(&b[dst]) != 2 ||
+      luar_ffi_trace_array_kind(&b[src]) != 2 ||
+      is_control_reg(dst, for_a) || is_control_reg(src, for_a) ||
+      is_control_reg(tmp, for_a))
+    return 0;
+  return install_cdata_tint(p, J, backedge, 93, dst, src, tmp,
+                            0, 0, 0, for_a);
+}
+
+
 /* LUAR: `U[i] = k` for float/double arrays held in a closure upvalue. */
 static int match_cdata_upval_array_fill_f64_const (Proto *p, LuaR_JIT *J,
                                                    ptrdiff_t start,
@@ -4447,6 +4479,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_array_fill_f64_const(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_array_copy_f64(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_array_fill_f64_const(p, J, start, backedge, for_a, b))
@@ -8743,6 +8778,15 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     vv);
           break;
         }
+        case 93:
+          r = luar_ffi_trace_copy_array(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_upval[i]]);
+          break;
         case 92: {
           int kidx = p->luar_tint_arg4[i];
           double v;
