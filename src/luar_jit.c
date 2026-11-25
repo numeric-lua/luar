@@ -1327,6 +1327,52 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `a[i] = a[i] OP k` for 8-byte float arrays. */
+static int match_cdata_array_update_f64_const (Proto *p, LuaR_JIT *J,
+                                               ptrdiff_t start,
+                                               ptrdiff_t backedge,
+                                               int for_a, TValue *b) {
+  ptrdiff_t n = backedge - start + 1;
+  Instruction i0, op, mm, s;
+  int tmp, arr, dst, key, kidx, opc, code;
+  if (n != 5)
+    return 0;
+  i0 = p->code[start];
+  op = p->code[start + 1];
+  mm = p->code[start + 2];
+  s = p->code[start + 3];
+  if (GET_OPCODE(i0) != OP_GETTABLE || GET_OPCODE(s) != OP_SETTABLE ||
+      (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+       GET_OPCODE(mm) != OP_MMBINK))
+    return 0;
+  tmp = GETARG_A(i0);
+  arr = GETARG_B(i0);
+  key = for_a + 2;
+  dst = GETARG_A(s);
+  if (GETARG_C(i0) != key || GETARG_A(op) != tmp ||
+      GETARG_B(op) != tmp || dst != arr || GETARG_B(s) != key ||
+      GETARG_C(s) != tmp || GETARG_k(s) || tmp == key ||
+      arr == for_a || arr == for_a + 1 || arr == for_a + 2 ||
+      tmp == for_a || tmp == for_a + 1 || tmp == for_a + 2 ||
+      luar_ffi_trace_array_kind(&b[arr]) != 2)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADDK) code = 0;
+  else if (opc == OP_SUBK) code = 1;
+  else if (opc == OP_MULK) code = 2;
+  else if (opc == OP_DIVK) code = 3;
+  else if (opc == OP_MODK) code = 4;
+  else
+    return 0;
+  kidx = GETARG_C(op);
+  if (kidx < 0 || kidx >= p->sizek ||
+      (!ttisfloat(&p->k[kidx]) && !ttisinteger(&p->k[kidx])))
+    return 0;
+  return install_cdata_tint(p, J, backedge, 86, arr, code, tmp,
+                            0, 0, kidx, for_a);
+}
+
+
 /* LUAR: `s.f = V` with a cdata scalar for an 8-byte field. */
 static int match_cdata_field_fill_scalar (Proto *p, LuaR_JIT *J,
                                           ptrdiff_t start,
@@ -4245,6 +4291,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_array_update_f64_const(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_field_fill_scalar(p, J, start, backedge, for_a, b))
@@ -8527,6 +8576,30 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     vv);
+          break;
+        }
+        case 86: {
+          int kidx = p->luar_tint_arg4[i];
+          double sb;
+          if (kidx < 0 || kidx >= p->sizek) {
+            r = 0;
+            break;
+          }
+          if (ttisfloat(&p->k[kidx]))
+            sb = fltvalue(&p->k[kidx]);
+          else if (ttisinteger(&p->k[kidx]))
+            sb = (double)ivalue(&p->k[kidx]);
+          else {
+            r = 0;
+            break;
+          }
+          r = luar_ffi_trace_update_array_f64(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1], sb,
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_keys[i], L);
           break;
         }
         case 85: {

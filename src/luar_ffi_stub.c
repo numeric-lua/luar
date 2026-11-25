@@ -286,6 +286,12 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t v,
   (void)cdv; (void)off; (void)v; (void)i; (void)c; (void)st; (void)t;
   (void)tr; (void)op; (void)L; return 0;
 }
+int luar_ffi_trace_update_array_f64 (TValue *a, TValue *i, TValue *c,
+                                     TValue *st, double s, TValue *t,
+                                     int tr, int op, lua_State *L) {
+  (void)a; (void)i; (void)c; (void)st; (void)s; (void)t; (void)tr;
+  (void)op; (void)L; return 0;
+}
 int luar_ffi_trace_update_array_i64_bits (TValue *a, TValue *i, TValue *c,
                                          TValue *st, uint64_t v, TValue *t,
                                          int tr, int op, lua_State *L) {

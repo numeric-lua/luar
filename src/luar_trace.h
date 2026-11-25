@@ -406,6 +406,10 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t scalar,
                                      TValue *idx, TValue *count,
                                      TValue *step, TValue *tmp, int tmp_reg,
                                      int op, lua_State *L);
+int luar_ffi_trace_update_array_f64 (TValue *arr, TValue *idx,
+                                     TValue *count, TValue *step, double s,
+                                     TValue *tmp, int tmp_reg, int op,
+                                     lua_State *L);
 int luar_ffi_trace_update_array_i64_bits (TValue *arr, TValue *idx,
                                          TValue *count, TValue *step,
                                          uint64_t scalar, TValue *tmp,
