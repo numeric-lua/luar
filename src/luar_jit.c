@@ -8672,7 +8672,15 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           TValue *vv = (enc >= 0) ? &((TValue *)base)[enc]
                        : pair_source_value((TValue *)base, -1, -1 - enc);
           double v;
-          if (vv == NULL || !luar_ffi_trace_f64_value(vv, &v)) {
+          if (vv == NULL) {
+            r = 0;
+            break;
+          }
+          if (ttisfloat(vv))
+            v = fltvalue(vv);
+          else if (ttisinteger(vv))
+            v = (double)ivalue(vv);
+          else if (!luar_ffi_trace_f64_value(vv, &v)) {
             r = 0;
             break;
           }

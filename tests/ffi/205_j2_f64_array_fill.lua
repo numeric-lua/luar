@@ -104,6 +104,38 @@ do
   end)
 end
 
+-- Lua-number scalar fills (register and upvalue).
+do
+  local function runnum (name, val, f)
+    local a = init()
+    jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+    local before = jit.stats().tint_hits
+    f(a, N)
+    H.check(jit.stats().tint_hits > before, name .. " number fill did not run")
+    check_range(name, a, val)
+  end
+  runnum("num float", 2.5, function (a, n)
+    local v = 2.5
+    for i = 0, n - 1 do a[i] = v end
+  end)
+  runnum("num negative", -3.25, function (a, n)
+    local v = -3.25
+    for i = 0, n - 1 do a[i] = v end
+  end)
+  runnum("num integer", 7.0, function (a, n)
+    local v = 7
+    for i = 0, n - 1 do a[i] = v end
+  end)
+  runnum("num zero", 0.0, function (a, n)
+    local v = 0
+    for i = 0, n - 1 do a[i] = v end
+  end)
+  runnum("num large", 1e300, function (a, n)
+    local v = 1e300
+    for i = 0, n - 1 do a[i] = v end
+  end)
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/205_j2_f64_array_fill ok")

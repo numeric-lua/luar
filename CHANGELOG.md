@@ -38,6 +38,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   upvalue (`a[i] = V`), including NaN and infinity values.
 - Numeric constant fills (`a[i] = k`) are also covered for double arrays,
   including negative, integer, zero and large constants.
+- Double-array fills accept Lua-number register/upvalue scalars as well as
+  cdata doubles.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
