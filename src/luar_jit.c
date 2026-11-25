@@ -1807,7 +1807,7 @@ static int match_cdata_field_copy (Proto *p, LuaR_JIT *J,
       !luar_ffi_trace_field_int(&b[src], getstr(tsvalue(&p->k[sk])),
                                 &soff, &ssize) || ssize == 0 ||
       !luar_ffi_trace_field_int(&b[dst], getstr(tsvalue(&p->k[dk])),
-                                &doff, &dsize) || dsize != ssize ||
+                                &doff, &dsize) || dsize == 0 ||
       soff > INT32_MAX || doff > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 82, dst, src, tmp,

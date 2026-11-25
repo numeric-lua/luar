@@ -1630,9 +1630,8 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
          sc->ct->fields[i].type->size == 4 ||
          sc->ct->fields[i].type->size == 8))
       stp = sc->ct->fields[i].type;
-  if (dt == NULL || stp == NULL || dt->size != stp->size ||
-      dt->size > dc->ct->size - dst_off ||
-      dt->size > sc->ct->size - src_off)
+  if (dt == NULL || stp == NULL || dt->size > dc->ct->size - dst_off ||
+      stp->size > sc->ct->size - src_off)
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -1657,11 +1656,32 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
   sp = (char *)((sc->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? sc->v.p
                                                               : (void *)&sc->v);
   val = 0;
-  memcpy(&val, sp + src_off, dt->size);
-  memcpy(dp + dst_off, &val, dt->size);
+  memcpy(&val, sp + src_off, stp->size);
+  if (!stp->is_unsigned && stp->size < 8) {
+    uint64_t sign = UINT64_C(1) << (stp->size * 8 - 1);
+    if (val & sign)
+      val |= ~((UINT64_C(1) << (stp->size * 8)) - 1);
+  }
+  if (dt->size == 8)
+    memcpy(dp + dst_off, &val, 8);
+  else {
+    uint64_t tmpv = val;
+    if (dt->size == 4) {
+      uint32_t v32 = (uint32_t)tmpv;
+      memcpy(dp + dst_off, &v32, 4);
+    }
+    else if (dt->size == 2) {
+      uint16_t v16 = (uint16_t)tmpv;
+      memcpy(dp + dst_off, &v16, 2);
+    }
+    else {
+      uint8_t v8 = (uint8_t)tmpv;
+      memcpy(dp + dst_off, &v8, 1);
+    }
+  }
   tcd = ffi_push_scalar(L, ffi_getstate(L), stp);
   memset(&tcd->v, 0, sizeof(tcd->v));
-  memcpy(&tcd->v, &val, dt->size);
+  memcpy(&tcd->v, &val, stp->size);
   top = s2v(L->top.p - 1);
   base = (TValue *)(L->ci->func.p + 1);
   base[tmp_reg] = *top;
