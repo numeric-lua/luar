@@ -26,6 +26,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   use the cdata `INT64_MIN` result.
 - J2 copies 8-byte struct fields directly (`dst.f = src.f`), including
   same-struct, cross-struct, uint64 and self-copy forms.
+- Field copies accept a closure-upvalue source and/or destination
+  (`U.f = dst.f`, `dst.f = U.f`, `U.f = V.f`).
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override

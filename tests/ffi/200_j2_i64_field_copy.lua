@@ -63,6 +63,62 @@ do
   H.check(not ok, "missing field must raise")
 end
 
+-- Upvalue struct sources/destinations.
+do
+  local U = ffi.new("CS")
+  U.x, U.y = 11, 22
+  local D = ffi.new("CS")
+  D.x, D.y = 0, 77
+  local function from_u (d, n) for _ = 1, n do d.x = U.y end end
+  jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+  local before = jit.stats().tint_hits
+  from_u(D, 200)
+  H.check(jit.stats().tint_hits > before, "source upvalue copy did not run")
+  H.eq(D.x, 22, "source upvalue destination")
+  H.eq(D.y, 77, "source upvalue sibling")
+
+  local function to_u (n) for _ = 1, n do U.x = D.y end end
+  jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+  before = jit.stats().tint_hits
+  to_u(200)
+  H.check(jit.stats().tint_hits > before, "destination upvalue copy did not run")
+  H.eq(U.x, 77, "destination upvalue")
+  H.eq(U.y, 22, "destination upvalue sibling")
+
+  local V = ffi.new("CS")
+  V.x, V.y = 1, 55
+  local function both (v, n) for _ = 1, n do U.x = v.y end end
+  jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+  before = jit.stats().tint_hits
+  both(V, 200)
+  H.check(jit.stats().tint_hits > before, "two-upvalue copy did not run")
+  H.eq(U.x, 55, "two-upvalue destination")
+  H.eq(V.y, 55, "two-upvalue source")
+
+  local function same (n) for _ = 1, n do U.x = U.y end end
+  jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+  before = jit.stats().tint_hits
+  same(200)
+  H.check(jit.stats().tint_hits > before, "same-upvalue copy did not run")
+  H.eq(U.x, 22, "same-upvalue field")
+  H.eq(U.y, 22, "same-upvalue sibling")
+end
+
+-- uint64 upvalue copy.
+do
+  local U = ffi.new("CU")
+  U.x, U.y = 3, 44
+  local D = ffi.new("CU")
+  D.x, D.y = 0, 99
+  local function copy (n) for _ = 1, n do D.x = U.y end end
+  jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+  local before = jit.stats().tint_hits
+  copy(200)
+  H.check(jit.stats().tint_hits > before, "uint64 upvalue copy did not run")
+  H.eq(D.x, 44, "uint64 upvalue destination")
+  H.eq(D.y, 99, "uint64 upvalue sibling")
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/200_j2_i64_field_copy ok")
