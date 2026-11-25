@@ -48,6 +48,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - Narrow fields update in place through an upvalue struct destination:
   int32/int16/int8 add/subtract/multiply/bitwise/shift with width
   truncation.
+- Narrow upvalue struct fields also update from cdata integer scalar
+  registers/upvalues.
 - Field fills also accept a cdata scalar register/upvalue (`s.f = V`),
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:

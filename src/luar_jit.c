@@ -2058,7 +2058,7 @@ static int match_cdata_upval_field_tabup_scalar (Proto *p, LuaR_JIT *J,
   uv = cl->upvals[upidx]->v.p;
   if (luar_ffi_trace_kind(uv) != 3 ||
       !luar_ffi_trace_field_int(uv, getstr(tsvalue(&p->k[kidx])),
-                                &off, &fsize) || fsize != 8)
+                                &off, &fsize) || fsize == 0)
     return 0;
   opc = GET_OPCODE(op);
   if (opc == OP_ADD) code = 0;
@@ -9096,7 +9096,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           uv = cl->upvals[up]->v.p;
           sv = (enc >= 0) ? &((TValue *)base)[enc]
                : pair_source_value((TValue *)base, -1, -1 - enc);
-          if (sv == NULL || !luar_ffi_trace_i64_value(sv, &bits)) {
+          if (sv == NULL || !luar_ffi_trace_int_value(sv, &bits)) {
             r = 0;
             break;
           }
