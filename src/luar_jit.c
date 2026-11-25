@@ -1768,10 +1768,10 @@ static int match_cdata_field_copy_upval (Proto *p, LuaR_JIT *J,
                          (dst_enc >= 0) ? -1 : (-1 - dst_enc));
   if (sv == NULL || dv == NULL || luar_ffi_trace_kind(sv) != 3 ||
       luar_ffi_trace_kind(dv) != 3 ||
-      !luar_ffi_trace_field_i64(sv, getstr(tsvalue(&p->k[sk])),
-                                &soff, &ssize) || ssize != 8 ||
-      !luar_ffi_trace_field_i64(dv, getstr(tsvalue(&p->k[dk])),
-                                &doff, &dsize) || dsize != 8 ||
+      !luar_ffi_trace_field_int(sv, getstr(tsvalue(&p->k[sk])),
+                                &soff, &ssize) || ssize == 0 ||
+      !luar_ffi_trace_field_int(dv, getstr(tsvalue(&p->k[dk])),
+                                &doff, &dsize) || dsize == 0 ||
       soff > INT32_MAX || doff > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 83, dst_enc, src_enc, tmp,

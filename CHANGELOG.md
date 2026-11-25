@@ -43,6 +43,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   field widths, including self-copy and sibling preservation.
 - Cross-width narrow copies sign-extend signed sources and truncate to the
   destination width (int16/int8/int32 combinations).
+- Narrow field copies work through a closure-upvalue struct source or
+  destination, including both-upvalue and cross-width forms.
 - Field fills also accept a cdata scalar register/upvalue (`s.f = V`),
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:
