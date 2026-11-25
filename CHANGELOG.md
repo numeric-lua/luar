@@ -10,7 +10,9 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
-  for offsets, struct size and alignment.
+  for offsets, struct size and alignment.  `aligned` takes precedence over
+  `packed` in either order, and aligned bitfields start on the requested
+  boundary and size the enclosing struct accordingly.
 
 - J2 in-place 8-byte cdata updates accept IDIV/MOD with an upvalue cdata
   scalar on register arrays: signed/unsigned `a[i] = a[i] // V` and

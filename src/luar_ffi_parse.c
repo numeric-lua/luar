@@ -1368,7 +1368,8 @@ static void parse_field_attrs (Parser *P, uint8_t *align) {
     for (;;) {
       if (tok_is_ident(P, "packed")) {
         lex_next(P);
-        *align = 1;
+        if (*align == 0)
+          *align = 1;
       }
       else if (tok_is_ident(P, "aligned")) {
         int64_t v;
@@ -1378,7 +1379,7 @@ static void parse_field_attrs (Parser *P, uint8_t *align) {
         expect_punct(P, ')', ")");
         if (v < 1 || v > 32 || (v & (v - 1)) != 0)
           parser_error(P, "bad aligned() value");
-        if (*align != 1 || *align == 0)
+        if ((uint8_t)v > *align)
           *align = (uint8_t)v;
       }
       else

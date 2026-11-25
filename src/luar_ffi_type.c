@@ -442,6 +442,14 @@ void ffi_type_finish_struct (FFIState *S, CType *ct) {
       nb = (nb + zal - 1) & ~(zal - 1);
       bitpos = nb * 8;
     }
+    else if (f->bitwidth != 0 && ct->pack == 0 && f->align > 1) {
+      size_t nb = (bitpos + 7) / 8;
+      nb = (nb + fal - 1) & ~(fal - 1);
+      bitpos = nb * 8;
+      f->offset = bitpos / 8;
+      f->bitoffset = 0;
+      bitpos += f->bitwidth;
+    }
     else if (f->bitwidth != 0 && ct->pack != 0) {
       /* With any active #pragma pack (not only pack(1)) GCC packs
       ** consecutive bitfields without retiring to their base type's
