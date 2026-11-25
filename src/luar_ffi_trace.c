@@ -2117,6 +2117,24 @@ int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
 }
 
 
+int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out) {
+  Udata *u;
+  CData *cd;
+  if (tv == NULL || out == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL || cd->ct->kind != CT_INT || cd->ct->size != 8)
+    return 0;
+  if ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+    memcpy(out, cd->v.p, 8);
+  else
+    memcpy(out, &cd->v, 8);
+  return 1;
+}
+
+
 int luar_ffi_trace_field_i64 (TValue *cdv, const char *name,
                              size_t *off, size_t *size) {
   Udata *u;

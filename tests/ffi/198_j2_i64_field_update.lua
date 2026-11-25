@@ -81,6 +81,33 @@ H.check(jit.stats().tint_hits > before, "uint64 field divide did not run")
 H.eq(udw.x, ud.x, "uint64 field divide")
 H.eq(udw.y, 77, "uint64 field divide sibling")
 
+-- Field updates with a cdata scalar register/upvalue.
+do
+  local V = ffi.new("int64_t", 3)
+  local function add_v (s, n) for _ = 1, n do s.x = s.x + V end end
+  local function sub_v (s, n) for _ = 1, n do s.x = s.x - V end end
+  local function mul_v (s, n) for _ = 1, n do s.x = s.x * V end end
+  local function band_v (s, n) for _ = 1, n do s.x = s.x & V end end
+  local function shl_v (s, n) for _ = 1, n do s.x = s.x << V end end
+  for name, f in pairs{ add = add_v, sub = sub_v, mul = mul_v,
+                        band = band_v, shl = shl_v } do
+    local w = ffi.new("FI")
+    w.x, w.y = 10, 77
+    jit.off()
+    f(w, 200)
+    local s = ffi.new("FI")
+    s.x, s.y = 10, 77
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    f(s, 200)
+    H.check(jit.stats().tint_hits > before, name .. " field scalar did not run")
+    H.eq(s.x, w.x, name .. " field scalar value")
+    H.eq(s.y, 77, name .. " field scalar sibling")
+  end
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/198_j2_i64_field_update ok")

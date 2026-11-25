@@ -13,6 +13,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   preserved and the visible element temporary is a cdata scalar.
 - The same field updates support signed/unsigned `//` and `%` constants;
   zero divisors use the cdata `INT64_MIN` result.
+- 8-byte struct fields also update with a cdata scalar register/upvalue:
+  `s.f = s.f +|-|*|&|||~|<<|>> V`.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
