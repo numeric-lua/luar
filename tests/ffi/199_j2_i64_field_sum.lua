@@ -62,6 +62,34 @@ run("multiply", mul)
 run("and", band)
 run("shift", shl)
 
+-- Upvalue struct field.
+do
+  local U
+  local function add_u (n) local a = ffi.new("int64_t", 0); for _ = 1, n do a = a + U.x end return a end
+  local function sub_u (n) local a = ffi.new("int64_t", 100000); for _ = 1, n do a = a - U.x end return a end
+  local function mul_u (n) local a = ffi.new("int64_t", 1); for _ = 1, n do a = a * U.x end return a end
+  local function band_u (n) local a = ffi.new("int64_t", -1); for _ = 1, n do a = a & U.x end return a end
+  local function shl_u (n) local a = ffi.new("int64_t", 1); for _ = 1, n do a = a << U.x end return a end
+  for name, f in pairs{ add = add_u, sub = sub_u, mul = mul_u,
+                        band = band_u, shl = shl_u } do
+    U = ffi.new("FS")
+    U.x, U.y = 7, 9
+    jit.off()
+    local want = f(200)
+    U = ffi.new("FS")
+    U.x, U.y = 7, 9
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    local got = f(200)
+    H.check(jit.stats().tint_hits > before, name .. " upvalue field sum did not run")
+    H.eq(got, want, name .. " upvalue field sum")
+    H.eq(U.x, 7, name .. " upvalue field unchanged")
+    H.eq(U.y, 9, name .. " upvalue sibling unchanged")
+  end
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/199_j2_i64_field_sum ok")
