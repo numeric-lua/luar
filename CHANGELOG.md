@@ -24,6 +24,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   closure-upvalue struct fields (`GETTABUP`).
 - Field reductions also support signed/unsigned `//` and `%`; zero fields
   use the cdata `INT64_MIN` result.
+- J2 copies 8-byte struct fields directly (`dst.f = src.f`), including
+  same-struct, cross-struct, uint64 and self-copy forms.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override

@@ -260,6 +260,13 @@ int64_t luar_ffi_trace_ccall2ff (TValue *fn, double a0, double a1,
   (void)fn; (void)a0; (void)a1; (void)out; return 0;
 }
 
+int luar_ffi_trace_copy_field_i64 (TValue *d, TValue *src, size_t doff,
+                                  size_t soff, TValue *i, TValue *c,
+                                  TValue *st, TValue *t, int tr,
+                                  lua_State *L) {
+  (void)d; (void)src; (void)doff; (void)soff; (void)i; (void)c; (void)st;
+  (void)t; (void)tr; (void)L; return 0;
+}
 int luar_ffi_trace_sum_field_i64 (TValue *a, TValue *cdv, size_t off,
                                  TValue *i, TValue *c, TValue *st,
                                  TValue *t, int tr, int op, lua_State *L) {

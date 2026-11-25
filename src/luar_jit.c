@@ -1327,6 +1327,42 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `dst.f = src.f` for 8-byte integer struct fields. */
+static int match_cdata_field_copy (Proto *p, LuaR_JIT *J,
+                                   ptrdiff_t start, ptrdiff_t backedge,
+                                   int for_a, TValue *b) {
+  Instruction g, s;
+  int tmp, src, dst, sk, dk;
+  size_t soff = 0, doff = 0, ssize = 0, dsize = 0;
+  if (start + 2 != backedge)
+    return 0;
+  g = p->code[start];
+  s = p->code[start + 1];
+  if (GET_OPCODE(g) != OP_GETFIELD || GET_OPCODE(s) != OP_SETFIELD ||
+      GETARG_k(s))
+    return 0;
+  tmp = GETARG_A(g);
+  src = GETARG_B(g);
+  sk = GETARG_C(g);
+  dst = GETARG_A(s);
+  dk = GETARG_B(s);
+  if (GETARG_C(s) != tmp || sk < 0 || sk >= p->sizek ||
+      dk < 0 || dk >= p->sizek || !ttisstring(&p->k[sk]) ||
+      !ttisstring(&p->k[dk]) || is_control_reg(tmp, for_a) ||
+      is_control_reg(src, for_a) || is_control_reg(dst, for_a) ||
+      luar_ffi_trace_kind(&b[src]) != 3 ||
+      luar_ffi_trace_kind(&b[dst]) != 3 ||
+      !luar_ffi_trace_field_i64(&b[src], getstr(tsvalue(&p->k[sk])),
+                                &soff, &ssize) || ssize != 8 ||
+      !luar_ffi_trace_field_i64(&b[dst], getstr(tsvalue(&p->k[dk])),
+                                &doff, &dsize) || dsize != 8 ||
+      soff > INT32_MAX || doff > INT32_MAX)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 82, dst, src, tmp,
+                            (int)doff, (int)soff, 0, for_a);
+}
+
+
 /* LUAR: `acc = acc OP s.f` for an 8-byte integer field. */
 static int match_cdata_field_sum (Proto *p, LuaR_JIT *J,
                                   ptrdiff_t start, ptrdiff_t backedge,
@@ -4035,6 +4071,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_field_copy(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_upval_field_sum(p, J, start, backedge, for_a, b))
@@ -8307,6 +8346,18 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     vv);
           break;
         }
+        case 82:
+          r = luar_ffi_trace_copy_field_i64(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[p->luar_tint_keys[i]],
+                  (size_t)p->luar_tint_acc[i],
+                  (size_t)p->luar_tint_res[i],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], L);
+          break;
         case 81: {
           TValue *fv = &((TValue *)base)[-1];
           LClosure *cl;
