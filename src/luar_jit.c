@@ -833,7 +833,9 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
        GET_OPCODE(p->code[start + 2]) == OP_BOR ||
        GET_OPCODE(p->code[start + 2]) == OP_BXOR ||
        GET_OPCODE(p->code[start + 2]) == OP_SHL ||
-       GET_OPCODE(p->code[start + 2]) == OP_SHR) &&
+       GET_OPCODE(p->code[start + 2]) == OP_SHR ||
+       GET_OPCODE(p->code[start + 2]) == OP_IDIV ||
+       GET_OPCODE(p->code[start + 2]) == OP_MOD) &&
       GET_OPCODE(p->code[start + 3]) == OP_MMBIN &&
       GET_OPCODE(p->code[start + 4]) == OP_SETTABLE &&
       backedge == start + 5) {
@@ -858,7 +860,9 @@ static int match_cdata_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
     else if (opc == OP_BOR) code = 7;
     else if (opc == OP_BXOR) code = 8;
     else if (opc == OP_SHL) code = 9;
-    else code = 10;
+    else if (opc == OP_SHR) code = 10;
+    else if (opc == OP_IDIV) code = 3;
+    else code = 4;
     return install_cdata_tint(p, J, backedge, 74, arr, -1 - GETARG_B(up),
                               tmp, code, 0, 0, for_a);
   }

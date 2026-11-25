@@ -54,6 +54,29 @@ run("mod", mod, V)
 run("zero idiv", idiv, ffi.new("int64_t", 0))
 run("zero mod", mod, ffi.new("int64_t", 0))
 
+-- uint64 register array with an upvalue cdata scalar.
+do
+  local U = ffi.new("uint64_t[?]", N)
+  local V3 = ffi.new("uint64_t", 3)
+  local function idiv_u (a, n) for i = 0, n - 1 do a[i] = a[i] // V3 end end
+  local function mod_u (a, n) for i = 0, n - 1 do a[i] = a[i] % V3 end end
+  for name, f in pairs{ idiv = idiv_u, mod = mod_u } do
+    for i = 0, N - 1 do U[i] = i + 1 end
+    jit.off()
+    f(U, N)
+    local want = ffi.new("uint64_t[?]", N)
+    for i = 0, N - 1 do want[i] = U[i] end
+    for i = 0, N - 1 do U[i] = i + 1 end
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    f(U, N)
+    H.check(jit.stats().tint_hits > before, name .. " uint64 upvalue scalar did not run")
+    for i = 0, N - 1 do H.eq(U[i], want[i], name .. " uint64 upvalue scalar " .. i) end
+  end
+end
+
 -- Upvalue array destination with constant scalars.
 do
   local U
@@ -162,8 +185,11 @@ do
   local function mul_u (a, n) for i = 0, n - 1 do a[i] = a[i] * V end return a end
   local function band_u (a, n) for i = 0, n - 1 do a[i] = a[i] & V end return a end
   local function shl_u (a, n) for i = 0, n - 1 do a[i] = a[i] << V end return a end
+  local function idiv_u (a, n) for i = 0, n - 1 do a[i] = a[i] // V end return a end
+  local function mod_u (a, n) for i = 0, n - 1 do a[i] = a[i] % V end return a end
   for name, f in pairs{ add = add_u, sub = sub_u, mul = mul_u,
-                        band = band_u, shl = shl_u } do
+                        band = band_u, shl = shl_u, idiv = idiv_u,
+                        mod = mod_u } do
     jit.off()
     local want = f(init(), N)
     jit.flush()
@@ -174,6 +200,25 @@ do
     f(a, N)
     H.check(jit.stats().tint_hits > before, name .. " upvalue did not run")
     for i = 0, N - 1 do H.eq(a[i], want[i], name .. " upvalue " .. i) end
+  end
+end
+
+-- Zero upvalue scalar in a register array.
+do
+  local Z = ffi.new("int64_t", 0)
+  local function idivz (a, n) for i = 0, n - 1 do a[i] = a[i] // Z end return a end
+  local function modz (a, n) for i = 0, n - 1 do a[i] = a[i] % Z end return a end
+  for name, f in pairs{ idiv = idivz, mod = modz } do
+    jit.off()
+    local want = f(init(), N)
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local a = init()
+    local before = jit.stats().tint_hits
+    f(a, N)
+    H.check(jit.stats().tint_hits > before, name .. " zero upvalue scalar did not run")
+    for i = 0, N - 1 do H.eq(a[i], want[i], name .. " zero upvalue scalar " .. i) end
   end
 end
 

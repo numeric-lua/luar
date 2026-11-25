@@ -8,6 +8,10 @@ the runtime, while the Lua language surface follows upstream Lua.
 
 ### Added
 
+- J2 in-place 8-byte cdata updates accept IDIV/MOD with an upvalue cdata
+  scalar on register arrays: signed/unsigned `a[i] = a[i] // V` and
+  `% V`.  Zero scalars use the cdata `INT64_MIN` bit pattern.
+
 - J2 in-place 8-byte cdata updates through an upvalue-array destination
   accept a cdata scalar register/upvalue for `//` and `%`.  Signed
   division truncates toward zero; zero scalars use the cdata `INT64_MIN`
@@ -16,7 +20,7 @@ the runtime, while the Lua language surface follows upstream Lua.
 ### Tests
 
 `tests/ffi/196_j2_i64_update.lua` extended with signed/unsigned
-upvalue-array divide/modulo and zero-scalar cases.
+register/upvalue-array divide/modulo and zero-scalar cases.
 
 ## [0.241.0] — 2026-11-24
 
