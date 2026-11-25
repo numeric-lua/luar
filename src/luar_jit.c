@@ -1327,6 +1327,68 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `s.f = V` with a cdata scalar for an 8-byte field. */
+static int match_cdata_field_fill_scalar (Proto *p, LuaR_JIT *J,
+                                          ptrdiff_t start,
+                                          ptrdiff_t backedge, int for_a,
+                                          TValue *b) {
+  ptrdiff_t pos = start;
+  Instruction s, up;
+  int enc, kidxstr, upidx, val_enc = 0;
+  size_t off = 0, fsize = 0;
+  TValue *cv, *fv;
+  LClosure *cl;
+  if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
+    up = p->code[pos++];
+    val_enc = -1 - GETARG_B(up);
+    if (is_control_reg(GETARG_A(up), for_a))
+      return 0;
+  }
+  if (pos + 1 != backedge)
+    return 0;
+  s = p->code[pos];
+  if (GETARG_k(s) || (GET_OPCODE(s) != OP_SETFIELD &&
+                      GET_OPCODE(s) != OP_SETTABUP))
+    return 0;
+  kidxstr = GETARG_B(s);
+  if (kidxstr < 0 || kidxstr >= p->sizek ||
+      !ttisstring(&p->k[kidxstr]))
+    return 0;
+  if (val_enc == 0) {
+    val_enc = GETARG_C(s);
+    if (is_control_reg(val_enc, for_a))
+      return 0;
+  }
+  else if (GETARG_C(s) < 0)
+    return 0;
+  if (GET_OPCODE(s) == OP_SETFIELD) {
+    enc = GETARG_A(s);
+    if (is_control_reg(enc, for_a))
+      return 0;
+    cv = &b[enc];
+  }
+  else {
+    upidx = GETARG_A(s);
+    fv = &b[-1];
+    if (!ttisLclosure(fv))
+      return 0;
+    cl = clLvalue(fv);
+    if (upidx < 0 || upidx >= cl->p->sizeupvalues ||
+        cl->upvals[upidx] == NULL || cl->upvals[upidx]->v.p == NULL)
+      return 0;
+    enc = -1 - upidx;
+    cv = cl->upvals[upidx]->v.p;
+  }
+  if (luar_ffi_trace_kind(cv) != 3 ||
+      !luar_ffi_trace_field_i64(cv, getstr(tsvalue(&p->k[kidxstr])),
+                                &off, &fsize) || fsize != 8 ||
+      off > INT32_MAX)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 85, enc, val_enc, 0,
+                            (int)off, 0, 0, for_a);
+}
+
+
 /* LUAR: `s.f = integer constant` for an 8-byte field. */
 static int match_cdata_field_fill_const (Proto *p, LuaR_JIT *J,
                                          ptrdiff_t start, ptrdiff_t backedge,
@@ -4183,6 +4245,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_field_table_sum(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_field_fill_scalar(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_field_fill_const(p, J, start, backedge, for_a, b))
@@ -8462,6 +8527,28 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     vv);
+          break;
+        }
+        case 85: {
+          int enc = p->luar_tint_table[i];
+          int venc = p->luar_tint_keys[i];
+          TValue *cv = pair_source_value((TValue *)base,
+                                         (enc >= 0) ? enc : -1,
+                                         (enc >= 0) ? -1 : (-1 - enc));
+          TValue *vv = pair_source_value((TValue *)base,
+                                         (venc >= 0) ? venc : -1,
+                                         (venc >= 0) ? -1 : (-1 - venc));
+          uint64_t bits;
+          if (cv == NULL || vv == NULL ||
+              !luar_ffi_trace_i64_value(vv, &bits)) {
+            r = 0;
+            break;
+          }
+          r = luar_ffi_trace_fill_field_i64(
+                  cv, (size_t)p->luar_tint_acc[i], bits,
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1], L);
           break;
         }
         case 84: {
