@@ -1658,8 +1658,8 @@ static int match_cdata_field_fill_scalar (Proto *p, LuaR_JIT *J,
     cv = cl->upvals[upidx]->v.p;
   }
   if (luar_ffi_trace_kind(cv) != 3 ||
-      !luar_ffi_trace_field_i64(cv, getstr(tsvalue(&p->k[kidxstr])),
-                                &off, &fsize) || fsize != 8 ||
+      !luar_ffi_trace_field_int(cv, getstr(tsvalue(&p->k[kidxstr])),
+                                &off, &fsize) || fsize == 0 ||
       off > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 85, enc, val_enc, 0,
@@ -8975,7 +8975,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                          (venc >= 0) ? -1 : (-1 - venc));
           uint64_t bits;
           if (cv == NULL || vv == NULL ||
-              !luar_ffi_trace_i64_value(vv, &bits)) {
+              !luar_ffi_trace_int_value(vv, &bits)) {
             r = 0;
             break;
           }

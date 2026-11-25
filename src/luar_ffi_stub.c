@@ -85,6 +85,9 @@ int64_t luar_ffi_trace_cset_field_double_const (TValue *cdv, size_t off,
 int luar_ffi_trace_f64_value (TValue *tv, double *out) {
   (void)tv; (void)out; return 0;
 }
+int luar_ffi_trace_int_value (TValue *tv, uint64_t *out) {
+  (void)tv; (void)out; return 0;
+}
 int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out) {
   (void)tv; (void)out; return 0;
 }

@@ -2504,6 +2504,29 @@ int luar_ffi_trace_f64_value (TValue *tv, double *out) {
 }
 
 
+int luar_ffi_trace_int_value (TValue *tv, uint64_t *out) {
+  Udata *u;
+  CData *cd;
+  const char *p;
+  size_t sz;
+  if (tv == NULL || out == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL || cd->ct->kind != CT_INT ||
+      (cd->ct->size != 1 && cd->ct->size != 2 &&
+       cd->ct->size != 4 && cd->ct->size != 8))
+    return 0;
+  sz = cd->ct->size;
+  p = (const char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0
+                     ? cd->v.p : (const void *)&cd->v);
+  *out = 0;
+  memcpy(out, p, sz);
+  return 1;
+}
+
+
 int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out) {
   Udata *u;
   CData *cd;
