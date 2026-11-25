@@ -1272,7 +1272,8 @@ int luar_ffi_trace_fill_array_f64 (TValue *arrv, TValue *it,
   if (arrv == NULL || it == NULL || ct == NULL || st == NULL || L == NULL ||
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it))
     return 0;
-  if (!ffi_view_init_dst(arrv, &v) || !v.isflt || v.esz != 8)
+  if (!ffi_view_init_dst(arrv, &v) || !v.isflt ||
+      (v.esz != 4 && v.esz != 8))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -1282,7 +1283,12 @@ int luar_ffi_trace_fill_array_f64 (TValue *arrv, TValue *it,
   {
     char *pa = (char *)v.base + (ptrdiff_t)idx * (ptrdiff_t)v.esz;
     for (k = 0; k <= count; k++) {
-      memcpy(pa, &val, 8);
+      if (v.esz == 4) {
+        float f = (float)val;
+        memcpy(pa, &f, 4);
+      }
+      else
+        memcpy(pa, &val, 8);
       pa += (ptrdiff_t)step * (ptrdiff_t)v.esz;
     }
   }
@@ -2461,9 +2467,18 @@ int luar_ffi_trace_f64_value (TValue *tv, double *out) {
   u = (Udata *)tv->value_.gc;
   cd = (CData *)getudatamem(u);
   if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
-      cd->ct == NULL || cd->ct->kind != CT_FLOAT || cd->ct->size != 8)
+      cd->ct == NULL || cd->ct->kind != CT_FLOAT ||
+      (cd->ct->size != 4 && cd->ct->size != 8))
     return 0;
-  if ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+  if (cd->ct->size == 4) {
+    float f;
+    if ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
+      memcpy(&f, cd->v.p, 4);
+    else
+      memcpy(&f, &cd->v, 4);
+    *out = (double)f;
+  }
+  else if ((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0)
     memcpy(out, cd->v.p, 8);
   else
     memcpy(out, &cd->v, 8);
