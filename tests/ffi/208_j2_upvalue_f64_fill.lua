@@ -61,6 +61,41 @@ do
   check("zero", A, 0)
 end
 
+-- Constant fills through an upvalue array.
+do
+  local A = ffi.new("double[?]", N)
+  local function run (name, val, f)
+    jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+    local before = jit.stats().tint_hits
+    f(N)
+    H.check(jit.stats().tint_hits > before, name .. " constant fill did not run")
+    check(name, A, val)
+  end
+  run("const float", 2.5, function (n)
+    for i = 0, n - 1 do A[i] = 2.5 end
+  end)
+  run("const negative", -3.25, function (n)
+    for i = 0, n - 1 do A[i] = -3.25 end
+  end)
+  run("const integer", 7.0, function (n)
+    for i = 0, n - 1 do A[i] = 7 end
+  end)
+  run("const zero", 0.0, function (n)
+    for i = 0, n - 1 do A[i] = 0 end
+  end)
+end
+
+-- float32 constant through an upvalue array.
+do
+  local A = ffi.new("float[?]", N)
+  jit.flush(); jit.opt.start("ir=0", "hotloop=1", "tint=1"); jit.on()
+  local before = jit.stats().tint_hits
+  local function fill (n) for i = 0, n - 1 do A[i] = 4.5 end end
+  fill(N)
+  H.check(jit.stats().tint_hits > before, "float32 constant fill did not run")
+  check("float32 const", A, 4.5)
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/208_j2_upvalue_f64_fill ok")

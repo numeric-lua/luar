@@ -45,6 +45,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   values.
 - Float/double array fills work through a closure-upvalue array
   destination, with register/upvalue scalars and float32/double elements.
+- Upvalue float arrays also fill from numeric constants
+  (`U[i] = 2.5`), including negative, integer, zero and float32 values.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
