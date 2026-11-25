@@ -1422,6 +1422,62 @@ int luar_ffi_trace_update_array_i64 (TValue *arrv, TValue *it, TValue *ct,
 }
 
 
+int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
+                                  TValue *it, TValue *ct, TValue *st,
+                                  lua_State *L) {
+  Udata *u;
+  CData *cd;
+  CType *ft = NULL;
+  char *p;
+  lua_Integer count, step, idx, lastkey, delta;
+  int i;
+  if (cdv == NULL || it == NULL || ct == NULL || st == NULL || L == NULL ||
+      !ttisfulluserdata(cdv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL ||
+      (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size ||
+      8 > cd->ct->size - off)
+    return 0;
+  for (i = 0; i < cd->ct->nfields; i++)
+    if (cd->ct->fields[i].offset == off &&
+        cd->ct->fields[i].type != NULL &&
+        cd->ct->fields[i].type->kind == CT_INT &&
+        cd->ct->fields[i].type->size == 8)
+      ft = cd->ct->fields[i].type;
+  if (ft == NULL)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
+                                                             : (void *)&cd->v);
+  memcpy(p + off, &bits, 8);
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
                                   size_t dst_off, size_t src_off,
                                   TValue *it, TValue *ct, TValue *st,

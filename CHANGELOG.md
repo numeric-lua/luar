@@ -28,6 +28,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   same-struct, cross-struct, uint64 and self-copy forms.
 - Field copies accept a closure-upvalue source and/or destination
   (`U.f = dst.f`, `dst.f = U.f`, `U.f = V.f`).
+- J2 fills 8-byte struct fields with integer constants (`s.f = k`),
+  including register/upvalue structs, uint64 fields and negative values.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
