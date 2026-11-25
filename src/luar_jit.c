@@ -1352,6 +1352,58 @@ static int match_cdata_array_fill_f64_const (Proto *p, LuaR_JIT *J,
 }
 
 
+/* LUAR: `U[i] = V` for float/double arrays held in a closure upvalue. */
+static int match_cdata_upval_array_fill_f64 (Proto *p, LuaR_JIT *J,
+                                             ptrdiff_t start,
+                                             ptrdiff_t backedge,
+                                             int for_a, TValue *b) {
+  ptrdiff_t pos = start + 1;
+  Instruction g, s, up;
+  int arr, key, val_enc = 0;
+  size_t upidx;
+  TValue *fv, *cv;
+  LClosure *cl;
+  if (backedge - start + 1 != 3 && backedge - start + 1 != 4)
+    return 0;
+  g = p->code[start];
+  if (GET_OPCODE(g) != OP_GETUPVAL)
+    return 0;
+  arr = GETARG_A(g);
+  upidx = (size_t)GETARG_B(g);
+  if (backedge - start + 1 == 4) {
+    up = p->code[pos];
+    if (GET_OPCODE(up) != OP_GETUPVAL || is_control_reg(GETARG_A(up), for_a))
+      return 0;
+    val_enc = -1 - GETARG_B(up);
+    pos++;
+  }
+  s = p->code[pos];
+  key = for_a + 2;
+  if (GET_OPCODE(s) != OP_SETTABLE || GETARG_A(s) != arr ||
+      GETARG_B(s) != key || GETARG_k(s))
+    return 0;
+  fv = &b[-1];
+  if (!ttisLclosure(fv))
+    return 0;
+  cl = clLvalue(fv);
+  if (upidx >= (size_t)cl->p->sizeupvalues || cl->upvals[upidx] == NULL ||
+      cl->upvals[upidx]->v.p == NULL)
+    return 0;
+  cv = cl->upvals[upidx]->v.p;
+  if (luar_ffi_trace_array_kind(cv) != 2)
+    return 0;
+  if (val_enc == 0)
+    val_enc = GETARG_C(s);
+  else if (GETARG_C(s) < 0)
+    return 0;
+  if (is_control_reg(arr, for_a) || is_control_reg(GETARG_C(s), for_a))
+    return 0;
+  return install_cdata_tint(p, J, backedge, 91, arr, val_enc, 0,
+                            0, 0, 0, for_a);
+}
+
+
+
 /* LUAR: `a[i] = V` for 8-byte float arrays with a cdata double V. */
 static int match_cdata_array_fill_f64 (Proto *p, LuaR_JIT *J,
                                        ptrdiff_t start, ptrdiff_t backedge,
@@ -4355,6 +4407,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_array_fill_f64_const(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_upval_array_fill_f64(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_array_fill_f64(p, J, start, backedge, for_a, b))
@@ -8643,6 +8698,32 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                     &((TValue *)base)[expected_base],
                     &((TValue *)base)[expected_base + 1],
                     vv);
+          break;
+        }
+        case 91: {
+          int aenc = p->luar_tint_table[i];
+          int venc = p->luar_tint_keys[i];
+          TValue *av = (aenc >= 0) ? &((TValue *)base)[aenc]
+                       : pair_source_value((TValue *)base, -1, -1 - aenc);
+          TValue *vv = (venc >= 0) ? &((TValue *)base)[venc]
+                       : pair_source_value((TValue *)base, -1, -1 - venc);
+          double v;
+          if (av == NULL || vv == NULL) {
+            r = 0;
+            break;
+          }
+          if (ttisfloat(vv))
+            v = fltvalue(vv);
+          else if (ttisinteger(vv))
+            v = (double)ivalue(vv);
+          else if (!luar_ffi_trace_f64_value(vv, &v)) {
+            r = 0;
+            break;
+          }
+          r = luar_ffi_trace_fill_array_f64(
+                  av, &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1], v, L);
           break;
         }
         case 89: {

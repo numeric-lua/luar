@@ -43,6 +43,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - J2 fills bounded float32 arrays (`a[i] = k/V`) with constants,
   Lua-number scalars and cdata float scalars, including negative and zero
   values.
+- Float/double array fills work through a closure-upvalue array
+  destination, with register/upvalue scalars and float32/double elements.
 
 - FFI accepts field-level `__attribute__((aligned(n)))` and
   `__attribute__((packed))`; the layout uses the field alignment override
