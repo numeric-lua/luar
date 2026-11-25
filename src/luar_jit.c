@@ -2118,8 +2118,8 @@ static int match_cdata_upval_field_tabup_const (Proto *p, LuaR_JIT *J,
     return 0;
   uv = cl->upvals[upidx]->v.p;
   if (luar_ffi_trace_kind(uv) != 3 ||
-      !luar_ffi_trace_field_i64(uv, getstr(tsvalue(&p->k[kidx])),
-                                &off, &fsize) || fsize != 8)
+      !luar_ffi_trace_field_int(uv, getstr(tsvalue(&p->k[kidx])),
+                                &off, &fsize) || fsize == 0)
     return 0;
   opc = GET_OPCODE(op);
   if (opc == OP_ADDI) {
@@ -2184,8 +2184,8 @@ static int match_cdata_upval_field_update_const (Proto *p, LuaR_JIT *J,
       GETARG_C(set) != tmp || GETARG_k(set) ||
       GETARG_A(op) != tmp || GETARG_B(op) != tmp ||
       is_control_reg(sreg, for_a) || is_control_reg(tmp, for_a) ||
-      !luar_ffi_trace_field_i64(&b[sreg], getstr(tsvalue(&p->k[kidx])),
-                                &off, &fsize) || fsize != 8)
+      !luar_ffi_trace_field_int(&b[sreg], getstr(tsvalue(&p->k[kidx])),
+                                &off, &fsize) || fsize == 0)
     return 0;
   opc = GET_OPCODE(op);
   if (opc == OP_ADDI) {
