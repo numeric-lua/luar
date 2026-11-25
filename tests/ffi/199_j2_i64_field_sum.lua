@@ -10,7 +10,7 @@ end
 
 ffi.cdef[[
 typedef struct { int64_t x; int64_t y; } FS;
-typedef struct { uint64_t x; uint64_t y; } FU;
+typedef struct { uint64_t x; uint64_t y; } FUS;
 ]]
 
 local function run (name, f, init)
@@ -116,8 +116,8 @@ do
   local function umod (o, n) local a = ffi.new("uint64_t", 1000000); for _ = 1, n do a = a % o.x end return a end
   check("field idiv", idiv, "FS", 3)
   check("field mod", mod, "FS", 3)
-  check("field uint idiv", uidiv, "FU", 3)
-  check("field uint mod", umod, "FU", 3)
+  check("field uint idiv", uidiv, "FUS", 3)
+  check("field uint mod", umod, "FUS", 3)
   check("field idiv zero", idiv, "FS", 0)
   check("field mod zero", mod, "FS", 0)
 end
