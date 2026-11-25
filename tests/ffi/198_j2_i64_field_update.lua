@@ -36,12 +36,20 @@ local function sub (s, n) for _ = 1, n do s.x = s.x - 3 end end
 local function mul (s, n) for _ = 1, n do s.x = s.x * 3 end end
 local function band (s, n) for _ = 1, n do s.x = s.x & 3 end end
 local function shl (s, n) for _ = 1, n do s.x = s.x << 2 end end
+local function idiv (s, n) for _ = 1, n do s.x = s.x // 3 end end
+local function mod (s, n) for _ = 1, n do s.x = s.x % 3 end end
+local function idivz (s, n) for _ = 1, n do s.x = s.x // 0 end end
+local function modz (s, n) for _ = 1, n do s.x = s.x % 0 end end
 
 run("add", add, "FI", 10)
 run("subtract", sub, "FI", 1000)
 run("multiply", mul, "FI", 1)
 run("and", band, "FI", 1)
 run("shl", shl, "FI", 1)
+run("idiv", idiv, "FI", 1000000)
+run("mod", mod, "FI", 1000000)
+run("idiv zero", idivz, "FI", 1000000)
+run("mod zero", modz, "FI", 1000000)
 
 local wu = ffi.new("FU")
 wu.x, wu.y = 5, 77
@@ -57,6 +65,21 @@ mul(u, 200)
 H.check(jit.stats().tint_hits > before, "uint64 field did not run")
 H.eq(u.x, wu.x, "uint64 field wrap")
 H.eq(u.y, 77, "uint64 sibling preserved")
+
+local ud = ffi.new("FU")
+ud.x, ud.y = 1000000, 77
+jit.off()
+idiv(ud, 200)
+local udw = ffi.new("FU")
+udw.x, udw.y = 1000000, 77
+jit.flush()
+jit.opt.start("ir=0", "hotloop=1", "tint=1")
+jit.on()
+before = jit.stats().tint_hits
+idiv(udw, 200)
+H.check(jit.stats().tint_hits > before, "uint64 field divide did not run")
+H.eq(udw.x, ud.x, "uint64 field divide")
+H.eq(udw.y, 77, "uint64 field divide sibling")
 
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
