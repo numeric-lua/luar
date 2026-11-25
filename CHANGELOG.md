@@ -37,6 +37,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - Narrow integer fields update in place with constants: add/subtract/
   multiply/bitwise/shift on int32/int16/int8 fields, with width truncation
   and sibling fields preserved.
+- Narrow fields also update from cdata integer scalar registers/upvalues,
+  including bitwise and shift operations.
 - Field fills also accept a cdata scalar register/upvalue (`s.f = V`),
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:

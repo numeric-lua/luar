@@ -1944,9 +1944,9 @@ static int match_cdata_field_update_scalar (Proto *p, LuaR_JIT *J,
   if (kidx < 0 || kidx >= p->sizek || !ttisstring(&p->k[kidx]) ||
       is_control_reg(tmp, for_a) || is_control_reg(sreg, for_a) ||
       luar_ffi_trace_kind(&b[sreg]) != 3 ||
-      !luar_ffi_trace_field_i64(&b[sreg], getstr(tsvalue(&p->k[kidx])),
+      !luar_ffi_trace_field_int(&b[sreg], getstr(tsvalue(&p->k[kidx])),
                                 &off, &fsize) ||
-      fsize != 8)
+      fsize == 0)
     return 0;
   if (pos < backedge && GET_OPCODE(p->code[pos]) == OP_GETUPVAL) {
     Instruction up = p->code[pos++];
@@ -2057,7 +2057,7 @@ static int match_cdata_upval_field_tabup_scalar (Proto *p, LuaR_JIT *J,
     return 0;
   uv = cl->upvals[upidx]->v.p;
   if (luar_ffi_trace_kind(uv) != 3 ||
-      !luar_ffi_trace_field_i64(uv, getstr(tsvalue(&p->k[kidx])),
+      !luar_ffi_trace_field_int(uv, getstr(tsvalue(&p->k[kidx])),
                                 &off, &fsize) || fsize != 8)
     return 0;
   opc = GET_OPCODE(op);
@@ -9140,7 +9140,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           TValue *sv = (enc >= 0) ? &((TValue *)base)[enc]
                        : pair_source_value((TValue *)base, -1, -1 - enc);
           uint64_t bits;
-          if (sv == NULL || !luar_ffi_trace_i64_value(sv, &bits)) {
+          if (sv == NULL || !luar_ffi_trace_int_value(sv, &bits)) {
             r = 0;
             break;
           }
