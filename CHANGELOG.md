@@ -39,6 +39,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   and sibling fields preserved.
 - Narrow fields also update from cdata integer scalar registers/upvalues,
   including bitwise and shift operations.
+- Narrow integer fields copy directly (`s.a = t.b`) for matching 1/2/4-byte
+  field widths, including self-copy and sibling preservation.
 - Field fills also accept a cdata scalar register/upvalue (`s.f = V`),
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:

@@ -1804,10 +1804,10 @@ static int match_cdata_field_copy (Proto *p, LuaR_JIT *J,
       is_control_reg(src, for_a) || is_control_reg(dst, for_a) ||
       luar_ffi_trace_kind(&b[src]) != 3 ||
       luar_ffi_trace_kind(&b[dst]) != 3 ||
-      !luar_ffi_trace_field_i64(&b[src], getstr(tsvalue(&p->k[sk])),
-                                &soff, &ssize) || ssize != 8 ||
-      !luar_ffi_trace_field_i64(&b[dst], getstr(tsvalue(&p->k[dk])),
-                                &doff, &dsize) || dsize != 8 ||
+      !luar_ffi_trace_field_int(&b[src], getstr(tsvalue(&p->k[sk])),
+                                &soff, &ssize) || ssize == 0 ||
+      !luar_ffi_trace_field_int(&b[dst], getstr(tsvalue(&p->k[dk])),
+                                &doff, &dsize) || dsize != ssize ||
       soff > INT32_MAX || doff > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 82, dst, src, tmp,

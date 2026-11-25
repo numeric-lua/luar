@@ -1610,22 +1610,29 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
       (dc->ct->kind != CT_STRUCT && dc->ct->kind != CT_UNION) ||
       (sc->ct->kind != CT_STRUCT && sc->ct->kind != CT_UNION) ||
       dc->ct->size == FFI_SIZE_UNKNOWN || sc->ct->size == FFI_SIZE_UNKNOWN ||
-      dst_off > dc->ct->size || 8 > dc->ct->size - dst_off ||
-      src_off > sc->ct->size || 8 > sc->ct->size - src_off)
+      dst_off > dc->ct->size || src_off > sc->ct->size)
     return 0;
   for (i = 0; i < dc->ct->nfields; i++)
     if (dc->ct->fields[i].offset == dst_off &&
         dc->ct->fields[i].type != NULL &&
         dc->ct->fields[i].type->kind == CT_INT &&
-        dc->ct->fields[i].type->size == 8)
+        (dc->ct->fields[i].type->size == 1 ||
+         dc->ct->fields[i].type->size == 2 ||
+         dc->ct->fields[i].type->size == 4 ||
+         dc->ct->fields[i].type->size == 8))
       dt = dc->ct->fields[i].type;
   for (i = 0; i < sc->ct->nfields; i++)
     if (sc->ct->fields[i].offset == src_off &&
         sc->ct->fields[i].type != NULL &&
         sc->ct->fields[i].type->kind == CT_INT &&
-        sc->ct->fields[i].type->size == 8)
+        (sc->ct->fields[i].type->size == 1 ||
+         sc->ct->fields[i].type->size == 2 ||
+         sc->ct->fields[i].type->size == 4 ||
+         sc->ct->fields[i].type->size == 8))
       stp = sc->ct->fields[i].type;
-  if (dt == NULL || stp == NULL)
+  if (dt == NULL || stp == NULL || dt->size != stp->size ||
+      dt->size > dc->ct->size - dst_off ||
+      dt->size > sc->ct->size - src_off)
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -1649,10 +1656,12 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
                                                               : (void *)&dc->v);
   sp = (char *)((sc->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? sc->v.p
                                                               : (void *)&sc->v);
-  memcpy(&val, sp + src_off, 8);
-  memcpy(dp + dst_off, &val, 8);
+  val = 0;
+  memcpy(&val, sp + src_off, dt->size);
+  memcpy(dp + dst_off, &val, dt->size);
   tcd = ffi_push_scalar(L, ffi_getstate(L), stp);
-  memcpy(&tcd->v, &val, 8);
+  memset(&tcd->v, 0, sizeof(tcd->v));
+  memcpy(&tcd->v, &val, dt->size);
   top = s2v(L->top.p - 1);
   base = (TValue *)(L->ci->func.p + 1);
   base[tmp_reg] = *top;
