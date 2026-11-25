@@ -108,6 +108,34 @@ do
   end
 end
 
+-- Upvalue struct destination (GETTABUP/SETTABUP form).
+do
+  local U
+  local function add_u (n) for _ = 1, n do U.x = U.x + 3 end end
+  local function sub_u (n) for _ = 1, n do U.x = U.x - 3 end end
+  local function mul_u (n) for _ = 1, n do U.x = U.x * 3 end end
+  local function band_u (n) for _ = 1, n do U.x = U.x & 3 end end
+  local function shl_u (n) for _ = 1, n do U.x = U.x << 2 end end
+  for name, f in pairs{ add = add_u, sub = sub_u, mul = mul_u,
+                        band = band_u, shl = shl_u } do
+    U = ffi.new("FI")
+    U.x, U.y = 10, 77
+    jit.off()
+    f(200)
+    local want = U.x
+    U = ffi.new("FI")
+    U.x, U.y = 10, 77
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    f(200)
+    H.check(jit.stats().tint_hits > before, name .. " upvalue field did not run")
+    H.eq(U.x, want, name .. " upvalue field value")
+    H.eq(U.y, 77, name .. " upvalue field sibling")
+  end
+end
+
 jit.flush()
 jit.opt.start("hotloop=56", "hotexit=10", "ir=0", "tint=1")
 print("ffi/198_j2_i64_field_update ok")
