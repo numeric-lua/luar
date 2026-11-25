@@ -1490,7 +1490,25 @@ int luar_ffi_trace_sum_field_i64 (TValue *accv, TValue *cdv, size_t off,
   memcpy(&fld, p + off, 8);
   last = fld;
   for (k = 0; k <= count; k++) {
-    if (op == 1)
+    if (op == 3 || op == 4) {
+      if (acd->ct->is_unsigned || ft->is_unsigned) {
+        uint64_t ub = fld;
+        if (ub == 0)
+          acc = UINT64_C(0x8000000000000000);
+        else
+          acc = (op == 3) ? acc / ub : acc % ub;
+      }
+      else {
+        int64_t sa = (int64_t)acc, ss = (int64_t)fld;
+        if (ss == 0)
+          acc = UINT64_C(0x8000000000000000);
+        else if (ss == -1)
+          acc = (op == 3) ? (uint64_t)(0 - (uint64_t)sa) : 0;
+        else
+          acc = (op == 3) ? (uint64_t)(sa / ss) : (uint64_t)(sa % ss);
+      }
+    }
+    else if (op == 1)
       acc -= fld;
     else if (op == 2)
       acc *= fld;

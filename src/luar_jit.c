@@ -1343,7 +1343,8 @@ static int match_cdata_field_sum (Proto *p, LuaR_JIT *J,
       (GET_OPCODE(op) != OP_ADD && GET_OPCODE(op) != OP_SUB &&
        GET_OPCODE(op) != OP_MUL && GET_OPCODE(op) != OP_BAND &&
        GET_OPCODE(op) != OP_BOR && GET_OPCODE(op) != OP_BXOR &&
-       GET_OPCODE(op) != OP_SHL && GET_OPCODE(op) != OP_SHR))
+       GET_OPCODE(op) != OP_SHL && GET_OPCODE(op) != OP_SHR &&
+       GET_OPCODE(op) != OP_IDIV && GET_OPCODE(op) != OP_MOD))
     return 0;
   tmp = GETARG_A(g);
   sreg = GETARG_B(g);
@@ -1365,7 +1366,9 @@ static int match_cdata_field_sum (Proto *p, LuaR_JIT *J,
   else if (opc == OP_BOR) code = 7;
   else if (opc == OP_BXOR) code = 8;
   else if (opc == OP_SHL) code = 9;
-  else code = 10;
+  else if (opc == OP_SHR) code = 10;
+  else if (opc == OP_IDIV) code = 3;
+  else code = 4;
   if (off > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 80, sreg, code, acc,
@@ -1391,7 +1394,8 @@ static int match_cdata_upval_field_sum (Proto *p, LuaR_JIT *J,
       (GET_OPCODE(op) != OP_ADD && GET_OPCODE(op) != OP_SUB &&
        GET_OPCODE(op) != OP_MUL && GET_OPCODE(op) != OP_BAND &&
        GET_OPCODE(op) != OP_BOR && GET_OPCODE(op) != OP_BXOR &&
-       GET_OPCODE(op) != OP_SHL && GET_OPCODE(op) != OP_SHR))
+       GET_OPCODE(op) != OP_SHL && GET_OPCODE(op) != OP_SHR &&
+       GET_OPCODE(op) != OP_IDIV && GET_OPCODE(op) != OP_MOD))
     return 0;
   tmp = GETARG_A(g);
   upidx = GETARG_B(g);
@@ -1422,7 +1426,9 @@ static int match_cdata_upval_field_sum (Proto *p, LuaR_JIT *J,
   else if (opc == OP_BOR) code = 7;
   else if (opc == OP_BXOR) code = 8;
   else if (opc == OP_SHL) code = 9;
-  else code = 10;
+  else if (opc == OP_SHR) code = 10;
+  else if (opc == OP_IDIV) code = 3;
+  else code = 4;
   if (off > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 81, upidx, code, acc,

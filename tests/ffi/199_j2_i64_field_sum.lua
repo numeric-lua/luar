@@ -8,7 +8,10 @@ if jit.status() ~= true then
   return
 end
 
-ffi.cdef[[ typedef struct { int64_t x; int64_t y; } FS; ]]
+ffi.cdef[[
+typedef struct { int64_t x; int64_t y; } FS;
+typedef struct { uint64_t x; uint64_t y; } FU;
+]]
 
 local function run (name, f, init)
   local w = ffi.new("FS")
@@ -88,6 +91,35 @@ do
     H.eq(U.x, 7, name .. " upvalue field unchanged")
     H.eq(U.y, 9, name .. " upvalue sibling unchanged")
   end
+end
+
+-- Divide/modulo reductions over fields.
+do
+  local function check (name, f, ctype, xval)
+    local w = ffi.new(ctype)
+    w.x, w.y = xval, 9
+    jit.off()
+    local want = f(w, 200)
+    local s = ffi.new(ctype)
+    s.x, s.y = xval, 9
+    jit.flush()
+    jit.opt.start("ir=0", "hotloop=1", "tint=1")
+    jit.on()
+    local before = jit.stats().tint_hits
+    local got = f(s, 200)
+    H.check(jit.stats().tint_hits > before, name .. " did not run")
+    H.eq(got, want, name .. " value")
+  end
+  local function idiv (o, n) local a = ffi.new("int64_t", 1000000); for _ = 1, n do a = a // o.x end return a end
+  local function mod (o, n) local a = ffi.new("int64_t", 1000000); for _ = 1, n do a = a % o.x end return a end
+  local function uidiv (o, n) local a = ffi.new("uint64_t", 1000000); for _ = 1, n do a = a // o.x end return a end
+  local function umod (o, n) local a = ffi.new("uint64_t", 1000000); for _ = 1, n do a = a % o.x end return a end
+  check("field idiv", idiv, "FS", 3)
+  check("field mod", mod, "FS", 3)
+  check("field uint idiv", uidiv, "FU", 3)
+  check("field uint mod", umod, "FU", 3)
+  check("field idiv zero", idiv, "FS", 0)
+  check("field mod zero", mod, "FS", 0)
 end
 
 jit.flush()
