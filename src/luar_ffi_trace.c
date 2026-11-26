@@ -1945,6 +1945,8 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
   }
   memcpy(p + off, &val, sz);
   last = val;
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
   tcd = ffi_push_scalar(L, ffi_getstate(L), ft);
   memset(&tcd->v, 0, sizeof(tcd->v));
   memcpy(&tcd->v, &last, sz);
@@ -1953,8 +1955,6 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
   base = (TValue *)(L->ci->func.p + 1);
   base[tmp_reg] = *top;
   L->top.p--;
-  setivalue(ct, 0);
-  setivalue(it, lastkey);
   return 1;
 }
 

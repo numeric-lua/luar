@@ -9060,7 +9060,9 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             r = 0;
             break;
           }
-          if (ttisinteger(vv))
+          if (ttisboolean(vv))
+            bits = l_isfalse(vv) ? 0 : 1;
+          else if (ttisinteger(vv))
             bits = (uint64_t)ivalue(vv);
           else if (ttisfloat(vv)) {
             double d = fltvalue(vv);
