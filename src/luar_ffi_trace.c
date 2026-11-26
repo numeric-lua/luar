@@ -1545,7 +1545,9 @@ int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
     if (cd->ct->fields[i].offset == off &&
         cd->ct->fields[i].type != NULL &&
         (cd->ct->fields[i].type->kind == CT_INT ||
-         cd->ct->fields[i].type->kind == CT_BOOL) &&
+         cd->ct->fields[i].type->kind == CT_BOOL ||
+         (cd->ct->fields[i].type->kind == CT_ENUM &&
+          cd->ct->fields[i].type->size == 4)) &&
         (cd->ct->fields[i].type->size == 1 ||
          cd->ct->fields[i].type->size == 2 ||
          cd->ct->fields[i].type->size == 4 ||
@@ -2592,7 +2594,8 @@ int luar_ffi_trace_int_value (TValue *tv, uint64_t *out) {
   cd = (CData *)getudatamem(u);
   if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
       cd->ct == NULL ||
-      (cd->ct->kind != CT_INT && cd->ct->kind != CT_BOOL) ||
+      (cd->ct->kind != CT_INT && cd->ct->kind != CT_BOOL &&
+       cd->ct->kind != CT_ENUM) ||
       (cd->ct->size != 1 && cd->ct->size != 2 &&
        cd->ct->size != 4 && cd->ct->size != 8))
     return 0;
@@ -2643,7 +2646,8 @@ int luar_ffi_trace_field_int (TValue *cdv, const char *name,
     CField *f = &ct->fields[i];
     if (f->name != NULL && strcmp(f->name, name) == 0 &&
         f->bitwidth == 0 && f->type != NULL &&
-        (f->type->kind == CT_INT || f->type->kind == CT_BOOL) &&
+        (f->type->kind == CT_INT || f->type->kind == CT_BOOL ||
+         (f->type->kind == CT_ENUM && f->type->size == 4)) &&
         (f->type->size == 1 || f->type->size == 2 ||
          f->type->size == 4 || f->type->size == 8)) {
       *off = f->offset;

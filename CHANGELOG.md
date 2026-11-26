@@ -64,6 +64,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - Field fills accept cdata `_Bool` scalars, storing 0/1 in bool and
   integer destinations.
 - `_Bool` fields fill from constant `true`/`false` K values.
+- Enum fields fill from integer constants, numeric/cdata scalars and
+  upvalue struct destinations, using the 4-byte unsigned enum view.
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
