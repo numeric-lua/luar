@@ -8975,8 +8975,13 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                          (venc >= 0) ? venc : -1,
                                          (venc >= 0) ? -1 : (-1 - venc));
           uint64_t bits;
-          if (cv == NULL || vv == NULL ||
-              !luar_ffi_trace_int_value(vv, &bits)) {
+          if (cv == NULL || vv == NULL) {
+            r = 0;
+            break;
+          }
+          if (ttisinteger(vv))
+            bits = (uint64_t)ivalue(vv);
+          else if (!luar_ffi_trace_int_value(vv, &bits)) {
             r = 0;
             break;
           }
