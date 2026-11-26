@@ -1740,7 +1740,8 @@ static int match_cdata_field_fill_const (Proto *p, LuaR_JIT *J,
     return 0;
   s = p->code[start];
   if (!GETARG_k(s) || GETARG_C(s) < 0 || GETARG_C(s) >= p->sizek ||
-      !ttisinteger(&p->k[GETARG_C(s)]))
+      (!ttisinteger(&p->k[GETARG_C(s)]) &&
+       !ttisboolean(&p->k[GETARG_C(s)])))
     return 0;
   kidx = GETARG_C(s);
   kidxstr = GETARG_B(s);
@@ -9098,12 +9099,18 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                                          (enc >= 0) ? enc : -1,
                                          (enc >= 0) ? -1 : (-1 - enc));
           uint64_t bits;
-          if (cv == NULL || kidx < 0 || kidx >= p->sizek ||
-              !ttisinteger(&p->k[kidx])) {
+          if (cv == NULL || kidx < 0 || kidx >= p->sizek) {
             r = 0;
             break;
           }
-          bits = (uint64_t)(int64_t)ivalue(&p->k[kidx]);
+          if (ttisboolean(&p->k[kidx]))
+            bits = l_isfalse(&p->k[kidx]) ? 0 : 1;
+          else if (ttisinteger(&p->k[kidx]))
+            bits = (uint64_t)(int64_t)ivalue(&p->k[kidx]);
+          else {
+            r = 0;
+            break;
+          }
           r = luar_ffi_trace_fill_field_i64(
                   cv, (size_t)p->luar_tint_acc[i], bits,
                   &((TValue *)base)[expected_base + 2],
