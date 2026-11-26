@@ -1312,7 +1312,8 @@ int luar_ffi_trace_update_array_f64 (TValue *arrv, TValue *it,
       !ttisinteger(ct) || !ttisinteger(st) || !ttisinteger(it) ||
       tmp_reg < 0 || tmp_reg >= 256)
     return 0;
-  if (!ffi_view_init_dst(arrv, &v) || !v.isflt || v.esz != 8)
+  if (!ffi_view_init_dst(arrv, &v) || !v.isflt ||
+      (v.esz != 4 && v.esz != 8))
     return 0;
   count = ivalue(ct);
   step = ivalue(st);
@@ -1322,7 +1323,13 @@ int luar_ffi_trace_update_array_f64 (TValue *arrv, TValue *it,
   {
     char *pa = (char *)v.base + (ptrdiff_t)idx * (ptrdiff_t)v.esz;
     for (k = 0; k <= count; k++) {
-      memcpy(&val, pa, 8);
+      if (v.esz == 4) {
+        float f;
+        memcpy(&f, pa, 4);
+        val = (double)f;
+      }
+      else
+        memcpy(&val, pa, 8);
       last = val;
       if (op == 1)
         val -= sb;
@@ -1334,12 +1341,18 @@ int luar_ffi_trace_update_array_f64 (TValue *arrv, TValue *it,
         val = fmod(val, sb);
       else
         val += sb;
-      memcpy(pa, &val, 8);
+      if (v.esz == 4) {
+        float f = (float)val;
+        memcpy(pa, &f, 4);
+      }
+      else
+        memcpy(pa, &val, 8);
       pa += (ptrdiff_t)step * (ptrdiff_t)v.esz;
     }
   }
   tcd = ffi_push_scalar(L, ffi_getstate(L), v.elem);
-  memcpy(&tcd->v, &last, 8);
+  memset(&tcd->v, 0, sizeof(tcd->v));
+  memcpy(&tcd->v, &last, v.esz);
   top = s2v(L->top.p - 1);
   base = (TValue *)(L->ci->func.p + 1);
   base[tmp_reg] = *top;
