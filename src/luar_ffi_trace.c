@@ -1544,7 +1544,8 @@ int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
   for (i = 0; i < cd->ct->nfields; i++)
     if (cd->ct->fields[i].offset == off &&
         cd->ct->fields[i].type != NULL &&
-        cd->ct->fields[i].type->kind == CT_INT &&
+        (cd->ct->fields[i].type->kind == CT_INT ||
+         cd->ct->fields[i].type->kind == CT_BOOL) &&
         (cd->ct->fields[i].type->size == 1 ||
          cd->ct->fields[i].type->size == 2 ||
          cd->ct->fields[i].type->size == 4 ||
@@ -1585,7 +1586,8 @@ int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
       memcpy(p + off, &v, 2);
     }
     else {
-      uint8_t v = (uint8_t)tmpbits;
+      uint8_t v = (ft->kind == CT_BOOL) ? (uint8_t)(tmpbits != 0)
+                                        : (uint8_t)tmpbits;
       memcpy(p + off, &v, 1);
     }
   }
@@ -2633,7 +2635,7 @@ int luar_ffi_trace_field_int (TValue *cdv, const char *name,
     CField *f = &ct->fields[i];
     if (f->name != NULL && strcmp(f->name, name) == 0 &&
         f->bitwidth == 0 && f->type != NULL &&
-        f->type->kind == CT_INT &&
+        (f->type->kind == CT_INT || f->type->kind == CT_BOOL) &&
         (f->type->size == 1 || f->type->size == 2 ||
          f->type->size == 4 || f->type->size == 8)) {
       *off = f->offset;

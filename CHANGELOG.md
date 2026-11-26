@@ -56,6 +56,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   values and int32/int16/int8 destinations.
 - Narrow fields also fill from Lua floating scalars with C truncation
   toward zero, falling back on non-finite/out-of-range values.
+- `_Bool` struct fields fill from numeric scalars with C truth
+  normalization (any non-zero value becomes true).
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
