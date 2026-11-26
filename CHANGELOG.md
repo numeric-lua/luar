@@ -72,6 +72,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   including register/upvalue destinations and integer promotion.
 - Double fields also fill from Lua-number and cdata double scalar
   registers/upvalues.
+- Double fields update in place with float constants:
+  `s.x = s.x +|-|*|/|% k`, preserving sibling fields.
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
