@@ -70,6 +70,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   sources; the visible temporary is a Lua integer.
 - Double struct fields fill from numeric constants (`s.x = 2.5`),
   including register/upvalue destinations and integer promotion.
+- Double fields also fill from Lua-number and cdata double scalar
+  registers/upvalues.
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
