@@ -48,6 +48,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - Narrow fields update in place through an upvalue struct destination:
   int32/int16/int8 add/subtract/multiply/bitwise/shift with width
   truncation.
+- Narrow signed/unsigned fields support constant `//` and `%` updates with
+  width sign-extension/truncation.
 - Narrow upvalue struct fields also update from cdata integer scalar
   registers/upvalues.
 - Narrow integer fields fill from Lua integer scalars, including negative

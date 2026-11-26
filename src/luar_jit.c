@@ -2338,8 +2338,7 @@ static int match_cdata_field_update_const (Proto *p, LuaR_JIT *J,
   }
   else
     return 0;
-  if (scalar < INT32_MIN || scalar > INT32_MAX || off > INT32_MAX ||
-      (fsize < 8 && (code == 3 || code == 4)))
+  if (scalar < INT32_MIN || scalar > INT32_MAX || off > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 76, sreg, code, tmp,
                             (int)off, 0, (int)scalar, for_a);

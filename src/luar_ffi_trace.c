@@ -1888,9 +1888,25 @@ int luar_ffi_trace_update_field_i64 (TValue *cdv, size_t off, uint64_t sb,
     last = val;
     for (k = 0; k <= count; k++) {
     if (op == 3 || op == 4) {
-      if (sz != 8)
-        return 0;
-      if (ft->is_unsigned) {
+      if (sz != 8) {
+        uint64_t sign = UINT64_C(1) << (sz * 8 - 1);
+        uint64_t uv = val & mask, ub = sb & mask;
+        if (ft->is_unsigned) {
+          val = (ub == 0) ? 0 : (op == 3) ? uv / ub : uv % ub;
+        }
+        else {
+          int64_t sa = (int64_t)((uv & sign) ? (uv | ~mask) : uv);
+          int64_t ss = (int64_t)((ub & sign) ? (ub | ~mask) : ub);
+          if (ss == 0)
+            val = 0;
+          else if (ss == -1)
+            val = (op == 3) ? (uint64_t)(0 - (uint64_t)sa) : 0;
+          else
+            val = (op == 3) ? (uint64_t)(sa / ss) : (uint64_t)(sa % ss);
+        }
+        val &= mask;
+      }
+      else if (ft->is_unsigned) {
         uint64_t ub = sb;
         if (ub == 0)
           val = UINT64_C(0x8000000000000000);
