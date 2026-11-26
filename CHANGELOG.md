@@ -61,6 +61,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `_Bool` fields also fill directly from Lua boolean registers/upvalues.
 - `_Bool` fields copy directly, including upvalue source/destination
   forms; the visible temporary is a Lua boolean.
+- Field fills accept cdata `_Bool` scalars, storing 0/1 in bool and
+  integer destinations.
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
