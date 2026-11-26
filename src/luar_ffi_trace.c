@@ -1633,7 +1633,9 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
     if (dc->ct->fields[i].offset == dst_off &&
         dc->ct->fields[i].type != NULL &&
         (dc->ct->fields[i].type->kind == CT_INT ||
-         dc->ct->fields[i].type->kind == CT_BOOL) &&
+         dc->ct->fields[i].type->kind == CT_BOOL ||
+         (dc->ct->fields[i].type->kind == CT_ENUM &&
+          dc->ct->fields[i].type->size == 4)) &&
         (dc->ct->fields[i].type->size == 1 ||
          dc->ct->fields[i].type->size == 2 ||
          dc->ct->fields[i].type->size == 4 ||
@@ -1643,7 +1645,9 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
     if (sc->ct->fields[i].offset == src_off &&
         sc->ct->fields[i].type != NULL &&
         (sc->ct->fields[i].type->kind == CT_INT ||
-         sc->ct->fields[i].type->kind == CT_BOOL) &&
+         sc->ct->fields[i].type->kind == CT_BOOL ||
+         (sc->ct->fields[i].type->kind == CT_ENUM &&
+          sc->ct->fields[i].type->size == 4)) &&
         (sc->ct->fields[i].type->size == 1 ||
          sc->ct->fields[i].type->size == 2 ||
          sc->ct->fields[i].type->size == 4 ||
@@ -1703,6 +1707,10 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
   setivalue(it, lastkey);
   if (stp->kind == CT_BOOL) {
     settt_(tmp, val != 0 ? LUA_VTRUE : LUA_VFALSE);
+    return 1;
+  }
+  if (stp->kind == CT_ENUM) {
+    setivalue(tmp, (lua_Integer)(uint32_t)val);
     return 1;
   }
   tcd = ffi_push_scalar(L, ffi_getstate(L), stp);
