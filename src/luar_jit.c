@@ -8981,6 +8981,14 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           }
           if (ttisinteger(vv))
             bits = (uint64_t)ivalue(vv);
+          else if (ttisfloat(vv)) {
+            double d = fltvalue(vv);
+            if (!isfinite(d) || d < -9.0e18 || d > 9.0e18) {
+              r = 0;
+              break;
+            }
+            bits = (uint64_t)(int64_t)d;
+          }
           else if (!luar_ffi_trace_int_value(vv, &bits)) {
             r = 0;
             break;
