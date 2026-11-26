@@ -1521,6 +1521,61 @@ int luar_ffi_trace_update_array_i64 (TValue *arrv, TValue *it, TValue *ct,
 }
 
 
+int luar_ffi_trace_fill_field_f64 (TValue *cdv, size_t off, double value,
+                                  TValue *it, TValue *ct, TValue *st,
+                                  lua_State *L) {
+  Udata *u;
+  CData *cd;
+  CType *ft = NULL;
+  char *p;
+  lua_Integer count, step, idx, lastkey, delta;
+  int i;
+  if (cdv == NULL || it == NULL || ct == NULL || st == NULL || L == NULL ||
+      !ttisfulluserdata(cdv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL ||
+      (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size)
+    return 0;
+  for (i = 0; i < cd->ct->nfields; i++)
+    if (cd->ct->fields[i].offset == off &&
+        cd->ct->fields[i].type != NULL &&
+        cd->ct->fields[i].type->kind == CT_FLOAT &&
+        cd->ct->fields[i].type->size == 8)
+      ft = cd->ct->fields[i].type;
+  if (ft == NULL || ft->size > cd->ct->size - off)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
+                                                             : (void *)&cd->v);
+  memcpy(p + off, &value, 8);
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  return 1;
+}
+
+
 int luar_ffi_trace_fill_field_i64 (TValue *cdv, size_t off, uint64_t bits,
                                   TValue *it, TValue *ct, TValue *st,
                                   lua_State *L) {
@@ -2660,6 +2715,36 @@ int luar_ffi_trace_field_int (TValue *cdv, const char *name,
          f->type->size == 4 || f->type->size == 8)) {
       *off = f->offset;
       *size = f->type->size;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
+int luar_ffi_trace_field_f64 (TValue *cdv, const char *name,
+                             size_t *off, size_t *size) {
+  Udata *u;
+  CData *cd;
+  CType *ct;
+  uint16_t i;
+  if (cdv == NULL || name == NULL || off == NULL || size == NULL ||
+      !ttisfulluserdata(cdv))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0)
+    return 0;
+  ct = cd->ct;
+  if (ct->kind != CT_STRUCT && ct->kind != CT_UNION)
+    return 0;
+  for (i = 0; i < ct->nfields; i++) {
+    CField *f = &ct->fields[i];
+    if (f->name != NULL && strcmp(f->name, name) == 0 &&
+        f->bitwidth == 0 && f->type != NULL &&
+        f->type->kind == CT_FLOAT && f->type->size == 8) {
+      *off = f->offset;
+      *size = 8;
       return 1;
     }
   }

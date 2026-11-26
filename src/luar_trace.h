@@ -213,6 +213,11 @@ int luar_ffi_trace_int_value (TValue *tv, uint64_t *out);
 int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out);
 int luar_ffi_trace_field_int (TValue *cdv, const char *name,
                              size_t *off, size_t *size);
+int luar_ffi_trace_field_f64 (TValue *cdv, const char *name,
+                             size_t *off, size_t *size);
+int luar_ffi_trace_fill_field_f64 (TValue *cdv, size_t off, double value,
+                                  TValue *idx, TValue *count, TValue *step,
+                                  lua_State *L);
 int luar_ffi_trace_field_i64 (TValue *cdv, const char *name,
                              size_t *off, size_t *size);
 int luar_ffi_trace_field2 (TValue *cdv, const char *outer, const char *inner,

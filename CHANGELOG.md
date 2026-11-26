@@ -68,6 +68,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   upvalue struct destinations, using the 4-byte unsigned enum view.
 - Enum fields copy to/from enum and integer fields, including upvalue
   sources; the visible temporary is a Lua integer.
+- Double struct fields fill from numeric constants (`s.x = 2.5`),
+  including register/upvalue destinations and integer promotion.
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation

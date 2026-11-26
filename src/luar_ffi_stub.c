@@ -95,6 +95,16 @@ int luar_ffi_trace_field_int (TValue *cdv, const char *name, size_t *off,
                              size_t *size) {
   (void)cdv; (void)name; (void)off; (void)size; return 0;
 }
+int luar_ffi_trace_field_f64 (TValue *cdv, const char *name, size_t *off,
+                             size_t *size) {
+  (void)cdv; (void)name; (void)off; (void)size; return 0;
+}
+int luar_ffi_trace_fill_field_f64 (TValue *cdv, size_t off, double v,
+                                  TValue *i, TValue *c, TValue *st,
+                                  lua_State *L) {
+  (void)cdv; (void)off; (void)v; (void)i; (void)c; (void)st; (void)L;
+  return 0;
+}
 int luar_ffi_trace_field_i64 (TValue *cdv, const char *name, size_t *off,
                              size_t *size) {
   (void)cdv; (void)name; (void)off; (void)size; return 0;
