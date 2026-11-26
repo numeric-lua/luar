@@ -64,6 +64,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `a[i] = a[i] +|-|*|/|% k`, returning the last element as a cdata temp.
 - The same constant updates work on bounded float32 arrays, rounding
   through the 4-byte element.
+- Float/double array updates accept Lua-number scalar registers/upvalues
+  with add/subtract/multiply/divide/modulo, including float32 elements.
 - J2 fills bounded double arrays from a cdata double scalar register or
   upvalue (`a[i] = V`), including NaN and infinity values.
 - Numeric constant fills (`a[i] = k`) are also covered for double arrays,

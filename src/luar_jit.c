@@ -1327,6 +1327,66 @@ static int match_cdata_pair_store (Proto *p, LuaR_JIT *J, ptrdiff_t start,
 }
 
 
+/* LUAR: `a[i] = a[i] OP v` for float/double arrays with Lua numbers. */
+static int match_cdata_array_update_f64_number (Proto *p, LuaR_JIT *J,
+                                                ptrdiff_t start,
+                                                ptrdiff_t backedge,
+                                                int for_a, TValue *b) {
+  ptrdiff_t pos = start + 1;
+  Instruction i0, op, mm, s;
+  int tmp, arr, key, scalar_enc = 0, scalar_reg = -1, opc, code;
+  (void)b;
+  if (backedge - start + 1 != 5 && backedge - start + 1 != 6)
+    return 0;
+  i0 = p->code[start];
+  if (GET_OPCODE(i0) != OP_GETTABLE)
+    return 0;
+  tmp = GETARG_A(i0);
+  arr = GETARG_B(i0);
+  key = for_a + 2;
+  if (GETARG_C(i0) != key || luar_ffi_trace_array_kind(&b[arr]) != 2 ||
+      is_control_reg(tmp, for_a) || is_control_reg(arr, for_a))
+    return 0;
+  if (backedge - start + 1 == 6) {
+    Instruction up = p->code[start + 1];
+    if (GET_OPCODE(up) != OP_GETUPVAL)
+      return 0;
+    scalar_reg = GETARG_A(up);
+    scalar_enc = -1 - GETARG_B(up);
+    pos = start + 2;
+  }
+  if (pos + 3 != backedge)
+    return 0;
+  op = p->code[pos++];
+  mm = p->code[pos++];
+  s = p->code[pos++];
+  if ((GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+       GET_OPCODE(mm) != OP_MMBINK) ||
+      GET_OPCODE(s) != OP_SETTABLE || GETARG_A(s) != arr ||
+      GETARG_B(s) != key || GETARG_C(s) != tmp || GETARG_k(s) ||
+      GETARG_A(op) != tmp || GETARG_B(op) != tmp)
+    return 0;
+  if (scalar_enc == 0) {
+    scalar_reg = GETARG_C(op);
+    if (is_control_reg(scalar_reg, for_a) || scalar_reg == arr ||
+        scalar_reg == tmp)
+      return 0;
+    scalar_enc = scalar_reg;
+  }
+  else if (GETARG_C(op) != scalar_reg)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADD) code = 0;
+  else if (opc == OP_SUB) code = 1;
+  else if (opc == OP_MUL) code = 2;
+  else if (opc == OP_DIV) code = 3;
+  else if (opc == OP_MOD) code = 4;
+  else return 0;
+  return install_cdata_tint(p, J, backedge, 95, arr, code, tmp,
+                            0, scalar_enc, 0, for_a);
+}
+
+
 /* LUAR: `a[i] = k` for 8-byte float arrays with a numeric constant. */
 static int match_cdata_array_fill_f64_const (Proto *p, LuaR_JIT *J,
                                              ptrdiff_t start,
@@ -4542,6 +4602,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_array_fill_f64(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_array_update_f64_number(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_array_update_f64_const(p, J, start, backedge, for_a, b))
@@ -8893,6 +8956,25 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   av, &((TValue *)base)[expected_base + 2],
                   &((TValue *)base)[expected_base],
                   &((TValue *)base)[expected_base + 1], v, L);
+          break;
+        }
+        case 95: {
+          int enc = p->luar_tint_res[i];
+          TValue *sv = (enc >= 0) ? &((TValue *)base)[enc]
+                       : pair_source_value((TValue *)base, -1, -1 - enc);
+          double sb;
+          if (sv == NULL || (!ttisfloat(sv) && !ttisinteger(sv))) {
+            r = 0;
+            break;
+          }
+          sb = ttisfloat(sv) ? fltvalue(sv) : (double)ivalue(sv);
+          r = luar_ffi_trace_update_array_f64(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1], sb,
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_keys[i], L);
           break;
         }
         case 89: {
