@@ -54,6 +54,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   values and int32/int16/int8 destinations.
 - Narrow fields also fill from Lua floating scalars with C truncation
   toward zero, falling back on non-finite/out-of-range values.
+- Narrow fields update from Lua integer scalars: int32/int16/int8
+  add/subtract/multiply/bitwise/shift with width truncation.
 - Field fills also accept a cdata scalar register/upvalue (`s.f = V`),
   including uint64 fields and negative values.
 - J2 updates bounded double arrays in place with float constants:

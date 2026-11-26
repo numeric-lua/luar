@@ -9153,7 +9153,13 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           TValue *sv = (enc >= 0) ? &((TValue *)base)[enc]
                        : pair_source_value((TValue *)base, -1, -1 - enc);
           uint64_t bits;
-          if (sv == NULL || !luar_ffi_trace_int_value(sv, &bits)) {
+          if (sv == NULL) {
+            r = 0;
+            break;
+          }
+          if (ttisinteger(sv))
+            bits = (uint64_t)ivalue(sv);
+          else if (!luar_ffi_trace_int_value(sv, &bits)) {
             r = 0;
             break;
           }
