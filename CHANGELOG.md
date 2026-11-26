@@ -59,6 +59,8 @@ the runtime, while the Lua language surface follows upstream Lua.
 - `_Bool` struct fields fill from numeric scalars with C truth
   normalization (any non-zero value becomes true).
 - `_Bool` fields also fill directly from Lua boolean registers/upvalues.
+- `_Bool` fields copy directly, including upvalue source/destination
+  forms; the visible temporary is a Lua boolean.
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
