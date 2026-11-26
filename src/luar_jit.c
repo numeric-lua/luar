@@ -8989,9 +8989,17 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             }
             bits = (uint64_t)(int64_t)d;
           }
-          else if (!luar_ffi_trace_int_value(vv, &bits)) {
-            r = 0;
-            break;
+          else if (luar_ffi_trace_int_value(vv, &bits)) {
+            /* integer cdata scalar */
+          }
+          else {
+            double d;
+            if (!luar_ffi_trace_f64_value(vv, &d) ||
+                !isfinite(d) || d < -9.0e18 || d > 9.0e18) {
+              r = 0;
+              break;
+            }
+            bits = (uint64_t)(int64_t)d;
           }
           r = luar_ffi_trace_fill_field_i64(
                   cv, (size_t)p->luar_tint_acc[i], bits,
