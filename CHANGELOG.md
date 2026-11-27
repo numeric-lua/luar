@@ -78,6 +78,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   registers with the same operations.
 - Double struct fields copy directly (`dst.x = src.y`), including
   same-struct, self and cross-struct forms.
+- Double field copies accept closure-upvalue sources and destinations,
+  including both-upvalue and self-copy forms.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants
