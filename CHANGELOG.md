@@ -84,6 +84,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   register/upvalue destinations and integer promotion.
 - Float fields also fill from Lua-number and cdata float scalar
   registers/upvalues.
+- Float fields update in place with float constants:
+  `s.x = s.x +|-|*|/|% k`, preserving sibling fields.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants

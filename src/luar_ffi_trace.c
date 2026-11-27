@@ -1602,6 +1602,97 @@ int luar_ffi_trace_update_field_f64 (TValue *cdv, size_t off, double sb,
 }
 
 
+int luar_ffi_trace_update_field_f32 (TValue *cdv, size_t off, double sb,
+                                     TValue *it, TValue *ct, TValue *st,
+                                     TValue *tmp, int tmp_reg, int op,
+                                     lua_State *L) {
+  Udata *u;
+  CData *cd, *tcd;
+  CType *ft = NULL;
+  char *p;
+  double val, last;
+  lua_Integer count, step, idx, lastkey, k, delta;
+  int i;
+  TValue *top, *base;
+  if (cdv == NULL || it == NULL || ct == NULL || st == NULL ||
+      tmp == NULL || L == NULL || tmp_reg < 0 || tmp_reg >= 256 ||
+      !ttisfulluserdata(cdv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL ||
+      (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size)
+    return 0;
+  for (i = 0; i < cd->ct->nfields; i++)
+    if (cd->ct->fields[i].offset == off &&
+        cd->ct->fields[i].type != NULL &&
+        cd->ct->fields[i].type->kind == CT_FLOAT &&
+        cd->ct->fields[i].type->size == 4)
+      ft = cd->ct->fields[i].type;
+  if (ft == NULL || 4 > cd->ct->size - off)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p
+                                                             : (void *)&cd->v);
+  {
+    float f;
+    memcpy(&f, p + off, 4);
+    val = (double)f;
+  }
+  last = val;
+  for (k = 0; k <= count; k++) {
+    if (op == 1)
+      val -= sb;
+    else if (op == 2)
+      val *= sb;
+    else if (op == 3)
+      val /= sb;
+    else if (op == 4)
+      val = fmod(val, sb);
+    else
+      val += sb;
+  }
+  {
+    float f = (float)val;
+    memcpy(p + off, &f, 4);
+  }
+  last = val;
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  tcd = ffi_push_scalar(L, ffi_getstate(L), ft);
+  memset(&tcd->v, 0, sizeof(tcd->v));
+  {
+    float f = (float)last;
+    memcpy(&tcd->v, &f, 4);
+  }
+  top = s2v(L->top.p - 1);
+  base = (TValue *)(L->ci->func.p + 1);
+  base[tmp_reg] = *top;
+  L->top.p--;
+  return 1;
+}
+
+
 int luar_ffi_trace_fill_field_f32 (TValue *cdv, size_t off, double value,
                                   TValue *it, TValue *ct, TValue *st,
                                   lua_State *L) {

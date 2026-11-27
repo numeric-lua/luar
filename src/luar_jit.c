@@ -2042,6 +2042,56 @@ static int match_cdata_field_update_f64_const (Proto *p, LuaR_JIT *J,
 }
 
 
+/* LUAR: `s.f = s.f OP k` for a float field. */
+static int match_cdata_field_update_f32_const (Proto *p, LuaR_JIT *J,
+                                               ptrdiff_t start,
+                                               ptrdiff_t backedge,
+                                               int for_a, TValue *b) {
+  Instruction g, op, mm, set;
+  int tmp, sreg, kidx, opc, code = -1;
+  size_t off = 0, fsize = 0;
+  if (start + 4 != backedge)
+    return 0;
+  g = p->code[start];
+  op = p->code[start + 1];
+  mm = p->code[start + 2];
+  set = p->code[start + 3];
+  if (GET_OPCODE(g) != OP_GETFIELD || GET_OPCODE(set) != OP_SETFIELD ||
+      (GET_OPCODE(mm) != OP_MMBIN && GET_OPCODE(mm) != OP_MMBINI &&
+       GET_OPCODE(mm) != OP_MMBINK))
+    return 0;
+  tmp = GETARG_A(g);
+  sreg = GETARG_B(g);
+  kidx = GETARG_C(g);
+  if (kidx < 0 || kidx >= p->sizek || !ttisstring(&p->k[kidx]) ||
+      GETARG_A(set) != sreg || GETARG_B(set) != kidx ||
+      GETARG_C(set) != tmp || GETARG_k(set) ||
+      GETARG_A(op) != tmp || GETARG_B(op) != tmp ||
+      is_control_reg(tmp, for_a) || is_control_reg(sreg, for_a) ||
+      luar_ffi_trace_kind(&b[sreg]) != 3 ||
+      !luar_ffi_trace_field_f32(&b[sreg], getstr(tsvalue(&p->k[kidx])),
+                                &off, &fsize) || fsize != 4 ||
+      off > INT32_MAX)
+    return 0;
+  opc = GET_OPCODE(op);
+  if (opc == OP_ADDK) code = 0;
+  else if (opc == OP_SUBK) code = 1;
+  else if (opc == OP_MULK) code = 2;
+  else if (opc == OP_DIVK) code = 3;
+  else if (opc == OP_MODK) code = 4;
+  else
+    return 0;
+  {
+    int idx = GETARG_C(op);
+    if (idx < 0 || idx >= p->sizek ||
+        (!ttisfloat(&p->k[idx]) && !ttisinteger(&p->k[idx])))
+      return 0;
+    return install_cdata_tint(p, J, backedge, 106, sreg, code, tmp,
+                              (int)off, 0, idx, for_a);
+  }
+}
+
+
 /* LUAR: `s.f = v` for a float field with a numeric scalar. */
 static int match_cdata_field_fill_f32_scalar (Proto *p, LuaR_JIT *J,
                                               ptrdiff_t start,
@@ -5205,6 +5255,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_field_fill_f64_scalar(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_field_update_f32_const(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_field_fill_f32_scalar(p, J, start, backedge, for_a, b))
@@ -9855,6 +9908,31 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
                   &((TValue *)base)[expected_base + 2],
                   &((TValue *)base)[expected_base],
                   &((TValue *)base)[expected_base + 1], L);
+          break;
+        }
+        case 106: {
+          int kidx = p->luar_tint_arg4[i];
+          double sb;
+          if (kidx < 0 || kidx >= p->sizek) {
+            r = 0;
+            break;
+          }
+          if (ttisfloat(&p->k[kidx]))
+            sb = fltvalue(&p->k[kidx]);
+          else if (ttisinteger(&p->k[kidx]))
+            sb = (double)ivalue(&p->k[kidx]);
+          else {
+            r = 0;
+            break;
+          }
+          r = luar_ffi_trace_update_field_f32(
+                  &((TValue *)base)[p->luar_tint_table[i]],
+                  (size_t)p->luar_tint_acc[i], sb,
+                  &((TValue *)base)[expected_base + 2],
+                  &((TValue *)base)[expected_base],
+                  &((TValue *)base)[expected_base + 1],
+                  &((TValue *)base)[p->luar_tint_upval[i]],
+                  p->luar_tint_upval[i], p->luar_tint_keys[i], L);
           break;
         }
         case 105: {
