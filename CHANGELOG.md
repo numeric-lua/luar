@@ -94,6 +94,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   including both-upvalue and self-copy forms.
 - Mixed float/double field copies convert between 4-byte and 8-byte
   fields (`dst.d = src.f` and `dst.f = src.d`).
+- Float/double fields fill from cdata integer scalars, including signed
+  negatives and unsigned values.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants

@@ -2955,6 +2955,48 @@ int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
 }
 
 
+int luar_ffi_trace_num_value (TValue *tv, double *out) {
+  Udata *u;
+  CData *cd;
+  const char *p;
+  size_t sz;
+  if (tv == NULL || out == NULL || !ttisfulluserdata(tv))
+    return 0;
+  u = (Udata *)tv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL)
+    return 0;
+  sz = cd->ct->size;
+  p = (const char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0
+                     ? cd->v.p : (const void *)&cd->v);
+  if (cd->ct->kind == CT_FLOAT && (sz == 4 || sz == 8)) {
+    if (sz == 4) { float f; memcpy(&f, p, 4); *out = (double)f; }
+    else memcpy(out, p, 8);
+    return 1;
+  }
+  if ((cd->ct->kind == CT_INT || cd->ct->kind == CT_BOOL ||
+       cd->ct->kind == CT_ENUM) &&
+      (sz == 1 || sz == 2 || sz == 4 || sz == 8)) {
+    uint64_t v = 0;
+    memcpy(&v, p, sz);
+    if (!cd->ct->is_unsigned && sz < 8) {
+      uint64_t sign = UINT64_C(1) << (sz * 8 - 1);
+      if (v & sign)
+        v |= ~((UINT64_C(1) << (sz * 8)) - 1);
+    }
+    if (cd->ct->kind == CT_ENUM)
+      *out = (double)(uint32_t)v;
+    else if (cd->ct->is_unsigned)
+      *out = (double)(uint64_t)v;
+    else
+      *out = (double)(int64_t)v;
+    return 1;
+  }
+  return 0;
+}
+
+
 int luar_ffi_trace_f64_value (TValue *tv, double *out) {
   Udata *u;
   CData *cd;
