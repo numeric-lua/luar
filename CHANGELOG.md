@@ -92,6 +92,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   same-struct, self and cross-struct forms.
 - Float field copies accept closure-upvalue sources and destinations,
   including both-upvalue and self-copy forms.
+- Mixed float/double field copies convert between 4-byte and 8-byte
+  fields (`dst.d = src.f` and `dst.f = src.d`).
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants

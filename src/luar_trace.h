@@ -420,6 +420,10 @@ int luar_ffi_trace_copy_field_i64 (TValue *dst, TValue *src, size_t dst_off,
                                   size_t src_off, TValue *idx,
                                   TValue *count, TValue *step,
                                   TValue *tmp, int tmp_reg, lua_State *L);
+int luar_ffi_trace_copy_field_float (TValue *dst, TValue *src, size_t doff,
+                                   size_t soff, TValue *idx, TValue *count,
+                                   TValue *step, TValue *tmp, int tmp_reg,
+                                   lua_State *L);
 int luar_ffi_trace_sum_field_i64 (TValue *acc, TValue *cdv, size_t off,
                                  TValue *idx, TValue *count, TValue *step,
                                  TValue *tmp, int tmp_reg, int op,

@@ -2027,6 +2027,94 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
 }
 
 
+int luar_ffi_trace_copy_field_float (TValue *dstv, TValue *srcv,
+                                   size_t dst_off, size_t src_off,
+                                   TValue *it, TValue *ct, TValue *st,
+                                   TValue *tmp, int tmp_reg, lua_State *L) {
+  Udata *u;
+  CData *dc, *sc;
+  CType *dt = NULL, *stp = NULL;
+  char *dp, *sp;
+  double val;
+  lua_Integer count, step, idx, lastkey, delta;
+  int i;
+  if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
+      st == NULL || tmp == NULL || L == NULL || tmp_reg < 0 ||
+      tmp_reg >= 256 || !ttisfulluserdata(dstv) ||
+      !ttisfulluserdata(srcv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)dstv->value_.gc;
+  dc = (CData *)getudatamem(u);
+  u = (Udata *)srcv->value_.gc;
+  sc = (CData *)getudatamem(u);
+  if (dc->magic != LUAR_FFI_MAGIC || (dc->flags & CDATA_CTYPE) != 0 ||
+      sc->magic != LUAR_FFI_MAGIC || (sc->flags & CDATA_CTYPE) != 0 ||
+      dc->ct == NULL || sc->ct == NULL ||
+      (dc->ct->kind != CT_STRUCT && dc->ct->kind != CT_UNION) ||
+      (sc->ct->kind != CT_STRUCT && sc->ct->kind != CT_UNION) ||
+      dc->ct->size == FFI_SIZE_UNKNOWN || sc->ct->size == FFI_SIZE_UNKNOWN ||
+      dst_off > dc->ct->size || src_off > sc->ct->size)
+    return 0;
+  for (i = 0; i < dc->ct->nfields; i++)
+    if (dc->ct->fields[i].offset == dst_off &&
+        dc->ct->fields[i].type != NULL &&
+        dc->ct->fields[i].type->kind == CT_FLOAT &&
+        (dc->ct->fields[i].type->size == 4 ||
+         dc->ct->fields[i].type->size == 8))
+      dt = dc->ct->fields[i].type;
+  for (i = 0; i < sc->ct->nfields; i++)
+    if (sc->ct->fields[i].offset == src_off &&
+        sc->ct->fields[i].type != NULL &&
+        sc->ct->fields[i].type->kind == CT_FLOAT &&
+        (sc->ct->fields[i].type->size == 4 ||
+         sc->ct->fields[i].type->size == 8))
+      stp = sc->ct->fields[i].type;
+  if (dt == NULL || stp == NULL || dt->size > dc->ct->size - dst_off ||
+      stp->size > sc->ct->size - src_off)
+    return 0;
+  count = ivalue(ct);
+  step = ivalue(st);
+  idx = ivalue(it);
+  if (count < 0 || step == 0)
+    return 0;
+  if (step > 0) {
+    if (count > LUA_MAXINTEGER / step)
+      return 0;
+  }
+  else {
+    if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step))
+      return 0;
+  }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  dp = (char *)((dc->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? dc->v.p
+                                                              : (void *)&dc->v);
+  sp = (char *)((sc->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? sc->v.p
+                                                              : (void *)&sc->v);
+  if (stp->size == 4) {
+    float f;
+    memcpy(&f, sp + src_off, 4);
+    val = (double)f;
+  }
+  else
+    memcpy(&val, sp + src_off, 8);
+  if (dt->size == 4) {
+    float f = (float)val;
+    memcpy(dp + dst_off, &f, 4);
+  }
+  else
+    memcpy(dp + dst_off, &val, 8);
+  setivalue(ct, 0);
+  setivalue(it, lastkey);
+  setfltvalue(tmp, (lua_Number)val);
+  return 1;
+}
+
+
 int luar_ffi_trace_sum_field_i64 (TValue *accv, TValue *cdv, size_t off,
                                  TValue *it, TValue *ct, TValue *st,
                                  TValue *tmp, int tmp_reg, int op,
