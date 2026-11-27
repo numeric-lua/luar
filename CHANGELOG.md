@@ -78,6 +78,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   registers with the same operations.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
+- Upvalue double fields also update with float constants
+  (`U.x = U.x OP k`).
 - Narrow fields update from Lua integer scalars: int32/int16/int8
   add/subtract/multiply/bitwise/shift with width truncation.
 - Narrow fields fill from cdata float/double scalars with C truncation
