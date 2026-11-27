@@ -98,6 +98,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   negatives and unsigned values.
 - Float/double fields update in place from cdata integer scalars with
   add/subtract, including upvalue destinations.
+- Upvalue float fields update from Lua-number/cdata float scalar
+  registers with add/subtract/multiply/divide/modulo.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants
