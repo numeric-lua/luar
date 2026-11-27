@@ -1922,7 +1922,8 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
          (dc->ct->fields[i].type->kind == CT_ENUM &&
           dc->ct->fields[i].type->size == 4) ||
          (dc->ct->fields[i].type->kind == CT_FLOAT &&
-          dc->ct->fields[i].type->size == 8)) &&
+          (dc->ct->fields[i].type->size == 4 ||
+           dc->ct->fields[i].type->size == 8))) &&
         (dc->ct->fields[i].type->size == 1 ||
          dc->ct->fields[i].type->size == 2 ||
          dc->ct->fields[i].type->size == 4 ||
@@ -1936,7 +1937,8 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
          (sc->ct->fields[i].type->kind == CT_ENUM &&
           sc->ct->fields[i].type->size == 4) ||
          (sc->ct->fields[i].type->kind == CT_FLOAT &&
-          sc->ct->fields[i].type->size == 8)) &&
+          (sc->ct->fields[i].type->size == 4 ||
+           sc->ct->fields[i].type->size == 8))) &&
         (sc->ct->fields[i].type->size == 1 ||
          sc->ct->fields[i].type->size == 2 ||
          sc->ct->fields[i].type->size == 4 ||
@@ -2004,7 +2006,13 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
   }
   if (stp->kind == CT_FLOAT) {
     double d;
-    memcpy(&d, &val, 8);
+    if (stp->size == 4) {
+      float f;
+      memcpy(&f, &val, 4);
+      d = (double)f;
+    }
+    else
+      memcpy(&d, &val, 8);
     setfltvalue(tmp, (lua_Number)d);
     return 1;
   }

@@ -88,6 +88,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   `s.x = s.x +|-|*|/|% k`, preserving sibling fields.
 - Float fields also update from Lua-number and cdata float scalar
   registers.
+- Float struct fields copy directly (`dst.x = src.y`), including
+  same-struct, self and cross-struct forms.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants
