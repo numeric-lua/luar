@@ -82,6 +82,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   including both-upvalue and self-copy forms.
 - Float fields fill from numeric constants (`s.x = 2.5`), including
   register/upvalue destinations and integer promotion.
+- Float fields also fill from Lua-number and cdata float scalar
+  registers/upvalues.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants
