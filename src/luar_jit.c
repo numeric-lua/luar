@@ -2438,6 +2438,67 @@ static int match_cdata_field_copy_upval (Proto *p, LuaR_JIT *J,
 
 
 /* LUAR: `dst.f = src.f` for double fields with an upvalue struct. */
+static int match_cdata_field_copy_f32_upval (Proto *p, LuaR_JIT *J,
+                                             ptrdiff_t start,
+                                             ptrdiff_t backedge,
+                                             int for_a, TValue *b) {
+  Instruction g, s;
+  int tmp, src_enc, dst_enc, sk, dk, src_is_up, dst_is_up;
+  size_t soff = 0, doff = 0, ssize = 0, dsize = 0;
+  TValue *sv, *dv;
+  if (start + 2 != backedge)
+    return 0;
+  g = p->code[start];
+  s = p->code[start + 1];
+  tmp = GETARG_A(g);
+  if (GET_OPCODE(g) == OP_GETTABUP) {
+    src_is_up = 1;
+    src_enc = -1 - GETARG_B(g);
+    sk = GETARG_C(g);
+  }
+  else if (GET_OPCODE(g) == OP_GETFIELD) {
+    src_is_up = 0;
+    src_enc = GETARG_B(g);
+    sk = GETARG_C(g);
+  }
+  else
+    return 0;
+  if (GET_OPCODE(s) == OP_SETTABUP) {
+    dst_is_up = 1;
+    dst_enc = -1 - GETARG_A(s);
+    dk = GETARG_B(s);
+  }
+  else if (GET_OPCODE(s) == OP_SETFIELD) {
+    dst_is_up = 0;
+    dst_enc = GETARG_A(s);
+    dk = GETARG_B(s);
+  }
+  else
+    return 0;
+  if ((!src_is_up && !dst_is_up) || GETARG_C(s) != tmp ||
+      GETARG_k(s) || sk < 0 || sk >= p->sizek ||
+      dk < 0 || dk >= p->sizek || !ttisstring(&p->k[sk]) ||
+      !ttisstring(&p->k[dk]) || is_control_reg(tmp, for_a) ||
+      (!src_is_up && is_control_reg(src_enc, for_a)) ||
+      (!dst_is_up && is_control_reg(dst_enc, for_a)))
+    return 0;
+  sv = pair_source_value((TValue *)b, (src_enc >= 0) ? src_enc : -1,
+                         (src_enc >= 0) ? -1 : (-1 - src_enc));
+  dv = pair_source_value((TValue *)b, (dst_enc >= 0) ? dst_enc : -1,
+                         (dst_enc >= 0) ? -1 : (-1 - dst_enc));
+  if (sv == NULL || dv == NULL || luar_ffi_trace_kind(sv) != 3 ||
+      luar_ffi_trace_kind(dv) != 3 ||
+      !luar_ffi_trace_field_f32(sv, getstr(tsvalue(&p->k[sk])),
+                                &soff, &ssize) || ssize != 4 ||
+      !luar_ffi_trace_field_f32(dv, getstr(tsvalue(&p->k[dk])),
+                                &doff, &dsize) || dsize != 4 ||
+      soff > INT32_MAX || doff > INT32_MAX)
+    return 0;
+  return install_cdata_tint(p, J, backedge, 83, dst_enc, src_enc, tmp,
+                            (int)doff, (int)soff, 0, for_a);
+}
+
+
 static int match_cdata_field_copy_f64_upval (Proto *p, LuaR_JIT *J,
                                              ptrdiff_t start,
                                              ptrdiff_t backedge,
@@ -5375,6 +5436,9 @@ static int try_compile (lua_State *L, Proto *p, ptrdiff_t start,
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_field_fill_const(p, J, start, backedge, for_a, b))
+      return 1;
+    if (!for_float && J->enable_tint &&
+        match_cdata_field_copy_f32_upval(p, J, start, backedge, for_a, b))
       return 1;
     if (!for_float && J->enable_tint &&
         match_cdata_field_copy_f64_upval(p, J, start, backedge, for_a, b))
