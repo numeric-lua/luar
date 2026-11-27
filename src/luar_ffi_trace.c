@@ -2028,6 +2028,101 @@ int luar_ffi_trace_copy_field_i64 (TValue *dstv, TValue *srcv,
 }
 
 
+int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
+                                 size_t dst_off, size_t src_off,
+                                 TValue *it, TValue *ct, TValue *st,
+                                 TValue *tmp, int tmp_reg, lua_State *L) {
+  Udata *u;
+  CData *dc, *sc;
+  CType *dt = NULL, *stp = NULL;
+  char *dp, *sp;
+  uint64_t raw;
+  double val;
+  int sflt, dflt;
+  lua_Integer count, step, idx, lastkey, delta;
+  int i;
+  if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
+      st == NULL || tmp == NULL || L == NULL || tmp_reg < 0 ||
+      tmp_reg >= 256 || !ttisfulluserdata(dstv) ||
+      !ttisfulluserdata(srcv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)dstv->value_.gc; dc = (CData *)getudatamem(u);
+  u = (Udata *)srcv->value_.gc; sc = (CData *)getudatamem(u);
+  if (dc->magic != LUAR_FFI_MAGIC || (dc->flags & CDATA_CTYPE) != 0 ||
+      sc->magic != LUAR_FFI_MAGIC || (sc->flags & CDATA_CTYPE) != 0 ||
+      dc->ct == NULL || sc->ct == NULL ||
+      (dc->ct->kind != CT_STRUCT && dc->ct->kind != CT_UNION) ||
+      (sc->ct->kind != CT_STRUCT && sc->ct->kind != CT_UNION) ||
+      dc->ct->size == FFI_SIZE_UNKNOWN || sc->ct->size == FFI_SIZE_UNKNOWN)
+    return 0;
+  for (i = 0; i < dc->ct->nfields; i++) {
+    CType *t = dc->ct->fields[i].type;
+    if (dc->ct->fields[i].offset == dst_off && t != NULL &&
+        ((t->kind == CT_FLOAT && (t->size == 4 || t->size == 8)) ||
+         ((t->kind == CT_INT || t->kind == CT_BOOL ||
+           (t->kind == CT_ENUM && t->size == 4)) && t->size <= 4)))
+      dt = t;
+  }
+  for (i = 0; i < sc->ct->nfields; i++) {
+    CType *t = sc->ct->fields[i].type;
+    if (sc->ct->fields[i].offset == src_off && t != NULL &&
+        ((t->kind == CT_FLOAT && (t->size == 4 || t->size == 8)) ||
+         ((t->kind == CT_INT || t->kind == CT_BOOL ||
+           (t->kind == CT_ENUM && t->size == 4)) && t->size <= 4)))
+      stp = t;
+  }
+  if (dt == NULL || stp == NULL || dt->size > dc->ct->size - dst_off ||
+      stp->size > sc->ct->size - src_off)
+    return 0;
+  sflt = (stp->kind == CT_FLOAT);
+  dflt = (dt->kind == CT_FLOAT);
+  if (sflt == dflt)
+    return 0;
+  count = ivalue(ct); step = ivalue(st); idx = ivalue(it);
+  if (count < 0 || step == 0) return 0;
+  if (step > 0) { if (count > LUA_MAXINTEGER / step) return 0; }
+  else { if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step)) return 0; }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  dp = (char *)((dc->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? dc->v.p : (void *)&dc->v);
+  sp = (char *)((sc->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? sc->v.p : (void *)&sc->v);
+  if (sflt) {
+    if (stp->size == 4) { float f; memcpy(&f, sp + src_off, 4); val = (double)f; }
+    else memcpy(&val, sp + src_off, 8);
+  }
+  else {
+    raw = 0; memcpy(&raw, sp + src_off, stp->size);
+    if (!stp->is_unsigned && stp->size < 8) {
+      uint64_t sign = UINT64_C(1) << (stp->size * 8 - 1);
+      if (raw & sign) raw |= ~((UINT64_C(1) << (stp->size * 8)) - 1);
+    }
+    val = stp->is_unsigned ? (double)raw : (double)(int64_t)raw;
+  }
+  if (dflt) {
+    if (dt->size == 4) { float f = (float)val; memcpy(dp + dst_off, &f, 4); }
+    else memcpy(dp + dst_off, &val, 8);
+  }
+  else {
+    uint64_t out = (uint64_t)(int64_t)val;
+    if (dt->kind == CT_BOOL) { uint8_t b = (out != 0); memcpy(dp + dst_off, &b, 1); }
+    else if (dt->size == 4) { uint32_t v = (uint32_t)out; memcpy(dp + dst_off, &v, 4); }
+    else if (dt->size == 2) { uint16_t v = (uint16_t)out; memcpy(dp + dst_off, &v, 2); }
+    else { uint8_t v = (uint8_t)out; memcpy(dp + dst_off, &v, 1); }
+  }
+  setivalue(ct, 0); setivalue(it, lastkey);
+  if (sflt) { setfltvalue(tmp, (lua_Number)val); }
+  else if (stp->kind == CT_BOOL) { settt_(tmp, (raw != 0) ? LUA_VTRUE : LUA_VFALSE); }
+  else if (stp->kind == CT_ENUM) { setivalue(tmp, (lua_Integer)(uint32_t)raw); }
+  else if (stp->is_unsigned) { setivalue(tmp, (lua_Integer)(uint64_t)raw); }
+  else { setivalue(tmp, (lua_Integer)(int64_t)raw); }
+  return 1;
+}
+
+
 int luar_ffi_trace_copy_field_float (TValue *dstv, TValue *srcv,
                                    size_t dst_off, size_t src_off,
                                    TValue *it, TValue *ct, TValue *st,
