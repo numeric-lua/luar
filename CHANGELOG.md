@@ -99,6 +99,9 @@ the runtime, while the Lua language surface follows upstream Lua.
   fields with a cdata temporary.
 - Mixed integer/float copies also work through closure-upvalue struct
   sources and destinations.
+- Mixed float/double field copies work through upvalue struct sources
+  and destinations, resolving encoded upvalue slots in the kind 108
+  dispatch.
 - Float/double fields fill from cdata integer scalars, including signed
   negatives and unsigned values.
 - Float/double fields update in place from cdata integer scalars with
