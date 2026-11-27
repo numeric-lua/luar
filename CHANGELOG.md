@@ -96,6 +96,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   fields (`dst.d = src.f` and `dst.f = src.d`).
 - Mixed integer/float field copies convert with C truncation
   (`dst.d = src.i`, `dst.i = src.d`, etc.) for int fields up to 4 bytes.
+- Mixed integer/float copies also work through closure-upvalue struct
+  sources and destinations.
 - Float/double fields fill from cdata integer scalars, including signed
   negatives and unsigned values.
 - Float/double fields update in place from cdata integer scalars with
