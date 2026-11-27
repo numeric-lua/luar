@@ -10037,7 +10037,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             sb = fltvalue(sv);
           else if (ttisinteger(sv))
             sb = (double)ivalue(sv);
-          else if (!luar_ffi_trace_f64_value(sv, &sb)) {
+          else if (!luar_ffi_trace_num_value(sv, &sb)) {
             r = 0;
             break;
           }
@@ -10063,7 +10063,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             sb = fltvalue(sv);
           else if (ttisinteger(sv))
             sb = (double)ivalue(sv);
-          else if (!luar_ffi_trace_f64_value(sv, &sb)) {
+          else if (!luar_ffi_trace_num_value(sv, &sb)) {
             r = 0;
             break;
           }
@@ -10143,7 +10143,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             sb = fltvalue(sv);
           else if (ttisinteger(sv))
             sb = (double)ivalue(sv);
-          else if (!luar_ffi_trace_f64_value(sv, &sb)) {
+          else if (!luar_ffi_trace_num_value(sv, &sb)) {
             r = 0;
             break;
           }

@@ -96,6 +96,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   fields (`dst.d = src.f` and `dst.f = src.d`).
 - Float/double fields fill from cdata integer scalars, including signed
   negatives and unsigned values.
+- Float/double fields update in place from cdata integer scalars with
+  add/subtract, including upvalue destinations.
 - Double field scalar updates work through an upvalue struct destination
   (`U.x = U.x OP v`).
 - Upvalue double fields also update with float constants

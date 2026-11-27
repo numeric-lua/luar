@@ -1671,6 +1671,7 @@ int luar_ffi_trace_update_field_f32 (TValue *cdv, size_t off, double sb,
       val = fmod(val, sb);
     else
       val += sb;
+    val = (double)(float)val;
   }
   {
     float f = (float)val;
