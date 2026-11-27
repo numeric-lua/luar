@@ -2033,7 +2033,7 @@ int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
                                  TValue *it, TValue *ct, TValue *st,
                                  TValue *tmp, int tmp_reg, lua_State *L) {
   Udata *u;
-  CData *dc, *sc;
+  CData *dc, *sc, *tcd;
   CType *dt = NULL, *stp = NULL;
   char *dp, *sp;
   uint64_t raw;
@@ -2041,6 +2041,7 @@ int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
   int sflt, dflt;
   lua_Integer count, step, idx, lastkey, delta;
   int i;
+  TValue *top, *base;
   if (dstv == NULL || srcv == NULL || it == NULL || ct == NULL ||
       st == NULL || tmp == NULL || L == NULL || tmp_reg < 0 ||
       tmp_reg >= 256 || !ttisfulluserdata(dstv) ||
@@ -2061,7 +2062,7 @@ int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
     if (dc->ct->fields[i].offset == dst_off && t != NULL &&
         ((t->kind == CT_FLOAT && (t->size == 4 || t->size == 8)) ||
          ((t->kind == CT_INT || t->kind == CT_BOOL ||
-           (t->kind == CT_ENUM && t->size == 4)) && t->size <= 4)))
+           (t->kind == CT_ENUM && t->size == 4)))))
       dt = t;
   }
   for (i = 0; i < sc->ct->nfields; i++) {
@@ -2069,7 +2070,7 @@ int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
     if (sc->ct->fields[i].offset == src_off && t != NULL &&
         ((t->kind == CT_FLOAT && (t->size == 4 || t->size == 8)) ||
          ((t->kind == CT_INT || t->kind == CT_BOOL ||
-           (t->kind == CT_ENUM && t->size == 4)) && t->size <= 4)))
+           (t->kind == CT_ENUM && t->size == 4)))))
       stp = t;
   }
   if (dt == NULL || stp == NULL || dt->size > dc->ct->size - dst_off ||
@@ -2108,7 +2109,8 @@ int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
   }
   else {
     uint64_t out = (uint64_t)(int64_t)val;
-    if (dt->kind == CT_BOOL) { uint8_t b = (out != 0); memcpy(dp + dst_off, &b, 1); }
+    if (dt->size == 8) { memcpy(dp + dst_off, &out, 8); }
+    else if (dt->kind == CT_BOOL) { uint8_t b = (out != 0); memcpy(dp + dst_off, &b, 1); }
     else if (dt->size == 4) { uint32_t v = (uint32_t)out; memcpy(dp + dst_off, &v, 4); }
     else if (dt->size == 2) { uint16_t v = (uint16_t)out; memcpy(dp + dst_off, &v, 2); }
     else { uint8_t v = (uint8_t)out; memcpy(dp + dst_off, &v, 1); }
@@ -2117,6 +2119,15 @@ int luar_ffi_trace_copy_field_num (TValue *dstv, TValue *srcv,
   if (sflt) { setfltvalue(tmp, (lua_Number)val); }
   else if (stp->kind == CT_BOOL) { settt_(tmp, (raw != 0) ? LUA_VTRUE : LUA_VFALSE); }
   else if (stp->kind == CT_ENUM) { setivalue(tmp, (lua_Integer)(uint32_t)raw); }
+  else if (stp->size == 8) {
+    tcd = ffi_push_scalar(L, ffi_getstate(L), stp);
+    memset(&tcd->v, 0, sizeof(tcd->v));
+    memcpy(&tcd->v, &raw, 8);
+    top = s2v(L->top.p - 1);
+    base = (TValue *)(L->ci->func.p + 1);
+    base[tmp_reg] = *top;
+    L->top.p--;
+  }
   else if (stp->is_unsigned) { setivalue(tmp, (lua_Integer)(uint64_t)raw); }
   else { setivalue(tmp, (lua_Integer)(int64_t)raw); }
   return 1;

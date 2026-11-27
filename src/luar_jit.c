@@ -2740,7 +2740,7 @@ static int match_cdata_field_copy_num_upval (Proto *p, LuaR_JIT *J,
        luar_ffi_trace_field_f64(dv, getstr(tsvalue(&p->k[dk])), &doff, &dsize);
   si = !sf && luar_ffi_trace_field_int(sv, getstr(tsvalue(&p->k[sk])), &soff, &ssize);
   di = !df && luar_ffi_trace_field_int(dv, getstr(tsvalue(&p->k[dk])), &doff, &dsize);
-  if (sf == df || (!sf && (!si || ssize > 4)) || (!df && (!di || dsize > 4)) ||
+  if (sf == df || (!sf && !si) || (!df && !di) ||
       soff > INT32_MAX || doff > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 112, dst_enc, src_enc, tmp,
@@ -2774,7 +2774,7 @@ static int match_cdata_field_copy_num (Proto *p, LuaR_JIT *J,
        luar_ffi_trace_field_f64(&b[dst], getstr(tsvalue(&p->k[dk])), &doff, &dsize);
   si = !sf && luar_ffi_trace_field_int(&b[src], getstr(tsvalue(&p->k[sk])), &soff, &ssize);
   di = !df && luar_ffi_trace_field_int(&b[dst], getstr(tsvalue(&p->k[dk])), &doff, &dsize);
-  if (sf == df || (!sf && (!si || ssize > 4)) || (!df && (!di || dsize > 4)) ||
+  if (sf == df || (!sf && !si) || (!df && !di) ||
       soff > INT32_MAX || doff > INT32_MAX)
     return 0;
   return install_cdata_tint(p, J, backedge, 112, dst, src, tmp,
