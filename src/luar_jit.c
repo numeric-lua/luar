@@ -10260,12 +10260,16 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           }
           else {
             double d;
-            if (!luar_ffi_trace_f64_value(vv, &d) ||
-                !isfinite(d) || d < -9.0e18 || d > 9.0e18) {
+            if (!luar_ffi_trace_f64_value(vv, &d)) {
               r = 0;
               break;
             }
-            bits = (uint64_t)(int64_t)d;
+            r = luar_ffi_trace_fill_field_double(
+                    cv, (size_t)p->luar_tint_acc[i], d,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1], L);
+            break;
           }
           r = luar_ffi_trace_fill_field_i64(
                   cv, (size_t)p->luar_tint_acc[i], bits,

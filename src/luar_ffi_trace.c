@@ -1694,6 +1694,65 @@ int luar_ffi_trace_update_field_f32 (TValue *cdv, size_t off, double sb,
 }
 
 
+int luar_ffi_trace_fill_field_double (TValue *cdv, size_t off, double value,
+                                     TValue *it, TValue *ct, TValue *st,
+                                     lua_State *L) {
+  Udata *u;
+  CData *cd;
+  CType *ft = NULL;
+  char *p;
+  uint64_t bits;
+  lua_Integer count, step, idx, lastkey, delta;
+  int i;
+  if (cdv == NULL || it == NULL || ct == NULL || st == NULL || L == NULL ||
+      !ttisfulluserdata(cdv) || !ttisinteger(it) || !ttisinteger(ct) ||
+      !ttisinteger(st))
+    return 0;
+  u = (Udata *)cdv->value_.gc;
+  cd = (CData *)getudatamem(u);
+  if (cd->magic != LUAR_FFI_MAGIC || (cd->flags & CDATA_CTYPE) != 0 ||
+      cd->ct == NULL ||
+      (cd->ct->kind != CT_STRUCT && cd->ct->kind != CT_UNION) ||
+      cd->ct->size == FFI_SIZE_UNKNOWN || off > cd->ct->size)
+    return 0;
+  for (i = 0; i < cd->ct->nfields; i++)
+    if (cd->ct->fields[i].offset == off &&
+        cd->ct->fields[i].type != NULL &&
+        (cd->ct->fields[i].type->kind == CT_INT ||
+         cd->ct->fields[i].type->kind == CT_BOOL ||
+         cd->ct->fields[i].type->kind == CT_ENUM))
+      ft = cd->ct->fields[i].type;
+  if (ft == NULL || ft->size > cd->ct->size - off)
+    return 0;
+  if (ft->is_unsigned && value >= 0.0) {
+    if (!(value < 18446744073709551616.0))
+      return 0;
+    bits = (uint64_t)value;
+  }
+  else {
+    if (!(value >= -9223372036854775808.0 &&
+          value < 9223372036854775808.0))
+      return 0;
+    bits = (uint64_t)(int64_t)value;
+  }
+  if (ft->kind == CT_BOOL)
+    bits = (bits != 0);
+  count = ivalue(ct); step = ivalue(st); idx = ivalue(it);
+  if (count < 0 || step == 0) return 0;
+  if (step > 0) { if (count > LUA_MAXINTEGER / step) return 0; }
+  else { if (step == LUA_MININTEGER || count > LUA_MAXINTEGER / (-step)) return 0; }
+  delta = count * step;
+  if ((step > 0 && idx > LUA_MAXINTEGER - delta) ||
+      (step < 0 && idx < LUA_MININTEGER - delta))
+    return 0;
+  lastkey = idx + delta;
+  p = (char *)((cd->flags & (CDATA_OWNED | CDATA_REF)) != 0 ? cd->v.p : (void *)&cd->v);
+  memcpy(p + off, &bits, ft->size);
+  setivalue(ct, 0); setivalue(it, lastkey);
+  return 1;
+}
+
+
 int luar_ffi_trace_fill_field_f32 (TValue *cdv, size_t off, double value,
                                   TValue *it, TValue *ct, TValue *st,
                                   lua_State *L) {

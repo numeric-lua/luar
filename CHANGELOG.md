@@ -114,6 +114,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   truncation, including upvalue destinations.
 - Narrow signed cdata integers sign-extend when filling wider integer
   fields, fixing negative values widening to large positives.
+- Integer fields fill from floating cdata across the full uint64 range,
+  not just the signed int64 interval.
 - Upvalue float fields also update with float constants
   (`U.x = U.x OP k`).
 - Double field scalar updates work through an upvalue struct destination

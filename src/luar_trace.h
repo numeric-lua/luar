@@ -221,6 +221,9 @@ int luar_ffi_trace_update_field_f32 (TValue *cdv, size_t off, double scalar,
                                      TValue *idx, TValue *count,
                                      TValue *step, TValue *tmp, int tmp_reg,
                                      int op, lua_State *L);
+int luar_ffi_trace_fill_field_double (TValue *cdv, size_t off, double value,
+                                     TValue *idx, TValue *count,
+                                     TValue *step, lua_State *L);
 int luar_ffi_trace_fill_field_f32 (TValue *cdv, size_t off, double value,
                                   TValue *idx, TValue *count, TValue *step,
                                   lua_State *L);
