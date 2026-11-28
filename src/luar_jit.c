@@ -10249,11 +10249,12 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             bits = (uint64_t)ivalue(vv);
           else if (ttisfloat(vv)) {
             double d = fltvalue(vv);
-            if (!isfinite(d) || d < -9.0e18 || d > 9.0e18) {
-              r = 0;
-              break;
-            }
-            bits = (uint64_t)(int64_t)d;
+            r = luar_ffi_trace_fill_field_double(
+                    cv, (size_t)p->luar_tint_acc[i], d,
+                    &((TValue *)base)[expected_base + 2],
+                    &((TValue *)base)[expected_base],
+                    &((TValue *)base)[expected_base + 1], L);
+            break;
           }
           else if (luar_ffi_trace_scalar_bits(vv, &bits)) {
             /* integer cdata scalar */
