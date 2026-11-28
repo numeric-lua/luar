@@ -112,6 +112,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   add/subtract.
 - Integer fields update from cdata float/double scalars with C
   truncation, including upvalue destinations.
+- Narrow signed cdata integers sign-extend when filling wider integer
+  fields, fixing negative values widening to large positives.
 - Upvalue float fields also update with float constants
   (`U.x = U.x OP k`).
 - Double field scalar updates work through an upvalue struct destination

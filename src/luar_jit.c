@@ -2879,7 +2879,7 @@ static int match_cdata_field_copy_float_mixed (Proto *p, LuaR_JIT *J,
 /* LUAR: integer bits from an integer or floating cdata scalar. */
 static int cdata_int_bits (TValue *v, uint64_t *out) {
   double d;
-  if (luar_ffi_trace_int_value(v, out))
+  if (luar_ffi_trace_scalar_bits(v, out))
     return 1;
   if (!luar_ffi_trace_f64_value(v, &d))
     return 0;
@@ -10255,7 +10255,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
             }
             bits = (uint64_t)(int64_t)d;
           }
-          else if (luar_ffi_trace_int_value(vv, &bits)) {
+          else if (luar_ffi_trace_scalar_bits(vv, &bits)) {
             /* integer cdata scalar */
           }
           else {

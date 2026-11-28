@@ -210,6 +210,7 @@ int luar_ffi_trace_field (TValue *cdv, const char *name, int *kind,
                           size_t *off, size_t *size);
 int luar_ffi_trace_num_value (TValue *tv, double *out);
 int luar_ffi_trace_f64_value (TValue *tv, double *out);
+int luar_ffi_trace_scalar_bits (TValue *tv, uint64_t *out);
 int luar_ffi_trace_int_value (TValue *tv, uint64_t *out);
 int luar_ffi_trace_i64_value (TValue *tv, uint64_t *out);
 int luar_ffi_trace_field_int (TValue *cdv, const char *name,
