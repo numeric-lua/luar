@@ -110,6 +110,8 @@ the runtime, while the Lua language surface follows upstream Lua.
   registers with add/subtract/multiply/divide/modulo.
 - Upvalue float/double fields update from cdata integer scalars with
   add/subtract.
+- Integer fields update from cdata float/double scalars with C
+  truncation, including upvalue destinations.
 - Upvalue float fields also update with float constants
   (`U.x = U.x OP k`).
 - Double field scalar updates work through an upvalue struct destination

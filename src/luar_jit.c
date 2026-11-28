@@ -2876,6 +2876,20 @@ static int match_cdata_field_copy_float_mixed (Proto *p, LuaR_JIT *J,
 }
 
 
+/* LUAR: integer bits from an integer or floating cdata scalar. */
+static int cdata_int_bits (TValue *v, uint64_t *out) {
+  double d;
+  if (luar_ffi_trace_int_value(v, out))
+    return 1;
+  if (!luar_ffi_trace_f64_value(v, &d))
+    return 0;
+  if (!(d >= -9223372036854775808.0 && d < 9223372036854775808.0))
+    return 0;
+  *out = (uint64_t)(int64_t)d;
+  return 1;
+}
+
+
 /* LUAR: `dst.f = src.f` for float struct fields. */
 static int match_cdata_field_copy_f32 (Proto *p, LuaR_JIT *J,
                                        ptrdiff_t start, ptrdiff_t backedge,
@@ -10769,7 +10783,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           uv = cl->upvals[up]->v.p;
           sv = (enc >= 0) ? &((TValue *)base)[enc]
                : pair_source_value((TValue *)base, -1, -1 - enc);
-          if (sv == NULL || !luar_ffi_trace_int_value(sv, &bits)) {
+          if (sv == NULL || !cdata_int_bits(sv, &bits)) {
             r = 0;
             break;
           }
@@ -10819,7 +10833,7 @@ int luari_jit_try_run (lua_State *L, Proto *p, int pc, void *base,
           }
           if (ttisinteger(sv))
             bits = (uint64_t)ivalue(sv);
-          else if (!luar_ffi_trace_int_value(sv, &bits)) {
+          else if (!cdata_int_bits(sv, &bits)) {
             r = 0;
             break;
           }
